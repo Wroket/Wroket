@@ -45,7 +45,8 @@ export async function login(req: Request, res: Response) {
       httpOnly: true,
       sameSite: "lax",
       secure: cookieSecure,
-      path: "/"
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.status(200).json({ message: "Login OK" });

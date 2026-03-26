@@ -5,6 +5,7 @@ build/
 coverage/
 backend/node_modules/
 backend/dist/
+backend/data/
 
 .env
 .env.*

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import { getMe, login, register } from "@/lib/api";
 
@@ -13,6 +13,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("wroket-dark");
+    if (stored === "1") {
+      setDarkMode(true);
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      document.documentElement.classList.toggle("dark", next);
+      localStorage.setItem("wroket-dark", next ? "1" : "0");
+      return next;
+    });
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -31,7 +49,7 @@ export default function LoginPage() {
       }
 
       await getMe();
-      window.location.href = "/todos";
+      window.location.href = "/dashboard";
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Une erreur est survenue. Réessayez."
@@ -42,10 +60,26 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-2xl px-8 py-10">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-slate-950 transition-colors">
+      <button
+        onClick={toggleDarkMode}
+        className="fixed top-4 right-4 rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+        aria-label="Toggle dark mode"
+      >
+        {darkMode ? (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        )}
+      </button>
+
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 shadow-lg rounded-2xl px-8 py-10 border border-transparent dark:border-slate-700">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-center text-zinc-900">
+          <h1 className="text-2xl font-semibold text-center text-zinc-900 dark:text-slate-100">
             {mode === "login" ? "Connexion" : "Inscription"}
           </h1>
           <div className="flex gap-3 mt-4">
@@ -58,8 +92,8 @@ export default function LoginPage() {
               }}
               className={`flex-1 rounded-lg border py-2 text-sm font-medium ${
                 mode === "login"
-                  ? "border-zinc-900 bg-zinc-900 text-white"
-                  : "border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50"
+                  ? "border-zinc-900 dark:border-slate-100 bg-zinc-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                  : "border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-900 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
               }`}
             >
               Connexion
@@ -73,8 +107,8 @@ export default function LoginPage() {
               }}
               className={`flex-1 rounded-lg border py-2 text-sm font-medium ${
                 mode === "register"
-                  ? "border-zinc-900 bg-zinc-900 text-white"
-                  : "border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50"
+                  ? "border-zinc-900 dark:border-slate-100 bg-zinc-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                  : "border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-900 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
               }`}
             >
               Inscription
@@ -86,7 +120,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-zinc-700"
+              className="block text-sm font-medium text-zinc-700 dark:text-slate-300"
             >
               Email
             </label>
@@ -97,13 +131,13 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 shadow-sm focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
             />
           </div>
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-zinc-700"
+              className="block text-sm font-medium text-zinc-700 dark:text-slate-300"
             >
               Mot de passe
             </label>
@@ -114,18 +148,18 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 shadow-sm focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
             />
           </div>
 
           {success && (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+            <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
               {success}
             </p>
           )}
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-800 rounded-md px-3 py-2">
               {error}
             </p>
           )}
@@ -133,7 +167,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-lg bg-zinc-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 shadow-sm hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading
               ? (mode === "login" ? "Connexion..." : "Création...")
@@ -144,4 +178,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

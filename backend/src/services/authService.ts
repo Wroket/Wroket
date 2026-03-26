@@ -1,5 +1,7 @@
 import crypto from "crypto";
 
+import { loadStore, saveStore } from "../persistence";
+
 export interface AuthUser {
   uid: string;
   email: string;
@@ -18,9 +20,27 @@ interface StoredSession {
   expiresAt: number;
 }
 
-// MVP en mémoire (sera remplace par Firestore ensuite).
 const usersByUid = new Map<string, StoredUser>();
 const sessionsByToken = new Map<string, StoredSession>();
+
+function persistUsers(): void {
+  const obj: Record<string, StoredUser> = {};
+  usersByUid.forEach((v, k) => { obj[k] = v; });
+  const store = loadStore();
+  store.users = obj;
+  saveStore(store);
+}
+
+// Chargement initial depuis le fichier local
+(function hydrateUsers() {
+  const store = loadStore();
+  if (store.users) {
+    for (const [k, v] of Object.entries(store.users)) {
+      usersByUid.set(k, v as StoredUser);
+    }
+    console.log("[auth] %d utilisateur(s) chargé(s) depuis le fichier local", usersByUid.size);
+  }
+})();
 
 const COOKIE_NAME = "auth_token";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
@@ -66,6 +86,7 @@ export function register(input: RegisterInput): AuthUser {
 
   const createdAt = new Date().toISOString();
   usersByUid.set(uid, { uid, email, passwordSaltB64: saltB64, passwordHashB64: hashB64, createdAt });
+  persistUsers();
 
   return { uid, email };
 }
