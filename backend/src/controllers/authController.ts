@@ -6,6 +6,8 @@ import {
   logout as logoutService,
   register as registerService,
   updateProfile as updateProfileService,
+  findUserByEmail,
+  findUserByUid,
   AuthUser
 } from "../services/authService";
 
@@ -73,6 +75,34 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
   const user = req.user;
   if (!user) {
     res.status(401).json({ message: "Non authentifié" });
+    return;
+  }
+  res.status(200).json({ uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName });
+}
+
+export async function lookupUser(req: AuthenticatedRequest, res: Response) {
+  const email = req.query.email;
+  if (typeof email !== "string" || !email.includes("@")) {
+    res.status(400).json({ message: "Email requis" });
+    return;
+  }
+  const user = findUserByEmail(email);
+  if (!user) {
+    res.status(404).json({ message: "Utilisateur introuvable" });
+    return;
+  }
+  res.status(200).json({ uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName });
+}
+
+export async function lookupUserByUid(req: AuthenticatedRequest, res: Response) {
+  const uid = req.query.uid;
+  if (typeof uid !== "string" || uid.length === 0) {
+    res.status(400).json({ message: "UID requis" });
+    return;
+  }
+  const user = findUserByUid(uid);
+  if (!user) {
+    res.status(404).json({ message: "Utilisateur introuvable" });
     return;
   }
   res.status(200).json({ uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName });

@@ -1,17 +1,22 @@
 "use client";
 
-import { FormEvent, Fragment, useEffect, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import {
   createTodo,
   deleteTodo,
   getTodos,
+  getAssignedTodos,
+  getMe,
   updateTodo,
+  lookupUser,
+  lookupUserByUid,
   Todo,
   Priority,
   Effort,
   TodoStatus,
+  AuthMeResponse,
 } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n";
@@ -223,8 +228,41 @@ function sortTodos(todos: Todo[], column: SortColumn, direction: SortDirection):
 
 export default function TodosPage() {
   const { t } = useLocale();
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [meUid, setMeUid] = useState<string | null>(null);
+  const [userCache, setUserCache] = useState<Record<string, { email: string; firstName: string; lastName: string }>>({});
+  const [myTodos, setMyTodos] = useState<Todo[]>([]);
+  const [assignedTodos, setAssignedTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const resolveUser = useCallback(async (uid: string) => {
+    if (!uid || userCache[uid]) return;
+    try {
+      const u = await lookupUserByUid(uid);
+      if (u) setUserCache((c) => ({ ...c, [uid]: { email: u.email, firstName: u.firstName, lastName: u.lastName } }));
+    } catch { /* ignore */ }
+  }, [userCache]);
+
+  const userDisplayName = useCallback((uid: string): string => {
+    const u = userCache[uid];
+    if (!u) return uid.slice(0, 8) + "…";
+    if (u.firstName || u.lastName) return [u.firstName, u.lastName].filter(Boolean).join(" ");
+    return u.email;
+  }, [userCache]);
+
+  const todos = (() => {
+    const personal = myTodos.filter((t) => !t.assignedTo || t.assignedTo === meUid);
+    const seen = new Set<string>();
+    const all: Todo[] = [];
+    for (const t of [...personal, ...assignedTodos]) {
+      if (!seen.has(t.id)) { seen.add(t.id); all.push(t); }
+    }
+    return all;
+  })();
+
+  const setTodos = (updater: (prev: Todo[]) => Todo[]) => {
+    setMyTodos(updater);
+    setAssignedTodos(updater);
+  };
 
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
@@ -233,6 +271,9 @@ export default function TodosPage() {
   const [effortTouched, setEffortTouched] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<"priority" | "effort" | null>(null);
   const [deadline, setDeadline] = useState("");
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignedUser, setAssignedUser] = useState<AuthMeResponse | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -243,7 +284,10 @@ export default function TodosPage() {
   const [undoing, setUndoing] = useState(false);
   const [mainView, setMainView] = useState<"list" | "cards" | "radar">("list");
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "" });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null });
+  const [editAssignEmail, setEditAssignEmail] = useState("");
+  const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
+  const [editAssignError, setEditAssignError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
@@ -260,7 +304,14 @@ export default function TodosPage() {
       priority: todo.priority,
       effort: todo.effort ?? "medium",
       deadline: todo.deadline ?? "",
+      assignedTo: todo.assignedTo ?? null,
     });
+    setEditAssignEmail("");
+    setEditAssignedUser(null);
+    setEditAssignError(null);
+    if (todo.assignedTo && !userCache[todo.assignedTo]) {
+      resolveUser(todo.assignedTo);
+    }
   };
 
   const saveEdit = async () => {
@@ -272,6 +323,7 @@ export default function TodosPage() {
         priority: editForm.priority,
         effort: editForm.effort,
         deadline: editForm.deadline || null,
+        assignedTo: editForm.assignedTo,
       });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setEditingTodo(null);
@@ -293,8 +345,26 @@ export default function TodosPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await getTodos();
-        if (!cancelled) setTodos(list);
+        const [me, mine, assigned] = await Promise.all([
+          getMe(),
+          getTodos(),
+          getAssignedTodos(),
+        ]);
+        if (!cancelled) {
+          setMeUid(me.uid);
+          setMyTodos(mine);
+          setAssignedTodos(assigned);
+          const uids = new Set<string>();
+          [...mine, ...assigned].forEach((todo) => {
+            if (todo.assignedTo) uids.add(todo.assignedTo);
+            if (todo.userId && todo.userId !== me.uid) uids.add(todo.userId);
+          });
+          uids.forEach((uid) => {
+            lookupUserByUid(uid).then((u) => {
+              if (u && !cancelled) setUserCache((c) => ({ ...c, [uid]: { email: u.email, firstName: u.firstName, lastName: u.lastName } }));
+            }).catch(() => {});
+          });
+        }
       } catch {
         /* auth handled by AppShell */
       } finally {
@@ -309,14 +379,23 @@ export default function TodosPage() {
     setFormError(null);
     setSubmitting(true);
     try {
-      const todo = await createTodo({ title, priority, effort, deadline: deadline || null });
-      setTodos((prev) => [todo, ...prev]);
+      const todo = await createTodo({
+        title,
+        priority,
+        effort,
+        deadline: deadline || null,
+        assignedTo: assignedUser?.uid ?? null,
+      });
+      setMyTodos((prev) => [todo, ...prev]);
       setTitle("");
       setDeadline("");
       setPriority("medium");
       setPriorityTouched(false);
       setEffort("medium");
       setEffortTouched(false);
+      setAssignEmail("");
+      setAssignedUser(null);
+      setAssignError(null);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Impossible de créer la tâche");
     } finally {
@@ -348,6 +427,20 @@ export default function TodosPage() {
     } catch { /* noop */ }
   };
 
+  const handleDecline = async (todo: Todo) => {
+    try {
+      const updated = await updateTodo(todo.id, { assignmentStatus: "declined" });
+      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch { /* noop */ }
+  };
+
+  const handleAccept = async (todo: Todo) => {
+    try {
+      const updated = await updateTodo(todo.id, { assignmentStatus: "accepted" });
+      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch { /* noop */ }
+  };
+
   const handleUndo = async () => {
     if (!lastAction || undoing) return;
     setUndoing(true);
@@ -372,7 +465,7 @@ export default function TodosPage() {
         deadline: subtaskDeadline || null,
         parentId: subtaskParent.id,
       });
-      setTodos(prev => [todo, ...prev]);
+      setMyTodos(prev => [todo, ...prev]);
       setSubtaskTitle("");
       setSubtaskPriority("medium");
       setSubtaskEffort("medium");
@@ -381,6 +474,49 @@ export default function TodosPage() {
       alert(err instanceof Error ? err.message : "Error");
     } finally {
       setSubtaskSubmitting(false);
+    }
+  };
+
+  const handleAssignLookup = async (email: string) => {
+    setAssignEmail(email);
+    setAssignError(null);
+    if (!email.includes("@") || email.length < 5) {
+      setAssignedUser(null);
+      return;
+    }
+    try {
+      const user = await lookupUser(email);
+      if (user) {
+        setAssignedUser(user);
+        setAssignError(null);
+      } else {
+        setAssignedUser(null);
+        setAssignError(t("assign.userNotFound"));
+      }
+    } catch {
+      setAssignedUser(null);
+    }
+  };
+
+  const handleEditAssignLookup = async (email: string) => {
+    setEditAssignEmail(email);
+    setEditAssignError(null);
+    if (!email.includes("@") || email.length < 5) {
+      setEditAssignedUser(null);
+      return;
+    }
+    try {
+      const user = await lookupUser(email);
+      if (user) {
+        setEditAssignedUser(user);
+        setEditAssignError(null);
+        setEditForm((f) => ({ ...f, assignedTo: user.uid }));
+      } else {
+        setEditAssignedUser(null);
+        setEditAssignError(t("assign.userNotFound"));
+      }
+    } catch {
+      setEditAssignedUser(null);
     }
   };
 
@@ -473,6 +609,7 @@ export default function TodosPage() {
             <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">{t("todos.importanceLabel")}</span>
             <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">{t("todos.effortLabel")}</span>
             <span className="shrink-0 text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500" style={{width: 144}}>{t("todos.deadlineLabel")}</span>
+            <span className="min-w-[140px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">{t("assign.label")}</span>
             <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">&nbsp;</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -482,7 +619,7 @@ export default function TodosPage() {
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-4 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+              className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-4 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
             />
             <div className="relative shrink-0">
               <button
@@ -560,12 +697,34 @@ export default function TodosPage() {
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400 h-[42px]"
+              className="shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[42px]"
             />
+            <div className="relative shrink-0 min-w-[140px]">
+              <input
+                type="email"
+                placeholder={t("assign.placeholder")}
+                value={assignEmail}
+                onChange={(e) => handleAssignLookup(e.target.value)}
+                className={`w-full rounded border px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 h-[42px] ${
+                  assignedUser
+                    ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
+                    : assignError
+                      ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                      : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
+                }`}
+              />
+              {assignedUser && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+              )}
+            </div>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded bg-zinc-900 dark:bg-slate-100 px-6 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 whitespace-nowrap transition-colors h-[42px] min-w-[100px]"
+              className="rounded bg-slate-700 dark:bg-slate-100 px-6 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 whitespace-nowrap transition-colors h-[42px] min-w-[100px]"
             >
               {submitting ? t("todos.adding") : t("todos.add")}
             </button>
@@ -626,9 +785,11 @@ export default function TodosPage() {
         {/* ── Main view (List / Cards / Radar) ── */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
-              {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
-            </h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
+                {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
+              </h2>
+            </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-zinc-400">
                 {mainView === "list"
@@ -643,7 +804,7 @@ export default function TodosPage() {
                   onClick={() => setMainView("list")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
                     mainView === "list"
-                      ? "bg-zinc-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                      ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
@@ -657,7 +818,7 @@ export default function TodosPage() {
                   onClick={() => setMainView("cards")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "cards"
-                      ? "bg-zinc-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                      ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
@@ -671,7 +832,7 @@ export default function TodosPage() {
                   onClick={() => setMainView("radar")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "radar"
-                      ? "bg-zinc-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                      ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
@@ -694,6 +855,8 @@ export default function TodosPage() {
               allTodos={todos}
               sortCol={sortCol}
               sortDir={sortDir}
+              meUid={meUid}
+              userDisplayName={userDisplayName}
               onSort={(col) => {
                 if (col === sortCol) {
                   setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -707,6 +870,8 @@ export default function TodosPage() {
               onDelete={(t) => handleDelete(t)}
               onEdit={openEdit}
               onSubtask={openSubtaskModal}
+              onDecline={handleDecline}
+              onAccept={handleAccept}
             />
           ) : mainView === "cards" ? (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
@@ -725,7 +890,7 @@ export default function TodosPage() {
                   ) : (
                     <div className="space-y-2">
                       {listTodos.map((todo) => (
-                        <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCount={getSubtasks(todo.id).length} />
+                        <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} />
                       ))}
                     </div>
                   )}
@@ -735,7 +900,7 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
@@ -749,7 +914,7 @@ export default function TodosPage() {
                         {activeStatusFilters.flatMap((f) =>
                           f === "completed" ? completedTodos : f === "cancelled" ? cancelledTodos : deletedTodos
                         ).map((todo) => (
-                          <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCount={getSubtasks(todo.id).length} />
+                          <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} />
                         ))}
                       </div>
                     </div>
@@ -781,10 +946,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                   </div>
 
@@ -796,10 +961,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                   </div>
                 </>
@@ -866,6 +1031,28 @@ export default function TodosPage() {
                                 {(subtaskCounts[todo.id] ?? 0) > 0 && (
                                   <SubtaskBadge count={subtaskCounts[todo.id]} />
                                 )}
+                                {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                                    <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                    {userDisplayName(todo.userId)}
+                                  </span>
+                                )}
+                                {todo.assignedTo && meUid && todo.assignedTo !== meUid && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">
+                                    <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                    → {userDisplayName(todo.assignedTo)}
+                                  </span>
+                                )}
+                                {todo.assignmentStatus === "declined" && (
+                                  <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                                    {t("assign.declined" as TranslationKey)}
+                                  </span>
+                                )}
+                                {todo.assignmentStatus === "accepted" && (
+                                  <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                    {t("assign.accepted" as TranslationKey)}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             {todo.status !== "active" ? (
@@ -903,6 +1090,32 @@ export default function TodosPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                   </svg>
                                 </button>
+                                {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDecline(todo); }}
+                                    className="p-0.5 text-orange-300 dark:text-orange-700 hover:text-orange-600 dark:hover:text-orange-400 cursor-pointer"
+                                    aria-label={t("assign.decline" as TranslationKey)}
+                                    title={t("assign.decline" as TranslationKey)}
+                                  >
+                                    <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                                {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (todo.assignmentStatus === "declined" || todo.assignmentStatus === "pending") && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleAccept(todo); }}
+                                    className="p-0.5 text-emerald-300 dark:text-emerald-700 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
+                                    aria-label={t("assign.accept" as TranslationKey)}
+                                    title={t("assign.accept" as TranslationKey)}
+                                  >
+                                    <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDelete(todo); }}
@@ -953,7 +1166,7 @@ export default function TodosPage() {
                   onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingTodo(null); }}
                   autoFocus
-                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                 />
               </div>
               <div className="grid grid-cols-3 gap-3">
@@ -962,7 +1175,7 @@ export default function TodosPage() {
                   <select
                     value={editForm.priority}
                     onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as Priority }))}
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                   >
                     <option value="high">{t("priority.high")}</option>
                     <option value="medium">{t("priority.medium")}</option>
@@ -974,7 +1187,7 @@ export default function TodosPage() {
                   <select
                     value={editForm.effort}
                     onChange={(e) => setEditForm((f) => ({ ...f, effort: e.target.value as Effort }))}
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                   >
                     <option value="light">{t("effort.light")}</option>
                     <option value="medium">{t("effort.medium")}</option>
@@ -987,8 +1200,46 @@ export default function TodosPage() {
                     type="date"
                     value={editForm.deadline}
                     onChange={(e) => setEditForm((f) => ({ ...f, deadline: e.target.value }))}
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                   />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("assign.label")}</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder={t("assign.placeholder")}
+                    value={editAssignEmail}
+                    onChange={(e) => handleEditAssignLookup(e.target.value)}
+                    className={`w-full rounded border px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 ${
+                      editAssignedUser
+                        ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
+                        : editAssignError
+                          ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                          : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
+                    }`}
+                  />
+                  {editForm.assignedTo && !editAssignEmail && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-zinc-500 dark:text-slate-400">{t("assign.label")}: {userDisplayName(editForm.assignedTo)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((f) => ({ ...f, assignedTo: null }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                  {editAssignedUser && (
+                    <span className="absolute right-2 top-2.5 text-green-500">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                  {editAssignError && <p className="text-[10px] text-red-500 mt-0.5">{editAssignError}</p>}
                 </div>
               </div>
             </div>
@@ -1044,7 +1295,7 @@ export default function TodosPage() {
                   type="button"
                   onClick={saveEdit}
                   disabled={editSaving || !editForm.title.trim()}
-                  className="rounded bg-zinc-900 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
+                  className="rounded bg-slate-700 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
                 >
                   {editSaving ? t("edit.saving") : t("edit.save")}
                 </button>
@@ -1097,7 +1348,7 @@ export default function TodosPage() {
                 onChange={(e) => setSubtaskTitle(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && subtaskTitle.trim()) handleCreateSubtask(); if (e.key === "Escape") setSubtaskParent(null); }}
                 autoFocus
-                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
               />
               <div className="grid grid-cols-3 gap-2">
                 <select value={subtaskPriority} onChange={(e) => setSubtaskPriority(e.target.value as Priority)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800">
@@ -1139,7 +1390,7 @@ export default function TodosPage() {
                 type="button"
                 onClick={handleCreateSubtask}
                 disabled={subtaskSubmitting || !subtaskTitle.trim()}
-                className="rounded bg-zinc-900 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
+                className="rounded bg-slate-700 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
               >
                 {subtaskSubmitting ? t("subtask.adding") : t("subtask.create")}
               </button>
@@ -1295,7 +1546,7 @@ function ScatterMatrix({ todos, subtaskCounts = {} }: { todos: Todo[]; subtaskCo
 
                 {/* Tooltip */}
                 {isHovered && (
-                  <ScatterTooltip x={x} y={y} todo={todo} badge={badge} quadrant={q} dl={dl} subtaskCount={subtaskCounts[todo.id] ?? 0} />
+                  <ScatterTooltip x={x} y={y} todo={todo} badge={badge} quadrant={q} dl={dl} subtaskCount={subtaskCounts[todo.id] ?? 0} meUid={meUid} userDisplayName={userDisplayName} />
                 )}
               </div>
             );
@@ -1315,6 +1566,8 @@ function ScatterTooltip({
   quadrant,
   dl,
   subtaskCount = 0,
+  meUid,
+  userDisplayName,
 }: {
   x: number;
   y: number;
@@ -1323,6 +1576,8 @@ function ScatterTooltip({
   quadrant: Quadrant;
   dl: { text: string; cls: string } | null;
   subtaskCount?: number;
+  meUid?: string | null;
+  userDisplayName?: (uid: string) => string;
 }) {
   const { t } = useLocale();
   const showBelow = y > 75;
@@ -1347,7 +1602,7 @@ function ScatterTooltip({
 
   return (
     <div
-      className="absolute z-50 bg-zinc-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none"
+      className="absolute z-50 bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none"
       style={{ ...verticalStyle, ...horizontalStyle }}
     >
       <p className="font-semibold text-sm mb-1.5">{todo.title}</p>
@@ -1363,6 +1618,28 @@ function ScatterTooltip({
         </span>
         {dl && <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${dl.cls}`}>{dl.text}</span>}
         {subtaskCount > 0 && <SubtaskBadge count={subtaskCount} />}
+        {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && userDisplayName && (
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+            <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            {userDisplayName(todo.userId)}
+          </span>
+        )}
+        {todo.assignedTo && meUid && todo.assignedTo !== meUid && userDisplayName && (
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">
+            <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            → {userDisplayName(todo.assignedTo)}
+          </span>
+        )}
+        {todo.assignmentStatus === "declined" && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+            {t("assign.declined" as TranslationKey)}
+          </span>
+        )}
+        {todo.assignmentStatus === "accepted" && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+            {t("assign.accepted" as TranslationKey)}
+          </span>
+        )}
       </div>
       {/* Arrow */}
       <div
@@ -1400,23 +1677,31 @@ function TaskList({
   allTodos,
   sortCol,
   sortDir,
+  meUid,
+  userDisplayName,
   onSort,
   onComplete,
   onCancel,
   onDelete,
   onEdit,
   onSubtask,
+  onDecline,
+  onAccept,
 }: {
   todos: Todo[];
   allTodos: Todo[];
   sortCol: SortColumn;
   sortDir: SortDirection;
+  meUid: string | null;
+  userDisplayName: (uid: string) => string;
   onSort: (col: SortColumn) => void;
   onComplete: (t: Todo) => void;
   onCancel: (t: Todo) => void;
   onDelete: (t: Todo) => void;
   onEdit: (t: Todo) => void;
   onSubtask: (t: Todo) => void;
+  onDecline: (t: Todo) => void;
+  onAccept: (t: Todo) => void;
 }) {
   const { t } = useLocale();
   const sorted = sortTodos(todos, sortCol, sortDir);
@@ -1525,6 +1810,28 @@ function TaskList({
                               <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                             </svg>
                           </button>
+                          {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && (
+                            <button
+                              onClick={() => onDecline(todo)}
+                              title={t("assign.decline" as TranslationKey)}
+                              className="w-6 h-6 rounded flex items-center justify-center border border-orange-300 dark:border-orange-700 text-orange-400 hover:border-orange-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                          {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (todo.assignmentStatus === "declined" || todo.assignmentStatus === "pending") && (
+                            <button
+                              onClick={() => onAccept(todo)}
+                              title={t("assign.accept" as TranslationKey)}
+                              className="w-6 h-6 rounded flex items-center justify-center border border-emerald-300 dark:border-emerald-700 text-emerald-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             onClick={() => onDelete(todo)}
                             title="Supprimer"
@@ -1547,6 +1854,32 @@ function TaskList({
                       }`}>
                         {todo.title}
                       </span>
+                      {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" title={`${t("assign.assignedBy" as TranslationKey)} ${userDisplayName(todo.userId)}`}>
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          {userDisplayName(todo.userId)}
+                        </span>
+                      )}
+                      {todo.assignedTo && meUid && todo.assignedTo !== meUid && (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" title={`${t("assign.assignedTo" as TranslationKey)} ${userDisplayName(todo.assignedTo)}`}>
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          → {userDisplayName(todo.assignedTo)}
+                        </span>
+                      )}
+                      {todo.assignmentStatus === "declined" && (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                          {t("assign.declined" as TranslationKey)}
+                        </span>
+                      )}
+                      {todo.assignmentStatus === "accepted" && (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          {t("assign.accepted" as TranslationKey)}
+                        </span>
+                      )}
                       {subtasksOf(todo.id).length > 0 && (
                         <button
                           type="button"
@@ -1665,16 +1998,24 @@ function QuadrantCell({
   allTodos = [],
   onComplete,
   onDelete,
+  onDecline,
+  onAccept,
   onEdit,
   subtaskCounts = {},
+  meUid,
+  userDisplayName,
 }: {
   quadrant: Quadrant;
   todos: Todo[];
   allTodos?: Todo[];
   onComplete: (t: Todo) => void;
   onDelete: (t: Todo) => void;
+  onDecline?: (t: Todo) => void;
+  onAccept?: (t: Todo) => void;
   onEdit?: (t: Todo) => void;
   subtaskCounts?: Record<string, number>;
+  meUid?: string | null;
+  userDisplayName?: (uid: string) => string;
 }) {
   const { t } = useLocale();
   const cfg = QUADRANT_CONFIG[quadrant];
@@ -1721,7 +2062,7 @@ function QuadrantCell({
               const subs = expanded.has(todo.id) ? subtasksOf(todo.id) : [];
               return (
                 <div key={todo.id}>
-                  <MatrixCard todo={todo} onComplete={onComplete} onDelete={onDelete} onEdit={onEdit} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} />
+                  <MatrixCard todo={todo} onComplete={onComplete} onDelete={onDelete} onDecline={onDecline} onAccept={onAccept} onEdit={onEdit} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} meUid={meUid} userDisplayName={userDisplayName} />
                   {subs.length > 0 && (
                     <div className="ml-5 mt-1 space-y-1">
                       {subs.map((sub) => (
@@ -1768,18 +2109,26 @@ function MatrixCard({
   todo,
   onComplete,
   onDelete,
+  onDecline,
+  onAccept,
   onEdit,
   subtaskCount = 0,
   onToggleSubtasks,
   subtasksExpanded = false,
+  meUid,
+  userDisplayName,
 }: {
   todo: Todo;
   onComplete: (t: Todo) => void;
   onDelete: (t: Todo) => void;
+  onDecline?: (t: Todo) => void;
+  onAccept?: (t: Todo) => void;
   onEdit?: (t: Todo) => void;
   subtaskCount?: number;
   onToggleSubtasks?: () => void;
   subtasksExpanded?: boolean;
+  meUid?: string | null;
+  userDisplayName?: (uid: string) => string;
 }) {
   const { t } = useLocale();
   const badge = PRIORITY_BADGES[todo.priority];
@@ -1819,6 +2168,28 @@ function MatrixCard({
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${badge.cls}`}>{t(badge.tKey)}</span>
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
           {dl && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${dl.cls}`}>{dl.text}</span>}
+          {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && userDisplayName && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+              <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              {userDisplayName(todo.userId)}
+            </span>
+          )}
+          {todo.assignedTo && meUid && todo.assignedTo !== meUid && userDisplayName && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">
+              <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              → {userDisplayName(todo.assignedTo)}
+            </span>
+          )}
+          {todo.assignmentStatus === "declined" && (
+            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+              {t("assign.declined" as TranslationKey)}
+            </span>
+          )}
+          {todo.assignmentStatus === "accepted" && (
+            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+              {t("assign.accepted" as TranslationKey)}
+            </span>
+          )}
           {subtaskCount > 0 && (
             <button
               type="button"
@@ -1834,15 +2205,41 @@ function MatrixCard({
         </div>
       </div>
       {todo.status === "active" && (
-        <button
-          onClick={() => onDelete(todo)}
-          className="text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 shrink-0 mt-0.5"
-          aria-label="Supprimer"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+          {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && onDecline && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDecline(todo); }}
+              className="text-orange-300 dark:text-orange-700 hover:text-orange-600 dark:hover:text-orange-400"
+              aria-label={t("assign.decline" as TranslationKey)}
+              title={t("assign.decline" as TranslationKey)}
+            >
+              <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+          {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (todo.assignmentStatus === "declined" || todo.assignmentStatus === "pending") && onAccept && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onAccept(todo); }}
+              className="text-emerald-300 dark:text-emerald-700 hover:text-emerald-600 dark:hover:text-emerald-400"
+              aria-label={t("assign.accept" as TranslationKey)}
+              title={t("assign.accept" as TranslationKey)}
+            >
+              <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(todo)}
+            className="text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"
+            aria-label="Supprimer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       )}
     </div>
   );

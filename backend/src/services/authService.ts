@@ -166,6 +166,25 @@ export function updateProfile(uid: string, input: UpdateProfileInput): AuthUser 
   return { uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName };
 }
 
+/**
+ * Look up a user by email. Returns the public AuthUser or null.
+ */
+export function findUserByEmail(email: string): AuthUser | null {
+  const uid = uidFromEmail(email);
+  const user = usersByUid.get(uid);
+  if (!user) return null;
+  return { uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName };
+}
+
+/**
+ * Look up a user by uid. Returns the public AuthUser or null.
+ */
+export function findUserByUid(uid: string): AuthUser | null {
+  const user = usersByUid.get(uid);
+  if (!user) return null;
+  return { uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName };
+}
+
 export function logout(cookies: string | undefined): void {
   const token = extractSessionToken(cookies);
   if (token) {

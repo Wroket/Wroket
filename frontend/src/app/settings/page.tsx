@@ -130,7 +130,7 @@ function ProfileSection() {
     }
   };
 
-  const inputCls = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400";
+  const inputCls = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
 
   return (
     <div className="space-y-6">
@@ -167,7 +167,7 @@ function ProfileSection() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded bg-zinc-900 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
+          className="rounded bg-slate-700 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
         >
           {saving ? t("settings.saving") : t("settings.save")}
         </button>
@@ -188,7 +188,7 @@ function LanguagesSection() {
         <select
           value={locale}
           onChange={(e) => changeLocale(e.target.value as Locale)}
-          className="w-full max-w-xs rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+          className="w-full max-w-xs rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
         >
           <option value="fr">Français</option>
           <option value="en">English</option>

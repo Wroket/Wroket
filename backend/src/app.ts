@@ -7,6 +7,8 @@ import { errorHandler } from "./middlewares/errorHandler";
 import healthRoutes from "./routes/healthRoutes";
 import authRoutes from "./routes/authRoutes";
 import todoRoutes from "./routes/todoRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
+import teamRoutes from "./routes/teamRoutes";
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ app.use(express.json({ limit: "16kb" }));
 app.use("/", healthRoutes);
 app.use("/auth", authRoutes);
 app.use("/todos", todoRoutes);
+app.use("/notifications", notificationRoutes);
+app.use("/teams", teamRoutes);
 
 app.use(errorHandler);
 

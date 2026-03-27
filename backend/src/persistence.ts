@@ -6,6 +6,9 @@ const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
 interface StoreData {
   users?: Record<string, unknown>;
   todos?: Record<string, Record<string, unknown>>;
+  notifications?: Record<string, unknown[]>;
+  collaborators?: Record<string, unknown[]>;
+  teams?: Record<string, unknown>;
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;

@@ -5,11 +5,14 @@ import { loadStore, saveStore } from "../persistence";
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
 export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
+export type AssignmentStatus = "pending" | "accepted" | "declined";
 
 export interface Todo {
   id: string;
   userId: string;
   parentId: string | null;
+  assignedTo: string | null;
+  assignmentStatus: AssignmentStatus | null;
   title: string;
   priority: Priority;
   effort: Effort;
@@ -25,6 +28,7 @@ export interface CreateTodoInput {
   effort?: Effort;
   deadline?: string | null;
   parentId?: string | null;
+  assignedTo?: string | null;
 }
 
 export interface UpdateTodoInput {
@@ -33,6 +37,8 @@ export interface UpdateTodoInput {
   effort?: Effort;
   deadline?: string | null;
   status?: TodoStatus;
+  assignedTo?: string | null;
+  assignmentStatus?: AssignmentStatus | null;
 }
 
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
@@ -59,6 +65,9 @@ function persistTodos(): void {
     for (const [userId, todos] of Object.entries(store.todos)) {
       const map = new Map<string, Todo>();
       for (const [id, todo] of Object.entries(todos as Record<string, Todo>)) {
+        if (todo.assignmentStatus === undefined) {
+          todo.assignmentStatus = todo.assignedTo ? "pending" : null;
+        }
         map.set(id, todo);
         count++;
       }
@@ -80,6 +89,22 @@ function getUserTodos(userId: string): Map<string, Todo> {
 export function listTodos(userId: string): Todo[] {
   const todos = getUserTodos(userId);
   return Array.from(todos.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
+/**
+ * Returns all tasks assigned to `userId` by other users.
+ */
+export function listAssignedToMe(userId: string): Todo[] {
+  const result: Todo[] = [];
+  todosByUser.forEach((todos, ownerUid) => {
+    if (ownerUid === userId) return;
+    todos.forEach((todo) => {
+      if (todo.assignedTo === userId) result.push(todo);
+    });
+  });
+  return result.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 }
@@ -118,6 +143,8 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     id: crypto.randomUUID(),
     userId,
     parentId: input.parentId ?? null,
+    assignedTo: input.assignedTo ?? null,
+    assignmentStatus: input.assignedTo ? "pending" : null,
     title: input.title.trim(),
     priority: input.priority,
     effort: input.effort ?? "medium",
@@ -132,10 +159,26 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
   return todo;
 }
 
+/**
+ * Finds a todo by id — first in the user's own map, then across
+ * all users for tasks assigned to this user.
+ */
+function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap: Map<string, Todo> } | null {
+  const own = getUserTodos(userId);
+  const ownTodo = own.get(todoId);
+  if (ownTodo) return { todo: ownTodo, ownerMap: own };
+
+  for (const [, todos] of todosByUser) {
+    const t = todos.get(todoId);
+    if (t && t.assignedTo === userId) return { todo: t, ownerMap: todos };
+  }
+  return null;
+}
+
 export function updateTodo(userId: string, todoId: string, input: UpdateTodoInput): Todo {
-  const todos = getUserTodos(userId);
-  const todo = todos.get(todoId);
-  if (!todo) throw new Error("Tâche introuvable");
+  const found = findTodoForUser(userId, todoId);
+  if (!found) throw new Error("Tâche introuvable");
+  const { todo, ownerMap: todos } = found;
 
   if (input.title !== undefined) {
     if (input.title.trim().length === 0) throw new Error("Le titre est requis");
@@ -166,6 +209,15 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     }
     todo.status = input.status;
   }
+  if (input.assignedTo !== undefined) {
+    if (input.assignedTo !== todo.assignedTo) {
+      todo.assignedTo = input.assignedTo;
+      todo.assignmentStatus = input.assignedTo ? "pending" : null;
+    }
+  }
+  if (input.assignmentStatus !== undefined) {
+    todo.assignmentStatus = input.assignmentStatus;
+  }
 
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
@@ -174,9 +226,9 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
 }
 
 export function deleteTodo(userId: string, todoId: string): Todo {
-  const todos = getUserTodos(userId);
-  const todo = todos.get(todoId);
-  if (!todo) throw new Error("Tâche introuvable");
+  const found = findTodoForUser(userId, todoId);
+  if (!found) throw new Error("Tâche introuvable");
+  const { todo, ownerMap: todos } = found;
   todo.status = "deleted";
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);

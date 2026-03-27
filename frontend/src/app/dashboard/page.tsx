@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
-import { getTodos, Todo } from "@/lib/api";
+import { getTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { getLocale } from "@/lib/i18n";
 
@@ -61,14 +61,18 @@ function deadlineLabel(d: string, t: (k: TranslationKey) => string): { text: str
 export default function DashboardPage() {
   const { t } = useLocale();
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [recentNotifs, setRecentNotifs] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const list = await getTodos();
-        if (!cancelled) setTodos(list);
+        const [list, notifs] = await Promise.all([getTodos(), getNotifications()]);
+        if (!cancelled) {
+          setTodos(list);
+          setRecentNotifs(notifs.slice(0, 5));
+        }
       } catch {
         /* handled by AppShell auth redirect */
       } finally {
@@ -243,11 +247,38 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* ── Recent notifications ── */}
+            <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {t("dashboard.notifications")}
+              </h3>
+              {recentNotifs.length === 0 ? (
+                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noNotifications")}</p>
+              ) : (
+                <ul className="space-y-3">
+                  {recentNotifs.map((notif) => (
+                    <li key={notif.id} className="flex items-start gap-3">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${notif.read ? "bg-zinc-300 dark:bg-slate-600" : "bg-blue-500"}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{notif.message}</p>
+                        <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">
+                          {new Date(notif.createdAt).toLocaleDateString(getLocale() === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {/* ── Quick link ── */}
             <div className="flex gap-3">
               <a
                 href="/todos"
-                className="inline-flex items-center gap-2 rounded bg-zinc-900 dark:bg-slate-100 px-5 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 transition-colors"
+                className="inline-flex items-center gap-2 rounded bg-slate-700 dark:bg-slate-100 px-5 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
