@@ -5,11 +5,15 @@ import { loadStore, saveStore } from "../persistence";
 export interface AuthUser {
   uid: string;
   email: string;
+  firstName: string;
+  lastName: string;
 }
 
 interface StoredUser {
   uid: string;
   email: string;
+  firstName: string;
+  lastName: string;
   passwordSaltB64: string;
   passwordHashB64: string;
   createdAt: string;
@@ -85,10 +89,10 @@ export function register(input: RegisterInput): AuthUser {
   const hashB64 = pbkdf2Hash(input.password, saltB64);
 
   const createdAt = new Date().toISOString();
-  usersByUid.set(uid, { uid, email, passwordSaltB64: saltB64, passwordHashB64: hashB64, createdAt });
+  usersByUid.set(uid, { uid, email, firstName: "", lastName: "", passwordSaltB64: saltB64, passwordHashB64: hashB64, createdAt });
   persistUsers();
 
-  return { uid, email };
+  return { uid, email, firstName: "", lastName: "" };
 }
 
 export interface LoginInput {
@@ -117,7 +121,7 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
   const expiresAt = Date.now() + SESSION_TTL_MS;
   sessionsByToken.set(sessionToken, { uid, expiresAt });
 
-  return { uid, email, sessionToken };
+  return { uid, email, firstName: user.firstName ?? "", lastName: user.lastName ?? "", sessionToken };
 }
 
 function extractSessionToken(cookies: string | undefined): string | null {
@@ -141,7 +145,25 @@ export function getUserFromRequestCookies(cookies: string | undefined): AuthUser
 
   const user = usersByUid.get(session.uid);
   if (!user) return null;
-  return { uid: user.uid, email: user.email };
+  return { uid: user.uid, email: user.email, firstName: user.firstName ?? "", lastName: user.lastName ?? "" };
+}
+
+export interface UpdateProfileInput {
+  firstName?: string;
+  lastName?: string;
+}
+
+export function updateProfile(uid: string, input: UpdateProfileInput): AuthUser {
+  const user = usersByUid.get(uid);
+  if (!user) throw new Error("Utilisateur introuvable");
+
+  if (input.firstName !== undefined) user.firstName = input.firstName.trim().slice(0, 100);
+  if (input.lastName !== undefined) user.lastName = input.lastName.trim().slice(0, 100);
+
+  usersByUid.set(uid, user);
+  persistUsers();
+
+  return { uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName };
 }
 
 export function logout(cookies: string | undefined): void {

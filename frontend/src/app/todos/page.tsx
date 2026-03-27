@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import {
@@ -13,6 +13,9 @@ import {
   Effort,
   TodoStatus,
 } from "@/lib/api";
+import type { TranslationKey } from "@/lib/i18n";
+import { getLocale } from "@/lib/i18n";
+import { useLocale } from "@/lib/LocaleContext";
 
 type Quadrant = "do-first" | "schedule" | "delegate" | "eliminate";
 type FilterKey = Quadrant | "completed" | "cancelled" | "deleted";
@@ -70,6 +73,7 @@ const QUADRANT_CONFIG: Record<
   Quadrant,
   {
     label: string;
+    tKey: TranslationKey;
     icon: string;
     headerBg: string;
     headerText: string;
@@ -79,6 +83,7 @@ const QUADRANT_CONFIG: Record<
 > = {
   "do-first": {
     label: "FAIRE",
+    tKey: "quadrant.doFirst" as const,
     icon: "🔥",
     headerBg: "bg-red-600 dark:bg-red-700",
     headerText: "text-white",
@@ -87,6 +92,7 @@ const QUADRANT_CONFIG: Record<
   },
   schedule: {
     label: "PLANIFIER",
+    tKey: "quadrant.schedule" as const,
     icon: "📅",
     headerBg: "bg-blue-600 dark:bg-blue-700",
     headerText: "text-white",
@@ -95,6 +101,7 @@ const QUADRANT_CONFIG: Record<
   },
   delegate: {
     label: "EXPÉDIER",
+    tKey: "quadrant.delegate" as const,
     icon: "⚡",
     headerBg: "bg-amber-500 dark:bg-amber-600",
     headerText: "text-white",
@@ -103,6 +110,7 @@ const QUADRANT_CONFIG: Record<
   },
   eliminate: {
     label: "DIFFÉRER",
+    tKey: "quadrant.eliminate" as const,
     icon: "⏸️",
     headerBg: "bg-zinc-400 dark:bg-slate-600",
     headerText: "text-white",
@@ -114,39 +122,54 @@ const QUADRANT_CONFIG: Record<
 const FILTER_BUTTONS: {
   key: FilterKey;
   label: string;
+  tKey: TranslationKey;
   icon: string;
   activeClass: string;
 }[] = [
-  { key: "do-first", label: "Faire", icon: "🔥", activeClass: "bg-red-600 text-white border-red-600" },
-  { key: "schedule", label: "Planifier", icon: "📅", activeClass: "bg-blue-600 text-white border-blue-600" },
-  { key: "delegate", label: "Expédier", icon: "⚡", activeClass: "bg-amber-500 text-white border-amber-500" },
-  { key: "eliminate", label: "Différer", icon: "⏸️", activeClass: "bg-zinc-400 text-white border-zinc-400" },
-  { key: "completed", label: "Accomplies", icon: "✅", activeClass: "bg-green-600 text-white border-green-600" },
-  { key: "cancelled", label: "Annulées", icon: "🚫", activeClass: "bg-zinc-600 text-white border-zinc-600" },
-  { key: "deleted", label: "Supprimées", icon: "🗑️", activeClass: "bg-zinc-800 text-white border-zinc-800" },
+  { key: "do-first", label: "Faire", tKey: "filter.doFirst" as const, icon: "🔥", activeClass: "bg-red-600 text-white border-red-600" },
+  { key: "schedule", label: "Planifier", tKey: "filter.schedule" as const, icon: "📅", activeClass: "bg-blue-600 text-white border-blue-600" },
+  { key: "delegate", label: "Expédier", tKey: "filter.delegate" as const, icon: "⚡", activeClass: "bg-amber-500 text-white border-amber-500" },
+  { key: "eliminate", label: "Différer", tKey: "filter.eliminate" as const, icon: "⏸️", activeClass: "bg-zinc-400 text-white border-zinc-400" },
+  { key: "completed", label: "Accomplies", tKey: "filter.completed" as const, icon: "✅", activeClass: "bg-green-600 text-white border-green-600" },
+  { key: "cancelled", label: "Annulées", tKey: "filter.cancelled" as const, icon: "🚫", activeClass: "bg-zinc-600 text-white border-zinc-600" },
+  { key: "deleted", label: "Supprimées", tKey: "filter.deleted" as const, icon: "🗑️", activeClass: "bg-zinc-800 text-white border-zinc-800" },
 ];
 
-const PRIORITY_BADGES: Record<Priority, { label: string; cls: string }> = {
-  high: { label: "Haute", cls: "bg-red-500 text-white dark:bg-red-600" },
-  medium: { label: "Moyenne", cls: "bg-amber-500 text-white dark:bg-amber-600" },
-  low: { label: "Basse", cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
+const PRIORITY_BADGES: Record<Priority, { label: string; tKey: TranslationKey; cls: string }> = {
+  high: { label: "Haute", tKey: "priority.high" as const, cls: "bg-red-500 text-white dark:bg-red-600" },
+  medium: { label: "Moyenne", tKey: "priority.medium" as const, cls: "bg-amber-500 text-white dark:bg-amber-600" },
+  low: { label: "Basse", tKey: "priority.low" as const, cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
 };
 
-const EFFORT_BADGES: Record<Effort, { label: string; cls: string }> = {
-  light: { label: "Léger", cls: "bg-sky-400 text-white dark:bg-sky-600" },
-  medium: { label: "Moyen", cls: "bg-[#6b8e23] text-white dark:bg-[#556b2f]" },
-  heavy: { label: "Lourd", cls: "bg-purple-700 text-white dark:bg-purple-800" },
+const EFFORT_BADGES: Record<Effort, { label: string; tKey: TranslationKey; cls: string }> = {
+  light: { label: "Léger", tKey: "effort.light" as const, cls: "bg-sky-400 text-white dark:bg-sky-600" },
+  medium: { label: "Moyen", tKey: "effort.medium" as const, cls: "bg-[#6b8e23] text-white dark:bg-[#556b2f]" },
+  heavy: { label: "Lourd", tKey: "effort.heavy" as const, cls: "bg-purple-700 text-white dark:bg-purple-800" },
 };
 
-const QUADRANT_BADGES: Record<Quadrant, { label: string; cls: string }> = {
-  "do-first": { label: "🔥 Faire", cls: "bg-red-500 text-white dark:bg-red-600" },
-  schedule: { label: "📅 Planifier", cls: "bg-blue-500 text-white dark:bg-blue-600" },
-  delegate: { label: "⚡ Expédier", cls: "bg-amber-500 text-white dark:bg-amber-600" },
-  eliminate: { label: "⏸️ Différer", cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
+const QUADRANT_BADGES: Record<Quadrant, { label: string; tKey: TranslationKey; cls: string }> = {
+  "do-first": { label: "🔥 Faire", tKey: "badge.doFirst" as const, cls: "bg-red-500 text-white dark:bg-red-600" },
+  schedule: { label: "📅 Planifier", tKey: "badge.schedule" as const, cls: "bg-blue-500 text-white dark:bg-blue-600" },
+  delegate: { label: "⚡ Expédier", tKey: "badge.delegate" as const, cls: "bg-amber-500 text-white dark:bg-amber-600" },
+  eliminate: { label: "⏸️ Différer", tKey: "badge.eliminate" as const, cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
 };
+
+const SUBTASK_BADGE_CLS = "bg-indigo-500 text-white dark:bg-indigo-500";
+
+function SubtaskBadge({ count }: { count: number }) {
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${SUBTASK_BADGE_CLS}`}>
+      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
+      </svg>
+      {count}
+    </span>
+  );
+}
 
 function formatDeadline(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-FR", {
+  const loc = getLocale() === "en" ? "en-US" : "fr-FR";
+  return new Date(iso).toLocaleDateString(loc, {
     day: "numeric",
     month: "short",
   });
@@ -158,13 +181,13 @@ function daysUntil(iso: string): number {
   );
 }
 
-function deadlineLabel(iso: string): { text: string; cls: string } {
+function deadlineLabel(iso: string, t: (key: TranslationKey) => string): { text: string; cls: string } {
   const d = daysUntil(iso);
-  if (d < 0) return { text: "En retard", cls: "bg-red-500 text-white dark:bg-red-600" };
-  if (d === 0) return { text: "Aujourd'hui", cls: "bg-red-500 text-white dark:bg-red-600" };
-  if (d === 1) return { text: "Demain", cls: "bg-amber-500 text-white dark:bg-amber-600" };
+  if (d < 0) return { text: t("deadline.overdue"), cls: "bg-red-500 text-white dark:bg-red-600" };
+  if (d === 0) return { text: t("deadline.today"), cls: "bg-red-500 text-white dark:bg-red-600" };
+  if (d === 1) return { text: t("deadline.tomorrow"), cls: "bg-amber-500 text-white dark:bg-amber-600" };
   if (d <= URGENCY_THRESHOLD_DAYS)
-    return { text: `${d}j restants`, cls: "bg-amber-500 text-white dark:bg-amber-600" };
+    return { text: `${d}${t("deadline.daysLeft")}`, cls: "bg-amber-500 text-white dark:bg-amber-600" };
   return { text: formatDeadline(iso), cls: "bg-emerald-400 text-white dark:bg-emerald-600" };
 }
 
@@ -199,6 +222,7 @@ function sortTodos(todos: Todo[], column: SortColumn, direction: SortDirection):
 }
 
 export default function TodosPage() {
+  const { t } = useLocale();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -221,6 +245,13 @@ export default function TodosPage() {
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "" });
   const [editSaving, setEditSaving] = useState(false);
+
+  const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
+  const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [subtaskPriority, setSubtaskPriority] = useState<Priority>("medium");
+  const [subtaskEffort, setSubtaskEffort] = useState<Effort>("medium");
+  const [subtaskDeadline, setSubtaskDeadline] = useState("");
+  const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
 
   const openEdit = (todo: Todo) => {
     setEditingTodo(todo);
@@ -328,20 +359,53 @@ export default function TodosPage() {
     finally { setUndoing(false); }
   };
 
+  const getSubtasks = (parentId: string) => todos.filter(t => t.parentId === parentId);
+
+  const handleCreateSubtask = async () => {
+    if (!subtaskParent || !subtaskTitle.trim()) return;
+    setSubtaskSubmitting(true);
+    try {
+      const todo = await createTodo({
+        title: subtaskTitle,
+        priority: subtaskPriority,
+        effort: subtaskEffort,
+        deadline: subtaskDeadline || null,
+        parentId: subtaskParent.id,
+      });
+      setTodos(prev => [todo, ...prev]);
+      setSubtaskTitle("");
+      setSubtaskPriority("medium");
+      setSubtaskEffort("medium");
+      setSubtaskDeadline("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubtaskSubmitting(false);
+    }
+  };
+
+  const openSubtaskModal = (todo: Todo) => {
+    setSubtaskParent(todo);
+    setSubtaskTitle("");
+    setSubtaskPriority("medium");
+    setSubtaskEffort("medium");
+    setSubtaskDeadline("");
+  };
+
   if (loading) {
     return (
       <AppShell>
         <div className="flex items-center justify-center py-20">
-          <span className="animate-pulse text-zinc-400 dark:text-slate-500 text-sm">Chargement…</span>
+          <span className="animate-pulse text-zinc-400 dark:text-slate-500 text-sm">{t("loading")}</span>
         </div>
       </AppShell>
     );
   }
 
-  const activeTodos = todos.filter((t) => t.status === "active");
-  const completedTodos = todos.filter((t) => t.status === "completed");
-  const cancelledTodos = todos.filter((t) => t.status === "cancelled");
-  const deletedTodos = todos.filter((t) => t.status === "deleted");
+  const activeTodos = todos.filter((t) => t.status === "active" && !t.parentId);
+  const completedTodos = todos.filter((t) => t.status === "completed" && !t.parentId);
+  const cancelledTodos = todos.filter((t) => t.status === "cancelled" && !t.parentId);
+  const deletedTodos = todos.filter((t) => t.status === "deleted" && !t.parentId);
 
   const grouped: Record<Quadrant, Todo[]> = {
     "do-first": activeTodos.filter((t) => classify(t) === "do-first"),
@@ -349,6 +413,13 @@ export default function TodosPage() {
     delegate: activeTodos.filter((t) => classify(t) === "delegate"),
     eliminate: activeTodos.filter((t) => classify(t) === "eliminate"),
   };
+
+  const subtaskCounts: Record<string, number> = {};
+  for (const td of todos) {
+    if (td.parentId) {
+      subtaskCounts[td.parentId] = (subtaskCounts[td.parentId] ?? 0) + 1;
+    }
+  }
 
   const filterCounts: Record<FilterKey, number> = {
     "do-first": grouped["do-first"].length,
@@ -398,16 +469,16 @@ export default function TodosPage() {
           className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-5"
         >
           <div className="hidden sm:flex gap-3 mb-1 px-1">
-            <span className="flex-1 text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">Intitulé</span>
-            <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">Importance</span>
-            <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">Effort</span>
-            <span className="shrink-0 text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500" style={{width: 144}}>Échéance</span>
+            <span className="flex-1 text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">{t("todos.titleLabel")}</span>
+            <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">{t("todos.importanceLabel")}</span>
+            <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">{t("todos.effortLabel")}</span>
+            <span className="shrink-0 text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500" style={{width: 144}}>{t("todos.deadlineLabel")}</span>
             <span className="min-w-[100px] text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500">&nbsp;</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
-              placeholder="Ajouter une tâche…"
+              placeholder={t("todos.addPlaceholder")}
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -426,7 +497,7 @@ export default function TodosPage() {
                     : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
                 }`}
               >
-                {priorityTouched ? PRIORITY_BADGES[priority].label : "Importance"}
+                {priorityTouched ? t(PRIORITY_BADGES[priority].tKey) : t("todos.importanceLabel")}
               </button>
               {openDropdown === "priority" && (
                 <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
@@ -443,7 +514,7 @@ export default function TodosPage() {
                         priority === p ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
                       }`}
                     >
-                      {PRIORITY_BADGES[p].label}
+                      {t(PRIORITY_BADGES[p].tKey)}
                     </button>
                   ))}
                 </div>
@@ -462,7 +533,7 @@ export default function TodosPage() {
                     : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
                 }`}
               >
-                {effortTouched ? EFFORT_BADGES[effort].label : "Effort"}
+                {effortTouched ? t(EFFORT_BADGES[effort].tKey) : t("todos.effortLabel")}
               </button>
               {openDropdown === "effort" && (
                 <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
@@ -479,7 +550,7 @@ export default function TodosPage() {
                         effort === eff ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
                       }`}
                     >
-                      {EFFORT_BADGES[eff].label}
+                      {t(EFFORT_BADGES[eff].tKey)}
                     </button>
                   ))}
                 </div>
@@ -496,7 +567,7 @@ export default function TodosPage() {
               disabled={submitting}
               className="rounded bg-zinc-900 dark:bg-slate-100 px-6 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 whitespace-nowrap transition-colors h-[42px] min-w-[100px]"
             >
-              {submitting ? "Ajout…" : "+ Ajouter"}
+              {submitting ? t("todos.adding") : t("todos.add")}
             </button>
           </div>
           {formError && (
@@ -524,7 +595,7 @@ export default function TodosPage() {
                 }`}
               >
                 <span>{btn.icon}</span>
-                <span>{btn.label}</span>
+                <span>{t(btn.tKey)}</span>
                 <span className={`ml-0.5 text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 ${
                   isActive ? "bg-white/25" : "bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400"
                 }`}>
@@ -538,7 +609,7 @@ export default function TodosPage() {
             type="button"
             onClick={handleUndo}
             disabled={!lastAction || undoing}
-            title="Annuler dernière action"
+            title={t("todos.undoTitle")}
             className={`shrink-0 inline-flex items-center gap-1.5 rounded border px-3.5 py-2 text-sm font-medium transition-colors ${
               lastAction
                 ? "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
@@ -548,7 +619,7 @@ export default function TodosPage() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
             </svg>
-            <span>Annuler</span>
+            <span>{t("todos.undo")}</span>
           </button>
         </div>
 
@@ -556,15 +627,15 @@ export default function TodosPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
-              {mainView === "list" ? "Liste des tâches" : "Matrice d\u2019Eisenhower"}
+              {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
             </h2>
             <div className="flex items-center gap-3">
               <span className="text-sm text-zinc-400">
                 {mainView === "list"
-                  ? `${listTodos.length} tâche${listTodos.length !== 1 ? "s" : ""}`
-                  : `${activeTodos.length} tâche${activeTodos.length !== 1 ? "s" : ""}`
+                  ? `${listTodos.length} ${listTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
+                  : `${activeTodos.length} ${activeTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
                 }
-                {filters.size > 0 ? ` (${[...filters].map((f) => FILTER_BUTTONS.find((b) => b.key === f)?.label ?? f).join(", ")})` : ""}
+                {filters.size > 0 ? ` (${[...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")})` : ""}
               </span>
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
                 <button
@@ -579,7 +650,7 @@ export default function TodosPage() {
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
-                  Liste
+                  {t("view.list")}
                 </button>
                 <button
                   type="button"
@@ -593,7 +664,7 @@ export default function TodosPage() {
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                   </svg>
-                  Cards
+                  {t("view.cards")}
                 </button>
                 <button
                   type="button"
@@ -611,7 +682,7 @@ export default function TodosPage() {
                     <circle cx="7" cy="17" r="2" />
                     <circle cx="17" cy="16" r="2" />
                   </svg>
-                  Radar
+                  {t("view.radar")}
                 </button>
               </div>
             </div>
@@ -620,6 +691,7 @@ export default function TodosPage() {
           {mainView === "list" ? (
             <TaskList
               todos={listTodos}
+              allTodos={todos}
               sortCol={sortCol}
               sortDir={sortDir}
               onSort={(col) => {
@@ -634,6 +706,7 @@ export default function TodosPage() {
               onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")}
               onDelete={(t) => handleDelete(t)}
               onEdit={openEdit}
+              onSubtask={openSubtaskModal}
             />
           ) : mainView === "cards" ? (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
@@ -642,17 +715,17 @@ export default function TodosPage() {
                 <div className="min-h-[220px]">
                   <div className="px-1 py-2 mb-3">
                     <span className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">
-                      {activeStatusFilters.map((f) => FILTER_BUTTONS.find((b) => b.key === f)?.icon + " " + FILTER_BUTTONS.find((b) => b.key === f)?.label).join(" · ")}
+                      {activeStatusFilters.map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? btn.icon + " " + t(btn.tKey) : f; }).join(" · ")}
                     </span>
                   </div>
                   {listTodos.length === 0 ? (
                     <div className="flex items-center justify-center min-h-[140px]">
-                      <p className="text-xs text-zinc-400 italic">Aucune tâche</p>
+                      <p className="text-xs text-zinc-400 italic">{t("matrix.empty")}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {listTodos.map((todo) => (
-                        <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                        <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCount={getSubtasks(todo.id).length} />
                       ))}
                     </div>
                   )}
@@ -662,21 +735,21 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
                     <div className="min-h-[120px] col-span-full">
                       <div className="px-1 py-2 mb-2">
                         <span className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">
-                          {activeStatusFilters.map((f) => FILTER_BUTTONS.find((b) => b.key === f)?.icon + " " + FILTER_BUTTONS.find((b) => b.key === f)?.label).join(" · ")}
+                          {activeStatusFilters.map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? btn.icon + " " + t(btn.tKey) : f; }).join(" · ")}
                         </span>
                       </div>
                       <div className="space-y-2">
                         {activeStatusFilters.flatMap((f) =>
                           f === "completed" ? completedTodos : f === "cancelled" ? cancelledTodos : deletedTodos
                         ).map((todo) => (
-                          <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                          <MatrixCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCount={getSubtasks(todo.id).length} />
                         ))}
                       </div>
                     </div>
@@ -690,12 +763,12 @@ export default function TodosPage() {
                     <div className="w-10" />
                     <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
                       <span className="text-xs font-bold tracking-[0.15em] uppercase text-blue-500">
-                        🕐 Pas urgent
+                        🕐 {t("matrix.notUrgent")}
                       </span>
                     </div>
                     <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
                       <span className="text-xs font-bold tracking-[0.15em] uppercase text-amber-600">
-                        ⚡ Urgent
+                        ⚡ {t("matrix.urgent")}
                       </span>
                     </div>
                   </div>
@@ -704,14 +777,14 @@ export default function TodosPage() {
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2">
                     <div className="w-10 flex items-center justify-center bg-zinc-50/50 dark:bg-slate-800/50 rounded-l">
                       <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-red-500">
-                        Important
+                        {t("matrix.important")}
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
                     </div>
                   </div>
 
@@ -719,14 +792,14 @@ export default function TodosPage() {
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mt-2">
                     <div className="w-10 flex items-center justify-center bg-zinc-50/50 dark:bg-slate-800/50 rounded-l">
                       <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-zinc-400">
-                        Pas important
+                        {t("matrix.notImportant")}
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => handleDelete(t)} onEdit={openEdit} subtaskCounts={subtaskCounts} />
                     </div>
                   </div>
                 </>
@@ -739,8 +812,8 @@ export default function TodosPage() {
                 <div className="w-72 shrink-0">
                   <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
                     {filters.size === 0
-                      ? "Priorités"
-                      : [...filters].map((f) => FILTER_BUTTONS.find((b) => b.key === f)?.label ?? f).join(", ")}
+                      ? t("todos.priorities")
+                      : [...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")}
                   </h3>
                   <div className="space-y-2">
                     {(() => {
@@ -766,7 +839,7 @@ export default function TodosPage() {
                       };
                       return priorityTodos.slice(0, 12).map((todo, i) => {
                         const q = classify(todo);
-                        const dl = todo.deadline ? deadlineLabel(todo.deadline) : null;
+                        const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
                         return (
                           <div
                             key={todo.id}
@@ -782,13 +855,16 @@ export default function TodosPage() {
                               </p>
                               <div className="flex items-center gap-1 mt-1 flex-nowrap">
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${QUADRANT_BADGES[q].cls}`}>
-                                  {QUADRANT_BADGES[q].label}
+                                  {t(QUADRANT_BADGES[q].tKey)}
                                 </span>
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
-                                  {EFFORT_BADGES[todo.effort ?? "medium"].label}
+                                  {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
                                 </span>
                                 {dl && (
                                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${dl.cls}`}>{dl.text}</span>
+                                )}
+                                {(subtaskCounts[todo.id] ?? 0) > 0 && (
+                                  <SubtaskBadge count={subtaskCounts[todo.id]} />
                                 )}
                               </div>
                             </div>
@@ -801,37 +877,40 @@ export default function TodosPage() {
                                 <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
                                 </svg>
-                                Réactiver
+                                {t("todos.reactivate")}
                               </button>
                             ) : (
-                              <div className="flex items-center gap-1 shrink-0 mt-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 shrink-0 mt-0.5">
                                 <button
-                                  onClick={() => handleStatusChange(todo, "completed")}
-                                  className="text-zinc-400 hover:text-green-600 transition-colors"
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(todo, "completed"); }}
+                                  className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-green-600 dark:hover:text-green-400 cursor-pointer"
                                   aria-label="Accomplir"
                                   title="Accomplir"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => handleStatusChange(todo, "cancelled")}
-                                  className="text-zinc-400 hover:text-amber-600 transition-colors"
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(todo, "cancelled"); }}
+                                  className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer"
                                   aria-label="Annuler"
                                   title="Annuler"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => handleDelete(todo)}
-                                  className="text-zinc-400 hover:text-red-500 transition-colors"
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDelete(todo); }}
+                                  className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 cursor-pointer"
                                   aria-label="Supprimer"
                                   title="Supprimer"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                 </button>
@@ -846,7 +925,7 @@ export default function TodosPage() {
 
                 {/* Radar */}
                 <div className="flex-1">
-                  <ScatterMatrix todos={activeTodos} />
+                  <ScatterMatrix todos={activeTodos} subtaskCounts={subtaskCounts} />
                 </div>
               </div>
             </div>
@@ -864,10 +943,10 @@ export default function TodosPage() {
             className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-4">Modifier la tâche</h3>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("edit.title")}</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">Intitulé</label>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("edit.titleField")}</label>
                 <input
                   type="text"
                   value={editForm.title}
@@ -879,31 +958,31 @@ export default function TodosPage() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">Priorité</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("edit.priority")}</label>
                   <select
                     value={editForm.priority}
                     onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as Priority }))}
                     className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
                   >
-                    <option value="high">Haute</option>
-                    <option value="medium">Moyenne</option>
-                    <option value="low">Basse</option>
+                    <option value="high">{t("priority.high")}</option>
+                    <option value="medium">{t("priority.medium")}</option>
+                    <option value="low">{t("priority.low")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">Effort</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("edit.effort")}</label>
                   <select
                     value={editForm.effort}
                     onChange={(e) => setEditForm((f) => ({ ...f, effort: e.target.value as Effort }))}
                     className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
                   >
-                    <option value="light">Léger</option>
-                    <option value="medium">Moyen</option>
-                    <option value="heavy">Lourd</option>
+                    <option value="light">{t("effort.light")}</option>
+                    <option value="medium">{t("effort.medium")}</option>
+                    <option value="heavy">{t("effort.heavy")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">Échéance</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("edit.deadline")}</label>
                   <input
                     type="date"
                     value={editForm.deadline}
@@ -913,21 +992,156 @@ export default function TodosPage() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-5">
+            {!editingTodo.parentId && (
+              <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-slate-300">{t("subtask.title")}</h4>
+                  <button
+                    type="button"
+                    onClick={() => openSubtaskModal(editingTodo)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {t("subtask.addShort")}
+                  </button>
+                </div>
+                {getSubtasks(editingTodo.id).length === 0 ? (
+                  <p className="text-xs text-zinc-400 dark:text-slate-500">{t("subtask.none")}</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {getSubtasks(editingTodo.id).map((sub) => (
+                      <li key={sub.id} className="flex items-center gap-2 text-sm">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sub.status === "completed" ? "bg-green-500" : sub.status === "active" ? "bg-blue-500" : "bg-zinc-300"}`} />
+                        <span className={sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}>{sub.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="flex items-center mt-5">
+              {!editingTodo.parentId && (
+                <button
+                  type="button"
+                  onClick={() => openSubtaskModal(editingTodo)}
+                  className="flex items-center gap-1.5 rounded border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                  title={t("subtask.add")}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  {t("subtask.addShort")}
+                </button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setEditingTodo(null)}
+                  className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {t("edit.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  disabled={editSaving || !editForm.title.trim()}
+                  className="rounded bg-zinc-900 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
+                >
+                  {editSaving ? t("edit.saving") : t("edit.save")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Subtask Modal ── */}
+      {subtaskParent && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setSubtaskParent(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("subtask.add")}</h3>
+            <p className="text-xs text-zinc-400 dark:text-slate-500 mb-4 truncate">↳ {subtaskParent.title}</p>
+
+            {getSubtasks(subtaskParent.id).length > 0 && (
+              <ul className="space-y-1.5 mb-4 max-h-40 overflow-y-auto">
+                {getSubtasks(subtaskParent.id).map((sub) => {
+                  const badge = PRIORITY_BADGES[sub.priority];
+                  return (
+                    <li key={sub.id} className="flex items-center gap-2 text-sm">
+                      <button
+                        onClick={() => handleStatusChange(sub, sub.status === "completed" ? "active" : "completed")}
+                        className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${sub.status === "completed" ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 dark:border-slate-500 hover:border-green-500 text-transparent hover:text-green-500"}`}
+                      >
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <span className={`flex-1 truncate ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>{sub.title}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder={t("subtask.placeholder")}
+                value={subtaskTitle}
+                onChange={(e) => setSubtaskTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && subtaskTitle.trim()) handleCreateSubtask(); if (e.key === "Escape") setSubtaskParent(null); }}
+                autoFocus
+                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-zinc-900 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-slate-400"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <select value={subtaskPriority} onChange={(e) => setSubtaskPriority(e.target.value as Priority)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800">
+                  <option value="high">{t("priority.high")}</option>
+                  <option value="medium">{t("priority.medium")}</option>
+                  <option value="low">{t("priority.low")}</option>
+                </select>
+                <select value={subtaskEffort} onChange={(e) => setSubtaskEffort(e.target.value as Effort)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800">
+                  <option value="light">{t("effort.light")}</option>
+                  <option value="medium">{t("effort.medium")}</option>
+                  <option value="heavy">{t("effort.heavy")}</option>
+                </select>
+                <input
+                  type="date"
+                  value={subtaskDeadline}
+                  onChange={(e) => setSubtaskDeadline(e.target.value)}
+                  max={subtaskParent.deadline || undefined}
+                  className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
               <button
                 type="button"
-                onClick={() => setEditingTodo(null)}
+                onClick={() => setSubtaskParent(null)}
                 className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
               >
-                Annuler
+                {t("subtask.cancel")}
               </button>
               <button
                 type="button"
-                onClick={saveEdit}
-                disabled={editSaving || !editForm.title.trim()}
+                onClick={() => setSubtaskParent(null)}
+                className="rounded border border-green-300 dark:border-green-700 px-4 py-2 text-sm font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
+              >
+                {t("subtask.done")}
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateSubtask}
+                disabled={subtaskSubmitting || !subtaskTitle.trim()}
                 className="rounded bg-zinc-900 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
               >
-                {editSaving ? "Enregistrement…" : "Enregistrer"}
+                {subtaskSubmitting ? t("subtask.adding") : t("subtask.create")}
               </button>
             </div>
           </div>
@@ -998,7 +1212,8 @@ const DOT_COLORS: Record<Quadrant, string> = {
   eliminate: "bg-zinc-400",
 };
 
-function ScatterMatrix({ todos }: { todos: Todo[] }) {
+function ScatterMatrix({ todos, subtaskCounts = {} }: { todos: Todo[]; subtaskCounts?: Record<string, number> }) {
+  const { t } = useLocale();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
@@ -1008,12 +1223,12 @@ function ScatterMatrix({ todos }: { todos: Todo[] }) {
         <div className="w-10" />
         <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
           <span className="text-xs font-bold tracking-[0.15em] uppercase text-blue-500">
-            🕐 Pas urgent
+            🕐 {t("matrix.notUrgent")}
           </span>
         </div>
         <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
           <span className="text-xs font-bold tracking-[0.15em] uppercase text-amber-600">
-            ⚡ Urgent
+            ⚡ {t("matrix.urgent")}
           </span>
         </div>
       </div>
@@ -1023,12 +1238,12 @@ function ScatterMatrix({ todos }: { todos: Todo[] }) {
         <div className="w-10 flex flex-col gap-y-px bg-zinc-50/50 dark:bg-slate-800/50 rounded">
           <div className="flex-1 flex items-center justify-center">
             <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-red-500">
-              Important
+              {t("matrix.important")}
             </span>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-zinc-400">
-              Pas important
+              {t("matrix.notImportant")}
             </span>
           </div>
         </div>
@@ -1044,10 +1259,10 @@ function ScatterMatrix({ todos }: { todos: Todo[] }) {
           </div>
 
           {/* Quadrant labels */}
-          <span className="absolute top-3 left-3 text-[10px] font-bold text-blue-400/60 uppercase tracking-wide">📅 Planifier</span>
-          <span className="absolute top-3 right-3 text-[10px] font-bold text-red-400/60 uppercase tracking-wide">🔥 Faire</span>
-          <span className="absolute bottom-3 left-3 text-[10px] font-bold text-zinc-400/60 uppercase tracking-wide">⏸️ Différer</span>
-          <span className="absolute bottom-3 right-3 text-[10px] font-bold text-amber-400/60 uppercase tracking-wide">⚡ Expédier</span>
+          <span className="absolute top-3 left-3 text-[10px] font-bold text-blue-400/60 uppercase tracking-wide">{t("badge.schedule")}</span>
+          <span className="absolute top-3 right-3 text-[10px] font-bold text-red-400/60 uppercase tracking-wide">{t("badge.doFirst")}</span>
+          <span className="absolute bottom-3 left-3 text-[10px] font-bold text-zinc-400/60 uppercase tracking-wide">{t("badge.eliminate")}</span>
+          <span className="absolute bottom-3 right-3 text-[10px] font-bold text-amber-400/60 uppercase tracking-wide">{t("badge.delegate")}</span>
 
           {/* Dots */}
           {todos.map((todo) => {
@@ -1056,7 +1271,7 @@ function ScatterMatrix({ todos }: { todos: Todo[] }) {
             const q = classify(todo);
             const isHovered = hoveredId === todo.id;
             const badge = PRIORITY_BADGES[todo.priority];
-            const dl = todo.deadline ? deadlineLabel(todo.deadline) : null;
+            const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
 
             return (
               <div
@@ -1080,7 +1295,7 @@ function ScatterMatrix({ todos }: { todos: Todo[] }) {
 
                 {/* Tooltip */}
                 {isHovered && (
-                  <ScatterTooltip x={x} y={y} todo={todo} badge={badge} quadrant={q} dl={dl} />
+                  <ScatterTooltip x={x} y={y} todo={todo} badge={badge} quadrant={q} dl={dl} subtaskCount={subtaskCounts[todo.id] ?? 0} />
                 )}
               </div>
             );
@@ -1099,14 +1314,17 @@ function ScatterTooltip({
   badge,
   quadrant,
   dl,
+  subtaskCount = 0,
 }: {
   x: number;
   y: number;
   todo: Todo;
-  badge: { label: string; cls: string };
+  badge: { label: string; tKey: TranslationKey; cls: string };
   quadrant: Quadrant;
   dl: { text: string; cls: string } | null;
+  subtaskCount?: number;
 }) {
+  const { t } = useLocale();
   const showBelow = y > 75;
   const alignRight = x > 75;
   const alignLeft = x < 25;
@@ -1135,15 +1353,16 @@ function ScatterTooltip({
       <p className="font-semibold text-sm mb-1.5">{todo.title}</p>
       <div className="flex flex-wrap items-center gap-1.5 mb-1">
         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${badge.cls}`}>
-          {badge.label}
+          {t(badge.tKey)}
         </span>
         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
-          {EFFORT_BADGES[todo.effort ?? "medium"].label}
+          {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
         </span>
         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${QUADRANT_BADGES[quadrant].cls}`}>
-          {QUADRANT_BADGES[quadrant].label}
+          {t(QUADRANT_BADGES[quadrant].tKey)}
         </span>
         {dl && <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${dl.cls}`}>{dl.text}</span>}
+        {subtaskCount > 0 && <SubtaskBadge count={subtaskCount} />}
       </div>
       {/* Arrow */}
       <div
@@ -1178,6 +1397,7 @@ function SortArrow({ col, activeCol, dir }: { col: SortColumn; activeCol: SortCo
 /* ── Task List (sortable table) ── */
 function TaskList({
   todos,
+  allTodos,
   sortCol,
   sortDir,
   onSort,
@@ -1185,8 +1405,10 @@ function TaskList({
   onCancel,
   onDelete,
   onEdit,
+  onSubtask,
 }: {
   todos: Todo[];
+  allTodos: Todo[];
   sortCol: SortColumn;
   sortDir: SortDirection;
   onSort: (col: SortColumn) => void;
@@ -1194,8 +1416,19 @@ function TaskList({
   onCancel: (t: Todo) => void;
   onDelete: (t: Todo) => void;
   onEdit: (t: Todo) => void;
+  onSubtask: (t: Todo) => void;
 }) {
+  const { t } = useLocale();
   const sorted = sortTodos(todos, sortCol, sortDir);
+  const subtasksOf = (id: string) => allTodos.filter(t => t.parentId === id);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const thBtn = "flex items-center gap-0.5 cursor-pointer select-none hover:text-zinc-900 transition-colors";
 
   return (
@@ -1204,24 +1437,24 @@ function TaskList({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/80">
-              <th className="w-20 px-4 py-3 text-left font-semibold text-zinc-600 dark:text-slate-400 text-xs">Actions</th>
-              <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400">Intitulé</th>
+              <th className="w-20 px-4 py-3 text-left font-semibold text-zinc-600 dark:text-slate-400 text-xs">{t("table.actions")}</th>
+              <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400">{t("table.title")}</th>
               <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-28">
                 <button type="button" className={thBtn} onClick={() => onSort("priority")}>
-                  Priorité <SortArrow col="priority" activeCol={sortCol} dir={sortDir} />
+                  {t("table.priority")} <SortArrow col="priority" activeCol={sortCol} dir={sortDir} />
                 </button>
               </th>
               <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-32">
-                Effort
+                {t("table.effort")}
               </th>
               <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-36">
                 <button type="button" className={thBtn} onClick={() => onSort("deadline")}>
-                  Échéance <SortArrow col="deadline" activeCol={sortCol} dir={sortDir} />
+                  {t("table.deadline")} <SortArrow col="deadline" activeCol={sortCol} dir={sortDir} />
                 </button>
               </th>
               <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-36">
                 <button type="button" className={thBtn} onClick={() => onSort("classification")}>
-                  Classification <SortArrow col="classification" activeCol={sortCol} dir={sortDir} />
+                  {t("table.classification")} <SortArrow col="classification" activeCol={sortCol} dir={sortDir} />
                 </button>
               </th>
             </tr>
@@ -1230,19 +1463,19 @@ function TaskList({
             {sorted.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-10 text-zinc-400 italic">
-                  Aucune tâche
+                  {t("matrix.empty")}
                 </td>
               </tr>
             ) : (
               sorted.map((todo) => {
                 const badge = PRIORITY_BADGES[todo.priority];
                 const qBadge = QUADRANT_BADGES[classify(todo)];
-                const dl = todo.deadline ? deadlineLabel(todo.deadline) : null;
+                const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
                 const isArchived = todo.status !== "active";
 
-                return (
+                const subs = subtasksOf(todo.id);
+                return (<Fragment key={todo.id}>
                   <tr
-                    key={todo.id}
                     onDoubleClick={(e) => { e.preventDefault(); onEdit(todo); }}
                     className={`border-b border-zinc-100 dark:border-slate-800 last:border-b-0 group hover:bg-zinc-50/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none ${
                       isArchived ? "opacity-50" : ""
@@ -1259,23 +1492,34 @@ function TaskList({
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
                           </svg>
-                          Réactiver
+                          {t("todos.reactivate")}
                         </button>
                       ) : (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => onComplete(todo)}
                             title="Accomplir"
-                            className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-green-500 hover:text-green-500 transition-colors"
+                            className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-green-500 hover:text-green-500"
                           >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           </button>
+                          {!todo.parentId && (
+                            <button
+                              onClick={() => onSubtask(todo)}
+                              className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500"
+                              title={t("subtask.add")}
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             onClick={() => onCancel(todo)}
                             title="Annuler"
-                            className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500 transition-colors"
+                            className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
                           >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -1284,7 +1528,7 @@ function TaskList({
                           <button
                             onClick={() => onDelete(todo)}
                             title="Supprimer"
-                            className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+                            className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"
                           >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1303,17 +1547,29 @@ function TaskList({
                       }`}>
                         {todo.title}
                       </span>
+                      {subtasksOf(todo.id).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleExpand(todo.id); }}
+                          className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors hover:bg-indigo-600 ${SUBTASK_BADGE_CLS}`}
+                        >
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
+                          </svg>
+                          {subtasksOf(todo.id).length} {expanded.has(todo.id) ? "▴" : "▾"}
+                        </button>
+                      )}
                     </td>
                     {/* Priority */}
                     <td className="px-4 py-3">
                       <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${badge.cls}`}>
-                        {badge.label}
+                        {t(badge.tKey)}
                       </span>
                     </td>
                     {/* Effort */}
                     <td className="px-4 py-3">
                       <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
-                        {EFFORT_BADGES[todo.effort ?? "medium"].label}
+                        {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
                       </span>
                     </td>
                     {/* Deadline */}
@@ -1327,10 +1583,71 @@ function TaskList({
                     {/* Classification */}
                     <td className="px-4 py-3">
                       <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded ${qBadge.cls}`}>
-                        {qBadge.label}
+                        {t(qBadge.tKey)}
                       </span>
                     </td>
                   </tr>
+                  {expanded.has(todo.id) && subtasksOf(todo.id).map((sub) => {
+                    const subBadge = PRIORITY_BADGES[sub.priority];
+                    const subDl = sub.deadline ? deadlineLabel(sub.deadline, t) : null;
+                    return (
+                      <tr
+                        key={sub.id}
+                        className="border-b border-zinc-100 dark:border-slate-800 last:border-b-0 bg-zinc-50/40 dark:bg-slate-800/30"
+                      >
+                        <td className="px-4 py-2 pl-8">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => onComplete(sub)}
+                              className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
+                                sub.status === "completed"
+                                  ? "bg-green-500 border-green-500 text-white"
+                                  : "border-zinc-300 dark:border-slate-500 text-zinc-400 hover:border-green-500 hover:text-green-500"
+                              } transition-colors`}
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => onCancel(sub)}
+                              title={t("todos.undo")}
+                              className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => onDelete(sub)}
+                              className="w-5 h-5 rounded flex items-center justify-center border border-transparent text-zinc-300 hover:text-red-500"
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="text-zinc-400 mr-1.5">↳</span>
+                          <span className={`text-sm ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>
+                            {sub.title}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${subBadge.cls}`}>{t(subBadge.tKey)}</span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${EFFORT_BADGES[sub.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[sub.effort ?? "medium"].tKey)}</span>
+                        </td>
+                        <td className="px-4 py-2">
+                          {subDl ? <span className={`text-xs font-semibold px-2 py-0.5 rounded ${subDl.cls}`}>{subDl.text}</span> : <span className="text-xs text-zinc-300">—</span>}
+                        </td>
+                        <td className="px-4 py-2" />
+                      </tr>
+                    );
+                  })}
+                </Fragment>
                 );
               })
             )}
@@ -1345,17 +1662,37 @@ function TaskList({
 function QuadrantCell({
   quadrant,
   todos,
+  allTodos = [],
   onComplete,
   onDelete,
   onEdit,
+  subtaskCounts = {},
 }: {
   quadrant: Quadrant;
   todos: Todo[];
+  allTodos?: Todo[];
   onComplete: (t: Todo) => void;
   onDelete: (t: Todo) => void;
   onEdit?: (t: Todo) => void;
+  subtaskCounts?: Record<string, number>;
 }) {
+  const { t } = useLocale();
   const cfg = QUADRANT_CONFIG[quadrant];
+  const [showAll, setShowAll] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const LIMIT = 5;
+  const visible = showAll ? todos : todos.slice(0, LIMIT);
+  const hasMore = todos.length > LIMIT;
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const subtasksOf = (id: string) => allTodos.filter(st => st.parentId === id);
 
   return (
     <div className={`${cfg.cellBg} flex flex-col min-h-[220px] h-full`}>
@@ -1363,7 +1700,7 @@ function QuadrantCell({
         <div className="flex items-center gap-2">
           <span>{cfg.icon}</span>
           <span className={`text-xs font-bold ${cfg.headerText} tracking-wide uppercase`}>
-            {cfg.label}
+            {t(cfg.tKey)}
           </span>
         </div>
         {todos.length > 0 && (
@@ -1375,13 +1712,50 @@ function QuadrantCell({
       <div className="p-3 flex-1">
         {todos.length === 0 ? (
           <div className="h-full flex items-center justify-center min-h-[140px]">
-            <p className="text-xs text-zinc-400 italic">Aucune tâche</p>
+            <p className="text-xs text-zinc-400 italic">{t("matrix.empty")}</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {todos.map((todo) => (
-              <MatrixCard key={todo.id} todo={todo} onComplete={onComplete} onDelete={onDelete} onEdit={onEdit} />
-            ))}
+            {visible.map((todo) => {
+              const sc = subtaskCounts[todo.id] ?? 0;
+              const subs = expanded.has(todo.id) ? subtasksOf(todo.id) : [];
+              return (
+                <div key={todo.id}>
+                  <MatrixCard todo={todo} onComplete={onComplete} onDelete={onDelete} onEdit={onEdit} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} />
+                  {subs.length > 0 && (
+                    <div className="ml-5 mt-1 space-y-1">
+                      {subs.map((sub) => (
+                        <div key={sub.id} className="flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-2 py-1.5 text-xs">
+                          <button
+                            onClick={() => onComplete(sub)}
+                            className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
+                              sub.status === "completed"
+                                ? "bg-green-500 border-green-500 text-white"
+                                : "border-zinc-300 dark:border-slate-500 text-zinc-400 hover:border-green-500 hover:text-green-500"
+                            } transition-colors`}
+                          >
+                            <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                          <span className="text-zinc-400 text-[10px]">↳</span>
+                          <span className={`flex-1 truncate ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>{sub.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => setShowAll(!showAll)}
+                className="w-full text-center text-[11px] font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-slate-300 py-1 transition-colors"
+              >
+                {showAll ? t("matrix.showLess") : `${t("matrix.showMore")} (${todos.length - LIMIT})`}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1395,14 +1769,21 @@ function MatrixCard({
   onComplete,
   onDelete,
   onEdit,
+  subtaskCount = 0,
+  onToggleSubtasks,
+  subtasksExpanded = false,
 }: {
   todo: Todo;
   onComplete: (t: Todo) => void;
   onDelete: (t: Todo) => void;
   onEdit?: (t: Todo) => void;
+  subtaskCount?: number;
+  onToggleSubtasks?: () => void;
+  subtasksExpanded?: boolean;
 }) {
+  const { t } = useLocale();
   const badge = PRIORITY_BADGES[todo.priority];
-  const dl = todo.deadline ? deadlineLabel(todo.deadline) : null;
+  const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
 
   return (
     <div
@@ -1419,15 +1800,15 @@ function MatrixCard({
           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
           </svg>
-          Réactiver
+          {t("todos.reactivate")}
         </button>
       ) : (
         <button
           onClick={() => onComplete(todo)}
-          className="mt-0.5 w-[18px] h-[18px] rounded flex items-center justify-center shrink-0 border-2 border-zinc-300 dark:border-slate-500 hover:border-green-500 hover:text-green-500 transition-colors"
+          className="mt-0.5 w-[18px] h-[18px] rounded flex items-center justify-center shrink-0 border-2 border-zinc-300 dark:border-slate-500 hover:border-green-500 hover:text-green-500"
           aria-label="Accomplir"
         >
-          <svg className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg className="w-2.5 h-2.5 text-zinc-300 dark:text-slate-600 group-hover:text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </button>
@@ -1435,15 +1816,27 @@ function MatrixCard({
       <div className="flex-1 min-w-0">
         <p className={`text-sm leading-snug font-medium truncate ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}>{todo.title}</p>
         <div className="flex items-center gap-1 mt-1 flex-nowrap">
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{EFFORT_BADGES[todo.effort ?? "medium"].label}</span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${badge.cls}`}>{t(badge.tKey)}</span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
           {dl && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${dl.cls}`}>{dl.text}</span>}
+          {subtaskCount > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleSubtasks?.(); }}
+              className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap transition-colors ${SUBTASK_BADGE_CLS} hover:bg-indigo-600`}
+            >
+              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
+              </svg>
+              {subtaskCount} {subtasksExpanded ? "▴" : "▾"}
+            </button>
+          )}
         </div>
       </div>
       {todo.status === "active" && (
         <button
           onClick={() => onDelete(todo)}
-          className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all shrink-0 mt-0.5"
+          className="text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 shrink-0 mt-0.5"
           aria-label="Supprimer"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

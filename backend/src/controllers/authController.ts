@@ -5,6 +5,7 @@ import {
   login as loginService,
   logout as logoutService,
   register as registerService,
+  updateProfile as updateProfileService,
   AuthUser
 } from "../services/authService";
 
@@ -74,6 +75,35 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     res.status(401).json({ message: "Non authentifié" });
     return;
   }
-  res.status(200).json({ uid: user.uid, email: user.email });
+  res.status(200).json({ uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName });
+}
+
+export async function updateProfile(req: AuthenticatedRequest, res: Response) {
+  const user = req.user;
+  if (!user) {
+    res.status(401).json({ message: "Non authentifié" });
+    return;
+  }
+
+  try {
+    const { firstName, lastName } = req.body as { firstName?: unknown; lastName?: unknown };
+    if (firstName !== undefined && typeof firstName !== "string") {
+      res.status(400).json({ message: "Prénom invalide" });
+      return;
+    }
+    if (lastName !== undefined && typeof lastName !== "string") {
+      res.status(400).json({ message: "Nom invalide" });
+      return;
+    }
+
+    const updated = updateProfileService(user.uid, {
+      firstName: firstName as string | undefined,
+      lastName: lastName as string | undefined,
+    });
+    res.status(200).json(updated);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur serveur";
+    res.status(400).json({ message });
+  }
 }
 

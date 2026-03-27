@@ -9,6 +9,7 @@ export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
 export interface Todo {
   id: string;
   userId: string;
+  parentId: string | null;
   title: string;
   priority: Priority;
   effort: Effort;
@@ -23,6 +24,7 @@ export interface CreateTodoInput {
   priority: Priority;
   effort?: Effort;
   deadline?: string | null;
+  parentId?: string | null;
 }
 
 export interface UpdateTodoInput {
@@ -100,10 +102,22 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     if (isNaN(d.getTime())) throw new Error("Date deadline invalide");
   }
 
+  if (input.parentId) {
+    const parentTodo = getUserTodos(userId).get(input.parentId);
+    if (!parentTodo) throw new Error("Tâche parente introuvable");
+    if (parentTodo.parentId) throw new Error("Une sous-tâche ne peut pas avoir de sous-tâche");
+    if (input.deadline && parentTodo.deadline) {
+      if (new Date(input.deadline) > new Date(parentTodo.deadline)) {
+        throw new Error("La deadline d'une sous-tâche ne peut pas dépasser celle de la tâche parente");
+      }
+    }
+  }
+
   const now = new Date().toISOString();
   const todo: Todo = {
     id: crypto.randomUUID(),
     userId,
+    parentId: input.parentId ?? null,
     title: input.title.trim(),
     priority: input.priority,
     effort: input.effort ?? "medium",

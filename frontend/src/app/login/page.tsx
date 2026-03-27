@@ -3,10 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { getMe, login, register } from "@/lib/api";
+import { useLocale } from "@/lib/LocaleContext";
 
 type Mode = "login" | "register";
 
 export default function LoginPage() {
+  const { t } = useLocale();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +46,7 @@ export default function LoginPage() {
       } else {
         await register({ email, password });
         setMode("login");
-        setSuccess("Compte créé. Vous pouvez vous connecter.");
+        setSuccess(t("login.accountCreated"));
         return;
       }
 
@@ -52,7 +54,7 @@ export default function LoginPage() {
       window.location.href = "/dashboard";
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Une erreur est survenue. Réessayez."
+        e instanceof Error ? e.message : t("login.error")
       );
     } finally {
       setLoading(false);
@@ -80,7 +82,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white dark:bg-slate-900 shadow-lg rounded-2xl px-8 py-10 border border-transparent dark:border-slate-700">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-center text-zinc-900 dark:text-slate-100">
-            {mode === "login" ? "Connexion" : "Inscription"}
+            {mode === "login" ? t("login.title") : t("login.register")}
           </h1>
           <div className="flex gap-3 mt-4">
             <button
@@ -96,7 +98,7 @@ export default function LoginPage() {
                   : "border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-900 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
               }`}
             >
-              Connexion
+              {t("login.title")}
             </button>
             <button
               type="button"
@@ -111,7 +113,7 @@ export default function LoginPage() {
                   : "border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-900 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
               }`}
             >
-              Inscription
+              {t("login.register")}
             </button>
           </div>
         </div>
@@ -122,7 +124,7 @@ export default function LoginPage() {
               htmlFor="email"
               className="block text-sm font-medium text-zinc-700 dark:text-slate-300"
             >
-              Email
+              {t("login.email")}
             </label>
             <input
               id="email"
@@ -139,7 +141,7 @@ export default function LoginPage() {
               htmlFor="password"
               className="block text-sm font-medium text-zinc-700 dark:text-slate-300"
             >
-              Mot de passe
+              {t("login.password")}
             </label>
             <input
               id="password"
@@ -170,8 +172,8 @@ export default function LoginPage() {
             className="w-full rounded-lg bg-zinc-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 shadow-sm hover:bg-zinc-800 dark:hover:bg-slate-300 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading
-              ? (mode === "login" ? "Connexion..." : "Création...")
-              : (mode === "login" ? "Se connecter" : "Créer un compte")}
+              ? (mode === "login" ? t("login.submitting") : t("login.creating"))
+              : (mode === "login" ? t("login.submit") : t("login.createAccount"))}
           </button>
         </form>
       </div>

@@ -9,6 +9,8 @@ interface LoginPayload {
 export interface AuthMeResponse {
   uid: string;
   email: string;
+  firstName: string;
+  lastName: string;
 }
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -74,6 +76,26 @@ export async function getMe(): Promise<AuthMeResponse> {
   return (await res.json()) as AuthMeResponse;
 }
 
+export async function updateProfile(payload: { firstName?: string; lastName?: string }): Promise<AuthMeResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? (body as { message: string }).message
+        : "Impossible de mettre à jour le profil";
+    throw new Error(message);
+  }
+
+  return (await res.json()) as AuthMeResponse;
+}
+
 export async function logout(): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: "POST",
@@ -94,6 +116,7 @@ export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
 export interface Todo {
   id: string;
   userId: string;
+  parentId: string | null;
   title: string;
   priority: Priority;
   effort: Effort;
@@ -108,6 +131,7 @@ export interface CreateTodoPayload {
   priority: Priority;
   effort?: Effort;
   deadline?: string | null;
+  parentId?: string | null;
 }
 
 export interface UpdateTodoPayload {

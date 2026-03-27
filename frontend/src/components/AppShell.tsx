@@ -3,14 +3,17 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getMe, logout, AuthMeResponse } from "@/lib/api";
+import { useLocale } from "@/lib/LocaleContext";
 
 interface AppShellProps {
   children: ReactNode;
 }
 
-const NAV_ITEMS = [
+import type { TranslationKey } from "@/lib/i18n";
+
+const NAV_ITEMS: { tKey: TranslationKey; href: string; icon: ReactNode }[] = [
   {
-    label: "Accueil",
+    tKey: "nav.home",
     href: "/dashboard",
     icon: (
       <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -19,7 +22,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Mes tâches",
+    tKey: "nav.tasks",
     href: "/todos",
     icon: (
       <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -28,7 +31,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Mes projets",
+    tKey: "nav.projects",
     href: "/projects",
     icon: (
       <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -37,7 +40,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Mes équipes",
+    tKey: "nav.teams",
     href: "/teams",
     icon: (
       <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -48,7 +51,7 @@ const NAV_ITEMS = [
 ];
 
 const SETTINGS_ITEM = {
-  label: "Paramètres",
+  tKey: "nav.settings" as TranslationKey,
   href: "/settings",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -76,6 +79,7 @@ function NavLink({ href, icon, label, active }: { href: string; icon: ReactNode;
 
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const { t } = useLocale();
   const [darkMode, setDarkMode] = useState(false);
   const [me, setMe] = useState<AuthMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,7 +123,7 @@ export default function AppShell({ children }: AppShellProps) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-slate-950">
-        <span className="text-zinc-400 dark:text-slate-500 text-sm">Chargement…</span>
+        <span className="text-zinc-400 dark:text-slate-500 text-sm">{t("loading")}</span>
       </div>
     );
   }
@@ -133,12 +137,19 @@ export default function AppShell({ children }: AppShellProps) {
             <div className="w-8 h-8 rounded bg-zinc-900 dark:bg-white flex items-center justify-center">
               <span className="text-white dark:text-slate-900 text-sm font-bold">W</span>
             </div>
-            <div>
-              <h1 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 leading-tight">Wroket</h1>
-              <p className="text-zinc-400 text-xs">{me?.email}</p>
-            </div>
+            <h1 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 leading-tight">Wroket</h1>
           </div>
           <div className="flex items-center gap-3">
+            <a href="/settings" className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
+              <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">
+                  {me?.firstName ? me.firstName.charAt(0).toUpperCase() : me?.email?.charAt(0).toUpperCase() ?? "?"}
+                </span>
+              </div>
+              <span className="text-sm text-zinc-700 dark:text-slate-300 hidden sm:inline">
+                {me?.firstName ? me.firstName : me?.email}
+              </span>
+            </a>
             <button
               onClick={toggleDarkMode}
               className="rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
@@ -158,7 +169,7 @@ export default function AppShell({ children }: AppShellProps) {
               onClick={handleLogout}
               className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
             >
-              Déconnexion
+              {t("app.logout")}
             </button>
           </div>
         </div>
@@ -168,10 +179,10 @@ export default function AppShell({ children }: AppShellProps) {
         {/* ── Sidebar ── */}
         <aside className="hidden md:flex flex-col w-56 shrink-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 min-h-[calc(100vh-65px)] py-4 px-3 gap-1">
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} active={pathname === item.href} />
+            <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
           ))}
           <hr className="border-zinc-200 dark:border-slate-700 my-2" />
-          <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={SETTINGS_ITEM.label} active={pathname === SETTINGS_ITEM.href} />
+          <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
         </aside>
 
         {/* ── Main content ── */}

@@ -22,13 +22,13 @@ export async function list(req: AuthenticatedRequest, res: Response) {
 
 export async function create(req: AuthenticatedRequest, res: Response) {
   try {
-    const { title, priority, effort, deadline } = req.body as Partial<CreateTodoInput>;
+    const { title, priority, effort, deadline, parentId } = req.body as Partial<CreateTodoInput>;
     if (!title || !priority) {
       res.status(400).json({ message: "Titre et priorité requis" });
       return;
     }
 
-    const todo = createTodo(req.user!.uid, { title, priority, effort, deadline });
+    const todo = createTodo(req.user!.uid, { title, priority, effort, deadline, parentId });
     res.status(201).json(todo);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur serveur";
