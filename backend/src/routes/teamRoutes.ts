@@ -2,8 +2,11 @@ import { Router } from "express";
 
 import {
   getCollaborators,
+  getReceivedInvitations,
   inviteCollaborator,
   deleteCollaborator,
+  postAcceptCollaboration,
+  postDeclineCollaboration,
   getTeams,
   postCreateTeam,
   postAddMember,
@@ -17,8 +20,11 @@ const teamRoutes = Router();
 teamRoutes.use(requireAuth);
 
 teamRoutes.get("/collaborators", getCollaborators);
+teamRoutes.get("/collaborators/received", getReceivedInvitations);
 teamRoutes.post("/collaborators", inviteCollaborator);
 teamRoutes.delete("/collaborators/:email", deleteCollaborator);
+teamRoutes.post("/collaborators/accept", postAcceptCollaboration);
+teamRoutes.post("/collaborators/decline", postDeclineCollaboration);
 
 teamRoutes.get("/", getTeams);
 teamRoutes.post("/", postCreateTeam);

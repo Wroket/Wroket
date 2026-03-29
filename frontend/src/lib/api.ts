@@ -6,11 +6,33 @@ interface LoginPayload {
   password: string;
 }
 
+export interface WorkingHours {
+  start: string;
+  end: string;
+  timezone: string;
+  daysOfWeek: number[];
+}
+
+export interface ScheduledSlot {
+  start: string;
+  end: string;
+  calendarEventId: string | null;
+}
+
+export interface SlotProposal {
+  start: string;
+  end: string;
+  label: string;
+}
+
 export interface AuthMeResponse {
   uid: string;
   email: string;
   firstName: string;
   lastName: string;
+  effortMinutes: { light: number; medium: number; heavy: number };
+  workingHours: WorkingHours;
+  googleCalendarConnected: boolean;
 }
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -76,7 +98,7 @@ export async function getMe(): Promise<AuthMeResponse> {
   return (await res.json()) as AuthMeResponse;
 }
 
-export async function updateProfile(payload: { firstName?: string; lastName?: string }): Promise<AuthMeResponse> {
+export async function updateProfile(payload: { firstName?: string; lastName?: string; effortMinutes?: { light: number; medium: number; heavy: number }; workingHours?: WorkingHours }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -119,13 +141,19 @@ export interface Todo {
   id: string;
   userId: string;
   parentId: string | null;
+  projectId: string | null;
+  phaseId: string | null;
   assignedTo: string | null;
   assignmentStatus: AssignmentStatus | null;
   title: string;
   priority: Priority;
   effort: Effort;
+  estimatedMinutes: number | null;
+  startDate: string | null;
   deadline: string | null;
+  scheduledSlot: ScheduledSlot | null;
   status: TodoStatus;
+  statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -134,8 +162,12 @@ export interface CreateTodoPayload {
   title: string;
   priority: Priority;
   effort?: Effort;
+  estimatedMinutes?: number | null;
+  startDate?: string | null;
   deadline?: string | null;
   parentId?: string | null;
+  projectId?: string | null;
+  phaseId?: string | null;
   assignedTo?: string | null;
 }
 
@@ -143,8 +175,12 @@ export interface UpdateTodoPayload {
   title?: string;
   priority?: Priority;
   effort?: Effort;
+  estimatedMinutes?: number | null;
+  startDate?: string | null;
   deadline?: string | null;
   status?: TodoStatus;
+  projectId?: string | null;
+  phaseId?: string | null;
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
 }
@@ -164,6 +200,15 @@ export async function getAssignedTodos(): Promise<Todo[]> {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Impossible de charger les tâches assignées");
+  return (await res.json()) as Todo[];
+}
+
+export async function getArchivedTodos(): Promise<Todo[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/archived`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les tâches archivées");
   return (await res.json()) as Todo[];
 }
 
@@ -302,6 +347,10 @@ export interface Team {
   createdAt: string;
 }
 
+export interface ReceivedInvitation {
+  fromEmail: string;
+}
+
 export async function getCollaborators(): Promise<Collaborator[]> {
   const res = await fetch(`${API_BASE_URL}/teams/collaborators`, {
     method: "GET",
@@ -309,6 +358,15 @@ export async function getCollaborators(): Promise<Collaborator[]> {
   });
   if (!res.ok) throw new Error("Impossible de charger les collaborateurs");
   return (await res.json()) as Collaborator[];
+}
+
+export async function getReceivedInvitations(): Promise<ReceivedInvitation[]> {
+  const res = await fetch(`${API_BASE_URL}/teams/collaborators/received`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les invitations reçues");
+  return (await res.json()) as ReceivedInvitation[];
 }
 
 export async function inviteCollaborator(email: string): Promise<Collaborator> {
@@ -334,6 +392,26 @@ export async function removeCollaborator(email: string): Promise<void> {
     method: "DELETE",
     credentials: "include",
   });
+}
+
+export async function acceptCollaboration(inviterEmail: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/teams/collaborators/accept`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inviterEmail }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de l'acceptation");
+}
+
+export async function declineCollaboration(inviterEmail: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/teams/collaborators/decline`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inviterEmail }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors du refus");
 }
 
 export async function getTeams(): Promise<Team[]> {
@@ -395,5 +473,287 @@ export async function deleteTeamApi(teamId: string): Promise<void> {
     method: "DELETE",
     credentials: "include",
   });
+}
+
+// ── Projects ──
+
+export type ProjectStatus = "active" | "archived";
+
+export interface ProjectPhase {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+  order: number;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  ownerUid: string;
+  teamId: string | null;
+  status: ProjectStatus;
+  phases: ProjectPhase[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProjectPayload {
+  name: string;
+  description?: string;
+  teamId?: string | null;
+}
+
+export interface UpdateProjectPayload {
+  name?: string;
+  description?: string;
+  teamId?: string | null;
+  status?: ProjectStatus;
+}
+
+export async function getProjects(): Promise<Project[]> {
+  const res = await fetch(`${API_BASE_URL}/projects`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les projets");
+  return (await res.json()) as Project[];
+}
+
+export async function getProject(id: string): Promise<Project> {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Projet introuvable");
+  return (await res.json()) as Project;
+}
+
+export async function createProject(payload: CreateProjectPayload): Promise<Project> {
+  const res = await fetch(`${API_BASE_URL}/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(typeof body === "object" && body !== null && "message" in body ? (body as { message: string }).message : "Erreur");
+  }
+  return (await res.json()) as Project;
+}
+
+export async function updateProject(id: string, payload: UpdateProjectPayload): Promise<Project> {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de la mise à jour du projet");
+  return (await res.json()) as Project;
+}
+
+export async function deleteProjectApi(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de la suppression du projet");
+}
+
+export async function getProjectTodos(projectId: string): Promise<Todo[]> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/todos`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les tâches du projet");
+  return (await res.json()) as Todo[];
+}
+
+// ── Phases ──
+
+export interface CreatePhasePayload {
+  name: string;
+  color?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export interface UpdatePhasePayload {
+  name?: string;
+  color?: string;
+  order?: number;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export async function createPhase(projectId: string, payload: CreatePhasePayload): Promise<ProjectPhase> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/phases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(typeof body === "object" && body !== null && "message" in body ? (body as { message: string }).message : "Erreur");
+  }
+  return (await res.json()) as ProjectPhase;
+}
+
+export async function updatePhaseApi(projectId: string, phaseId: string, payload: UpdatePhasePayload): Promise<ProjectPhase> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/phases/${phaseId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de la mise à jour de la phase");
+  return (await res.json()) as ProjectPhase;
+}
+
+export async function deletePhaseApi(projectId: string, phaseId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/phases/${phaseId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de la suppression de la phase");
+}
+
+// ── Calendar / Scheduling ──
+
+export async function getTaskSlots(todoId: string): Promise<{ slots: SlotProposal[]; duration: number; durationSource: "task" | "settings"; effort: string }> {
+  const res = await fetch(`${API_BASE_URL}/calendar/slots/${todoId}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les créneaux");
+  return res.json();
+}
+
+export async function bookTaskSlot(todoId: string, start: string, end: string): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/calendar/book/${todoId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ start, end }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de réserver le créneau");
+  return res.json();
+}
+
+export async function clearTaskSlot(todoId: string): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/calendar/slot/${todoId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de supprimer le créneau");
+  return res.json();
+}
+
+// ── Calendar Events (Agenda) ──
+
+export interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  source: "wroket" | "google";
+  priority?: string;
+  effort?: string;
+  deadline?: string | null;
+}
+
+export interface CalendarEventsResponse {
+  wroketEvents: CalendarEvent[];
+  googleEvents: CalendarEvent[];
+}
+
+export async function getCalendarEvents(start: string, end: string): Promise<CalendarEventsResponse> {
+  const params = new URLSearchParams({ start, end });
+  const res = await fetch(`${API_BASE_URL}/calendar/events?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les événements");
+  return res.json();
+}
+
+export async function getGoogleAuthUrl(): Promise<{ url: string }> {
+  const res = await fetch(`${API_BASE_URL}/calendar/google/auth-url`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur d'authentification Google");
+  return res.json();
+}
+
+export async function disconnectGoogleCalendar(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/google/disconnect`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur de déconnexion");
+}
+
+// ── Webhooks / Integrations ──
+
+export type WebhookEvent =
+  | "task_assigned"
+  | "task_completed"
+  | "task_declined"
+  | "task_accepted"
+  | "team_invite"
+  | "deadline_approaching";
+
+export type WebhookPlatform = "slack" | "discord" | "teams" | "custom";
+
+export interface WebhookConfig {
+  id: string;
+  label: string;
+  url: string;
+  platform: WebhookPlatform;
+  events: WebhookEvent[];
+  enabled: boolean;
+  createdAt: string;
+}
+
+export async function getWebhooks(): Promise<WebhookConfig[]> {
+  const res = await fetch(`${API_BASE_URL}/webhooks`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les webhooks");
+  return res.json();
+}
+
+export async function saveWebhook(config: Partial<WebhookConfig> & { url: string }): Promise<WebhookConfig> {
+  const res = await fetch(`${API_BASE_URL}/webhooks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de la sauvegarde du webhook");
+  return res.json();
+}
+
+export async function deleteWebhookApi(id: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/webhooks/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+}
+
+export async function testWebhookApi(url: string, platform: WebhookPlatform): Promise<boolean> {
+  const res = await fetch(`${API_BASE_URL}/webhooks/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, platform }),
+    credentials: "include",
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  return data.success === true;
 }
 

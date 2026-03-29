@@ -1,6 +1,8 @@
 import crypto from "crypto";
 
-import { loadStore, saveStore } from "../persistence";
+import { getStore, scheduleSave } from "../persistence";
+import { NotFoundError } from "../utils/errors";
+import { dispatchWebhooks, type WebhookEvent } from "./webhookService";
 
 export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite";
 
@@ -20,13 +22,13 @@ const notificationsByUser = new Map<string, Notification[]>();
 function persist(): void {
   const obj: Record<string, Notification[]> = {};
   notificationsByUser.forEach((list, uid) => { obj[uid] = list; });
-  const store = loadStore();
+  const store = getStore();
   store.notifications = obj;
-  saveStore(store);
+  scheduleSave();
 }
 
 (function hydrate() {
-  const store = loadStore();
+  const store = getStore();
   if (store.notifications) {
     for (const [uid, list] of Object.entries(store.notifications)) {
       notificationsByUser.set(uid, list as Notification[]);
@@ -65,6 +67,13 @@ export function createNotification(
   list.unshift(notif);
   if (list.length > 100) list.length = 100;
   persist();
+
+  try {
+    dispatchWebhooks(userId, type as WebhookEvent, title, message, data);
+  } catch (err) {
+    console.warn("[notifications] webhook dispatch error:", err);
+  }
+
   return notif;
 }
 
@@ -79,7 +88,7 @@ export function unreadCount(userId: string): number {
 export function markAsRead(userId: string, notifId: string): Notification {
   const list = getUserNotifications(userId);
   const notif = list.find((n) => n.id === notifId);
-  if (!notif) throw new Error("Notification introuvable");
+  if (!notif) throw new NotFoundError("Notification introuvable");
   notif.read = true;
   persist();
   return notif;

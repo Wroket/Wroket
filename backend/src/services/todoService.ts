@@ -1,23 +1,36 @@
 import crypto from "crypto";
 
-import { loadStore, saveStore } from "../persistence";
+import { getStore, scheduleSave } from "../persistence";
+import { NotFoundError, ValidationError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
 export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
 export type AssignmentStatus = "pending" | "accepted" | "declined";
 
+export interface ScheduledSlot {
+  start: string; // ISO datetime
+  end: string;   // ISO datetime
+  calendarEventId: string | null;
+}
+
 export interface Todo {
   id: string;
   userId: string;
   parentId: string | null;
+  projectId: string | null;
+  phaseId: string | null;
   assignedTo: string | null;
   assignmentStatus: AssignmentStatus | null;
   title: string;
   priority: Priority;
   effort: Effort;
+  estimatedMinutes: number | null;
+  startDate: string | null;
   deadline: string | null;
   status: TodoStatus;
+  scheduledSlot: ScheduledSlot | null;
+  statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,8 +39,12 @@ export interface CreateTodoInput {
   title: string;
   priority: Priority;
   effort?: Effort;
+  estimatedMinutes?: number | null;
+  startDate?: string | null;
   deadline?: string | null;
   parentId?: string | null;
+  projectId?: string | null;
+  phaseId?: string | null;
   assignedTo?: string | null;
 }
 
@@ -35,10 +52,15 @@ export interface UpdateTodoInput {
   title?: string;
   priority?: Priority;
   effort?: Effort;
+  estimatedMinutes?: number | null;
+  startDate?: string | null;
   deadline?: string | null;
   status?: TodoStatus;
+  projectId?: string | null;
+  phaseId?: string | null;
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
+  scheduledSlot?: ScheduledSlot | null;
 }
 
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
@@ -53,13 +75,13 @@ function persistTodos(): void {
     obj[userId] = {};
     todos.forEach((todo, id) => { obj[userId][id] = todo; });
   });
-  const store = loadStore();
+  const store = getStore();
   store.todos = obj;
-  saveStore(store);
+  scheduleSave();
 }
 
 (function hydrateTodos() {
-  const store = loadStore();
+  const store = getStore();
   if (store.todos) {
     let count = 0;
     for (const [userId, todos] of Object.entries(store.todos)) {
@@ -67,6 +89,27 @@ function persistTodos(): void {
       for (const [id, todo] of Object.entries(todos as Record<string, Todo>)) {
         if (todo.assignmentStatus === undefined) {
           todo.assignmentStatus = todo.assignedTo ? "pending" : null;
+        }
+        if (todo.projectId === undefined) {
+          todo.projectId = null;
+        }
+        if (todo.phaseId === undefined) {
+          todo.phaseId = null;
+        }
+        if (todo.startDate === undefined) {
+          todo.startDate = null;
+        }
+        if (!todo.effort) {
+          todo.effort = "medium";
+        }
+        if ((todo as unknown as Record<string, unknown>).estimatedMinutes === undefined) {
+          todo.estimatedMinutes = null;
+        }
+        if ((todo as unknown as Record<string, unknown>).scheduledSlot === undefined) {
+          todo.scheduledSlot = null;
+        }
+        if (!todo.statusChangedAt) {
+          todo.statusChangedAt = todo.status === "active" ? todo.createdAt : todo.updatedAt;
         }
         map.set(id, todo);
         count++;
@@ -86,11 +129,32 @@ function getUserTodos(userId: string): Map<string, Todo> {
   return todos;
 }
 
+const ARCHIVE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function isArchived(todo: Todo): boolean {
+  if (todo.status === "active") return false;
+  const elapsed = Date.now() - new Date(todo.statusChangedAt).getTime();
+  return elapsed >= ARCHIVE_THRESHOLD_MS;
+}
+
+export function listArchivedTodos(userId: string): Todo[] {
+  return listAllTodos(userId)
+    .filter(isArchived)
+    .sort((a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime());
+}
+
 export function listTodos(userId: string): Todo[] {
   const todos = getUserTodos(userId);
-  return Array.from(todos.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return Array.from(todos.values())
+    .filter((t) => !isArchived(t))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+/**
+ * Returns all tasks (including archived) for internal use.
+ */
+export function listAllTodos(userId: string): Todo[] {
+  return Array.from(getUserTodos(userId).values());
 }
 
 /**
@@ -101,7 +165,7 @@ export function listAssignedToMe(userId: string): Todo[] {
   todosByUser.forEach((todos, ownerUid) => {
     if (ownerUid === userId) return;
     todos.forEach((todo) => {
-      if (todo.assignedTo === userId) result.push(todo);
+      if (todo.assignedTo === userId && !isArchived(todo)) result.push(todo);
     });
   });
   return result.sort(
@@ -111,29 +175,29 @@ export function listAssignedToMe(userId: string): Todo[] {
 
 export function createTodo(userId: string, input: CreateTodoInput): Todo {
   if (!input.title || input.title.trim().length === 0) {
-    throw new Error("Le titre est requis");
+    throw new ValidationError("Le titre est requis");
   }
   if (input.title.trim().length > 500) {
-    throw new Error("Le titre ne doit pas dépasser 500 caractères");
+    throw new ValidationError("Le titre ne doit pas dépasser 500 caractères");
   }
   if (!VALID_PRIORITIES.includes(input.priority)) {
-    throw new Error("Priorité invalide (low, medium, high)");
+    throw new ValidationError("Priorité invalide (low, medium, high)");
   }
   if (input.effort && !VALID_EFFORTS.includes(input.effort)) {
-    throw new Error("Charge invalide (light, medium, heavy)");
+    throw new ValidationError("Charge invalide (light, medium, heavy)");
   }
   if (input.deadline) {
     const d = new Date(input.deadline);
-    if (isNaN(d.getTime())) throw new Error("Date deadline invalide");
+    if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
   }
 
   if (input.parentId) {
     const parentTodo = getUserTodos(userId).get(input.parentId);
-    if (!parentTodo) throw new Error("Tâche parente introuvable");
-    if (parentTodo.parentId) throw new Error("Une sous-tâche ne peut pas avoir de sous-tâche");
+    if (!parentTodo) throw new NotFoundError("Tâche parente introuvable");
+    if (parentTodo.parentId) throw new ValidationError("Une sous-tâche ne peut pas avoir de sous-tâche");
     if (input.deadline && parentTodo.deadline) {
       if (new Date(input.deadline) > new Date(parentTodo.deadline)) {
-        throw new Error("La deadline d'une sous-tâche ne peut pas dépasser celle de la tâche parente");
+        throw new ValidationError("La deadline d'une sous-tâche ne peut pas dépasser celle de la tâche parente");
       }
     }
   }
@@ -143,13 +207,19 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     id: crypto.randomUUID(),
     userId,
     parentId: input.parentId ?? null,
+    projectId: input.projectId ?? null,
+    phaseId: input.phaseId ?? null,
     assignedTo: input.assignedTo ?? null,
     assignmentStatus: input.assignedTo ? "pending" : null,
     title: input.title.trim(),
     priority: input.priority,
     effort: input.effort ?? "medium",
+    estimatedMinutes: input.estimatedMinutes ?? null,
+    startDate: input.startDate ?? null,
     deadline: input.deadline ?? null,
+    scheduledSlot: null,
     status: "active",
+    statusChangedAt: now,
     createdAt: now,
     updatedAt: now,
   };
@@ -177,37 +247,52 @@ function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap
 
 export function updateTodo(userId: string, todoId: string, input: UpdateTodoInput): Todo {
   const found = findTodoForUser(userId, todoId);
-  if (!found) throw new Error("Tâche introuvable");
+  if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos } = found;
 
   if (input.title !== undefined) {
-    if (input.title.trim().length === 0) throw new Error("Le titre est requis");
+    if (input.title.trim().length === 0) throw new ValidationError("Le titre est requis");
     todo.title = input.title.trim();
   }
   if (input.priority !== undefined) {
     if (!VALID_PRIORITIES.includes(input.priority)) {
-      throw new Error("Priorité invalide (low, medium, high)");
+      throw new ValidationError("Priorité invalide (low, medium, high)");
     }
     todo.priority = input.priority;
   }
   if (input.effort !== undefined) {
     if (!VALID_EFFORTS.includes(input.effort)) {
-      throw new Error("Charge invalide (light, medium, heavy)");
+      throw new ValidationError("Charge invalide (light, medium, heavy)");
     }
     todo.effort = input.effort;
+  }
+  if (input.estimatedMinutes !== undefined) {
+    todo.estimatedMinutes = input.estimatedMinutes;
   }
   if (input.deadline !== undefined) {
     if (input.deadline !== null) {
       const d = new Date(input.deadline);
-      if (isNaN(d.getTime())) throw new Error("Date deadline invalide");
+      if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
     }
     todo.deadline = input.deadline;
   }
   if (input.status !== undefined) {
     if (!VALID_STATUSES.includes(input.status)) {
-      throw new Error("Statut invalide (active, completed, cancelled)");
+      throw new ValidationError("Statut invalide (active, completed, cancelled)");
+    }
+    if (input.status !== todo.status) {
+      todo.statusChangedAt = new Date().toISOString();
     }
     todo.status = input.status;
+  }
+  if (input.projectId !== undefined) {
+    todo.projectId = input.projectId;
+  }
+  if (input.phaseId !== undefined) {
+    todo.phaseId = input.phaseId;
+  }
+  if (input.startDate !== undefined) {
+    todo.startDate = input.startDate;
   }
   if (input.assignedTo !== undefined) {
     if (input.assignedTo !== todo.assignedTo) {
@@ -218,6 +303,9 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   if (input.assignmentStatus !== undefined) {
     todo.assignmentStatus = input.assignmentStatus;
   }
+  if (input.scheduledSlot !== undefined) {
+    todo.scheduledSlot = input.scheduledSlot;
+  }
 
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
@@ -227,10 +315,12 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
 
 export function deleteTodo(userId: string, todoId: string): Todo {
   const found = findTodoForUser(userId, todoId);
-  if (!found) throw new Error("Tâche introuvable");
+  if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos } = found;
+  const now = new Date().toISOString();
   todo.status = "deleted";
-  todo.updatedAt = new Date().toISOString();
+  todo.statusChangedAt = now;
+  todo.updatedAt = now;
   todos.set(todoId, todo);
   persistTodos();
   return todo;

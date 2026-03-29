@@ -1,40 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { getTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
+import { classify } from "@/lib/classify";
+import { deadlineLabel } from "@/lib/deadlineUtils";
 import { useLocale } from "@/lib/LocaleContext";
-import { getLocale } from "@/lib/i18n";
-
-type Quadrant = "do-first" | "schedule" | "delegate" | "eliminate";
-
-const URGENCY_THRESHOLD_DAYS = 3;
-
-function classify(todo: Todo): Quadrant {
-  const important = todo.priority === "high" || todo.priority === "medium";
-  const eff = todo.effort ?? "medium";
-
-  if (todo.deadline) {
-    const daysLeft =
-      (new Date(todo.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-
-    if (daysLeft <= 1) {
-      if (!important && eff === "heavy") return "delegate";
-      return "do-first";
-    }
-
-    if (daysLeft <= URGENCY_THRESHOLD_DAYS) {
-      if (important) return "do-first";
-      if (eff === "heavy") return "eliminate";
-      return "delegate";
-    }
-  }
-
-  if (important) return eff === "light" ? "do-first" : "schedule";
-  return eff === "light" ? "delegate" : "eliminate";
-}
-
-import type { TranslationKey } from "@/lib/i18n";
+import { getLocale, type TranslationKey } from "@/lib/i18n";
+import type { Quadrant } from "@/lib/todoConstants";
 
 const QUADRANT_LABELS: Record<Quadrant, { tKey: TranslationKey; emoji: string; cls: string }> = {
   "do-first": { tKey: "filter.doFirst", emoji: "🔥", cls: "bg-red-500 text-white" },
@@ -42,21 +16,6 @@ const QUADRANT_LABELS: Record<Quadrant, { tKey: TranslationKey; emoji: string; c
   delegate:   { tKey: "filter.delegate", emoji: "⚡", cls: "bg-amber-500 text-white" },
   eliminate:  { tKey: "filter.eliminate", emoji: "⏸️", cls: "bg-emerald-400 text-white" },
 };
-
-function deadlineLabel(d: string, t: (k: TranslationKey) => string): { text: string; cls: string; urgent: boolean } {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(d);
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const loc = getLocale() === "en" ? "en-US" : "fr-FR";
-
-  if (diff < 0) return { text: t("deadline.overdue"), cls: "text-red-600 dark:text-red-400", urgent: true };
-  if (diff === 0) return { text: t("deadline.today"), cls: "text-red-600 dark:text-red-400", urgent: true };
-  if (diff === 1) return { text: t("deadline.tomorrow"), cls: "text-amber-600 dark:text-amber-400", urgent: true };
-  if (diff <= 3) return { text: `${diff}${t("deadline.daysLeft")}`, cls: "text-amber-600 dark:text-amber-400", urgent: true };
-  return { text: target.toLocaleDateString(loc, { day: "numeric", month: "short" }), cls: "text-zinc-500 dark:text-slate-400", urgent: false };
-}
 
 export default function DashboardPage() {
   const { t } = useLocale();
@@ -82,48 +41,56 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const active = todos.filter((td) => td.status === "active");
-  const completed = todos.filter((td) => td.status === "completed");
+  const active = useMemo(() => todos.filter((td) => td.status === "active"), [todos]);
+  const completed = useMemo(() => todos.filter((td) => td.status === "completed"), [todos]);
 
-  const grouped: Record<Quadrant, Todo[]> = {
+  const grouped = useMemo<Record<Quadrant, Todo[]>>(() => ({
     "do-first": active.filter((td) => classify(td) === "do-first"),
     schedule: active.filter((td) => classify(td) === "schedule"),
     delegate: active.filter((td) => classify(td) === "delegate"),
     eliminate: active.filter((td) => classify(td) === "eliminate"),
-  };
+  }), [active]);
 
-  const urgentTodos = active
-    .filter((td) => {
-      if (!td.deadline) return false;
-      const dl = deadlineLabel(td.deadline, t);
-      return dl.urgent;
-    })
-    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
-    .slice(0, 5);
+  const { urgentTodos, overdueCount, totalUrgentCount } = useMemo(() => {
+    const urgent = active
+      .filter((td) => td.deadline && deadlineLabel(td.deadline, t)?.urgent)
+      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
+    return {
+      urgentTodos: urgent.slice(0, 5),
+      overdueCount: urgent.filter((td) => deadlineLabel(td.deadline, t)?.text === t("deadline.overdue")).length,
+      totalUrgentCount: urgent.length,
+    };
+  }, [active, t]);
 
-  const recentlyCompleted = completed
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, 5);
-
-  const completionRate = todos.length > 0
-    ? Math.round((completed.length / todos.length) * 100)
-    : 0;
-
-  const startOfWeek = new Date();
-  startOfWeek.setHours(0, 0, 0, 0);
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1);
-
-  const completedThisWeek = completed.filter(
-    (td) => new Date(td.updatedAt).getTime() >= startOfWeek.getTime()
+  const recentlyCompleted = useMemo(
+    () => [...completed]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5),
+    [completed],
   );
-  const completedOnTime = completedThisWeek.filter((td) => {
-    if (!td.deadline) return true;
-    return new Date(td.updatedAt) <= new Date(td.deadline + "T23:59:59");
-  });
-  const completedLate = completedThisWeek.filter((td) => {
-    if (!td.deadline) return false;
-    return new Date(td.updatedAt) > new Date(td.deadline + "T23:59:59");
-  });
+
+  const completionRate = useMemo(
+    () => (todos.length > 0 ? Math.round((completed.length / todos.length) * 100) : 0),
+    [todos.length, completed.length],
+  );
+
+  const { completedThisWeek, completedOnTime, completedLate } = useMemo(() => {
+    const startOfWeek = new Date();
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1);
+    const thisWeek = completed.filter(
+      (td) => new Date(td.updatedAt).getTime() >= startOfWeek.getTime(),
+    );
+    const onTime = thisWeek.filter((td) => {
+      if (!td.deadline) return true;
+      return new Date(td.updatedAt) <= new Date(td.deadline + "T23:59:59");
+    });
+    const late = thisWeek.filter((td) => {
+      if (!td.deadline) return false;
+      return new Date(td.updatedAt) > new Date(td.deadline + "T23:59:59");
+    });
+    return { completedThisWeek: thisWeek, completedOnTime: onTime, completedLate: late };
+  }, [completed]);
 
   return (
     <AppShell>
@@ -143,7 +110,7 @@ export default function DashboardPage() {
               <StatCard label={t("dashboard.activeTasks")} value={active.length} accent="bg-blue-500" />
               <StatCard label={t("dashboard.completed")} value={completed.length} accent="bg-green-500" />
               <StatCard label={t("dashboard.completionRate")} value={`${completionRate}%`} accent="bg-violet-500" />
-              <StatCard label={t("dashboard.overdue")} value={active.filter((td) => td.deadline && deadlineLabel(td.deadline, t).urgent && deadlineLabel(td.deadline, t).text === t("deadline.overdue")).length} accent="bg-red-500" />
+              <StatCard label={t("dashboard.overdue")} value={overdueCount} accent="bg-red-500" />
             </div>
 
             {/* ── Eisenhower summary ── */}
@@ -178,20 +145,20 @@ export default function DashboardPage() {
                 ) : (
                   <ul className="space-y-3">
                     {urgentTodos.map((todo) => {
-                      const dl = deadlineLabel(todo.deadline!, t);
+                      const dl = deadlineLabel(todo.deadline!, t)!;
                       const badge = QUADRANT_LABELS[classify(todo)];
                       return (
                         <li key={todo.id} className="flex items-center gap-3">
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
                           <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">{todo.title}</span>
-                          <span className={`text-xs font-medium shrink-0 ${dl.cls}`}>{dl.text}</span>
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>
                         </li>
                       );
                     })}
                   </ul>
                 )}
-                {active.filter((td) => td.deadline && deadlineLabel(td.deadline, t).urgent).length > 5 && (
-                  <a href="/todos" className="block text-xs text-blue-600 dark:text-blue-400 mt-3 hover:underline">{t("dashboard.viewAll")}</a>
+                {totalUrgentCount > 5 && (
+                  <Link href="/todos" className="block text-xs text-blue-600 dark:text-blue-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
                 )}
               </div>
 
@@ -276,7 +243,7 @@ export default function DashboardPage() {
 
             {/* ── Quick link ── */}
             <div className="flex gap-3">
-              <a
+              <Link
                 href="/todos"
                 className="inline-flex items-center gap-2 rounded bg-slate-700 dark:bg-slate-100 px-5 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 transition-colors"
               >
@@ -284,7 +251,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
                 {t("dashboard.manageTasks")}
-              </a>
+              </Link>
             </div>
           </>
         )}

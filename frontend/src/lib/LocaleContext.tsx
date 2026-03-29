@@ -28,6 +28,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLocaleState(l);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   const translate = useCallback((key: TranslationKey) => globalT(key), [locale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

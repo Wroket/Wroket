@@ -3,21 +3,19 @@ import path from "path";
 
 const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
 
-interface StoreData {
+export interface StoreData {
   users?: Record<string, unknown>;
   todos?: Record<string, Record<string, unknown>>;
   notifications?: Record<string, unknown[]>;
   collaborators?: Record<string, unknown[]>;
   teams?: Record<string, unknown>;
+  projects?: Record<string, unknown>;
+  sessions?: Record<string, unknown>;
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * Charge les données depuis le fichier JSON local.
- * Retourne un objet vide si le fichier n'existe pas.
- */
-export function loadStore(): StoreData {
+function loadStoreFromDisk(): StoreData {
   try {
     if (!fs.existsSync(STORE_PATH)) return {};
     const raw = fs.readFileSync(STORE_PATH, "utf-8");
@@ -28,18 +26,46 @@ export function loadStore(): StoreData {
   }
 }
 
+let cachedStore: StoreData = loadStoreFromDisk();
+
 /**
- * Sauvegarde les données dans le fichier JSON local (debounce 500ms).
+ * (Re)loads the store from disk into the in-memory cache.
+ * Call once at startup before any request handling.
  */
-export function saveStore(data: StoreData): void {
+export function initStore(): void {
+  cachedStore = loadStoreFromDisk();
+}
+
+/**
+ * Returns the single in-memory cached store.
+ * All services read from and write to this object.
+ */
+export function getStore(): StoreData {
+  return cachedStore;
+}
+
+/**
+ * Schedules a debounced write of the cached store to disk (500 ms).
+ */
+export function scheduleSave(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     try {
       const dir = path.dirname(STORE_PATH);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
+      fs.writeFileSync(STORE_PATH, JSON.stringify(cachedStore, null, 2), "utf-8");
     } catch (err) {
       console.error("[persistence] Impossible de sauvegarder: %s", err);
     }
   }, 500);
+}
+
+/** @deprecated Use getStore() instead */
+export function loadStore(): StoreData {
+  return cachedStore;
+}
+
+/** @deprecated Use scheduleSave() instead */
+export function saveStore(_data: StoreData): void {
+  scheduleSave();
 }

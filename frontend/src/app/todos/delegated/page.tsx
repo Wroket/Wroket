@@ -1,55 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
 import {
-  getMe,
   getTodos,
   updateTodo,
   deleteTodo,
-  lookupUserByUid,
   Todo,
   TodoStatus,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUserLookup } from "@/lib/userUtils";
 
 export default function DelegatedPage() {
   const { t } = useLocale();
-  const [meUid, setMeUid] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { resolveUser, displayName } = useUserLookup();
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [userCache, setUserCache] = useState<Record<string, { email: string; firstName: string; lastName: string }>>({});
   const [loading, setLoading] = useState(true);
 
-  const userDisplayName = useCallback((uid: string): string => {
-    const u = userCache[uid];
-    if (!u) return uid.slice(0, 8) + "…";
-    if (u.firstName || u.lastName) return [u.firstName, u.lastName].filter(Boolean).join(" ");
-    return u.email;
-  }, [userCache]);
-
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     (async () => {
       try {
-        const [me, allTodos] = await Promise.all([getMe(), getTodos()]);
+        const allTodos = await getTodos();
         if (cancelled) return;
-        setMeUid(me.uid);
-        const delegated = allTodos.filter((todo) => todo.assignedTo && todo.assignedTo !== me.uid && !todo.parentId);
+        const delegated = allTodos.filter((todo) => todo.assignedTo && todo.assignedTo !== user.uid && !todo.parentId);
         setTodos(delegated);
 
         const uids = new Set<string>();
         delegated.forEach((todo) => { if (todo.assignedTo) uids.add(todo.assignedTo); });
-        uids.forEach((uid) => {
-          lookupUserByUid(uid).then((u) => {
-            if (u && !cancelled) setUserCache((c) => ({ ...c, [uid]: { email: u.email, firstName: u.firstName, lastName: u.lastName } }));
-          }).catch(() => {});
-        });
+        uids.forEach((uid) => resolveUser(uid));
       } catch { /* auth handled by AppShell */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user, resolveUser]);
 
   const handleStatusChange = async (todo: Todo, newStatus: TodoStatus) => {
     try {
@@ -156,7 +145,7 @@ export default function DelegatedPage() {
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                               </svg>
-                              {userDisplayName(todo.assignedTo)}
+                              {displayName(todo.assignedTo)}
                             </span>
                             {todo.assignmentStatus === "declined" && (
                               <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">

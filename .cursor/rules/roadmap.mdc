@@ -1,0 +1,14 @@
+---
+description: Gestion de la roadmap projet — déclenché quand l'utilisateur mentionne /plan
+alwaysApply: true
+---
+
+# Roadmap Wroket
+
+Quand l'utilisateur dit `/plan` ou demande de voir/modifier la roadmap :
+
+1. Lire le fichier `ROADMAP.md` à la racine du projet
+2. Afficher la liste actuelle des éléments à faire
+3. Si l'utilisateur souhaite ajouter un élément, l'insérer dans la section appropriée du `ROADMAP.md`
+4. Si l'utilisateur souhaite cocher un élément terminé, remplacer `- [ ]` par `- [x]`
+5. Toujours confirmer les modifications apportées

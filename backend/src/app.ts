@@ -2,6 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 import { errorHandler } from "./middlewares/errorHandler";
 import healthRoutes from "./routes/healthRoutes";
@@ -9,6 +10,9 @@ import authRoutes from "./routes/authRoutes";
 import todoRoutes from "./routes/todoRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import teamRoutes from "./routes/teamRoutes";
+import projectRoutes from "./routes/projectRoutes";
+import calendarRoutes from "./routes/calendarRoutes";
+import webhookRoutes from "./routes/webhookRoutes";
 
 dotenv.config();
 
@@ -34,13 +38,23 @@ app.use(
 );
 app.use(express.json({ limit: "16kb" }));
 
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Trop de requêtes, réessayez dans une minute" },
+});
+
 app.use("/", healthRoutes);
 app.use("/auth", authRoutes);
-app.use("/todos", todoRoutes);
-app.use("/notifications", notificationRoutes);
-app.use("/teams", teamRoutes);
+app.use("/todos", apiLimiter, todoRoutes);
+app.use("/notifications", apiLimiter, notificationRoutes);
+app.use("/teams", apiLimiter, teamRoutes);
+app.use("/projects", apiLimiter, projectRoutes);
+app.use("/calendar", apiLimiter, calendarRoutes);
+app.use("/webhooks", apiLimiter, webhookRoutes);
 
 app.use(errorHandler);
 
 export default app;
-

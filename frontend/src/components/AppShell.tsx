@@ -2,6 +2,7 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   getMe,
   logout,
@@ -9,16 +10,17 @@ import {
   getUnreadCount,
   markNotificationRead,
   markAllNotificationsRead,
+  acceptCollaboration,
+  declineCollaboration,
   AuthMeResponse,
   AppNotification,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import type { TranslationKey } from "@/lib/i18n";
 
 interface AppShellProps {
   children: ReactNode;
 }
-
-import type { TranslationKey } from "@/lib/i18n";
 
 const NAV_ITEMS: { tKey: TranslationKey; href: string; icon: ReactNode }[] = [
   {
@@ -60,7 +62,28 @@ const TASKS_NAV = {
   children: [
     { tKey: "nav.myTasks" as TranslationKey, href: "/todos" },
     { tKey: "nav.delegated" as TranslationKey, href: "/todos/delegated" },
+    { tKey: "nav.archives" as TranslationKey, href: "/todos/archives" },
   ],
+};
+
+const AGENDA_ITEM = {
+  tKey: "nav.agenda" as TranslationKey,
+  href: "/agenda",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+};
+
+const NOTIF_NAV_ITEM = {
+  tKey: "nav.notifications" as TranslationKey,
+  href: "/notifications",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </svg>
+  ),
 };
 
 const SETTINGS_ITEM = {
@@ -74,10 +97,11 @@ const SETTINGS_ITEM = {
   ),
 };
 
-function NavLink({ href, icon, label, active }: { href: string; icon: ReactNode; label: string; active: boolean }) {
+function NavLink({ href, icon, label, active, onClick }: { href: string; icon: ReactNode; label: string; active: boolean; onClick?: () => void }) {
   return (
-    <a
+    <Link
       href={href}
+      onClick={onClick}
       className={`flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
         active
           ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
@@ -86,7 +110,7 @@ function NavLink({ href, icon, label, active }: { href: string; icon: ReactNode;
     >
       {icon}
       {label}
-    </a>
+    </Link>
   );
 }
 
@@ -108,6 +132,7 @@ export default function AppShell({ children }: AppShellProps) {
   const [me, setMe] = useState<AuthMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -133,7 +158,15 @@ export default function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (pathname.startsWith("/todos")) setTasksOpen(true);
+    setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileMenuOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileMenuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,6 +233,8 @@ export default function AppShell({ children }: AppShellProps) {
     } catch { /* ignore */ }
   };
 
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+
   const handleLogout = async () => {
     try { await logout(); } finally { window.location.href = "/login"; }
   };
@@ -214,18 +249,39 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-slate-950 transition-colors">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:rounded focus:bg-slate-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white">
+        Skip to main content
+      </a>
+
       {/* ── Header ── */}
       <header className="bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
-        <div className="px-6 py-4 flex items-center justify-between">
+        <div className="px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-slate-700 dark:bg-white flex items-center justify-center">
-              <span className="text-white dark:text-slate-900 text-sm font-bold">W</span>
-            </div>
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 leading-tight">Wroket</h1>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="md:hidden rounded p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+            <img src="/wroket-icon.png" alt="Wroket" className="w-10 h-10 rounded-xl" />
+            <h1 className="text-lg font-semibold leading-tight">
+              <span className="text-slate-800 dark:text-slate-100">Wro</span><span className="text-emerald-500 dark:text-emerald-400">ket</span>
+            </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <a href="/settings" className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
-              <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center">
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <Link href="/settings" className="flex items-center gap-2 rounded px-1.5 sm:px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
+              <div className="w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">
                   {me?.firstName ? me.firstName.charAt(0).toUpperCase() : me?.email?.charAt(0).toUpperCase() ?? "?"}
                 </span>
@@ -233,7 +289,7 @@ export default function AppShell({ children }: AppShellProps) {
               <span className="text-sm text-zinc-700 dark:text-slate-300 hidden sm:inline">
                 {me?.firstName ? me.firstName : me?.email}
               </span>
-            </a>
+            </Link>
             {/* Notification bell */}
             <div className="relative" ref={notifRef}>
               <button
@@ -251,7 +307,7 @@ export default function AppShell({ children }: AppShellProps) {
                 )}
               </button>
               {notifOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50 max-h-[400px] flex flex-col">
+                <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50 max-h-[400px] flex flex-col">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-slate-800">
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("notif.title")}</h3>
                     {unreadCount > 0 && (
@@ -265,46 +321,84 @@ export default function AppShell({ children }: AppShellProps) {
                     )}
                   </div>
                   <div className="overflow-y-auto flex-1">
-                    {notifications.length === 0 ? (
+                    {notifications.filter((n) => !n.read).length === 0 ? (
                       <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("notif.empty")}</p>
                     ) : (
-                      notifications.slice(0, 20).map((notif) => (
-                        <button
+                      notifications.filter((n) => !n.read).slice(0, 20).map((notif) => (
+                        <div
                           key={notif.id}
-                          type="button"
-                          onClick={async () => {
-                            if (!notif.read) await handleMarkRead(notif.id);
-                            setNotifOpen(false);
-                            if (notif.type === "task_assigned") {
-                              window.location.href = "/todos";
-                            } else if (notif.type === "team_invite") {
-                              window.location.href = "/teams";
-                            }
-                          }}
-                          className={`w-full text-left px-4 py-3 border-b border-zinc-50 dark:border-slate-800 transition-colors cursor-pointer hover:bg-zinc-50 dark:hover:bg-slate-800/60 ${
-                            notif.read
-                              ? "bg-white dark:bg-slate-900"
-                              : "bg-blue-50/50 dark:bg-blue-950/20"
-                          }`}
+                          className="w-full text-left px-4 py-3 border-b border-zinc-50 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-950/20"
                         >
                           <div className="flex items-start gap-2">
-                            <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${notif.read ? "bg-transparent" : "bg-blue-500"}`} />
+                            <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-blue-500" />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{notif.message}</p>
                               <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{timeAgo(notif.createdAt, t)}</p>
+                              {notif.type === "team_invite" && notif.data?.inviterEmail && (
+                                <div className="flex gap-2 mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        await acceptCollaboration(notif.data!.inviterEmail);
+                                        await handleMarkRead(notif.id);
+                                        window.dispatchEvent(new Event("collaborators-updated"));
+                                      } catch { /* ignore */ }
+                                    }}
+                                    className="rounded px-2.5 py-1 text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                                  >
+                                    {t("notif.accept" as TranslationKey)}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        await declineCollaboration(notif.data!.inviterEmail);
+                                        await handleMarkRead(notif.id);
+                                        window.dispatchEvent(new Event("collaborators-updated"));
+                                      } catch { /* ignore */ }
+                                    }}
+                                    className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                                  >
+                                    {t("notif.decline" as TranslationKey)}
+                                  </button>
+                                </div>
+                              )}
+                              {notif.type !== "team_invite" && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await handleMarkRead(notif.id);
+                                    setNotifOpen(false);
+                                    if (notif.type === "task_assigned") window.location.href = "/todos";
+                                  }}
+                                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                                >
+                                  →
+                                </button>
+                              )}
                             </div>
                           </div>
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>
+                  <Link
+                    href="/notifications"
+                    onClick={() => setNotifOpen(false)}
+                    className="block text-center px-4 py-2.5 border-t border-zinc-100 dark:border-slate-800 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    {t("notif.viewAll" as TranslationKey)}
+                  </Link>
                 </div>
               )}
             </div>
             <button
               onClick={toggleDarkMode}
               className="rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-              aria-label="Toggle dark mode"
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
               {darkMode ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -318,21 +412,31 @@ export default function AppShell({ children }: AppShellProps) {
             </button>
             <button
               onClick={handleLogout}
-              className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+              className="rounded border border-zinc-200 dark:border-slate-600 p-2 sm:px-4 sm:py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+              aria-label={t("app.logout")}
             >
-              {t("app.logout")}
+              <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="hidden sm:inline">{t("app.logout")}</span>
             </button>
           </div>
         </div>
       </header>
 
-      <div className="flex">
-        {/* ── Sidebar ── */}
-        <aside className="hidden md:flex flex-col w-56 shrink-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 min-h-[calc(100vh-65px)] py-4 px-3 gap-1">
+      {/* ── Mobile sidebar overlay ── */}
+      <div
+        className={`fixed inset-0 z-40 md:hidden transition-opacity duration-300 ${mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        aria-hidden={!mobileMenuOpen}
+      >
+        <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
+        <nav
+          aria-label="Main navigation"
+          className={`absolute inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 py-4 px-3 flex flex-col gap-1 overflow-y-auto transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+        >
           {NAV_ITEMS.slice(0, 1).map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
+            <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
           ))}
-          {/* Tasks expandable section */}
           <div>
             <button
               type="button"
@@ -352,9 +456,10 @@ export default function AppShell({ children }: AppShellProps) {
             {tasksOpen && (
               <div className="ml-7 mt-0.5 space-y-0.5">
                 {TASKS_NAV.children.map((child) => (
-                  <a
+                  <Link
                     key={child.href}
                     href={child.href}
+                    onClick={closeMobileMenu}
                     className={`block px-3 py-2 rounded text-sm transition-colors ${
                       pathname === child.href
                         ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
@@ -362,20 +467,74 @@ export default function AppShell({ children }: AppShellProps) {
                     }`}
                   >
                     {t(child.tKey)}
-                  </a>
+                  </Link>
                 ))}
               </div>
             )}
           </div>
+          <NavLink href={AGENDA_ITEM.href} icon={AGENDA_ITEM.icon} label={t(AGENDA_ITEM.tKey)} active={pathname === "/agenda"} onClick={closeMobileMenu} />
           {NAV_ITEMS.slice(1).map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
+            <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
           ))}
+          <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} onClick={closeMobileMenu} />
           <hr className="border-zinc-200 dark:border-slate-700 my-2" />
-          <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
+          <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
+        </nav>
+      </div>
+
+      <div className="flex">
+        {/* ── Desktop Sidebar ── */}
+        <aside className="hidden md:flex flex-col w-56 shrink-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 min-h-[calc(100vh-65px)]">
+          <nav aria-label="Main navigation" className="flex flex-col py-4 px-3 gap-1">
+            {NAV_ITEMS.slice(0, 1).map((item) => (
+              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
+            ))}
+            <div>
+              <button
+                type="button"
+                onClick={() => setTasksOpen((v) => !v)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                  pathname.startsWith("/todos")
+                    ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                    : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+                }`}
+              >
+                {TASKS_NAV.icon}
+                <span className="flex-1 text-left">{t(TASKS_NAV.tKey)}</span>
+                <svg className={`w-3.5 h-3.5 transition-transform ${tasksOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              {tasksOpen && (
+                <div className="ml-7 mt-0.5 space-y-0.5">
+                  {TASKS_NAV.children.map((child) => (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      className={`block px-3 py-2 rounded text-sm transition-colors ${
+                        pathname === child.href
+                          ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                          : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      {t(child.tKey)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+            <NavLink href={AGENDA_ITEM.href} icon={AGENDA_ITEM.icon} label={t(AGENDA_ITEM.tKey)} active={pathname === "/agenda"} />
+            {NAV_ITEMS.slice(1).map((item) => (
+              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
+            ))}
+            <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} />
+            <hr className="border-zinc-200 dark:border-slate-700 my-2" />
+            <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
+          </nav>
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 min-w-0 py-6 px-6 lg:px-8">
+        <main id="main-content" role="main" className="flex-1 min-w-0 py-6 px-4 md:px-6 lg:px-8">
           {children}
         </main>
       </div>
