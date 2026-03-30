@@ -13,6 +13,7 @@ import {
 
 const LS_KEY = "wroket_notes";
 const LS_DIRTY_KEY = "wroket_notes_dirty";
+const LS_DELETED_KEY = "wroket_notes_deleted";
 
 function readLocal(): Note[] {
   if (typeof window === "undefined") return [];
@@ -29,19 +30,42 @@ function writeLocal(notes: Note[]) {
 
 function markDirty(ids: string[]) {
   if (typeof window === "undefined") return;
-  const existing: string[] = JSON.parse(localStorage.getItem(LS_DIRTY_KEY) ?? "[]");
-  const set = new Set([...existing, ...ids]);
-  localStorage.setItem(LS_DIRTY_KEY, JSON.stringify([...set]));
+  try {
+    const existing: string[] = JSON.parse(localStorage.getItem(LS_DIRTY_KEY) ?? "[]");
+    const set = new Set([...existing, ...ids]);
+    localStorage.setItem(LS_DIRTY_KEY, JSON.stringify([...set]));
+  } catch { localStorage.setItem(LS_DIRTY_KEY, JSON.stringify(ids)); }
 }
 
 function getDirtyIds(): string[] {
   if (typeof window === "undefined") return [];
-  return JSON.parse(localStorage.getItem(LS_DIRTY_KEY) ?? "[]");
+  try { return JSON.parse(localStorage.getItem(LS_DIRTY_KEY) ?? "[]"); }
+  catch { localStorage.removeItem(LS_DIRTY_KEY); return []; }
 }
 
 function clearDirty() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(LS_DIRTY_KEY);
+}
+
+function markDeleted(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing: string[] = JSON.parse(localStorage.getItem(LS_DELETED_KEY) ?? "[]");
+    if (!existing.includes(id)) existing.push(id);
+    localStorage.setItem(LS_DELETED_KEY, JSON.stringify(existing));
+  } catch { localStorage.setItem(LS_DELETED_KEY, JSON.stringify([id])); }
+}
+
+function getDeletedIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(LS_DELETED_KEY) ?? "[]"); }
+  catch { localStorage.removeItem(LS_DELETED_KEY); return []; }
+}
+
+function clearDeleted() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LS_DELETED_KEY);
 }
 
 export function useOfflineNotes() {
@@ -86,7 +110,16 @@ export function useOfflineNotes() {
     try {
       const serverNotes = await getNotes();
       const dirtyIds = getDirtyIds();
+      const deletedIds = getDeletedIds();
 
+      // Sync pending deletes
+      if (deletedIds.length > 0) {
+        setSyncing(true);
+        await Promise.allSettled(deletedIds.map((id) => deleteNoteApi(id)));
+        clearDeleted();
+      }
+
+      // Sync dirty notes
       if (dirtyIds.length > 0) {
         const local = readLocal();
         const dirtyNotes = local.filter((n) => dirtyIds.includes(n.id));
@@ -95,7 +128,6 @@ export function useOfflineNotes() {
           const synced = await syncNotesApi(dirtyNotes);
           clearDirty();
           mergeServerNotes(synced);
-          setSyncing(false);
           return;
         }
       }
@@ -105,6 +137,8 @@ export function useOfflineNotes() {
     } catch {
       const local = readLocal();
       if (local.length > 0) setNotes(local);
+    } finally {
+      setSyncing(false);
     }
   }, [mergeServerNotes]);
 
@@ -113,10 +147,14 @@ export function useOfflineNotes() {
   }, [fetchAndSync]);
 
   useEffect(() => {
-    if (online && getDirtyIds().length > 0) {
+    if (online && (getDirtyIds().length > 0 || getDeletedIds().length > 0)) {
       fetchAndSync();
     }
   }, [online, fetchAndSync]);
+
+  useEffect(() => {
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
+  }, []);
 
   const sortNotes = (list: Note[]) =>
     [...list].sort((a, b) => {
@@ -187,7 +225,9 @@ export function useOfflineNotes() {
     writeLocal(readLocal().filter((n) => n.id !== id));
 
     if (online) {
-      try { await deleteNoteApi(id); } catch { /* already removed locally */ }
+      try { await deleteNoteApi(id); } catch { markDeleted(id); }
+    } else {
+      markDeleted(id);
     }
   }, [online]);
 

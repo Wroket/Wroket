@@ -94,7 +94,7 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
     );
   }, [query]);
 
-  useEffect(() => { setSelectedIndex(0); }, [filtered.length]);
+  useEffect(() => { setSelectedIndex(0); }, [query]);
 
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -237,6 +237,10 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!open || activePanel) return;
+      if (filtered.length === 0) {
+        if (e.key === "Escape") { e.preventDefault(); closeMenu(); }
+        return;
+      }
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSelectedIndex((prev) => (prev + 1) % filtered.length);
@@ -244,7 +248,7 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
         e.preventDefault();
         setSelectedIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
       } else if (e.key === "Enter" || e.key === "Tab") {
-        if (filtered.length > 0) { e.preventDefault(); executeCommand(filtered[selectedIndex]); }
+        e.preventDefault(); executeCommand(filtered[selectedIndex]);
       } else if (e.key === "Escape") {
         e.preventDefault(); closeMenu();
       }

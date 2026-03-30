@@ -69,12 +69,13 @@ export default function TaskEditModal({
 
   useEffect(() => {
     if (!todo) return;
-    loadComments(todo.id);
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    setComments([]);
+    setCommentText("");
+    let cancelled = false;
+    getComments(todo.id).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
+    return () => { cancelled = true; document.removeEventListener("keydown", handleKey); };
   }, [todo, onClose, loadComments]);
 
   if (!todo) return null;

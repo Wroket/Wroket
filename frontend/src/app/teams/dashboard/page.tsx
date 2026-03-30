@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import { getTeams, getTeamDashboard, Team, TeamDashboardData } from "@/lib/api";
@@ -24,11 +24,17 @@ export default function TeamDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const requestIdRef = useRef(0);
+
   const loadDashboard = useCallback(async (teamId: string) => {
+    const reqId = ++requestIdRef.current;
+    setData(null);
     try {
       const d = await getTeamDashboard(teamId);
-      setData(d);
-    } catch { setData(null); }
+      if (reqId === requestIdRef.current) setData(d);
+    } catch {
+      if (reqId === requestIdRef.current) setData(null);
+    }
   }, []);
 
   useEffect(() => {
