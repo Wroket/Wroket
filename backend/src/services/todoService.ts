@@ -28,6 +28,7 @@ export interface Todo {
   estimatedMinutes: number | null;
   startDate: string | null;
   deadline: string | null;
+  tags: string[];
   status: TodoStatus;
   scheduledSlot: ScheduledSlot | null;
   statusChangedAt: string;
@@ -42,6 +43,7 @@ export interface CreateTodoInput {
   estimatedMinutes?: number | null;
   startDate?: string | null;
   deadline?: string | null;
+  tags?: string[];
   parentId?: string | null;
   projectId?: string | null;
   phaseId?: string | null;
@@ -55,6 +57,7 @@ export interface UpdateTodoInput {
   estimatedMinutes?: number | null;
   startDate?: string | null;
   deadline?: string | null;
+  tags?: string[];
   status?: TodoStatus;
   projectId?: string | null;
   phaseId?: string | null;
@@ -104,6 +107,9 @@ function persistTodos(): void {
         }
         if ((todo as unknown as Record<string, unknown>).estimatedMinutes === undefined) {
           todo.estimatedMinutes = null;
+        }
+        if (!Array.isArray(todo.tags)) {
+          todo.tags = [];
         }
         if ((todo as unknown as Record<string, unknown>).scheduledSlot === undefined) {
           todo.scheduledSlot = null;
@@ -155,6 +161,22 @@ export function listTodos(userId: string): Todo[] {
  */
 export function listAllTodos(userId: string): Todo[] {
   return Array.from(getUserTodos(userId).values());
+}
+
+/**
+ * Returns active (non-archived) todos for multiple user IDs.
+ */
+export function listTodosForUsers(userIds: string[]): Todo[] {
+  const result: Todo[] = [];
+  for (const uid of userIds) {
+    const todos = getUserTodos(uid);
+    for (const todo of todos.values()) {
+      if (!isArchived(todo) && todo.status === "active") {
+        result.push(todo);
+      }
+    }
+  }
+  return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 /**
@@ -220,6 +242,7 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     estimatedMinutes: input.estimatedMinutes ?? null,
     startDate: input.startDate ?? null,
     deadline: input.deadline ?? null,
+    tags: (input.tags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10),
     scheduledSlot: null,
     status: "active",
     statusChangedAt: now,
@@ -281,6 +304,9 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
       if (d < today) throw new ValidationError("L'échéance ne peut pas être antérieure à aujourd'hui");
     }
     todo.deadline = input.deadline;
+  }
+  if (input.tags !== undefined) {
+    todo.tags = input.tags.map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10);
   }
   if (input.status !== undefined) {
     if (!VALID_STATUSES.includes(input.status)) {

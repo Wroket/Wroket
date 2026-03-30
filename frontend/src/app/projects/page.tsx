@@ -384,7 +384,7 @@ export default function ProjectsPage() {
   const [linkPhaseId, setLinkPhaseId] = useState<string | null>(null);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[] });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -610,6 +610,7 @@ export default function ProjectsPage() {
       deadline: todo.deadline ?? "",
       assignedTo: todo.assignedTo ?? null,
       estimatedMinutes: todo.estimatedMinutes ?? null,
+      tags: todo.tags ?? [],
     });
     setEditAssignEmail("");
     setEditAssignedUser(null);
@@ -630,6 +631,7 @@ export default function ProjectsPage() {
         deadline: editForm.deadline || null,
         assignedTo: editForm.assignedTo,
         estimatedMinutes: editForm.estimatedMinutes,
+        tags: editForm.tags,
       });
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
       setEditingTodo(null);
@@ -1425,6 +1427,7 @@ export default function ProjectsPage() {
             onOpenSubtasks={openSubtaskModal}
             subtaskCount={editingTodo ? getSubtasks(editingTodo.id).length : 0}
             effortDefaults={user?.effortMinutes}
+            currentUserUid={user?.uid}
           />
 
           <SubtaskModal

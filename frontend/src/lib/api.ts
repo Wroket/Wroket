@@ -295,6 +295,7 @@ export interface Todo {
   estimatedMinutes: number | null;
   startDate: string | null;
   deadline: string | null;
+  tags: string[];
   scheduledSlot: ScheduledSlot | null;
   status: TodoStatus;
   statusChangedAt: string;
@@ -309,6 +310,7 @@ export interface CreateTodoPayload {
   estimatedMinutes?: number | null;
   startDate?: string | null;
   deadline?: string | null;
+  tags?: string[];
   parentId?: string | null;
   projectId?: string | null;
   phaseId?: string | null;
@@ -322,6 +324,7 @@ export interface UpdateTodoPayload {
   estimatedMinutes?: number | null;
   startDate?: string | null;
   deadline?: string | null;
+  tags?: string[];
   status?: TodoStatus;
   projectId?: string | null;
   phaseId?: string | null;
@@ -392,6 +395,41 @@ export async function updateTodo(id: string, payload: UpdateTodoPayload): Promis
   return (await res.json()) as Todo;
 }
 
+// ── Comments ──
+
+export interface Comment {
+  id: string;
+  todoId: string;
+  userId: string;
+  userEmail: string;
+  text: string;
+  createdAt: string;
+}
+
+export async function getComments(todoId: string): Promise<Comment[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les commentaires");
+  return res.json();
+}
+
+export async function postCommentApi(todoId: string, text: string): Promise<Comment> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible d'ajouter le commentaire");
+  return res.json();
+}
+
+export async function deleteCommentApi(todoId: string, commentId: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+}
+
 export async function deleteTodo(id: string): Promise<Todo> {
   const res = await fetch(`${API_BASE_URL}/todos/${id}`, {
     method: "DELETE",
@@ -425,7 +463,7 @@ export async function lookupUserByUid(uid: string): Promise<AuthMeResponse | nul
 
 // ── Notifications ──
 
-export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite";
+export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today";
 
 export interface AppNotification {
   id: string;
@@ -628,6 +666,24 @@ export async function updateMemberRoleApi(teamId: string, email: string, role: "
     );
   }
   return (await res.json()) as Team;
+}
+
+export interface TeamDashboardData {
+  team: Team;
+  stats: {
+    totalTasks: number;
+    byMember: Record<string, { total: number; overdue: number }>;
+    overdue: number;
+    dueSoon: number;
+  };
+  todos: Todo[];
+  memberMap: Record<string, string>;
+}
+
+export async function getTeamDashboard(teamId: string): Promise<TeamDashboardData> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/dashboard`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger le dashboard équipe");
+  return res.json();
 }
 
 export async function deleteTeamApi(teamId: string): Promise<void> {
@@ -917,5 +973,60 @@ export async function testWebhookApi(url: string, platform: WebhookPlatform): Pr
   if (!res.ok) return false;
   const data = await res.json();
   return data.success === true;
+}
+
+// ── Notes ──
+
+export interface Note {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getNotes(): Promise<Note[]> {
+  const res = await fetch(`${API_BASE_URL}/notes`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les notes");
+  return res.json();
+}
+
+export async function createNoteApi(input: { title?: string; content?: string; id?: string }): Promise<Note> {
+  const res = await fetch(`${API_BASE_URL}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de créer la note");
+  return res.json();
+}
+
+export async function updateNoteApi(id: string, input: { title?: string; content?: string; pinned?: boolean }): Promise<Note> {
+  const res = await fetch(`${API_BASE_URL}/notes/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de mettre à jour la note");
+  return res.json();
+}
+
+export async function deleteNoteApi(id: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/notes/${id}`, { method: "DELETE", credentials: "include" });
+}
+
+export async function syncNotesApi(notes: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean }>): Promise<Note[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Sync failed");
+  return res.json();
 }
 

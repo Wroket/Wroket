@@ -22,6 +22,8 @@ const NOTIF_ICON: Record<string, { icon: string; bg: string }> = {
   task_declined: { icon: "❌", bg: "bg-orange-100 dark:bg-orange-900/30" },
   task_accepted: { icon: "✔️", bg: "bg-emerald-50 dark:bg-emerald-800/50" },
   team_invite: { icon: "👥", bg: "bg-violet-100 dark:bg-violet-900/30" },
+  deadline_approaching: { icon: "⏰", bg: "bg-amber-100 dark:bg-amber-900/30" },
+  deadline_today: { icon: "🔴", bg: "bg-red-100 dark:bg-red-900/30" },
 };
 
 function timeAgo(iso: string, t: (k: TranslationKey) => string): string {

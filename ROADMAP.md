@@ -44,6 +44,24 @@
 - [x] **Collaboration (accept/decline)** — Flux complet invitation collaborateur : accept/decline, réciprocité, notifications
 - [x] **Page Équipes (cards)** — Vue d'ensemble avec 2 cards résumées (Collaborateurs + Teams), drill-down vers vue détaillée, badges de notification
 - [x] **Webhooks sortants** — Intégrations Slack/Discord/Teams dans Paramètres, payloads formatés par plateforme, dispatch auto via notifications, bouton tester
+- [x] **Google SSO** — Connexion via Google OAuth2 (openid + email + profile), création automatique de compte
+- [x] **Vérification d'email** — Lien de confirmation par email à l'inscription (Nodemailer/Gmail SMTP)
+- [x] **Réinitialisation de mot de passe** — Flux "mot de passe oublié" par email avec token sécurisé
+- [x] **Emails d'invitation** — "Faites découvrir Wroket" : envoi d'email d'invitation avec logo, template HTML
+- [x] **Administration** — Dashboard admin : stats users/tâches/projets/équipes, liste utilisateurs, historique invitations
+- [x] **Rôles dans les équipes** — Owner (tous droits) / Admin (gestion membres + projets) / Member (lecture seule)
+- [x] **Validation deadline** — Interdiction de créer une tâche avec échéance passée (backend + frontend)
+- [x] **SlotPicker amélioré** — Auto-ouverture après création de tâche + mode manuel (date/heure libre)
+- [x] **Tuto Google Calendar** — Étape dédiée dans le tutoriel d'onboarding
+- [x] **DNS www.wroket.com** — Domain mapping Cloud Run + CORS pour www
+- [x] **Templates de projet** — Création de projet avec template de phases standard (Cadrage → Clôture)
+- [x] **Commentaires sur tâches** — Fil de discussion par tâche (ajout, suppression, affichage chronologique dans la modale d'édition)
+- [x] **Tags / labels** — Tags personnalisés sur les tâches (ajout libre, badges indigo, filtre par tag)
+- [x] **Dashboard équipe** — Vue consolidée `/teams/dashboard` : stats, répartition par membre, tâches en retard
+- [x] **Rappels deadline** — Job horaire créant des notifications in-app (échéance aujourd'hui / dans 24h)
+- [x] **Bloc-notes** — Éditeur de notes en ligne et hors ligne (localStorage + sync auto), épinglage, recherche
+- [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/code`, `/warning` dans l'éditeur de notes
+- [x] **Aide contextuelle notes** — Bouton ampoule avec liste des commandes et info hors ligne
 
 ## Fonctionnel mais à consolider
 
@@ -54,12 +72,13 @@
 
 ## Fonctionnalités manquantes
 
-- [ ] **Recherche & tags** — Recherche textuelle dans les tâches, système de tags/labels
-- [ ] **Commentaires sur tâches** — Ajouter des commentaires/notes à une tâche
-- [ ] **Emails d'invitation** — Envoyer un email lors de l'invitation d'un collaborateur (Nodemailer/SendGrid, template, lien d'acceptation)
-- [ ] **Notifications / rappels** — Alertes pour les deadlines proches (email ou in-app)
-- [ ] **Tâches récurrentes** — Créer des tâches qui se répètent automatiquement
-- [ ] **Pièces jointes** — Attacher des fichiers à une tâche
+- [ ] **Recherche globale** — Recherche textuelle dans les tâches, projets, membres
+- [ ] **Tâches récurrentes** — Créer des tâches qui se répètent automatiquement (hebdo/mensuel)
+- [ ] **Pièces jointes** — Attacher des fichiers à une tâche (GCS bucket)
+- [ ] **Drag & drop** — Réordonner les tâches dans la liste / Kanban
+- [ ] **Export CSV/PDF** — Exporter ses tâches ou rapports de projet
+- [ ] **Activité / audit log** — Historique des actions par tâche
+- [ ] **Import / projets** — Possibilité d'importer des projets sous format csv, excel ou Google Sheet
 
 ## Intégrations & Connecteurs
 
@@ -80,18 +99,17 @@
 
 ## À l'étude (R&D)
 
-- [ ] **Bloc-notes (Notepad)** — Éditeur de notes fonctionnel en ligne et hors ligne
-  - Synchronisation online/offline (Service Worker + IndexedDB local, sync au retour réseau)
-  - Éditeur rich-text ou Markdown (support titres, listes, code, liens)
-  - Commandes slash intégrées : `/task` pour créer une tâche depuis une note, `/assign` pour assigner, `/deadline` pour fixer une échéance, `/project` pour lier à un projet
-  - Organisation : dossiers / tags / favoris
-  - Questions ouvertes : gestion des conflits de sync (CRDT vs last-write-wins), taille max des notes, partage de notes entre membres d'une équipe, export (PDF, Markdown)
+- [ ] **Notes partagées** — Partage de notes entre membres d'une équipe, édition collaborative
+- [ ] **Notes — dossiers / tags** — Organisation des notes par dossiers et tags
+- [ ] **Notes — export** — Export de notes en PDF ou Markdown
 
 ## Sécurité & Auth
 
-- [ ] **Réinitialisation de mot de passe** — Flux "mot de passe oublié" par email
-- [ ] **Vérification d'email** — Confirmer l'adresse email à l'inscription
-- [ ] **OAuth / SSO** — Connexion via Google, GitHub, etc.
+- [x] **Réinitialisation de mot de passe** — Flux "mot de passe oublié" par email
+- [x] **Vérification d'email** — Confirmer l'adresse email à l'inscription
+- [x] **Google SSO** — Connexion via Google OAuth2
+- [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
+- [ ] **2FA** — Authentification à deux facteurs (TOTP)
 
 ## Tests & Qualité
 
@@ -115,5 +133,5 @@
   - Build Docker backend + frontend → Artifact Registry (`europe-west1`)
   - Deploy automatique vers Cloud Run
 - [x] **CI GitHub Actions** — Lint & type check sur push/PR
-- [x] **DNS & Domaines** — `wroket.com` (4x A records Google) + `api.wroket.com` (CNAME `ghs.googlehosted.com`)
+- [x] **DNS & Domaines** — `wroket.com` + `www.wroket.com` + `api.wroket.com` (CNAME `ghs.googlehosted.com`)
 - [ ] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore)

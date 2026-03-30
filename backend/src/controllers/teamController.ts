@@ -17,8 +17,9 @@ import {
   getTeam,
   getTeamRole,
 } from "../services/teamService";
+import { listTodosForUsers } from "../services/todoService";
 import { createNotification } from "../services/notificationService";
-import { findUserByEmail } from "../services/authService";
+import { findUserByEmail, findUserByUid } from "../services/authService";
 import { ValidationError } from "../utils/errors";
 
 // ── Collaborators ──
@@ -198,6 +199,55 @@ export async function getMyTeamRole(req: AuthenticatedRequest, res: Response) {
 
   const role = getTeamRole(team, req.user!.uid, req.user!.email);
   res.status(200).json({ role });
+}
+
+export async function getTeamDashboard(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const team = getTeam(teamId);
+  if (!team) throw new ValidationError("Équipe introuvable");
+
+  const role = getTeamRole(team, req.user!.uid, req.user!.email);
+  if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
+
+  const memberUids: string[] = [team.ownerUid];
+  for (const m of team.members) {
+    const u = findUserByEmail(m.email);
+    if (u) memberUids.push(u.uid);
+  }
+
+  const todos = listTodosForUsers(memberUids);
+
+  const ownerUser = findUserByUid(team.ownerUid);
+  const memberMap: Record<string, string> = {};
+  if (ownerUser) memberMap[ownerUser.uid] = ownerUser.email;
+  for (const m of team.members) {
+    const u = findUserByEmail(m.email);
+    if (u) memberMap[u.uid] = u.email;
+  }
+
+  const stats = {
+    totalTasks: todos.length,
+    byMember: {} as Record<string, { total: number; overdue: number }>,
+    overdue: 0,
+    dueSoon: 0,
+  };
+
+  const now = new Date();
+  const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+  for (const todo of todos) {
+    const email = memberMap[todo.userId] ?? todo.userId;
+    if (!stats.byMember[email]) stats.byMember[email] = { total: 0, overdue: 0 };
+    stats.byMember[email].total++;
+
+    if (todo.deadline) {
+      const dl = new Date(todo.deadline);
+      if (dl < now) { stats.overdue++; stats.byMember[email].overdue++; }
+      else if (dl <= in48h) { stats.dueSoon++; }
+    }
+  }
+
+  res.status(200).json({ team, stats, todos, memberMap });
 }
 
 export async function postDeleteTeam(req: AuthenticatedRequest, res: Response) {

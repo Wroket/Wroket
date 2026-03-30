@@ -11,6 +11,7 @@ import {
   CreateTodoInput,
   UpdateTodoInput,
 } from "../services/todoService";
+import { listComments, addComment, deleteComment } from "../services/commentService";
 import { createNotification } from "../services/notificationService";
 import { ValidationError } from "../utils/errors";
 
@@ -128,4 +129,26 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const todo = deleteTodo(req.user!.uid, id);
   res.status(200).json(todo);
+}
+
+// ── Comments ──
+
+export async function getComments(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.id as string;
+  res.status(200).json(listComments(todoId));
+}
+
+export async function postComment(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.id as string;
+  const { text } = req.body as { text?: string };
+  if (!text || typeof text !== "string") throw new ValidationError("Texte requis");
+  const comment = addComment(todoId, req.user!.uid, req.user!.email, text);
+  res.status(201).json(comment);
+}
+
+export async function removeComment(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.id as string;
+  const commentId = req.params.commentId as string;
+  deleteComment(todoId, commentId, req.user!.uid);
+  res.status(200).json({ ok: true });
 }

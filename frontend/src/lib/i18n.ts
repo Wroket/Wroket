@@ -344,6 +344,52 @@ const translations = {
   "teams.roleUpdated": { fr: "Rôle mis à jour", en: "Role updated" },
   "teams.readOnly": { fr: "Lecture seule", en: "Read-only" },
 
+  // ── Notes ──
+  "nav.notes": { fr: "Bloc-notes", en: "Notes" },
+  "notes.title": { fr: "Bloc-notes", en: "Notes" },
+  "notes.new": { fr: "Nouvelle note", en: "New note" },
+  "notes.untitled": { fr: "Sans titre", en: "Untitled" },
+  "notes.empty": { fr: "Aucune note", en: "No notes" },
+  "notes.emptyHint": { fr: "Créez votre première note pour commencer", en: "Create your first note to get started" },
+  "notes.delete": { fr: "Supprimer", en: "Delete" },
+  "notes.deleteConfirm": { fr: "Supprimer cette note ?", en: "Delete this note?" },
+  "notes.pin": { fr: "Épingler", en: "Pin" },
+  "notes.unpin": { fr: "Désépingler", en: "Unpin" },
+  "notes.saved": { fr: "Enregistré", en: "Saved" },
+  "notes.saving": { fr: "Enregistrement...", en: "Saving..." },
+  "notes.offline": { fr: "Hors ligne – sauvegardé localement", en: "Offline – saved locally" },
+  "notes.synced": { fr: "Synchronisé", en: "Synced" },
+  "notes.contentPlaceholder": { fr: "Commencez à écrire...", en: "Start writing..." },
+  "notes.search": { fr: "Rechercher...", en: "Search..." },
+  "notes.lastModified": { fr: "Modifié", en: "Modified" },
+
+  // ── Comments ──
+  "comments.title": { fr: "Commentaires", en: "Comments" },
+  "comments.placeholder": { fr: "Ajouter un commentaire...", en: "Add a comment..." },
+  "comments.send": { fr: "Envoyer", en: "Send" },
+  "comments.empty": { fr: "Aucun commentaire", en: "No comments" },
+  "comments.delete": { fr: "Supprimer", en: "Delete" },
+
+  // ── Tags ──
+  "tags.label": { fr: "Tags", en: "Tags" },
+  "tags.add": { fr: "Ajouter un tag...", en: "Add a tag..." },
+  "tags.filter": { fr: "Tag", en: "Tag" },
+  "tags.allTags": { fr: "Tous les tags", en: "All tags" },
+
+  // ── Team Dashboard ──
+  "teamDash.title": { fr: "Dashboard équipe", en: "Team Dashboard" },
+  "teamDash.totalTasks": { fr: "Tâches actives", en: "Active tasks" },
+  "teamDash.overdue": { fr: "En retard", en: "Overdue" },
+  "teamDash.dueSoon": { fr: "Échéance proche", en: "Due soon" },
+  "teamDash.memberBreakdown": { fr: "Par membre", en: "By member" },
+  "teamDash.tasks": { fr: "tâches", en: "tasks" },
+  "teamDash.select": { fr: "Choisir une équipe", en: "Select a team" },
+  "teamDash.noTasks": { fr: "Aucune tâche active", en: "No active tasks" },
+
+  // ── Reminders ──
+  "notif.deadline_approaching": { fr: "Échéance proche", en: "Deadline approaching" },
+  "notif.deadline_today": { fr: "Échéance aujourd'hui", en: "Deadline today" },
+
   // ── Assignment ──
   "scope.all": { fr: "Toutes", en: "All" },
   "scope.personal": { fr: "Personnelles", en: "Personal" },

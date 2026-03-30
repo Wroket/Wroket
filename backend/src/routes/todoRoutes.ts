@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { archived, assigned, create, list, remove, update } from "../controllers/todoController";
+import { archived, assigned, create, list, remove, update, getComments, postComment, removeComment } from "../controllers/todoController";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const todoRoutes = Router();
@@ -13,5 +13,8 @@ todoRoutes.get("/archived", archived);
 todoRoutes.post("/", create);
 todoRoutes.put("/:id", update);
 todoRoutes.delete("/:id", remove);
+todoRoutes.get("/:id/comments", getComments);
+todoRoutes.post("/:id/comments", postComment);
+todoRoutes.delete("/:id/comments/:commentId", removeComment);
 
 export default todoRoutes;

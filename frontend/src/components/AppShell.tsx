@@ -43,16 +43,20 @@ const NAV_ITEMS: { tKey: TranslationKey; href: string; icon: ReactNode }[] = [
       </svg>
     ),
   },
-  {
-    tKey: "nav.teams",
-    href: "/teams",
-    icon: (
-      <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
 ];
+
+const TEAMS_NAV = {
+  tKey: "nav.teams" as TranslationKey,
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  ),
+  children: [
+    { tKey: "nav.teams" as TranslationKey, href: "/teams" },
+    { tKey: "teamDash.title" as TranslationKey, href: "/teams/dashboard" },
+  ],
+};
 
 const TASKS_NAV = {
   tKey: "nav.tasks" as TranslationKey,
@@ -74,6 +78,16 @@ const AGENDA_ITEM = {
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+};
+
+const NOTES_ITEM = {
+  tKey: "nav.notes" as TranslationKey,
+  href: "/notes",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
     </svg>
   ),
 };
@@ -149,6 +163,7 @@ export default function AppShell({ children }: AppShellProps) {
   const { showTutorial, openTutorial, closeTutorial } = useTutorial();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const helpMenuRef = useRef<HTMLDivElement>(null);
@@ -582,9 +597,45 @@ export default function AppShell({ children }: AppShellProps) {
             )}
           </div>
           <NavLink href={AGENDA_ITEM.href} icon={AGENDA_ITEM.icon} label={t(AGENDA_ITEM.tKey)} active={pathname === "/agenda"} onClick={closeMobileMenu} />
+          <NavLink href={NOTES_ITEM.href} icon={NOTES_ITEM.icon} label={t(NOTES_ITEM.tKey)} active={pathname === "/notes"} onClick={closeMobileMenu} />
           {NAV_ITEMS.slice(1).map((item) => (
             <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
           ))}
+          <div>
+            <button
+              type="button"
+              onClick={() => setTeamsOpen((v) => !v)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                pathname.startsWith("/teams")
+                  ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                  : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+              }`}
+            >
+              {TEAMS_NAV.icon}
+              <span className="flex-1 text-left">{t(TEAMS_NAV.tKey)}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform ${teamsOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            {teamsOpen && (
+              <div className="ml-7 mt-0.5 space-y-0.5">
+                {TEAMS_NAV.children.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    onClick={closeMobileMenu}
+                    className={`block px-3 py-2 rounded text-sm transition-colors ${
+                      pathname === child.href
+                        ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                        : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {t(child.tKey)}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} onClick={closeMobileMenu} />
           <hr className="border-zinc-200 dark:border-slate-700 my-2" />
           <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
@@ -636,9 +687,44 @@ export default function AppShell({ children }: AppShellProps) {
               )}
             </div>
             <NavLink href={AGENDA_ITEM.href} icon={AGENDA_ITEM.icon} label={t(AGENDA_ITEM.tKey)} active={pathname === "/agenda"} />
+            <NavLink href={NOTES_ITEM.href} icon={NOTES_ITEM.icon} label={t(NOTES_ITEM.tKey)} active={pathname === "/notes"} />
             {NAV_ITEMS.slice(1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
             ))}
+            <div>
+              <button
+                type="button"
+                onClick={() => setTeamsOpen((v) => !v)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                  pathname.startsWith("/teams")
+                    ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                    : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+                }`}
+              >
+                {TEAMS_NAV.icon}
+                <span className="flex-1 text-left">{t(TEAMS_NAV.tKey)}</span>
+                <svg className={`w-3.5 h-3.5 transition-transform ${teamsOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              {teamsOpen && (
+                <div className="ml-7 mt-0.5 space-y-0.5">
+                  {TEAMS_NAV.children.map((child) => (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      className={`block px-3 py-2 rounded text-sm transition-colors ${
+                        pathname === child.href
+                          ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                          : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      {t(child.tKey)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
             <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} />
             <hr className="border-zinc-200 dark:border-slate-700 my-2" />
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />

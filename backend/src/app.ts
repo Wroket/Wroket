@@ -14,6 +14,7 @@ import projectRoutes from "./routes/projectRoutes";
 import calendarRoutes from "./routes/calendarRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import adminRoutes from "./routes/adminRoutes";
+import noteRoutes from "./routes/noteRoutes";
 
 dotenv.config();
 
@@ -38,7 +39,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: "16kb" }));
+app.use(express.json({ limit: "128kb" }));
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -57,6 +58,7 @@ app.use("/projects", apiLimiter, projectRoutes);
 app.use("/calendar", apiLimiter, calendarRoutes);
 app.use("/webhooks", apiLimiter, webhookRoutes);
 app.use("/admin", apiLimiter, adminRoutes);
+app.use("/notes", apiLimiter, noteRoutes);
 
 app.use(errorHandler);
 

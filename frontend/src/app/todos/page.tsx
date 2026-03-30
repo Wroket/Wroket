@@ -155,6 +155,7 @@ export default function TodosPage() {
   const [filterAssignee, setFilterAssignee] = useState<string | "__unassigned__" | null>(null);
   type DeadlineFilter = "all" | "today" | "week" | "overdue" | "none";
   const [filterDeadline, setFilterDeadline] = useState<DeadlineFilter>("all");
+  const [filterTag, setFilterTag] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [sortCol, setSortCol] = useState<SortColumn>("classification");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
@@ -162,7 +163,7 @@ export default function TodosPage() {
   const [undoing, setUndoing] = useState(false);
   const [mainView, setMainView] = useState<"list" | "cards" | "radar">("list");
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[] });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -183,6 +184,7 @@ export default function TodosPage() {
       deadline: todo.deadline ?? "",
       assignedTo: todo.assignedTo ?? null,
       estimatedMinutes: todo.estimatedMinutes ?? null,
+      tags: todo.tags ?? [],
     });
     setEditAssignEmail("");
     setEditAssignedUser(null);
@@ -203,6 +205,7 @@ export default function TodosPage() {
         deadline: editForm.deadline || null,
         assignedTo: editForm.assignedTo,
         estimatedMinutes: editForm.estimatedMinutes,
+        tags: editForm.tags,
       });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setEditingTodo(null);
@@ -431,7 +434,7 @@ export default function TodosPage() {
     setSubtaskParent(todo);
   };
 
-  const hasAdvancedFilters = filterProject !== null || filterAssignee !== null || filterDeadline !== "all";
+  const hasAdvancedFilters = filterProject !== null || filterAssignee !== null || filterDeadline !== "all" || filterTag !== null;
 
   const advancedFiltered = useMemo(() => {
     if (!hasAdvancedFilters) return todos;
@@ -469,9 +472,11 @@ export default function TodosPage() {
         }
       }
 
+      if (filterTag && !(t.tags ?? []).includes(filterTag)) return false;
+
       return true;
     });
-  }, [todos, filterProject, filterAssignee, filterDeadline, hasAdvancedFilters]);
+  }, [todos, filterProject, filterAssignee, filterDeadline, filterTag, hasAdvancedFilters]);
 
   const activeTodos = useMemo(() => advancedFiltered.filter((t) => t.status === "active" && !t.parentId), [advancedFiltered]);
   const completedTodos = useMemo(() => advancedFiltered.filter((t) => t.status === "completed" && !t.parentId), [advancedFiltered]);
@@ -738,7 +743,7 @@ export default function TodosPage() {
               {t("filter.panelTitle")}
               {(filters.size > 0 || hasAdvancedFilters) && (
                 <span className="inline-flex items-center rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-1.5 py-0.5">
-                  {filters.size + (filterProject !== null ? 1 : 0) + (filterAssignee !== null ? 1 : 0) + (filterDeadline !== "all" ? 1 : 0)}
+                  {filters.size + (filterProject !== null ? 1 : 0) + (filterAssignee !== null ? 1 : 0) + (filterDeadline !== "all" ? 1 : 0) + (filterTag !== null ? 1 : 0)}
                 </span>
               )}
             </span>
@@ -845,6 +850,27 @@ export default function TodosPage() {
                     <option value="none">{t("filter.deadlineNone")}</option>
                   </select>
                 </div>
+
+                {/* Tag filter */}
+                {(() => {
+                  const allTags = [...new Set(todos.flatMap((td) => td.tags ?? []))].sort();
+                  if (allTags.length === 0) return null;
+                  return (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("tags.filter" as TranslationKey)}</span>
+                      <select
+                        value={filterTag ?? ""}
+                        onChange={(e) => setFilterTag(e.target.value || null)}
+                        className="rounded border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-xs px-2 py-1.5 pr-6 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      >
+                        <option value="">{t("tags.allTags" as TranslationKey)}</option>
+                        {allTags.map((tag) => (
+                          <option key={tag} value={tag}>{tag}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Clear all */}
@@ -852,7 +878,7 @@ export default function TodosPage() {
                 <div className="pt-1 border-t border-zinc-100 dark:border-slate-700/50">
                   <button
                     type="button"
-                    onClick={() => { setFilters(new Set()); setFilterProject(null); setFilterAssignee(null); setFilterDeadline("all"); }}
+                    onClick={() => { setFilters(new Set()); setFilterProject(null); setFilterAssignee(null); setFilterDeadline("all"); setFilterTag(null); }}
                     className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
                   >
                     {t("filter.clearAll")}
@@ -1154,6 +1180,11 @@ export default function TodosPage() {
                                     {t("assign.declined" as TranslationKey)}
                                   </span>
                                 )}
+                                {(todo.tags ?? []).map((tag) => (
+                                  <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 shrink-0 whitespace-nowrap">
+                                    {tag}
+                                  </span>
+                                ))}
                                 {todo.assignmentStatus === "accepted" && (
                                   <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                                     {t("assign.accepted" as TranslationKey)}
@@ -1278,6 +1309,7 @@ export default function TodosPage() {
         onOpenSubtasks={openSubtaskModal}
         subtaskCount={editingTodo ? getSubtasks(editingTodo.id).length : 0}
         effortDefaults={user?.effortMinutes}
+        currentUserUid={user?.uid}
       />
 
       <SubtaskModal

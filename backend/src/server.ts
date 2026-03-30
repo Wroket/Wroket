@@ -10,8 +10,11 @@ async function main(): Promise<void> {
 
   const { default: app } = await import("./app");
 
+  const { startReminderJob } = await import("./services/reminderService");
+
   app.listen(port, () => {
     console.log(`[server] Backend listening on port ${port}`);
+    startReminderJob();
   });
 }
 
