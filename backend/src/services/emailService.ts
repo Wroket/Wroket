@@ -12,7 +12,7 @@ const LOGO_URL = `${process.env.FRONTEND_URL || "http://localhost:3000"}/wroket-
 
 function emailHeader(): string {
   return `<div style="text-align:center;padding:24px 0 16px">
-    <img src="${LOGO_URL}" alt="Wroket" width="56" height="56" style="border-radius:14px" />
+    <img src="${LOGO_URL}" alt="Wroket" width="48" height="48" style="display:inline-block" />
   </div>`;
 }
 
