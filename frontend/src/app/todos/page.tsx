@@ -148,6 +148,7 @@ export default function TodosPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
   const [filterProject, setFilterProject] = useState<string | "__none__" | null>(null);
@@ -264,6 +265,8 @@ export default function TodosPage() {
         assignedTo: assignedUser?.uid ?? null,
       });
       setMyTodos((prev) => [todo, ...prev]);
+      setJustCreatedId(todo.id);
+      setTimeout(() => setJustCreatedId(null), 10000);
       setTitle("");
       setDeadline("");
       setPriority("medium");
@@ -983,6 +986,7 @@ export default function TodosPage() {
               onAccept={handleAccept}
               projects={projects}
               onScheduleUpdate={handleScheduleUpdate}
+              justCreatedId={justCreatedId}
             />
           ) : mainView === "cards" ? (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
@@ -1175,6 +1179,7 @@ export default function TodosPage() {
                                     scheduledSlot={todo.scheduledSlot}
                                     onBooked={handleScheduleUpdate}
                                     onCleared={handleScheduleUpdate}
+                                    autoOpen={todo.id === justCreatedId}
                                   />
                                 )}
                                 <button
@@ -1331,6 +1336,7 @@ function TaskList({
   onAccept,
   projects = [],
   onScheduleUpdate,
+  justCreatedId,
 }: {
   todos: Todo[];
   allTodos: Todo[];
@@ -1348,6 +1354,7 @@ function TaskList({
   onAccept: (t: Todo) => void;
   projects?: Project[];
   onScheduleUpdate?: (todo: Todo) => void;
+  justCreatedId?: string | null;
 }) {
   const { t } = useLocale();
   const sorted = useMemo(() => sortTodos(todos, sortCol, sortDir), [todos, sortCol, sortDir]);
@@ -1460,6 +1467,7 @@ function TaskList({
                               scheduledSlot={todo.scheduledSlot}
                               onBooked={onScheduleUpdate}
                               onCleared={onScheduleUpdate}
+                              autoOpen={todo.id === justCreatedId}
                             />
                           )}
                           <button

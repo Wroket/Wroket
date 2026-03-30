@@ -495,8 +495,10 @@ const translations = {
   "tutorial.step3.desc": { fr: "Organisez vos tâches en projets avec des phases. Chaque projet a son propre tableau de bord et ses indicateurs de progression. Assignez vos tâches à un projet pour mieux suivre l'avancement.", en: "Organize your tasks into projects with phases. Each project has its own dashboard and progress indicators. Assign your tasks to a project to better track progress." },
   "tutorial.step4.title": { fr: "Mes équipes", en: "My teams" },
   "tutorial.step4.desc": { fr: "Invitez des collaborateurs par email pour leur assigner des tâches. Créez des équipes pour regrouper vos collaborateurs. Chaque invitation doit être acceptée par le destinataire.", en: "Invite collaborators by email to assign them tasks. Create teams to group your collaborators. Each invitation must be accepted by the recipient." },
-  "tutorial.step5.title": { fr: "Vous êtes prêt !", en: "You're all set!" },
-  "tutorial.step5.desc": { fr: "Explorez le tableau de bord pour un aperçu global, l'agenda pour planifier vos créneaux de travail, et les paramètres pour personnaliser votre expérience. Besoin d'aide ? Cliquez sur le bouton « ? » dans le header.", en: "Explore the dashboard for an overview, the agenda to schedule your work slots, and settings to customize your experience. Need help? Click the '?' button in the header." },
+  "tutorial.step5.title": { fr: "Connectez Google Calendar", en: "Connect Google Calendar" },
+  "tutorial.step5.desc": { fr: "Connectez votre Google Calendar dans les Paramètres pour synchroniser vos créneaux. Quand vous créez une tâche, Wroket propose automatiquement des créneaux libres et les réserve dans votre agenda. C'est la clé pour une planification efficace !", en: "Connect your Google Calendar in Settings to sync your slots. When you create a task, Wroket automatically suggests free slots and books them in your calendar. This is the key to effective planning!" },
+  "tutorial.step6.title": { fr: "Vous êtes prêt !", en: "You're all set!" },
+  "tutorial.step6.desc": { fr: "Explorez le tableau de bord pour un aperçu global, l'agenda pour planifier vos créneaux de travail, et les paramètres pour personnaliser votre expérience. Besoin d'aide ? Cliquez sur le bouton « ? » dans le header.", en: "Explore the dashboard for an overview, the agenda to schedule your work slots, and settings to customize your experience. Need help? Click the '?' button in the header." },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

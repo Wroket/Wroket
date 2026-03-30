@@ -18,11 +18,21 @@ export interface SlotPickerProps {
   scheduledSlot: ScheduledSlot | null;
   onBooked: (todo: Todo) => void;
   onCleared: (todo: Todo) => void;
+  autoOpen?: boolean;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared, autoOpen }: SlotPickerProps) {
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
+  const autoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (autoOpen && !autoOpenedRef.current && !scheduledSlot) {
+      autoOpenedRef.current = true;
+      setOpen(true);
+      fetchSlots();
+    }
+  }, [autoOpen, scheduledSlot]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState<SlotProposal[]>([]);
   const [duration, setDuration] = useState(0);
