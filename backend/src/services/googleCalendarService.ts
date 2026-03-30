@@ -158,9 +158,12 @@ export async function createGoogleCalendarEvent(
   summary: string,
   start: string,
   end: string,
+  timezone?: string,
 ): Promise<string | null> {
   const accessToken = await getValidAccessToken(uid);
   if (!accessToken) return null;
+
+  const tz = timezone || "UTC";
 
   try {
     const res = await fetch(
@@ -173,8 +176,8 @@ export async function createGoogleCalendarEvent(
         },
         body: JSON.stringify({
           summary,
-          start: { dateTime: start },
-          end: { dateTime: end },
+          start: { dateTime: start, timeZone: tz },
+          end: { dateTime: end, timeZone: tz },
         }),
       },
     );

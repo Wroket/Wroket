@@ -12,9 +12,53 @@ export interface SlotProposal {
   label: string; // e.g. "Lun 24 mars, 09:00 – 09:30"
 }
 
+/* ── Timezone helpers (zero external deps) ── */
+
 /**
- * Finds available time slots for a task, respecting working hours,
- * already scheduled tasks, and external busy slots.
+ * Extract date/time components as seen in a given IANA timezone.
+ */
+function getPartsInTz(date: Date, tz: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(date);
+
+  const v = (type: Intl.DateTimeFormatPartTypes) =>
+    parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
+
+  const wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" });
+  const wdMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+  return {
+    year: v("year"),
+    month: v("month") - 1,
+    day: v("day"),
+    hour: v("hour") === 24 ? 0 : v("hour"),
+    minute: v("minute"),
+    dayOfWeek: wdMap[wdFmt.format(date)] ?? 0,
+  };
+}
+
+/**
+ * Convert a "local wall-clock" time in a given timezone to a UTC Date.
+ * e.g. 09:00 Europe/Paris → 07:00 UTC (during CEST).
+ */
+function tzLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
+  const guess = new Date(Date.UTC(year, month, day, hour, minute, 0));
+
+  const utcStr = guess.toLocaleString("en-US", { timeZone: "UTC" });
+  const tzStr  = guess.toLocaleString("en-US", { timeZone: tz });
+  const offsetMs = new Date(tzStr).getTime() - new Date(utcStr).getTime();
+
+  return new Date(guess.getTime() - offsetMs);
+}
+
+/* ── Slot finder ── */
+
+/**
+ * Finds available time slots for a task, respecting the user's timezone,
+ * working hours, already scheduled tasks, and external busy slots.
  */
 export function findAvailableSlots(
   userId: string,
@@ -25,6 +69,7 @@ export function findAvailableSlots(
   startFrom?: Date,
 ): SlotProposal[] {
   const now = startFrom ?? new Date();
+  const tz = workingHours.timezone;
   const allTodos = listTodos(userId);
 
   const occupiedSlots: TimeSlot[] = [
@@ -39,28 +84,27 @@ export function findAvailableSlots(
 
   const proposals: SlotProposal[] = [];
   const searchDays = 30;
+  const [startH, startM] = workingHours.start.split(":").map(Number);
+  const [endH, endM]     = workingHours.end.split(":").map(Number);
+
+  const todayInTz = getPartsInTz(now, tz);
 
   for (let dayOffset = 0; dayOffset < searchDays && proposals.length < maxResults; dayOffset++) {
-    const day = new Date(now);
-    day.setDate(day.getDate() + dayOffset);
+    // Use noon as reference to avoid DST-boundary edge cases
+    const refPoint = tzLocalToUtc(todayInTz.year, todayInTz.month, todayInTz.day + dayOffset, 12, 0, tz);
+    const dayParts = getPartsInTz(refPoint, tz);
 
-    const dayOfWeek = day.getDay();
-    if (!workingHours.daysOfWeek.includes(dayOfWeek)) continue;
+    if (!workingHours.daysOfWeek.includes(dayParts.dayOfWeek)) continue;
 
-    const [startH, startM] = workingHours.start.split(":").map(Number);
-    const [endH, endM] = workingHours.end.split(":").map(Number);
+    const dayStart = tzLocalToUtc(dayParts.year, dayParts.month, dayParts.day, startH, startM, tz);
+    const dayEnd   = tzLocalToUtc(dayParts.year, dayParts.month, dayParts.day, endH, endM, tz);
 
-    const dayStart = new Date(day);
-    dayStart.setHours(startH, startM, 0, 0);
-    const dayEnd = new Date(day);
-    dayEnd.setHours(endH, endM, 0, 0);
-
-    let slotStart = new Date(dayStart);
-    if (dayOffset === 0 && now > dayStart) {
-      slotStart = new Date(now);
-      const mins = slotStart.getMinutes();
-      const roundedMins = Math.ceil(mins / 15) * 15;
-      slotStart.setMinutes(roundedMins, 0, 0);
+    let slotStart: Date;
+    if (now > dayStart) {
+      // Round up to next 15-min boundary (timezone-agnostic since we work in UTC ms)
+      slotStart = new Date(Math.ceil(now.getTime() / 900_000) * 900_000);
+    } else {
+      slotStart = new Date(dayStart);
     }
 
     while (slotStart < dayEnd && proposals.length < maxResults) {
@@ -76,7 +120,7 @@ export function findAvailableSlots(
         proposals.push({
           start: slotStart.toISOString(),
           end: slotEnd.toISOString(),
-          label: formatSlotLabel(slotStart, slotEnd),
+          label: formatSlotLabel(slotStart, slotEnd, tz),
         });
         slotStart = new Date(slotEnd.getTime() + 60 * 60_000);
       } else {
@@ -88,12 +132,12 @@ export function findAvailableSlots(
   return proposals;
 }
 
-function formatSlotLabel(start: Date, end: Date): string {
-  const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-  const dayName = dayNames[start.getDay()];
-  const day = start.getDate();
-  const month = start.toLocaleString("fr-FR", { month: "long" });
-  const startTime = `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
-  const endTime = `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
-  return `${dayName} ${day} ${month}, ${startTime} – ${endTime}`;
+function formatSlotLabel(start: Date, end: Date, tz: string): string {
+  const dayFmt = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: tz, weekday: "short", day: "numeric", month: "long",
+  });
+  const timeFmt = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  return `${dayFmt.format(start)}, ${timeFmt.format(start)} – ${timeFmt.format(end)}`;
 }

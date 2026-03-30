@@ -54,7 +54,9 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   let calendarEventId: string | null = null;
   const tokens = getGoogleCalendarTokens(uid);
   if (tokens) {
-    calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end);
+    const user = findUserByUid(uid);
+    const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+    calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
   }
 
   const updated = updateTodo(uid, todoId, {
