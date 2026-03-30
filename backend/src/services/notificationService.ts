@@ -24,7 +24,7 @@ function persist(): void {
   notificationsByUser.forEach((list, uid) => { obj[uid] = list; });
   const store = getStore();
   store.notifications = obj;
-  scheduleSave();
+  scheduleSave("notifications");
 }
 
 (function hydrate() {

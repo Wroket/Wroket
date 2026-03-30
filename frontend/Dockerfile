@@ -7,7 +7,8 @@ RUN npm ci
 
 FROM deps AS build
 COPY . .
-ENV NEXT_PUBLIC_API_BASE_URL=/api
+ARG NEXT_PUBLIC_API_BASE_URL=/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN npm run build
 
 FROM node:20-alpine AS runtime

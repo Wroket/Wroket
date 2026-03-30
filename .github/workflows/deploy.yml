@@ -1,71 +1,32 @@
-name: Deploy Wroket
+name: CI
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
+  pull_request:
+    branches: [main]
 
 jobs:
-  deploy:
-    name: Build & Deploy
+  check:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
 
-      - name: Sync code to VM
-        run: |
-          rsync -avz --delete \
-            --exclude='node_modules' \
-            --exclude='.next' \
-            --exclude='.git' \
-            --exclude='backend/data' \
-            -e "ssh -i ~/.ssh/deploy_key" \
-            ./ ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:~/wroket/
+      - name: Backend type check
+        working-directory: backend
+        run: npm ci --ignore-scripts && npx tsc --noEmit
 
-      - name: Build and restart
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'REMOTE'
-            set -e
-            cd ~/wroket
-
-            echo "=== Building images ==="
-            sudo docker compose build --quiet
-
-            echo "=== Restarting services ==="
-            sudo docker compose up -d --remove-orphans
-
-            echo "=== Pruning old images ==="
-            sudo docker image prune -f > /dev/null
-
-            echo "=== Health check ==="
-            sleep 5
-            STATUS=$(curl -sf http://127.0.0.1:3001/health | grep -o '"ok"' || echo "FAIL")
-            if [ "$STATUS" = '"ok"' ]; then
-              echo "Deploy OK"
-            else
-              echo "ERROR: Backend health check failed"
-              sudo docker compose logs --tail=20
-              exit 1
-            fi
-          REMOTE
-
-      - name: Update Nginx config
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'REMOTE'
-            sudo cp ~/wroket/nginx/wroket.conf /etc/nginx/sites-available/wroket
-            sudo nginx -t 2>&1 && sudo systemctl reload nginx
-          REMOTE
+      - name: Frontend type check
+        working-directory: frontend
+        run: npm ci --ignore-scripts && npx tsc --noEmit

@@ -33,7 +33,7 @@ function persistCollaborators(): void {
   collaboratorsByUser.forEach((list, uid) => { obj[uid] = list; });
   const store = getStore();
   store.collaborators = obj;
-  scheduleSave();
+  scheduleSave("collaborators");
 }
 
 function persistTeams(): void {
@@ -41,7 +41,7 @@ function persistTeams(): void {
   teamsById.forEach((team, id) => { obj[id] = team; });
   const store = getStore();
   store.teams = obj;
-  scheduleSave();
+  scheduleSave("teams");
 }
 
 (function hydrate() {

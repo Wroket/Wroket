@@ -3,14 +3,21 @@ import { Request, Response } from "express";
 import {
   COOKIE_NAME,
   login as loginService,
+  loginWithGoogle,
   logout as logoutService,
   register as registerService,
   updateProfile as updateProfileService,
   findUserByEmail,
   findUserByUid,
+  verifyEmail as verifyEmailService,
+  resendVerificationToken,
+  requestPasswordReset,
+  resetPassword as resetPasswordService,
   AuthUser,
   WorkingHours,
 } from "../services/authService";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/emailService";
+import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
 import { ValidationError } from "../utils/errors";
 
 export interface AuthenticatedRequest extends Request {
@@ -23,8 +30,96 @@ export async function register(req: Request, res: Response) {
     throw new ValidationError("Email et mot de passe requis");
   }
 
-  registerService({ email, password });
-  res.status(201).json({ message: "Compte créé" });
+  const result = registerService({ email, password });
+  await sendVerificationEmail(email, result.verifyToken);
+  res.status(201).json({ message: "Compte créé. Vérifiez votre email.", needsVerification: true });
+}
+
+export async function verifyEmail(req: Request, res: Response) {
+  const token = req.query.token;
+  if (typeof token !== "string") {
+    throw new ValidationError("Token requis");
+  }
+
+  verifyEmailService(token);
+  res.status(200).json({ message: "Email vérifié avec succès" });
+}
+
+export async function resendVerification(req: Request, res: Response) {
+  const { email } = req.body as { email?: unknown };
+  if (typeof email !== "string" || !email.includes("@")) {
+    throw new ValidationError("Email requis");
+  }
+
+  const { verifyToken } = resendVerificationToken(email);
+  await sendVerificationEmail(email, verifyToken);
+  res.status(200).json({ message: "Lien de vérification envoyé" });
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  const { email } = req.body as { email?: unknown };
+  if (typeof email !== "string" || !email.includes("@")) {
+    throw new ValidationError("Email requis");
+  }
+
+  const result = requestPasswordReset(email);
+  if (result) {
+    await sendPasswordResetEmail(result.email, result.resetToken);
+  }
+
+  // Always return 200 to prevent user enumeration
+  res.status(200).json({ message: "Si un compte existe, un email de réinitialisation a été envoyé." });
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const { token, password } = req.body as { token?: unknown; password?: unknown };
+  if (typeof token !== "string") {
+    throw new ValidationError("Token requis");
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    throw new ValidationError("Mot de passe trop court (min 8 caractères)");
+  }
+
+  resetPasswordService(token, password);
+  res.status(200).json({ message: "Mot de passe modifié avec succès" });
+}
+
+export async function googleSsoUrl(_req: Request, res: Response) {
+  const url = getGoogleSsoAuthUrl();
+  res.status(200).json({ url });
+}
+
+export async function googleSsoCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const code = req.query.code as string | undefined;
+
+  if (!code) {
+    res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
+    return;
+  }
+
+  try {
+    const userInfo = await exchangeGoogleSsoCode(code);
+    const result = loginWithGoogle({
+      email: userInfo.email,
+      firstName: userInfo.given_name ?? "",
+      lastName: userInfo.family_name ?? "",
+    });
+
+    const cookieSecure = process.env.COOKIE_SECURE === "true";
+    res.cookie(COOKIE_NAME, result.sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: cookieSecure,
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.redirect(`${frontendUrl}/dashboard`);
+  } catch (err) {
+    console.error("[auth] Google SSO callback error:", err);
+    res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
+  }
 }
 
 export async function login(req: Request, res: Response) {

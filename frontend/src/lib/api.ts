@@ -66,7 +66,7 @@ export async function login(
 
 export async function register(
   payload: LoginPayload
-): Promise<void> {
+): Promise<{ needsVerification?: boolean }> {
   const res = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -83,6 +83,88 @@ export async function register(
         : "Impossible de s'enregistrer";
     throw new Error(String(message));
   }
+
+  const body = await res.json();
+  return body as { needsVerification?: boolean };
+}
+
+export async function verifyEmailApi(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/verify-email?token=${encodeURIComponent(token)}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? (body as { message: string }).message
+        : "Erreur de vérification";
+    throw new Error(message);
+  }
+}
+
+export async function resendVerificationApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? (body as { message: string }).message
+        : "Erreur lors du renvoi";
+    throw new Error(message);
+  }
+}
+
+export async function forgotPasswordApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? (body as { message: string }).message
+        : "Erreur";
+    throw new Error(message);
+  }
+}
+
+export async function resetPasswordApi(token: string, password: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? (body as { message: string }).message
+        : "Erreur lors de la réinitialisation";
+    throw new Error(message);
+  }
+}
+
+export async function getGoogleSsoUrl(): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/auth/google/url`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur d'authentification Google");
+  const data = (await res.json()) as { url: string };
+  return data.url;
 }
 
 export async function getMe(): Promise<AuthMeResponse> {

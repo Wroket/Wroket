@@ -66,7 +66,7 @@ function persist(): void {
   projectsById.forEach((p, id) => { obj[id] = p; });
   const store = getStore();
   store.projects = obj;
-  scheduleSave();
+  scheduleSave("projects");
 }
 
 (function hydrate() {

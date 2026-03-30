@@ -77,7 +77,7 @@ function persistTodos(): void {
   });
   const store = getStore();
   store.todos = obj;
-  scheduleSave();
+  scheduleSave("todos");
 }
 
 (function hydrateTodos() {

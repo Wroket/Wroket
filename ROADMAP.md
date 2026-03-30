@@ -30,7 +30,7 @@
 - [x] **Vue Board** — Tâches groupées par phase, assignation de tâche à une phase, actions inline (compléter, supprimer, délier)
 - [x] **Vue Gantt** — Diagramme de Gantt CSS Grid : timeline par phases et tâches, barres colorées, marqueur "Aujourd'hui"
 - [x] **Dates de début** — Champ `startDate` sur les tâches pour positionnement Gantt
-- [x] **Persistance JSON** — Données users, todos, notifications, collaborateurs, équipes, projets dans `local-store.json`
+- [x] **Persistance hybride** — Cache in-memory + Firestore (prod) ou `local-store.json` (dev local)
 - [x] **Sécurité** — Helmet, CORS, rate limiting, validation inputs, bcrypt, cookies httpOnly
 - [x] **Harmonisation UI** — Couleurs boutons slate-700 (light), responsive amélioré, formulaire 2 lignes
 - [x] **Kanban Board** — Vue Kanban dans la partie Projets (tâches par phase, drag-style)
@@ -101,22 +101,19 @@
 
 ## Déploiement & Infrastructure
 
-- [x] **Déploiement VM GCP** — Backend + Frontend Dockerisés sur `wroket-vm` (europe-west9-b)
-  - Docker Compose (backend port 3001, frontend port 3000, volume persistant)
-  - Nginx reverse proxy (`/api/` → backend, `/` → frontend)
-  - HTTPS Let's Encrypt auto-renew sur `wroket.com`
-  - Docker CE 29.x, Node 20 LTS, Debian 12
-- [x] **CI/CD GitHub Actions** — Pipeline auto sur push `main`
-  - Rsync code → VM, build images, restart containers, health check
-  - Clé SSH dédiée déploiement, secrets GitHub configurés
-- [ ] **Phase 1 : Migration SQLite** — Remplacer `local-store.json` par SQLite (`better-sqlite3`)
-  - Fichier `.db` unique sur disque, requêtes synchrones ultra-rapides
-  - Zéro réseau, zéro quota, zéro coût — compatible e2-micro
-  - Backup simple : `gsutil cp` du fichier .db vers Cloud Storage
-  - Pertinent tant que l'architecture reste single-instance
-- [ ] **Phase 2 : Migration Firestore ou PostgreSQL** — Si scaling multi-instance nécessaire
-  - Firestore : si passage à Cloud Run avec auto-scaling (NoSQL, Free Tier 50k lectures/jour)
-  - PostgreSQL (Cloud SQL) : si besoin de requêtes complexes, reporting, full-text search (~$7-10/mois)
-  - Décision à prendre quand la base dépasse 100 utilisateurs actifs
-- [ ] **Phase 3 : Cloud Run** — Migration serverless (scaling auto, zero-cost au repos, plus de gestion VM)
-- [ ] **Sizing VM** — e2-medium (2 vCPU, 4 Go) actuel, suffisant pour la phase beta
+- [x] **Cloud Run (europe-west1)** — Backend + Frontend serverless sur Google Cloud Run
+  - Backend : `wroket-api` → `api.wroket.com` (Express/Node 20, Firestore)
+  - Frontend : `wroket-web` → `wroket.com` (Next.js standalone)
+  - Service account dédié `wroket-run`, 256 Mi RAM, 0-2 instances
+  - HTTPS automatique (Google-managed certificates)
+  - Zero-cost au repos (scale-to-zero)
+- [x] **Firestore** — Base de données NoSQL en production
+  - Cache in-memory + écriture Firestore asynchrone (debounce 500ms)
+  - Fallback `USE_LOCAL_STORE=true` pour dev local (`local-store.json`)
+  - Free Tier : 50k lectures/jour, 20k écritures/jour
+- [x] **Cloud Build** — CI/CD sur push `main`
+  - Build Docker backend + frontend → Artifact Registry (`europe-west1`)
+  - Deploy automatique vers Cloud Run
+- [x] **CI GitHub Actions** — Lint & type check sur push/PR
+- [x] **DNS & Domaines** — `wroket.com` (4x A records Google) + `api.wroket.com` (CNAME `ghs.googlehosted.com`)
+- [ ] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore)

@@ -35,6 +35,7 @@ export interface AuthUser {
   effortMinutes: EffortMinutes;
   workingHours: WorkingHours;
   googleCalendarConnected: boolean;
+  emailVerified: boolean;
 }
 
 interface StoredUser {
@@ -47,6 +48,11 @@ interface StoredUser {
   effortMinutes?: EffortMinutes;
   workingHours?: WorkingHours;
   googleCalendarTokens?: GoogleCalendarTokens;
+  emailVerified?: boolean;
+  emailVerifyToken?: string;
+  emailVerifyExpiresAt?: number;
+  resetToken?: string;
+  resetTokenExpiresAt?: number;
   createdAt: string;
 }
 
@@ -63,7 +69,7 @@ function persistUsers(): void {
   usersByUid.forEach((v, k) => { obj[k] = v; });
   const store = getStore();
   store.users = obj;
-  scheduleSave();
+  scheduleSave("users");
 }
 
 function persistSessions(): void {
@@ -71,7 +77,7 @@ function persistSessions(): void {
   sessionsByToken.forEach((v, k) => { obj[k] = v; });
   const store = getStore();
   store.sessions = obj;
-  scheduleSave();
+  scheduleSave("sessions");
 }
 
 (function hydrate() {
@@ -120,6 +126,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     effortMinutes: user.effortMinutes ?? DEFAULT_EFFORT_MINUTES,
     workingHours: user.workingHours ?? DEFAULT_WORKING_HOURS,
     googleCalendarConnected: !!user.googleCalendarTokens,
+    emailVerified: user.emailVerified ?? false,
   };
 }
 
@@ -146,7 +153,13 @@ export interface RegisterInput {
   password: string;
 }
 
-export function register(input: RegisterInput): AuthUser {
+const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function generateVerifyToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+export function register(input: RegisterInput): AuthUser & { verifyToken: string } {
   const email = normalizeEmail(input.email);
   if (!email || !email.includes("@")) {
     throw new ValidationError("Email invalide");
@@ -163,13 +176,113 @@ export function register(input: RegisterInput): AuthUser {
 
   const saltB64 = crypto.randomBytes(16).toString("base64");
   const hashB64 = pbkdf2Hash(input.password, saltB64);
+  const verifyToken = generateVerifyToken();
 
   const createdAt = new Date().toISOString();
-  const stored: StoredUser = { uid, email, firstName: "", lastName: "", passwordSaltB64: saltB64, passwordHashB64: hashB64, effortMinutes: DEFAULT_EFFORT_MINUTES, createdAt };
+  const stored: StoredUser = {
+    uid, email, firstName: "", lastName: "",
+    passwordSaltB64: saltB64, passwordHashB64: hashB64,
+    effortMinutes: DEFAULT_EFFORT_MINUTES,
+    emailVerified: false,
+    emailVerifyToken: verifyToken,
+    emailVerifyExpiresAt: Date.now() + VERIFY_TOKEN_TTL_MS,
+    createdAt,
+  };
   usersByUid.set(uid, stored);
   persistUsers();
 
-  return toAuthUser(stored);
+  return { ...toAuthUser(stored), verifyToken };
+}
+
+/**
+ * Validates the email verification token and marks the user as verified.
+ */
+export function verifyEmail(token: string): AuthUser {
+  if (!token) throw new ValidationError("Token requis");
+
+  for (const user of usersByUid.values()) {
+    if (user.emailVerifyToken === token) {
+      if (user.emailVerifyExpiresAt && Date.now() > user.emailVerifyExpiresAt) {
+        throw new AppError(410, "Lien de vérification expiré. Demandez un nouveau lien.");
+      }
+      user.emailVerified = true;
+      delete user.emailVerifyToken;
+      delete user.emailVerifyExpiresAt;
+      persistUsers();
+      return toAuthUser(user);
+    }
+  }
+
+  throw new AppError(400, "Token de vérification invalide");
+}
+
+/**
+ * Generates a new verification token and returns it for re-sending.
+ */
+export function resendVerificationToken(email: string): { verifyToken: string } {
+  const uid = uidFromEmail(normalizeEmail(email));
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (user.emailVerified) throw new AppError(400, "Email déjà vérifié");
+
+  const verifyToken = generateVerifyToken();
+  user.emailVerifyToken = verifyToken;
+  user.emailVerifyExpiresAt = Date.now() + VERIFY_TOKEN_TTL_MS;
+  persistUsers();
+
+  return { verifyToken };
+}
+
+const RESET_TOKEN_TTL_MS = 1 * 60 * 60 * 1000; // 1h
+
+/**
+ * Generates a password-reset token. Returns null silently if the email doesn't exist
+ * (to avoid user enumeration).
+ */
+export function requestPasswordReset(email: string): { resetToken: string; email: string } | null {
+  const uid = uidFromEmail(normalizeEmail(email));
+  const user = usersByUid.get(uid);
+  if (!user) return null;
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  user.resetToken = resetToken;
+  user.resetTokenExpiresAt = Date.now() + RESET_TOKEN_TTL_MS;
+  persistUsers();
+
+  return { resetToken, email: user.email };
+}
+
+/**
+ * Validates the reset token and sets a new password.
+ */
+export function resetPassword(token: string, newPassword: string): void {
+  if (!token) throw new ValidationError("Token requis");
+  if (newPassword.length < 8) {
+    throw new ValidationError("Mot de passe trop court (min 8 caractères)");
+  }
+
+  for (const user of usersByUid.values()) {
+    if (user.resetToken === token) {
+      if (user.resetTokenExpiresAt && Date.now() > user.resetTokenExpiresAt) {
+        throw new AppError(410, "Lien de réinitialisation expiré. Demandez un nouveau lien.");
+      }
+
+      const saltB64 = crypto.randomBytes(16).toString("base64");
+      user.passwordSaltB64 = saltB64;
+      user.passwordHashB64 = pbkdf2Hash(newPassword, saltB64);
+      delete user.resetToken;
+      delete user.resetTokenExpiresAt;
+
+      for (const [tok, sess] of sessionsByToken) {
+        if (sess.uid === user.uid) sessionsByToken.delete(tok);
+      }
+      persistSessions();
+      persistUsers();
+      return;
+    }
+  }
+
+  throw new AppError(400, "Token de réinitialisation invalide");
 }
 
 export interface LoginInput {
@@ -192,6 +305,10 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
     !crypto.timingSafeEqual(Buffer.from(expectedHash, "base64"), Buffer.from(actualHash, "base64"))
   ) {
     throw new AppError(401, "Identifiants invalides");
+  }
+
+  if (!user.emailVerified) {
+    throw new AppError(403, "EMAIL_NOT_VERIFIED");
   }
 
   for (const [tok, sess] of sessionsByToken) {
@@ -306,6 +423,57 @@ export function findUserByUid(uid: string): AuthUser | null {
   const user = usersByUid.get(uid);
   if (!user) return null;
   return toAuthUser(user);
+}
+
+/**
+ * Logs in (or registers) a user via Google SSO.
+ * The email is auto-verified since Google has already validated it.
+ */
+export function loginWithGoogle(profile: { email: string; firstName: string; lastName: string }): AuthUser & { sessionToken: string } {
+  const email = normalizeEmail(profile.email);
+  const uid = uidFromEmail(email);
+  let user = usersByUid.get(uid);
+
+  if (!user) {
+    const saltB64 = crypto.randomBytes(16).toString("base64");
+    const randomPass = crypto.randomBytes(32).toString("hex");
+    const hashB64 = pbkdf2Hash(randomPass, saltB64);
+
+    user = {
+      uid, email,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      passwordSaltB64: saltB64,
+      passwordHashB64: hashB64,
+      effortMinutes: DEFAULT_EFFORT_MINUTES,
+      emailVerified: true,
+      createdAt: new Date().toISOString(),
+    };
+    usersByUid.set(uid, user);
+    persistUsers();
+    console.log("[auth] Google SSO — new user created: %s", email);
+  } else {
+    if (!user.emailVerified) {
+      user.emailVerified = true;
+      persistUsers();
+    }
+    if (!user.firstName && profile.firstName) {
+      user.firstName = profile.firstName;
+      user.lastName = profile.lastName;
+      persistUsers();
+    }
+  }
+
+  for (const [tok, sess] of sessionsByToken) {
+    if (sess.uid === uid) sessionsByToken.delete(tok);
+  }
+
+  const sessionToken = crypto.randomBytes(32).toString("hex");
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  sessionsByToken.set(sessionToken, { uid, expiresAt });
+  persistSessions();
+
+  return { ...toAuthUser(user), sessionToken };
 }
 
 export function logout(cookies: string | undefined): void {

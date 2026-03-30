@@ -39,14 +39,14 @@ function persist(): void {
   const obj: Record<string, WebhookConfig[]> = {};
   webhooksByUser.forEach((list, uid) => { obj[uid] = list; });
   const store = getStore();
-  (store as Record<string, unknown>).webhooks = obj;
-  scheduleSave();
+  store.webhooks = obj;
+  scheduleSave("webhooks");
 }
 
 (function hydrate() {
-  const store = getStore() as Record<string, unknown>;
+  const store = getStore();
   if (store.webhooks) {
-    for (const [uid, list] of Object.entries(store.webhooks as Record<string, WebhookConfig[]>)) {
+    for (const [uid, list] of Object.entries(store.webhooks as unknown as Record<string, WebhookConfig[]>)) {
       webhooksByUser.set(uid, list);
     }
     console.log("[webhooks] configs chargées pour %d utilisateur(s)", webhooksByUser.size);
