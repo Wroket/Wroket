@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { Firestore } from "@google-cloud/firestore";
+
+type Firestore = import("@google-cloud/firestore").Firestore;
 
 const USE_LOCAL = process.env.USE_LOCAL_STORE === "true";
 const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
@@ -91,7 +92,8 @@ export async function initStore(): Promise<void> {
     console.log("[persistence] Loaded from local JSON file");
   } else {
     try {
-      db = new Firestore({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+      const { Firestore: FirestoreClass } = await import("@google-cloud/firestore");
+      db = new FirestoreClass({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
       cachedStore = await loadFromFirestore();
       console.log("[persistence] Loaded from Firestore");
     } catch (err) {
