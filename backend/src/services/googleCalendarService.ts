@@ -186,3 +186,27 @@ export async function createGoogleCalendarEvent(
     return null;
   }
 }
+
+/**
+ * Delete an event from Google Calendar.
+ */
+export async function deleteGoogleCalendarEvent(
+  uid: string,
+  eventId: string,
+): Promise<boolean> {
+  const accessToken = await getValidAccessToken(uid);
+  if (!accessToken) return false;
+
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return res.ok || res.status === 404;
+  } catch {
+    return false;
+  }
+}

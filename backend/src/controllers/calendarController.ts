@@ -6,6 +6,7 @@ import { updateTodo, listTodos } from "../services/todoService";
 import {
   findUserByUid,
   DEFAULT_WORKING_HOURS,
+  getGoogleCalendarTokens,
   setGoogleCalendarTokens,
   removeGoogleCalendarTokens,
 } from "../services/authService";
@@ -14,6 +15,8 @@ import {
   getGoogleAuthUrl,
   exchangeCodeForTokens,
   listGoogleCalendarEvents,
+  createGoogleCalendarEvent,
+  deleteGoogleCalendarEvent,
 } from "../services/googleCalendarService";
 
 export async function getSlots(req: AuthenticatedRequest, res: Response) {
@@ -39,12 +42,23 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
 
 export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
+  const uid = req.user!.uid;
   const { start, end } = req.body as { start: string; end: string };
 
   if (!start || !end) throw new ValidationError("start and end required");
 
-  const updated = updateTodo(req.user!.uid, todoId, {
-    scheduledSlot: { start, end, calendarEventId: null },
+  const todos = listTodos(uid);
+  const todo = todos.find((t) => t.id === todoId);
+  if (!todo) throw new NotFoundError("Tâche introuvable");
+
+  let calendarEventId: string | null = null;
+  const tokens = getGoogleCalendarTokens(uid);
+  if (tokens) {
+    calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end);
+  }
+
+  const updated = updateTodo(uid, todoId, {
+    scheduledSlot: { start, end, calendarEventId },
   });
 
   res.status(200).json(updated);
@@ -52,7 +66,15 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
 
 export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
-  const updated = updateTodo(req.user!.uid, todoId, {
+  const uid = req.user!.uid;
+
+  const todos = listTodos(uid);
+  const todo = todos.find((t) => t.id === todoId);
+  if (todo?.scheduledSlot?.calendarEventId) {
+    await deleteGoogleCalendarEvent(uid, todo.scheduledSlot.calendarEventId);
+  }
+
+  const updated = updateTodo(uid, todoId, {
     scheduledSlot: null,
   });
   res.status(200).json(updated);
