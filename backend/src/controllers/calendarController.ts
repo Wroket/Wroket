@@ -136,5 +136,13 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
 
   const googleEvents = await listGoogleCalendarEvents(uid, start, end);
 
-  res.status(200).json({ wroketEvents, googleEvents });
+  // Filter out Google events that were created by Wroket (avoid duplicates)
+  const wroketGoogleIds = new Set(
+    todos
+      .filter((t) => t.scheduledSlot?.calendarEventId)
+      .map((t) => t.scheduledSlot!.calendarEventId!),
+  );
+  const filteredGoogleEvents = googleEvents.filter((e) => !wroketGoogleIds.has(e.id));
+
+  res.status(200).json({ wroketEvents, googleEvents: filteredGoogleEvents });
 }

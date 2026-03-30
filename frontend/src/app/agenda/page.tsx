@@ -361,21 +361,21 @@ export default function AgendaPage() {
                           return (
                             <div
                               key={ev.id}
-                              className={`absolute left-1 right-1 rounded px-1.5 py-1 overflow-hidden cursor-default transition-shadow hover:shadow-md z-10 border-l-2 ${
+                              className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden cursor-default transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm ${
                                 isWroket && qc
                                   ? `${qc.bg} ${qc.border} ${qc.text}`
                                   : "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-200"
                               }`}
-                              style={{ top: pos.top, height: pos.height }}
+                              style={{ top: pos.top, height: pos.height, minHeight: 22 }}
                               title={`${ev.summary}${isWroket && qc ? ` — ${qc.icon} ${qc.label}` : ` (${t("agenda.googleEvent")})`}`}
                             >
-                              <div className="text-[11px] font-medium truncate leading-tight">
+                              <div className="text-xs font-semibold truncate leading-snug">
                                 {isWroket && qc ? `${qc.icon} ` : ""}{ev.summary}
                               </div>
                               {pos.height >= 36 && (
-                                <div className="text-[10px] opacity-70 mt-0.5">
+                                <div className="text-[10px] opacity-80 mt-0.5 font-medium">
                                   {new Date(ev.start).toLocaleTimeString(locale === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" })}
-                                  {" - "}
+                                  {" – "}
                                   {new Date(ev.end).toLocaleTimeString(locale === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" })}
                                 </div>
                               )}

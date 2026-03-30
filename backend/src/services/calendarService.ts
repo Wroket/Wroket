@@ -12,46 +12,59 @@ export interface SlotProposal {
   label: string; // e.g. "Lun 24 mars, 09:00 – 09:30"
 }
 
-/* ── Timezone helpers (zero external deps) ── */
+/* ── Timezone helpers (zero external deps, no locale-string parsing) ── */
+
+const FMT_OPTS: Intl.DateTimeFormatOptions = {
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit",
+  hour12: false,
+};
+
+/**
+ * Extract numeric date/time components from formatToParts output.
+ */
+function extractParts(parts: Intl.DateTimeFormatPart[]) {
+  const v = (type: string) =>
+    parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
+  const h = v("hour");
+  return { year: v("year"), month: v("month") - 1, day: v("day"), hour: h === 24 ? 0 : h, minute: v("minute") };
+}
+
+/**
+ * Compute timezone offset (in ms) at a given instant.
+ * Positive = timezone is ahead of UTC (e.g. +7200000 for CEST).
+ */
+function getOffsetMs(date: Date, tz: string): number {
+  const tzParts  = new Intl.DateTimeFormat("en-US", { ...FMT_OPTS, timeZone: tz }).formatToParts(date);
+  const utcParts = new Intl.DateTimeFormat("en-US", { ...FMT_OPTS, timeZone: "UTC" }).formatToParts(date);
+  const tz_  = extractParts(tzParts);
+  const utc_ = extractParts(utcParts);
+  return Date.UTC(tz_.year, tz_.month, tz_.day, tz_.hour, tz_.minute, 0)
+       - Date.UTC(utc_.year, utc_.month, utc_.day, utc_.hour, utc_.minute, 0);
+}
 
 /**
  * Extract date/time components as seen in a given IANA timezone.
  */
 function getPartsInTz(date: Date, tz: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(date);
-
-  const v = (type: Intl.DateTimeFormatPartTypes) =>
-    parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
+  const parts = new Intl.DateTimeFormat("en-US", { ...FMT_OPTS, timeZone: tz }).formatToParts(date);
+  const p = extractParts(parts);
 
   const wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" });
   const wdMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
-  return {
-    year: v("year"),
-    month: v("month") - 1,
-    day: v("day"),
-    hour: v("hour") === 24 ? 0 : v("hour"),
-    minute: v("minute"),
-    dayOfWeek: wdMap[wdFmt.format(date)] ?? 0,
-  };
+  return { ...p, dayOfWeek: wdMap[wdFmt.format(date)] ?? 0 };
 }
 
 /**
  * Convert a "local wall-clock" time in a given timezone to a UTC Date.
  * e.g. 09:00 Europe/Paris → 07:00 UTC (during CEST).
+ * Uses only Intl.DateTimeFormat.formatToParts — no locale-string parsing.
  */
 function tzLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
-  const guess = new Date(Date.UTC(year, month, day, hour, minute, 0));
-
-  const utcStr = guess.toLocaleString("en-US", { timeZone: "UTC" });
-  const tzStr  = guess.toLocaleString("en-US", { timeZone: tz });
-  const offsetMs = new Date(tzStr).getTime() - new Date(utcStr).getTime();
-
-  return new Date(guess.getTime() - offsetMs);
+  const asUtc = new Date(Date.UTC(year, month, day, hour, minute, 0));
+  const offsetMs = getOffsetMs(asUtc, tz);
+  return new Date(asUtc.getTime() - offsetMs);
 }
 
 /* ── Slot finder ── */
