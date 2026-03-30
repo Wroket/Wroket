@@ -20,6 +20,6 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=build --chown=appuser:appgroup /app/dist ./dist
 USER appuser
 
-EXPOSE 3000
+EXPOSE 3001
 CMD ["node", "dist/server.js"]
 

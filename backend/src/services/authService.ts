@@ -109,7 +109,7 @@ setInterval(() => {
     persistSessions();
     console.log("[auth] %d session(s) expirée(s) nettoyée(s)", cleaned);
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 function toAuthUser(user: StoredUser): AuthUser {
   return {
@@ -194,6 +194,10 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
     throw new AppError(401, "Identifiants invalides");
   }
 
+  for (const [tok, sess] of sessionsByToken) {
+    if (sess.uid === uid) sessionsByToken.delete(tok);
+  }
+
   const sessionToken = crypto.randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
   sessionsByToken.set(sessionToken, { uid, expiresAt });
@@ -264,7 +268,16 @@ export function updateProfile(uid: string, input: UpdateProfileInput): AuthUser 
 
   if (input.firstName !== undefined) user.firstName = input.firstName.trim().slice(0, 100);
   if (input.lastName !== undefined) user.lastName = input.lastName.trim().slice(0, 100);
-  if (input.effortMinutes !== undefined) user.effortMinutes = input.effortMinutes;
+  if (input.effortMinutes !== undefined) {
+    const em = input.effortMinutes;
+    if (typeof em.light !== "number" || typeof em.medium !== "number" || typeof em.heavy !== "number") {
+      throw new ValidationError("effortMinutes: light, medium et heavy doivent être des nombres");
+    }
+    if (em.light < 1 || em.medium < 1 || em.heavy < 1) {
+      throw new ValidationError("effortMinutes: les valeurs doivent être >= 1");
+    }
+    user.effortMinutes = em;
+  }
   if (input.workingHours !== undefined) {
     validateWorkingHours(input.workingHours);
     user.workingHours = input.workingHours;

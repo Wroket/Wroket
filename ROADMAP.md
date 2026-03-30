@@ -101,6 +101,14 @@
 
 ## Déploiement & Infrastructure
 
+- [x] **Déploiement VM GCP** — Backend + Frontend Dockerisés sur `wroket-vm` (europe-west9-b)
+  - Docker Compose (backend port 3001, frontend port 3000, volume persistant)
+  - Nginx reverse proxy (`/api/` → backend, `/` → frontend)
+  - HTTPS Let's Encrypt auto-renew sur `wroket.com`
+  - Docker CE 29.x, Node 20 LTS, Debian 12
+- [x] **CI/CD GitHub Actions** — Pipeline auto sur push `main`
+  - Rsync code → VM, build images, restart containers, health check
+  - Clé SSH dédiée déploiement, secrets GitHub configurés
 - [ ] **Phase 1 : Migration SQLite** — Remplacer `local-store.json` par SQLite (`better-sqlite3`)
   - Fichier `.db` unique sur disque, requêtes synchrones ultra-rapides
   - Zéro réseau, zéro quota, zéro coût — compatible e2-micro
@@ -110,7 +118,5 @@
   - Firestore : si passage à Cloud Run avec auto-scaling (NoSQL, Free Tier 50k lectures/jour)
   - PostgreSQL (Cloud SQL) : si besoin de requêtes complexes, reporting, full-text search (~$7-10/mois)
   - Décision à prendre quand la base dépasse 100 utilisateurs actifs
-- [ ] **Sizing VM** — e2-micro (0.25 vCPU, 1 Go) suffisant en phase beta (<20 users). Passer à e2-small (0.5 vCPU, 2 Go, ~$5-7/mois) au-delà de 10 users actifs simultanés ou si `local-store.json` dépasse 5 Mo
-- [ ] **Déploiement frontend** — Build Next.js + Nginx ou Cloud Run sur la VM GCP
-- [ ] **CI/CD** — Pipeline GitHub Actions (lint, test, build, deploy)
-- [ ] **HTTPS / domaine** — Certificat SSL + nom de domaine
+- [ ] **Phase 3 : Cloud Run** — Migration serverless (scaling auto, zero-cost au repos, plus de gestion VM)
+- [ ] **Sizing VM** — e2-medium (2 vCPU, 4 Go) actuel, suffisant pour la phase beta

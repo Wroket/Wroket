@@ -8,7 +8,7 @@ import { getTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { useLocale } from "@/lib/LocaleContext";
-import { getLocale, type TranslationKey } from "@/lib/i18n";
+import type { TranslationKey } from "@/lib/i18n";
 import type { Quadrant } from "@/lib/todoConstants";
 
 const QUADRANT_LABELS: Record<Quadrant, { tKey: TranslationKey; emoji: string; cls: string }> = {
@@ -19,7 +19,7 @@ const QUADRANT_LABELS: Record<Quadrant, { tKey: TranslationKey; emoji: string; c
 };
 
 export default function DashboardPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [recentNotifs, setRecentNotifs] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,7 +246,7 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{notif.message}</p>
                         <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">
-                          {new Date(notif.createdAt).toLocaleDateString(getLocale() === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(notif.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
                     </li>

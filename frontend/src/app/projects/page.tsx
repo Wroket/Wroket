@@ -411,7 +411,14 @@ export default function ProjectsPage() {
     return map;
   }, [orderedPhases, projectTodos]);
 
-  const getSubtasks = (parentId: string) => projectTodos.filter(td => td.parentId === parentId);
+  const subtasksByParent = useMemo(() => {
+    const map: Record<string, Todo[]> = {};
+    for (const td of projectTodos) {
+      if (td.parentId) (map[td.parentId] ??= []).push(td);
+    }
+    return map;
+  }, [projectTodos]);
+  const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
 
   const loadProjects = useCallback(async () => {
     try {

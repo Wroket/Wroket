@@ -278,7 +278,7 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   }
   if (input.status !== undefined) {
     if (!VALID_STATUSES.includes(input.status)) {
-      throw new ValidationError("Statut invalide (active, completed, cancelled)");
+      throw new ValidationError("Statut invalide (active, completed, cancelled, deleted)");
     }
     if (input.status !== todo.status) {
       todo.statusChangedAt = new Date().toISOString();
@@ -292,6 +292,10 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     todo.phaseId = input.phaseId;
   }
   if (input.startDate !== undefined) {
+    if (input.startDate !== null) {
+      const d = new Date(input.startDate);
+      if (isNaN(d.getTime())) throw new ValidationError("Date de début invalide");
+    }
     todo.startDate = input.startDate;
   }
   if (input.assignedTo !== undefined) {
@@ -312,6 +316,25 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   persistTodos();
   return todo;
 }
+
+const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+setInterval(() => {
+  let cleaned = 0;
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  todosByUser.forEach((todos) => {
+    for (const [id, todo] of todos) {
+      if (todo.status === "deleted" && new Date(todo.statusChangedAt).getTime() < cutoff) {
+        todos.delete(id);
+        cleaned++;
+      }
+    }
+  });
+  if (cleaned > 0) {
+    persistTodos();
+    console.log("[todos] %d tombstone(s) purgée(s) (> 30 jours)", cleaned);
+  }
+}, 6 * 60 * 60 * 1000).unref();
 
 export function deleteTodo(userId: string, todoId: string): Todo {
   const found = findTodoForUser(userId, todoId);

@@ -34,7 +34,7 @@ export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response
 }
 
 export async function postDeleteWebhook(req: AuthenticatedRequest, res: Response) {
-  const webhookId = req.params.id;
+  const webhookId = req.params.id as string;
   if (!webhookId) throw new ValidationError("ID requis");
   deleteWebhook(req.user!.uid, webhookId);
   res.status(200).json({ ok: true });

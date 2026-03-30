@@ -112,8 +112,9 @@ export function addCollaborator(uid: string, email: string): Collaborator {
 }
 
 export function removeCollaborator(uid: string, email: string): void {
+  const normalised = email.trim().toLowerCase();
   const list = getUserCollaborators(uid);
-  const idx = list.findIndex((c) => c.email === email);
+  const idx = list.findIndex((c) => c.email === normalised);
   if (idx === -1) throw new NotFoundError("Collaborateur introuvable");
   list.splice(idx, 1);
   persistCollaborators();
@@ -151,18 +152,6 @@ export function declineCollaboration(inviterUid: string, inviteeEmail: string): 
 }
 
 // ── Teams ──
-
-export function listTeams(uid: string): Team[] {
-  const result: Team[] = [];
-  teamsById.forEach((team) => {
-    if (team.ownerUid === uid || team.members.some((m) => m.email !== "")) {
-      if (team.ownerUid === uid) result.push(team);
-    }
-  });
-  return result.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
-}
 
 export function listUserTeams(uid: string, userEmail: string): Team[] {
   const result: Team[] = [];
@@ -238,7 +227,8 @@ export function removeTeamMember(
   if (!team) throw new NotFoundError("Équipe introuvable");
   if (team.ownerUid !== uid) throw new ForbiddenError("Non autorisé");
 
-  const idx = team.members.findIndex((m) => m.email === email);
+  const normalised = email.trim().toLowerCase();
+  const idx = team.members.findIndex((m) => m.email === normalised);
   if (idx === -1) throw new NotFoundError("Membre introuvable");
 
   team.members.splice(idx, 1);

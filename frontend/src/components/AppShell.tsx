@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -141,6 +141,7 @@ export default function AppShell({ children }: AppShellProps) {
   const helpMenuRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const unreadNotifications = useMemo(() => notifications.filter((n) => !n.read), [notifications]);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const toggleDarkMode = useCallback(() => {
@@ -343,10 +344,10 @@ export default function AppShell({ children }: AppShellProps) {
                     )}
                   </div>
                   <div className="overflow-y-auto flex-1">
-                    {notifications.filter((n) => !n.read).length === 0 ? (
+                    {unreadNotifications.length === 0 ? (
                       <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("notif.empty")}</p>
                     ) : (
-                      notifications.filter((n) => !n.read).slice(0, 20).map((notif) => (
+                      unreadNotifications.slice(0, 20).map((notif) => (
                         <div
                           key={notif.id}
                           className="w-full text-left px-4 py-3 border-b border-zinc-50 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-950/20"

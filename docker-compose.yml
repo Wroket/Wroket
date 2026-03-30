@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./backend
+    container_name: wroket-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      - PORT=3001
+      - COOKIE_SECURE=true
+      - ALLOWED_ORIGINS=https://wroket.com,https://www.wroket.com
+      - FRONTEND_URL=https://wroket.com
+    volumes:
+      - backend-data:/app/data
+
+  frontend:
+    build: ./frontend
+    container_name: wroket-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - HOSTNAME=0.0.0.0
+
+volumes:
+  backend-data:

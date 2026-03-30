@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
@@ -281,7 +281,7 @@ export default function TodosPage() {
     }
   };
 
-  const handleStatusChange = async (todo: Todo, newStatus: TodoStatus) => {
+  const handleStatusChange = useCallback(async (todo: Todo, newStatus: TodoStatus) => {
     try {
       const previousStatus = todo.status;
       const updated = await updateTodo(todo.id, { status: newStatus });
@@ -290,7 +290,7 @@ export default function TodosPage() {
     } catch {
       toast.error("Erreur lors de la mise à jour");
     }
-  };
+  }, [toast]);
 
   const requestDelete = (todo: Todo) => {
     if (todo.status === "deleted") {
@@ -318,23 +318,23 @@ export default function TodosPage() {
     }
   };
 
-  const handleDecline = async (todo: Todo) => {
+  const handleDecline = useCallback(async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { assignmentStatus: "declined" });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch {
       toast.error("Erreur lors du refus");
     }
-  };
+  }, [toast]);
 
-  const handleAccept = async (todo: Todo) => {
+  const handleAccept = useCallback(async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { assignmentStatus: "accepted" });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch {
       toast.error("Erreur lors de l'acceptation");
     }
-  };
+  }, [toast]);
 
   const handleUndo = async () => {
     if (!lastAction || undoing) return;
@@ -350,7 +350,7 @@ export default function TodosPage() {
     }
   };
 
-  const getSubtasks = (parentId: string) => todos.filter(t => t.parentId === parentId);
+  const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
 
   const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; deadline: string }) => {
     if (!subtaskParent) return;
@@ -420,6 +420,10 @@ export default function TodosPage() {
     }, 300);
   };
 
+  const handleScheduleUpdate = useCallback((updated: Todo) => {
+    setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }, []);
+
   const openSubtaskModal = (todo: Todo) => {
     setSubtaskParent(todo);
   };
@@ -478,12 +482,16 @@ export default function TodosPage() {
     eliminate: activeTodos.filter((t) => classify(t) === "eliminate"),
   }), [activeTodos]);
 
-  const subtaskCounts = useMemo(() => {
+  const { subtaskCounts, subtasksByParent } = useMemo(() => {
     const counts: Record<string, number> = {};
+    const byParent: Record<string, Todo[]> = {};
     for (const td of todos) {
-      if (td.parentId) counts[td.parentId] = (counts[td.parentId] ?? 0) + 1;
+      if (td.parentId) {
+        counts[td.parentId] = (counts[td.parentId] ?? 0) + 1;
+        (byParent[td.parentId] ??= []).push(td);
+      }
     }
-    return counts;
+    return { subtaskCounts: counts, subtasksByParent: byParent };
   }, [todos]);
 
   const uniqueAssignees = useMemo(() => {
@@ -535,6 +543,21 @@ export default function TodosPage() {
     }
     return parts.flat();
   }, [filters, activeTodos, completedTodos, cancelledTodos, deletedTodos, grouped]);
+
+  const radarPriorityList = useMemo(() => {
+    const source: Todo[] = filters.size === 0 ? activeTodos : listTodos;
+    return [...source].sort((a, b) => {
+      const rA = QUADRANT_RANK[classify(a)];
+      const rB = QUADRANT_RANK[classify(b)];
+      if (rA !== rB) return rA - rB;
+      const pA = PRIORITY_RANK[a.priority];
+      const pB = PRIORITY_RANK[b.priority];
+      if (pA !== pB) return pA - pB;
+      const dA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+      const dB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+      return dA - dB;
+    });
+  }, [filters.size, activeTodos, listTodos]);
 
   const activeQuadrantFilters = QUADRANT_KEYS.filter((k) => filters.has(k));
   const activeStatusFilters = STATUS_KEYS.filter((k) => filters.has(k));
@@ -959,7 +982,7 @@ export default function TodosPage() {
               onDecline={handleDecline}
               onAccept={handleAccept}
               projects={projects}
-              onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))}
+              onScheduleUpdate={handleScheduleUpdate}
             />
           ) : mainView === "cards" ? (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
@@ -978,7 +1001,7 @@ export default function TodosPage() {
                   ) : (
                     <div className="space-y-2">
                       {listTodos.map((todo) => (
-                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} />
+                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} />
                       ))}
                     </div>
                   )}
@@ -988,7 +1011,7 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
@@ -1002,7 +1025,7 @@ export default function TodosPage() {
                         {activeStatusFilters.flatMap((f) =>
                           f === "completed" ? completedTodos : f === "cancelled" ? cancelledTodos : deletedTodos
                         ).map((todo) => (
-                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} />
+                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} />
                         ))}
                       </div>
                     </div>
@@ -1034,10 +1057,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                   </div>
 
@@ -1049,10 +1072,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                     </div>
                   </div>
                 </>
@@ -1070,20 +1093,7 @@ export default function TodosPage() {
                   </h3>
                   <div className="space-y-2">
                     {(() => {
-                      const radarListSource: Todo[] = filters.size === 0
-                        ? activeTodos
-                        : listTodos;
-                      const priorityTodos = [...radarListSource].sort((a, b) => {
-                        const rA = QUADRANT_RANK[classify(a)];
-                        const rB = QUADRANT_RANK[classify(b)];
-                        if (rA !== rB) return rA - rB;
-                        const pA = PRIORITY_RANK[a.priority];
-                        const pB = PRIORITY_RANK[b.priority];
-                        if (pA !== pB) return pA - pB;
-                        const dA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-                        const dB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-                        return dA - dB;
-                      });
+                      const priorityTodos = radarPriorityList;
                       const CARD_BG: Record<Quadrant, string> = {
                         "do-first": "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800",
                         schedule: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800",
@@ -1163,8 +1173,8 @@ export default function TodosPage() {
                                   <SlotPicker
                                     todoId={todo.id}
                                     scheduledSlot={todo.scheduledSlot}
-                                    onBooked={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))}
-                                    onCleared={(updated) => setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))}
+                                    onBooked={handleScheduleUpdate}
+                                    onCleared={handleScheduleUpdate}
                                   />
                                 )}
                                 <button
@@ -1340,8 +1350,15 @@ function TaskList({
   onScheduleUpdate?: (todo: Todo) => void;
 }) {
   const { t } = useLocale();
-  const sorted = sortTodos(todos, sortCol, sortDir);
-  const subtasksOf = (id: string) => allTodos.filter(t => t.parentId === id);
+  const sorted = useMemo(() => sortTodos(todos, sortCol, sortDir), [todos, sortCol, sortDir]);
+  const childrenByParent = useMemo(() => {
+    const map: Record<string, Todo[]> = {};
+    for (const td of allTodos) {
+      if (td.parentId) (map[td.parentId] ??= []).push(td);
+    }
+    return map;
+  }, [allTodos]);
+  const subtasksOf = (id: string) => childrenByParent[id] ?? [];
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -1701,7 +1718,14 @@ function QuadrantCell({
     });
   };
 
-  const subtasksOf = (id: string) => allTodos.filter(st => st.parentId === id);
+  const childrenMap = useMemo(() => {
+    const map: Record<string, Todo[]> = {};
+    for (const td of allTodos) {
+      if (td.parentId) (map[td.parentId] ??= []).push(td);
+    }
+    return map;
+  }, [allTodos]);
+  const subtasksOf = (id: string) => childrenMap[id] ?? [];
 
   return (
     <div className={`${cfg.cellBg} flex flex-col min-h-[220px] h-full`}>

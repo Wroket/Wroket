@@ -1,6 +1,8 @@
 import crypto from "crypto";
+import { URL } from "url";
 
 import { getStore, scheduleSave } from "../persistence";
+import { ValidationError } from "../utils/errors";
 
 export type WebhookEvent =
   | "task_assigned"
@@ -66,6 +68,8 @@ export function listWebhooks(uid: string): WebhookConfig[] {
 
 export function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id" | "createdAt"> & { id?: string }): WebhookConfig {
   const list = getUserWebhooks(uid);
+
+  validateWebhookUrl(input.url);
 
   const events = (input.events ?? []).filter((e) => VALID_EVENTS.includes(e));
   if (events.length === 0) events.push("task_assigned");
@@ -189,6 +193,44 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
   }
 }
 
+const BLOCKED_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"]);
+
+/**
+ * Reject URLs targeting private/internal networks (SSRF protection).
+ */
+function validateWebhookUrl(raw: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new ValidationError("URL invalide");
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new ValidationError("Seuls les protocoles http/https sont autorisés");
+  }
+
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+
+  if (BLOCKED_HOSTS.has(hostname)) {
+    throw new ValidationError("URL vers un hôte interne non autorisée");
+  }
+
+  const parts = hostname.split(".");
+  if (
+    parts[0] === "10" ||
+    parts[0] === "169" && parts[1] === "254" ||
+    parts[0] === "192" && parts[1] === "168" ||
+    parts[0] === "172" && Number(parts[1]) >= 16 && Number(parts[1]) <= 31
+  ) {
+    throw new ValidationError("URL vers un réseau privé non autorisée");
+  }
+
+  return parsed;
+}
+
+const WEBHOOK_TIMEOUT_MS = 5_000;
+
 /**
  * Fire webhook(s) for a given user + event.
  * Non-blocking — errors are logged and swallowed.
@@ -213,11 +255,18 @@ export function dispatchWebhooks(
   };
 
   for (const webhook of matching) {
+    try {
+      validateWebhookUrl(webhook.url);
+    } catch {
+      console.warn("[webhook] URL bloquée pour %s (%s)", webhook.label, webhook.url);
+      continue;
+    }
     const body = formatPayload(webhook.platform, payload);
     fetch(webhook.url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
     }).catch((err) => {
       console.warn("[webhook] dispatch failed for %s (%s): %s", webhook.label, webhook.url, err);
     });
@@ -236,11 +285,13 @@ export async function testWebhook(url: string, platform: WebhookPlatform): Promi
   };
 
   try {
+    validateWebhookUrl(url);
     const body = formatPayload(platform, payload);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
     });
     return res.ok;
   } catch {
