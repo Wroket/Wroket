@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
-import { getTeam } from "./teamService";
+import { getTeam, canManageProjects } from "./teamService";
 
 export type ProjectStatus = "active" | "archived";
 
@@ -82,14 +82,26 @@ function persist(): void {
 })();
 
 /**
- * Returns true if the user owns the project or is a member
- * of the project's team.
+ * Returns true if the user can VIEW the project (any team role).
  */
 export function canAccessProject(uid: string, userEmail: string, project: Project): boolean {
   if (project.ownerUid === uid) return true;
   if (project.teamId) {
     const team = getTeam(project.teamId);
     if (team && team.members.some((m) => m.email === userEmail)) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true if the user can EDIT the project (owner or admin in team).
+ * Members (read-only) cannot edit.
+ */
+export function canEditProject(uid: string, userEmail: string, project: Project): boolean {
+  if (project.ownerUid === uid) return true;
+  if (project.teamId) {
+    const team = getTeam(project.teamId);
+    if (team && canManageProjects(team, uid, userEmail)) return true;
   }
   return false;
 }
@@ -120,10 +132,19 @@ export function getProjectById(id: string): Project | null {
   return projectsById.get(id) ?? null;
 }
 
-export function createProject(uid: string, input: CreateProjectInput): Project {
+export function createProject(uid: string, userEmail: string, input: CreateProjectInput): Project {
   if (!input.name || input.name.trim().length === 0) {
     throw new ValidationError("Le nom du projet est requis");
   }
+
+  if (input.teamId) {
+    const team = getTeam(input.teamId);
+    if (!team) throw new NotFoundError("Équipe introuvable");
+    if (!canManageProjects(team, uid, userEmail)) {
+      throw new ForbiddenError("Seuls les admins de l'équipe peuvent créer des projets");
+    }
+  }
+
   const now = new Date().toISOString();
   const project: Project = {
     id: crypto.randomUUID(),
@@ -145,8 +166,8 @@ export function updateProject(uid: string, userEmail: string, id: string, input:
   const project = projectsById.get(id);
   if (!project) throw new NotFoundError("Projet introuvable");
 
-  if (!canAccessProject(uid, userEmail, project)) {
-    throw new ForbiddenError("Accès refusé");
+  if (!canEditProject(uid, userEmail, project)) {
+    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
   }
 
   if (input.name !== undefined) project.name = input.name.trim();

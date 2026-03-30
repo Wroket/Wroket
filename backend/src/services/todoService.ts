@@ -189,6 +189,9 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
   if (input.deadline) {
     const d = new Date(input.deadline);
     if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) throw new ValidationError("L'échéance ne peut pas être antérieure à aujourd'hui");
   }
 
   if (input.parentId) {
@@ -273,6 +276,9 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     if (input.deadline !== null) {
       const d = new Date(input.deadline);
       if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (d < today) throw new ValidationError("L'échéance ne peut pas être antérieure à aujourd'hui");
     }
     todo.deadline = input.deadline;
   }

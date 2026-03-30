@@ -9,6 +9,8 @@ export interface Collaborator {
   status: "active" | "pending";
 }
 
+export type TeamRole = "owner" | "admin" | "member";
+
 export interface TeamMember {
   email: string;
   role: "admin" | "member";
@@ -153,6 +155,51 @@ export function declineCollaboration(inviterUid: string, inviteeEmail: string): 
 
 // ── Teams ──
 
+/**
+ * Returns the effective role of a user in a team.
+ * Owner is implicit (not stored in members array).
+ */
+export function getTeamRole(team: Team, uid: string, userEmail: string): TeamRole | null {
+  if (team.ownerUid === uid) return "owner";
+  const member = team.members.find((m) => m.email === userEmail.toLowerCase());
+  return member?.role ?? null;
+}
+
+/**
+ * Returns true if the user can manage the team (invite/remove members, edit team).
+ * Requires owner or admin role.
+ */
+export function canManageTeam(team: Team, uid: string, userEmail: string): boolean {
+  const role = getTeamRole(team, uid, userEmail);
+  return role === "owner" || role === "admin";
+}
+
+/**
+ * Returns true if the user can create/edit projects linked to this team.
+ * Requires owner or admin role.
+ */
+export function canManageProjects(team: Team, uid: string, userEmail: string): boolean {
+  const role = getTeamRole(team, uid, userEmail);
+  return role === "owner" || role === "admin";
+}
+
+/**
+ * Updates the role of a team member. Only the owner can change roles.
+ */
+export function updateMemberRole(teamId: string, ownerUid: string, memberEmail: string, newRole: "admin" | "member"): Team {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (team.ownerUid !== ownerUid) throw new ForbiddenError("Seul le propriétaire peut changer les rôles");
+
+  const normalised = memberEmail.trim().toLowerCase();
+  const member = team.members.find((m) => m.email === normalised);
+  if (!member) throw new NotFoundError("Membre introuvable");
+
+  member.role = newRole;
+  persistTeams();
+  return team;
+}
+
 export function listUserTeams(uid: string, userEmail: string): Team[] {
   const result: Team[] = [];
   teamsById.forEach((team) => {
@@ -202,11 +249,12 @@ export function createTeam(
 export function addTeamMember(
   teamId: string,
   uid: string,
+  userEmail: string,
   email: string
 ): Team {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (team.ownerUid !== uid) throw new ForbiddenError("Non autorisé");
+  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
   const normalised = email.trim().toLowerCase();
   if (team.members.some((m) => m.email === normalised)) {
@@ -221,11 +269,12 @@ export function addTeamMember(
 export function removeTeamMember(
   teamId: string,
   uid: string,
+  userEmail: string,
   email: string
 ): Team {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (team.ownerUid !== uid) throw new ForbiddenError("Non autorisé");
+  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
   const normalised = email.trim().toLowerCase();
   const idx = team.members.findIndex((m) => m.email === normalised);
@@ -236,10 +285,11 @@ export function removeTeamMember(
   return team;
 }
 
+/** Only the owner can delete the team. */
 export function deleteTeam(teamId: string, uid: string): void {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (team.ownerUid !== uid) throw new ForbiddenError("Non autorisé");
+  if (team.ownerUid !== uid) throw new ForbiddenError("Seul le propriétaire peut supprimer l'équipe");
 
   teamsById.delete(teamId);
   persistTeams();

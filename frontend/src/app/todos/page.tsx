@@ -677,6 +677,7 @@ export default function TodosPage() {
               <input
                 type="date"
                 value={deadline}
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setDeadline(e.target.value)}
                 className="shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[42px]"
               />

@@ -332,6 +332,12 @@ const translations = {
   "teams.memberCount": { fr: "membre", en: "member" },
   "teams.membersCount": { fr: "membres", en: "members" },
   "teams.you": { fr: "Vous", en: "You" },
+  "teams.owner": { fr: "Propriétaire", en: "Owner" },
+  "teams.admin": { fr: "Administrateur", en: "Admin" },
+  "teams.member": { fr: "Membre", en: "Member" },
+  "teams.changeRole": { fr: "Changer le rôle", en: "Change role" },
+  "teams.roleUpdated": { fr: "Rôle mis à jour", en: "Role updated" },
+  "teams.readOnly": { fr: "Lecture seule", en: "Read-only" },
 
   // ── Assignment ──
   "scope.all": { fr: "Toutes", en: "All" },

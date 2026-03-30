@@ -599,6 +599,24 @@ export async function removeTeamMemberApi(teamId: string, email: string): Promis
   return (await res.json()) as Team;
 }
 
+export async function updateMemberRoleApi(teamId: string, email: string, role: "admin" | "member"): Promise<Team> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/members/role`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, role }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(
+      typeof body === "object" && body !== null && "message" in body
+        ? (body as { message: string }).message
+        : "Erreur"
+    );
+  }
+  return (await res.json()) as Team;
+}
+
 export async function deleteTeamApi(teamId: string): Promise<void> {
   await fetch(`${API_BASE_URL}/teams/${teamId}`, {
     method: "DELETE",

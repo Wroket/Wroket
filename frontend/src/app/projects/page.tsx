@@ -1353,7 +1353,7 @@ export default function ProjectsPage() {
                     </div>
                     <div className="flex-1">
                       <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("todos.deadlineLabel" as TranslationKey)}</label>
-                      <input type="date" value={newTaskDeadline} onChange={(e) => setNewTaskDeadline(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
+                      <input type="date" value={newTaskDeadline} min={new Date().toISOString().split("T")[0]} onChange={(e) => setNewTaskDeadline(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
                     </div>
                   </div>
                   {orderedPhases.length > 0 && (

@@ -12,6 +12,8 @@ import {
   declineCollaboration,
   getTeams,
   createTeam,
+  updateMemberRoleApi,
+  getMe,
   Collaborator,
   ReceivedInvitation,
   Team,
@@ -43,6 +45,11 @@ export default function TeamsPage() {
   const [newTeamEmail, setNewTeamEmail] = useState("");
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
+  const [myUid, setMyUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    getMe().then((me) => setMyUid(me.uid)).catch(() => {});
+  }, []);
 
   const refreshData = useCallback(async () => {
     try {
@@ -614,24 +621,65 @@ export default function TeamsPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
-                      {isExpanded && (
-                        <div className="px-5 pb-4 space-y-1.5 border-t border-zinc-100 dark:border-slate-800 pt-3">
-                          <div className="flex items-center gap-2 rounded bg-emerald-50/60 dark:bg-emerald-950/20 px-3 py-2 text-sm">
-                            <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-[10px] font-bold text-white">★</div>
-                            <span className="text-zinc-700 dark:text-slate-300 font-medium">{t("teams.you")}</span>
-                            <span className="text-[10px] text-zinc-400 dark:text-slate-500 ml-auto">Admin</span>
-                          </div>
-                          {team.members.map((member) => (
-                            <div key={member.email} className="flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-3 py-2 text-sm">
-                              <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-zinc-500 dark:text-slate-400 uppercase">
-                                {member.email[0]}
-                              </div>
-                              <span className="flex-1 truncate text-zinc-700 dark:text-slate-300">{member.email}</span>
-                              <span className="text-[10px] text-zinc-400 dark:text-slate-500 capitalize">{member.role}</span>
+                      {isExpanded && (() => {
+                        const isOwner = myUid === team.ownerUid;
+                        return (
+                          <div className="px-5 pb-4 space-y-1.5 border-t border-zinc-100 dark:border-slate-800 pt-3">
+                            {/* Owner row */}
+                            <div className="flex items-center gap-2 rounded bg-emerald-50/60 dark:bg-emerald-950/20 px-3 py-2 text-sm">
+                              <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-[10px] font-bold text-white">★</div>
+                              <span className="text-zinc-700 dark:text-slate-300 font-medium">
+                                {isOwner ? t("teams.you") : "Owner"}
+                              </span>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 ml-auto">
+                                {t("teams.owner")}
+                              </span>
                             </div>
-                          ))}
-                        </div>
-                      )}
+
+                            {/* Members */}
+                            {team.members.map((member) => {
+                              const roleLabel = member.role === "admin"
+                                ? t("teams.admin")
+                                : t("teams.member");
+                              const roleBg = member.role === "admin"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                : "bg-zinc-100 text-zinc-500 dark:bg-slate-800 dark:text-slate-400";
+
+                              return (
+                                <div key={member.email} className="flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-3 py-2 text-sm">
+                                  <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-zinc-500 dark:text-slate-400 uppercase">
+                                    {member.email[0]}
+                                  </div>
+                                  <span className="flex-1 truncate text-zinc-700 dark:text-slate-300">{member.email}</span>
+
+                                  {isOwner ? (
+                                    <select
+                                      value={member.role}
+                                      onChange={async (e) => {
+                                        const newRole = e.target.value as "admin" | "member";
+                                        try {
+                                          const updated = await updateMemberRoleApi(team.id, member.email, newRole);
+                                          setTeams((prev) => prev.map((t2) => t2.id === team.id ? updated : t2));
+                                        } catch (err) {
+                                          alert(err instanceof Error ? err.message : "Erreur");
+                                        }
+                                      }}
+                                      className="text-[11px] font-medium rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-500 cursor-pointer"
+                                    >
+                                      <option value="admin">{t("teams.admin")}</option>
+                                      <option value="member">{t("teams.member")} ({t("teams.readOnly")})</option>
+                                    </select>
+                                  ) : (
+                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${roleBg}`}>
+                                      {roleLabel}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

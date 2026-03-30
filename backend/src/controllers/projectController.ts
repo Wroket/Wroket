@@ -11,6 +11,7 @@ import {
   updatePhase,
   deletePhase,
   canAccessProject,
+  canEditProject,
   CreateProjectInput,
   UpdateProjectInput,
   CreatePhaseInput,
@@ -42,7 +43,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     description: req.body.description,
     teamId: req.body.teamId,
   };
-  const project = createProject(req.user!.uid, input);
+  const project = createProject(req.user!.uid, req.user!.email, input);
   res.status(201).json(project);
 }
 
@@ -83,6 +84,12 @@ export async function getTodos(req: AuthenticatedRequest, res: Response) {
 
 export async function createPhase(req: AuthenticatedRequest, res: Response) {
   const projectId = req.params.id as string;
+  const project = getProjectById(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canEditProject(req.user!.uid, req.user!.email, project)) {
+    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
+  }
+
   const input: CreatePhaseInput = {
     name: req.body.name,
     color: req.body.color,
@@ -95,6 +102,12 @@ export async function createPhase(req: AuthenticatedRequest, res: Response) {
 
 export async function patchPhase(req: AuthenticatedRequest, res: Response) {
   const projectId = req.params.id as string;
+  const project = getProjectById(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canEditProject(req.user!.uid, req.user!.email, project)) {
+    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
+  }
+
   const phaseId = req.params.phaseId as string;
   const input: UpdatePhaseInput = {};
   if (req.body.name !== undefined) input.name = req.body.name;
@@ -108,6 +121,12 @@ export async function patchPhase(req: AuthenticatedRequest, res: Response) {
 
 export async function removePhase(req: AuthenticatedRequest, res: Response) {
   const projectId = req.params.id as string;
+  const project = getProjectById(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canEditProject(req.user!.uid, req.user!.email, project)) {
+    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
+  }
+
   const phaseId = req.params.phaseId as string;
   deletePhase(projectId, phaseId);
   res.status(204).end();

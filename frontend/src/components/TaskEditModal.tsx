@@ -134,6 +134,7 @@ export default function TaskEditModal({
               <input
                 type="date"
                 value={form.deadline}
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => onFormChange({ deadline: e.target.value })}
                 className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
               />

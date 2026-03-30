@@ -176,6 +176,7 @@ export default function SubtaskModal({
             <input
               type="date"
               value={deadline}
+              min={new Date().toISOString().split("T")[0]}
               onChange={(e) => setDeadline(e.target.value)}
               max={parent.deadline || undefined}
               className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"

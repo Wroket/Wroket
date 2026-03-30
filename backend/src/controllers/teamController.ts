@@ -13,6 +13,9 @@ import {
   addTeamMember,
   removeTeamMember,
   deleteTeam,
+  updateMemberRole,
+  getTeam,
+  getTeamRole,
 } from "../services/teamService";
 import { createNotification } from "../services/notificationService";
 import { findUserByEmail } from "../services/authService";
@@ -151,7 +154,7 @@ export async function postAddMember(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError("Email requis");
   }
 
-  const team = addTeamMember(teamId, req.user!.uid, email);
+  const team = addTeamMember(teamId, req.user!.uid, req.user!.email, email);
 
   try {
     const targetUser = findUserByEmail(email);
@@ -174,8 +177,27 @@ export async function postAddMember(req: AuthenticatedRequest, res: Response) {
 export async function postRemoveMember(req: AuthenticatedRequest, res: Response) {
   const teamId = req.params.teamId as string;
   const email = req.params.email as string;
-  const team = removeTeamMember(teamId, req.user!.uid, decodeURIComponent(email));
+  const team = removeTeamMember(teamId, req.user!.uid, req.user!.email, decodeURIComponent(email));
   res.status(200).json(team);
+}
+
+export async function postUpdateMemberRole(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const { email, role } = req.body as { email?: string; role?: string };
+  if (!email || typeof email !== "string") throw new ValidationError("Email requis");
+  if (role !== "admin" && role !== "member") throw new ValidationError("Rôle invalide (admin ou member)");
+
+  const team = updateMemberRole(teamId, req.user!.uid, email, role);
+  res.status(200).json(team);
+}
+
+export async function getMyTeamRole(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const team = getTeam(teamId);
+  if (!team) throw new ValidationError("Équipe introuvable");
+
+  const role = getTeamRole(team, req.user!.uid, req.user!.email);
+  res.status(200).json({ role });
 }
 
 export async function postDeleteTeam(req: AuthenticatedRequest, res: Response) {
