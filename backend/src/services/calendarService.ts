@@ -9,70 +9,68 @@ export interface TimeSlot {
 export interface SlotProposal {
   start: string; // ISO
   end: string;   // ISO
-  label: string; // e.g. "Lun 24 mars, 09:00 – 09:30"
+  label: string;
 }
 
-/* ── Timezone helpers (zero external deps, no locale-string parsing) ── */
-
-const FMT_OPTS: Intl.DateTimeFormatOptions = {
-  year: "numeric", month: "2-digit", day: "2-digit",
-  hour: "2-digit", minute: "2-digit", second: "2-digit",
-  hour12: false,
-};
+/* ── Timezone helpers ── */
 
 /**
- * Extract numeric date/time components from formatToParts output.
+ * Get the UTC offset (in ms) for a timezone at a given instant.
+ * Uses Intl longOffset ("GMT+02:00") — works on all Node 20+ builds including Alpine.
  */
-function extractParts(parts: Intl.DateTimeFormatPart[]) {
-  const v = (type: string) =>
-    parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
-  const h = v("hour");
-  return { year: v("year"), month: v("month") - 1, day: v("day"), hour: h === 24 ? 0 : h, minute: v("minute") };
-}
+function getUtcOffsetMs(date: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "longOffset",
+  }).formatToParts(date);
 
-/**
- * Compute timezone offset (in ms) at a given instant.
- * Positive = timezone is ahead of UTC (e.g. +7200000 for CEST).
- */
-function getOffsetMs(date: Date, tz: string): number {
-  const tzParts  = new Intl.DateTimeFormat("en-US", { ...FMT_OPTS, timeZone: tz }).formatToParts(date);
-  const utcParts = new Intl.DateTimeFormat("en-US", { ...FMT_OPTS, timeZone: "UTC" }).formatToParts(date);
-  const tz_  = extractParts(tzParts);
-  const utc_ = extractParts(utcParts);
-  return Date.UTC(tz_.year, tz_.month, tz_.day, tz_.hour, tz_.minute, 0)
-       - Date.UTC(utc_.year, utc_.month, utc_.day, utc_.hour, utc_.minute, 0);
+  const raw = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+  if (raw === "GMT") return 0;
+
+  const m = raw.match(/GMT([+-])(\d{2}):(\d{2})/);
+  if (!m) return 0;
+
+  return (m[1] === "+" ? 1 : -1) * (parseInt(m[2]) * 3_600_000 + parseInt(m[3]) * 60_000);
 }
 
 /**
  * Extract date/time components as seen in a given IANA timezone.
  */
 function getPartsInTz(date: Date, tz: string) {
-  const parts = new Intl.DateTimeFormat("en-US", { ...FMT_OPTS, timeZone: tz }).formatToParts(date);
-  const p = extractParts(parts);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = fmt.formatToParts(date);
+  const v = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
 
   const wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" });
   const wdMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
-  return { ...p, dayOfWeek: wdMap[wdFmt.format(date)] ?? 0 };
+  return {
+    year: v("year"),
+    month: v("month") - 1,
+    day: v("day"),
+    hour: v("hour"),
+    minute: v("minute"),
+    dayOfWeek: wdMap[wdFmt.format(date)] ?? 0,
+  };
 }
 
 /**
  * Convert a "local wall-clock" time in a given timezone to a UTC Date.
  * e.g. 09:00 Europe/Paris → 07:00 UTC (during CEST).
- * Uses only Intl.DateTimeFormat.formatToParts — no locale-string parsing.
  */
 function tzLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
   const asUtc = new Date(Date.UTC(year, month, day, hour, minute, 0));
-  const offsetMs = getOffsetMs(asUtc, tz);
+  const offsetMs = getUtcOffsetMs(asUtc, tz);
   return new Date(asUtc.getTime() - offsetMs);
 }
 
 /* ── Slot finder ── */
 
-/**
- * Finds available time slots for a task, respecting the user's timezone,
- * working hours, already scheduled tasks, and external busy slots.
- */
 export function findAvailableSlots(
   userId: string,
   durationMinutes: number,
@@ -103,7 +101,6 @@ export function findAvailableSlots(
   const todayInTz = getPartsInTz(now, tz);
 
   for (let dayOffset = 0; dayOffset < searchDays && proposals.length < maxResults; dayOffset++) {
-    // Use noon as reference to avoid DST-boundary edge cases
     const refPoint = tzLocalToUtc(todayInTz.year, todayInTz.month, todayInTz.day + dayOffset, 12, 0, tz);
     const dayParts = getPartsInTz(refPoint, tz);
 
@@ -114,7 +111,6 @@ export function findAvailableSlots(
 
     let slotStart: Date;
     if (now > dayStart) {
-      // Round up to next 15-min boundary (timezone-agnostic since we work in UTC ms)
       slotStart = new Date(Math.ceil(now.getTime() / 900_000) * 900_000);
     } else {
       slotStart = new Date(dayStart);
@@ -142,6 +138,16 @@ export function findAvailableSlots(
     }
   }
 
+  // ── Diagnostic log (à retirer plus tard) ──
+  if (proposals.length > 0) {
+    console.log("[calendar-tz-debug]", {
+      timezone: tz,
+      offsetMs: getUtcOffsetMs(new Date(), tz),
+      serverTz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      firstSlot: { iso: proposals[0].start, label: proposals[0].label },
+    });
+  }
+
   return proposals;
 }
 
@@ -150,7 +156,7 @@ function formatSlotLabel(start: Date, end: Date, tz: string): string {
     timeZone: tz, weekday: "short", day: "numeric", month: "long",
   });
   const timeFmt = new Intl.DateTimeFormat("fr-FR", {
-    timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
   return `${dayFmt.format(start)}, ${timeFmt.format(start)} – ${timeFmt.format(end)}`;
 }

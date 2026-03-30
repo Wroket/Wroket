@@ -26,8 +26,8 @@ export const metadata: Metadata = {
   title: "Wroket",
   description: "Wroket — task management app",
   icons: {
-    icon: "/wroket-icon-v4.png",
-    apple: "/wroket-icon-v4.png",
+    icon: "/wroket-logo.png",
+    apple: "/wroket-logo.png",
   },
 };
 
