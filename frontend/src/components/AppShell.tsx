@@ -99,6 +99,18 @@ const SETTINGS_ITEM = {
   ),
 };
 
+const ADMIN_ITEM = {
+  tKey: "nav.admin" as TranslationKey,
+  href: "/admin",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    </svg>
+  ),
+};
+
+const ADMIN_EMAILS = ["francois@broudeur.com"];
+
 function NavLink({ href, icon, label, active, onClick }: { href: string; icon: ReactNode; label: string; active: boolean; onClick?: () => void }) {
   return (
     <Link
@@ -576,6 +588,9 @@ export default function AppShell({ children }: AppShellProps) {
           <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} onClick={closeMobileMenu} />
           <hr className="border-zinc-200 dark:border-slate-700 my-2" />
           <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
+          {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
+            <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} onClick={closeMobileMenu} />
+          )}
         </nav>
       </div>
 
@@ -627,6 +642,9 @@ export default function AppShell({ children }: AppShellProps) {
             <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} />
             <hr className="border-zinc-200 dark:border-slate-700 my-2" />
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
+            {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
+              <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} />
+            )}
           </nav>
         </aside>
 

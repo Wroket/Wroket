@@ -183,6 +183,39 @@ export async function shareInviteApi(email: string): Promise<void> {
   }
 }
 
+// ── Admin ──
+
+export interface AdminStats {
+  users: { total: number; verified: number; last7d: number; last30d: number; googleSso: number };
+  tasks: { total: number; active: number; completed: number; cancelled: number };
+  projects: { total: number; active: number };
+  teams: number;
+  invitesSent: number;
+}
+
+export interface AdminUser {
+  uid: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  emailVerified: boolean;
+  googleSso: boolean;
+  taskCount: number;
+  createdAt: string;
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const res = await fetch(`${API_BASE_URL}/admin/stats`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/users`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
 export async function getMe(): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "GET",

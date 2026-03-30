@@ -13,6 +13,7 @@ import teamRoutes from "./routes/teamRoutes";
 import projectRoutes from "./routes/projectRoutes";
 import calendarRoutes from "./routes/calendarRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
+import adminRoutes from "./routes/adminRoutes";
 
 dotenv.config();
 
@@ -54,6 +55,7 @@ app.use("/teams", apiLimiter, teamRoutes);
 app.use("/projects", apiLimiter, projectRoutes);
 app.use("/calendar", apiLimiter, calendarRoutes);
 app.use("/webhooks", apiLimiter, webhookRoutes);
+app.use("/admin", apiLimiter, adminRoutes);
 
 app.use(errorHandler);
 
