@@ -22,8 +22,9 @@ const app = express();
 app.use(helmet());
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://localhost:3002")
-  .split(",")
-  .map((o) => o.trim());
+  .split(/[,;]/)
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 app.use(
   cors({

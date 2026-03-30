@@ -48,7 +48,7 @@ steps:
       - '--max-instances'
       - '2'
       - '--update-env-vars'
-      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback'
+      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback'
 
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
