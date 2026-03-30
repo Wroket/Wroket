@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
+import TutorialModal, { useTutorial } from "@/components/TutorialModal";
 
 interface AppShellProps {
   children: ReactNode;
@@ -132,9 +133,12 @@ export default function AppShell({ children }: AppShellProps) {
   const [me, setMe] = useState<AuthMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const { showTutorial, openTutorial, closeTutorial } = useTutorial();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [helpMenuOpen, setHelpMenuOpen] = useState(false);
+  const helpMenuRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -207,6 +211,17 @@ export default function AppShell({ children }: AppShellProps) {
     return () => document.removeEventListener("mousedown", close);
   }, [notifOpen]);
 
+  useEffect(() => {
+    if (!helpMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (helpMenuRef.current && !helpMenuRef.current.contains(e.target as Node)) {
+        setHelpMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [helpMenuOpen]);
+
   const openNotifPanel = async () => {
     setNotifOpen((prev) => !prev);
     if (!notifOpen) {
@@ -274,7 +289,14 @@ export default function AppShell({ children }: AppShellProps) {
                 </svg>
               )}
             </button>
-            <img src="/wroket-icon.png" alt="Wroket" className="w-10 h-10 rounded-xl" />
+            <div className="w-10 h-10 rounded-xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none">
+                <path d="M2 13l4 4 4.5-6" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M11 13l4 4 4.5-6" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12.4 8l0.7-1" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" />
+                <path d="M21.4 8l0.7-1" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" />
+              </svg>
+            </div>
             <h1 className="text-lg font-semibold leading-tight">
               <span className="text-slate-800 dark:text-slate-100">Wro</span><span className="text-emerald-500 dark:text-emerald-400">ket</span>
             </h1>
@@ -410,6 +432,48 @@ export default function AppShell({ children }: AppShellProps) {
                 </svg>
               )}
             </button>
+            <div className="relative" ref={helpMenuRef}>
+              <button
+                onClick={() => setHelpMenuOpen((v) => !v)}
+                className="rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                aria-label={t("tutorial.helpButton")}
+                title={t("tutorial.helpButton")}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                </svg>
+              </button>
+              {helpMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1 z-50">
+                  <button
+                    type="button"
+                    onClick={() => { setHelpMenuOpen(false); openTutorial(); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
+                    </svg>
+                    <div className="text-left">
+                      <p className="font-medium">{t("help.tutorial")}</p>
+                      <p className="text-[11px] text-zinc-400 dark:text-slate-500">{t("help.tutorialDesc")}</p>
+                    </div>
+                  </button>
+                  <hr className="border-zinc-100 dark:border-slate-700/50 my-1" />
+                  <a
+                    href="mailto:support@wroket.com"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                    </svg>
+                    <div className="text-left">
+                      <p className="font-medium">{t("help.contact")}</p>
+                      <p className="text-[11px] text-zinc-400 dark:text-slate-500">support@wroket.com</p>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleLogout}
               className="rounded border border-zinc-200 dark:border-slate-600 p-2 sm:px-4 sm:py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
@@ -538,6 +602,8 @@ export default function AppShell({ children }: AppShellProps) {
           {children}
         </main>
       </div>
+
+      <TutorialModal open={showTutorial} onClose={closeTutorial} />
     </div>
   );
 }

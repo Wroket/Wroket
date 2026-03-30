@@ -5,6 +5,7 @@ import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import EisenhowerRadar from "@/components/EisenhowerRadar";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import TaskEditModal from "@/components/TaskEditModal";
@@ -696,95 +697,21 @@ export default function TodosPage() {
           )}
         </form>
 
-        {/* ── Filter buttons + Undo ── */}
-        <div className="space-y-2">
-          <div className="flex gap-2 items-center">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-              {FILTER_BUTTONS.filter((b) => QUADRANT_KEYS.includes(b.key as Quadrant)).map((btn) => {
-                const count = filterCounts[btn.key];
-                const isActive = filters.has(btn.key);
-                return (
-                  <button
-                    key={btn.key}
-                    type="button"
-                    onClick={() => toggleFilter(btn.key)}
-                    className={`inline-flex items-center justify-center gap-1.5 rounded border px-2 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? btn.activeClass
-                        : "border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    <span>{btn.icon}</span>
-                    <span>{t(btn.tKey)}</span>
-                    <span className={`ml-0.5 text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 ${
-                      isActive ? "bg-white/25" : "bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400"
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              onClick={handleUndo}
-              disabled={!lastAction || undoing}
-              title={t("todos.undoTitle")}
-              className={`shrink-0 inline-flex items-center gap-1.5 rounded border px-3.5 py-2 text-sm font-medium transition-colors ${
-                lastAction
-                  ? "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                  : "border-zinc-100 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 text-zinc-300 dark:text-slate-600 cursor-not-allowed"
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
-              </svg>
-              <span>{t("todos.undo")}</span>
-            </button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {FILTER_BUTTONS.filter((b) => STATUS_KEYS.includes(b.key)).map((btn) => {
-              const count = filterCounts[btn.key];
-              const isActive = filters.has(btn.key);
-              return (
-                <button
-                  key={btn.key}
-                  type="button"
-                  onClick={() => toggleFilter(btn.key)}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded border px-2 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? btn.activeClass
-                      : "border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <span>{btn.icon}</span>
-                  <span>{t(btn.tKey)}</span>
-                  <span className={`ml-0.5 text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 ${
-                    isActive ? "bg-white/25" : "bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400"
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── Advanced filters ── */}
+        {/* ── Filters panel (collapsible) ── */}
         <div className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((v) => !v)}
-            className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
           >
             <span className="flex items-center gap-2">
               <svg className="w-4 h-4 text-zinc-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
               </svg>
-              {t("filter.advancedTitle")}
-              {hasAdvancedFilters && (
+              {t("filter.panelTitle")}
+              {(filters.size > 0 || hasAdvancedFilters) && (
                 <span className="inline-flex items-center rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-1.5 py-0.5">
-                  {(filterProject !== null ? 1 : 0) + (filterAssignee !== null ? 1 : 0) + (filterDeadline !== "all" ? 1 : 0)}
+                  {filters.size + (filterProject !== null ? 1 : 0) + (filterAssignee !== null ? 1 : 0) + (filterDeadline !== "all" ? 1 : 0)}
                 </span>
               )}
             </span>
@@ -796,11 +723,57 @@ export default function TodosPage() {
           {showAdvancedFilters && (
             <div className="px-3 pb-3 pt-1 border-t border-zinc-100 dark:border-slate-700/50 space-y-3">
               <p className="text-[11px] text-zinc-400 dark:text-slate-500 leading-snug">
-                {t("filter.advancedHint")}
+                {t("filter.panelHint")}
               </p>
+
               <div className="flex flex-wrap items-end gap-3">
+                {/* Classification */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.byProject")}</label>
+                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.sectionClassification")}</span>
+                  <select
+                    value={[...filters].find((f) => QUADRANT_KEYS.includes(f as Quadrant)) ?? ""}
+                    onChange={(e) => {
+                      setFilters((prev) => {
+                        const next = new Set(prev);
+                        for (const qk of QUADRANT_KEYS) next.delete(qk as FilterKey);
+                        if (e.target.value) next.add(e.target.value as FilterKey);
+                        return next;
+                      });
+                    }}
+                    className="rounded border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-xs px-2 py-1.5 pr-6 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  >
+                    <option value="">{t("filter.allClassifications")}</option>
+                    {FILTER_BUTTONS.filter((b) => QUADRANT_KEYS.includes(b.key as Quadrant)).map((btn) => (
+                      <option key={btn.key} value={btn.key}>{btn.icon} {t(btn.tKey)} ({filterCounts[btn.key]})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.sectionStatus")}</span>
+                  <select
+                    value={[...filters].find((f) => STATUS_KEYS.includes(f)) ?? ""}
+                    onChange={(e) => {
+                      setFilters((prev) => {
+                        const next = new Set(prev);
+                        for (const sk of STATUS_KEYS) next.delete(sk);
+                        if (e.target.value) next.add(e.target.value as FilterKey);
+                        return next;
+                      });
+                    }}
+                    className="rounded border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-xs px-2 py-1.5 pr-6 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  >
+                    <option value="">{t("filter.activeOnly")}</option>
+                    {FILTER_BUTTONS.filter((b) => STATUS_KEYS.includes(b.key)).map((btn) => (
+                      <option key={btn.key} value={btn.key}>{btn.icon} {t(btn.tKey)} ({filterCounts[btn.key]})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Project */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.byProject")}</span>
                   <select
                     value={filterProject ?? ""}
                     onChange={(e) => setFilterProject(e.target.value || null)}
@@ -814,8 +787,9 @@ export default function TodosPage() {
                   </select>
                 </div>
 
+                {/* Assignee */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.byAssignee")}</label>
+                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.byAssignee")}</span>
                   <select
                     value={filterAssignee ?? ""}
                     onChange={(e) => setFilterAssignee(e.target.value || null)}
@@ -829,8 +803,9 @@ export default function TodosPage() {
                   </select>
                 </div>
 
+                {/* Deadline */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.byDeadline")}</label>
+                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("filter.byDeadline")}</span>
                   <select
                     value={filterDeadline}
                     onChange={(e) => setFilterDeadline(e.target.value as DeadlineFilter)}
@@ -843,17 +818,20 @@ export default function TodosPage() {
                     <option value="none">{t("filter.deadlineNone")}</option>
                   </select>
                 </div>
+              </div>
 
-                {hasAdvancedFilters && (
+              {/* Clear all */}
+              {(filters.size > 0 || hasAdvancedFilters) && (
+                <div className="pt-1 border-t border-zinc-100 dark:border-slate-700/50">
                   <button
                     type="button"
-                    onClick={() => { setFilterProject(null); setFilterAssignee(null); setFilterDeadline("all"); }}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium pb-1"
+                    onClick={() => { setFilters(new Set()); setFilterProject(null); setFilterAssignee(null); setFilterDeadline("all"); }}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
                   >
                     {t("filter.clearAll")}
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -883,6 +861,22 @@ export default function TodosPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={!lastAction || undoing}
+                title={t("todos.undoTitle")}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  lastAction
+                    ? "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                    : "border-zinc-100 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 text-zinc-300 dark:text-slate-600 cursor-not-allowed"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
+                </svg>
+                <span className="hidden sm:inline">{t("todos.undo")}</span>
+              </button>
               <span className="text-sm text-zinc-400 hidden sm:inline">
                 {mainView === "list"
                   ? `${listTodos.length} ${listTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
@@ -1243,7 +1237,7 @@ export default function TodosPage() {
 
                 {/* Radar */}
                 <div className="flex-1">
-                  <ScatterMatrix todos={activeTodos} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                  <EisenhowerRadar todos={activeTodos} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                 </div>
               </div>
             </div>
@@ -1291,260 +1285,6 @@ export default function TodosPage() {
         onCancel={() => setConfirmDelete(null)}
       />
     </AppShell>
-  );
-}
-
-/* ── Scatter Matrix (Gartner Magic Quadrant style) ── */
-
-/** Deterministic pseudo-random from string, returns 0-1 */
-function seededRandom(seed: string): number {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
-  }
-  return ((h & 0x7fffffff) % 1000) / 1000;
-}
-
-/**
- * X-axis: urgency score (0=pas urgent, 100=très urgent).
- * Important/pas important détermine le quadrant gauche/droite,
- * donc X doit rester cohérent avec la classification.
- */
-function urgencyScore(todo: Todo): number {
-  const q = classify(todo);
-  const isUrgent = q === "do-first" || q === "delegate";
-  const jitter = seededRandom(todo.id + "x") * 15;
-
-  if (isUrgent) {
-    if (!todo.deadline) return 60 + jitter;
-    const days = (new Date(todo.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    if (days < 0) return 78 + jitter * 0.6;
-    if (days <= 1) return 72 + jitter * 0.8;
-    if (days <= 3) return 65 + jitter;
-    return 58 + jitter;
-  }
-
-  if (!todo.deadline) return 15 + jitter;
-  const days = (new Date(todo.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  if (days <= 7) return 30 + jitter;
-  if (days <= 14) return 22 + jitter;
-  return 12 + jitter;
-}
-
-/**
- * Y-axis: importance score (0=pas important, 100=très important).
- * Doit respecter la classification : do-first/schedule → top (>50), delegate/eliminate → bottom (<50).
- * La priorité affine la position dans la bonne moitié.
- */
-function importanceScore(todo: Todo): number {
-  const q = classify(todo);
-  const isImportant = q === "do-first" || q === "schedule";
-  const jitter = seededRandom(todo.id + "y") * 12;
-
-  const priorityBonus: Record<Priority, number> = { high: 18, medium: 8, low: 0 };
-  const bonus = priorityBonus[todo.priority];
-
-  if (isImportant) return 58 + bonus + jitter;
-  return 12 + bonus + jitter;
-}
-
-const DOT_COLORS: Record<Quadrant, string> = {
-  "do-first": "bg-red-500",
-  schedule: "bg-blue-500",
-  delegate: "bg-amber-400",
-  eliminate: "bg-zinc-400",
-};
-
-function ScatterMatrix({ todos, subtaskCounts = {}, meUid, userDisplayName }: { todos: Todo[]; subtaskCounts?: Record<string, number>; meUid?: string | null; userDisplayName?: (uid: string) => string }) {
-  const { t } = useLocale();
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-
-  return (
-    <div className="max-w-[calc(100vh-16rem)] mx-auto">
-      {/* Column headers */}
-      <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
-        <div className="w-10" />
-        <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
-          <span className="text-xs font-bold tracking-[0.15em] uppercase text-blue-500">
-            🕐 {t("matrix.notUrgent")}
-          </span>
-        </div>
-        <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
-          <span className="text-xs font-bold tracking-[0.15em] uppercase text-amber-600">
-            ⚡ {t("matrix.urgent")}
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[auto_1fr] gap-x-2">
-        {/* Y-axis */}
-        <div className="w-10 flex flex-col gap-y-px bg-zinc-50/50 dark:bg-slate-800/50 rounded">
-          <div className="flex-1 flex items-center justify-center">
-            <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-red-500">
-              {t("matrix.important")}
-            </span>
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-zinc-400">
-              {t("matrix.notImportant")}
-            </span>
-          </div>
-        </div>
-
-        {/* Plot area */}
-        <div className="relative overflow-visible aspect-square border border-zinc-200 dark:border-slate-600 rounded">
-          {/* Quadrant backgrounds */}
-          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-px bg-zinc-200 dark:bg-slate-600 rounded overflow-hidden">
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-          </div>
-
-          {/* Quadrant labels */}
-          <span className="absolute top-3 left-3 text-[10px] font-bold text-blue-400/60 uppercase tracking-wide">{t("badge.schedule")}</span>
-          <span className="absolute top-3 right-3 text-[10px] font-bold text-red-400/60 uppercase tracking-wide">{t("badge.doFirst")}</span>
-          <span className="absolute bottom-3 left-3 text-[10px] font-bold text-zinc-400/60 uppercase tracking-wide">{t("badge.eliminate")}</span>
-          <span className="absolute bottom-3 right-3 text-[10px] font-bold text-amber-400/60 uppercase tracking-wide">{t("badge.delegate")}</span>
-
-          {/* Dots */}
-          {todos.map((todo) => {
-            const x = urgencyScore(todo);
-            const y = importanceScore(todo);
-            const q = classify(todo);
-            const isHovered = hoveredId === todo.id;
-            const badge = PRIORITY_BADGES[todo.priority];
-            const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
-
-            return (
-              <div
-                key={todo.id}
-                className={`absolute ${isHovered ? "z-50" : "z-10"}`}
-                style={{
-                  left: `${x}%`,
-                  bottom: `${y}%`,
-                  transform: "translate(-50%, 50%)",
-                }}
-                onMouseEnter={() => setHoveredId(todo.id)}
-                onMouseLeave={() => setHoveredId(null)}
-              >
-                {/* Dot */}
-                <div
-                  className={`rounded-full border-2 border-white shadow-md cursor-pointer transition-transform ${DOT_COLORS[q]} ${
-                    isHovered ? "scale-150 ring-2 ring-offset-1 ring-zinc-400" : "hover:scale-125"
-                  }`}
-                  style={{ width: 14, height: 14 }}
-                />
-
-                {/* Tooltip */}
-                {isHovered && (
-                  <ScatterTooltip x={x} y={y} todo={todo} badge={badge} quadrant={q} dl={dl} subtaskCount={subtaskCounts[todo.id] ?? 0} meUid={meUid} userDisplayName={userDisplayName} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Scatter Tooltip (smart positioning) ── */
-function ScatterTooltip({
-  x,
-  y,
-  todo,
-  badge,
-  quadrant,
-  dl,
-  subtaskCount = 0,
-  meUid,
-  userDisplayName,
-}: {
-  x: number;
-  y: number;
-  todo: Todo;
-  badge: { label: string; tKey: TranslationKey; cls: string };
-  quadrant: Quadrant;
-  dl: { text: string; cls: string } | null;
-  subtaskCount?: number;
-  meUid?: string | null;
-  userDisplayName?: (uid: string) => string;
-}) {
-  const { t } = useLocale();
-  const showBelow = y > 75;
-  const alignRight = x > 75;
-  const alignLeft = x < 25;
-
-  const verticalStyle: React.CSSProperties = showBelow
-    ? { top: "calc(100% + 10px)" }
-    : { bottom: "calc(100% + 10px)" };
-
-  const horizontalStyle: React.CSSProperties = alignRight
-    ? { right: -8 }
-    : alignLeft
-      ? { left: -8 }
-      : { left: "50%", transform: "translateX(-50%)" };
-
-  const arrowPosition = alignRight
-    ? "right-3"
-    : alignLeft
-      ? "left-3"
-      : "left-1/2 -translate-x-1/2";
-
-  return (
-    <div
-      className="absolute z-50 bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none"
-      style={{ ...verticalStyle, ...horizontalStyle }}
-    >
-      <p className="font-semibold text-sm mb-1.5">{todo.title}</p>
-      <div className="flex flex-wrap items-center gap-1.5 mb-1">
-        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${badge.cls}`}>
-          {t(badge.tKey)}
-        </span>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
-          {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
-        </span>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${QUADRANT_BADGES[quadrant].cls}`}>
-          {t(QUADRANT_BADGES[quadrant].tKey)}
-        </span>
-        {dl && <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${dl.cls}`}>{dl.text}</span>}
-        {subtaskCount > 0 && <SubtaskBadge count={subtaskCount} />}
-        {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && userDisplayName && (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
-            <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            {userDisplayName(todo.userId)}
-          </span>
-        )}
-        {todo.assignedTo && meUid && todo.assignedTo !== meUid && userDisplayName && (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">
-            <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            → {userDisplayName(todo.assignedTo)}
-          </span>
-        )}
-        {todo.assignmentStatus === "declined" && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
-            {t("assign.declined" as TranslationKey)}
-          </span>
-        )}
-        {todo.assignmentStatus === "accepted" && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-            {t("assign.accepted" as TranslationKey)}
-          </span>
-        )}
-      </div>
-      {/* Arrow */}
-      <div
-        className={`absolute ${arrowPosition} w-0 h-0 ${showBelow ? "bottom-full" : "top-full"}`}
-        style={{
-          borderLeft: "6px solid transparent",
-          borderRight: "6px solid transparent",
-          ...(showBelow
-            ? { borderBottom: "6px solid rgb(24 24 27)" }
-            : { borderTop: "6px solid rgb(24 24 27)" }),
-        }}
-      />
-    </div>
   );
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import EisenhowerRadar from "@/components/EisenhowerRadar";
 import { getTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -41,8 +42,8 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const active = useMemo(() => todos.filter((td) => td.status === "active"), [todos]);
-  const completed = useMemo(() => todos.filter((td) => td.status === "completed"), [todos]);
+  const active = useMemo(() => todos.filter((td) => td.status === "active" && !td.parentId), [todos]);
+  const completed = useMemo(() => todos.filter((td) => td.status === "completed" && !td.parentId), [todos]);
 
   const grouped = useMemo<Record<Quadrant, Todo[]>>(() => ({
     "do-first": active.filter((td) => classify(td) === "do-first"),
@@ -117,15 +118,16 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {(["do-first", "schedule", "delegate", "eliminate"] as Quadrant[]).map((q) => {
                 const info = QUADRANT_LABELS[q];
+                const count = grouped[q].length;
                 return (
-                  <div key={q} className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${info.cls}`}>{info.emoji} {t(info.tKey)}</span>
+                  <div key={q} className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 flex items-start gap-3">
+                    <div className={`w-2 h-10 rounded-full shrink-0 ${info.cls.split(" ")[0]}`} />
+                    <div>
+                      <p className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
+                        {count} <span className="text-sm font-medium text-zinc-400 dark:text-slate-500">{count > 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}</span>
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-slate-400">{info.emoji} {t(info.tKey)}</p>
                     </div>
-                    <p className="text-3xl font-bold text-zinc-900 dark:text-slate-100">{grouped[q].length}</p>
-                    <p className="text-xs text-zinc-400 dark:text-slate-500 mt-1">
-                      {grouped[q].length === 0 ? t("dashboard.noTask") : `${grouped[q].length} ${grouped[q].length > 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`}
-                    </p>
                   </div>
                 );
               })}
@@ -162,32 +164,44 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* ── Recently completed ── */}
+              {/* ── Eisenhower Radar ── */}
               <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
                 <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
                   </svg>
-                  {t("dashboard.recentCompleted")}
+                  {t("dashboard.radarTitle")}
                 </h3>
-                {recentlyCompleted.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noCompleted")}</p>
+                {active.length === 0 ? (
+                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noTask")}</p>
                 ) : (
-                  <ul className="space-y-3">
-                    {recentlyCompleted.map((todo) => (
-                      <li key={todo.id} className="flex items-center gap-3">
-                        <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span className="text-sm text-zinc-500 dark:text-slate-400 line-through truncate flex-1">{todo.title}</span>
-                        <span className="text-xs text-zinc-400 dark:text-slate-500 shrink-0">
-                          {new Date(todo.updatedAt).toLocaleDateString(getLocale() === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short" })}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <EisenhowerRadar todos={active} compact />
                 )}
               </div>
+            </div>
+
+            {/* ── Recently completed ── */}
+            <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {t("dashboard.recentCompleted")}
+              </h3>
+              {recentlyCompleted.length === 0 ? (
+                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noCompleted")}</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {recentlyCompleted.map((todo) => (
+                    <div key={todo.id} className="flex items-center gap-2">
+                      <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-sm text-zinc-500 dark:text-slate-400 line-through truncate">{todo.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* ── Weekly summary ── */}
