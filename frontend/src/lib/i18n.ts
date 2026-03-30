@@ -461,6 +461,11 @@ const translations = {
   "schedule.sourceSettings": { fr: "selon paramètres", en: "from settings" },
   "schedule.sourceTask": { fr: "durée personnalisée", en: "custom duration" },
   "schedule.proposedSlots": { fr: "Créneaux proposés", en: "Proposed slots" },
+  "schedule.manual": { fr: "Choisir manuellement", en: "Choose manually" },
+  "schedule.suggested": { fr: "Suggestions", en: "Suggestions" },
+  "schedule.date": { fr: "Date", en: "Date" },
+  "schedule.time": { fr: "Heure", en: "Time" },
+  "schedule.book": { fr: "Réserver", en: "Book" },
 
   // ── Agenda ──
   "nav.agenda": { fr: "Agenda", en: "Agenda" },

@@ -40,6 +40,9 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
   const [effort, setEffort] = useState("");
   const [booking, setBooking] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [mode, setMode] = useState<"suggested" | "manual">("suggested");
+  const [manualDate, setManualDate] = useState("");
+  const [manualTime, setManualTime] = useState("09:00");
   const ref = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
@@ -87,6 +90,22 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
     setBooking(true);
     try {
       const updated = await bookTaskSlot(todoId, slot.start, slot.end);
+      onBooked(updated);
+      setOpen(false);
+    } catch {
+      /* silent */
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  const handleManualBook = async () => {
+    if (!manualDate || !manualTime) return;
+    const start = new Date(`${manualDate}T${manualTime}`);
+    const end = new Date(start.getTime() + (duration || 30) * 60 * 1000);
+    setBooking(true);
+    try {
+      const updated = await bookTaskSlot(todoId, start.toISOString(), end.toISOString());
       onBooked(updated);
       setOpen(false);
     } catch {
@@ -148,9 +167,27 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-slate-700">
-            <h4 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
+            <h4 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-2">
               {t("schedule.title" as TranslationKey)}
             </h4>
+            {!scheduledSlot && (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMode("suggested")}
+                  className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "suggested" ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
+                >
+                  {t("schedule.suggested" as TranslationKey)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("manual")}
+                  className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "manual" ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
+                >
+                  {t("schedule.manual" as TranslationKey)}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="p-3">
@@ -178,6 +215,41 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   {t("schedule.remove" as TranslationKey)}
                 </button>
               </div>
+            ) : mode === "manual" ? (
+              <div className="space-y-3">
+                {duration > 0 && (
+                  <p className="text-[11px] text-zinc-500 dark:text-slate-400">
+                    {t("schedule.duration" as TranslationKey)}: {duration} min
+                  </p>
+                )}
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-600 dark:text-slate-300 mb-1">{t("schedule.date" as TranslationKey)}</label>
+                  <input
+                    type="date"
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-600 dark:text-slate-300 mb-1">{t("schedule.time" as TranslationKey)}</label>
+                  <input
+                    type="time"
+                    value={manualTime}
+                    onChange={(e) => setManualTime(e.target.value)}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleManualBook}
+                  disabled={booking || !manualDate || !manualTime}
+                  className="w-full rounded bg-slate-700 dark:bg-slate-200 px-3 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-50 transition-colors"
+                >
+                  {t("schedule.book" as TranslationKey)}
+                </button>
+              </div>
             ) : loading ? (
               <div className="flex items-center justify-center py-6">
                 <div className="flex items-center gap-2 text-zinc-400 dark:text-slate-500">
@@ -195,10 +267,10 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                 </p>
                 <button
                   type="button"
-                  onClick={fetchSlots}
+                  onClick={() => setMode("manual")}
                   className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  {t("schedule.findSlots" as TranslationKey)}
+                  {t("schedule.manual" as TranslationKey)}
                 </button>
               </div>
             ) : (
