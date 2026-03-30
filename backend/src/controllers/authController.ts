@@ -19,6 +19,19 @@ import {
 import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "../services/emailService";
 import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
 import { ValidationError } from "../utils/errors";
+import { getStore, scheduleSave } from "../persistence";
+
+function logInvite(fromEmail: string, fromName: string, toEmail: string): void {
+  const store = getStore();
+  if (!store.inviteLog) store.inviteLog = [];
+  (store.inviteLog as unknown[]).push({
+    fromEmail,
+    fromName,
+    toEmail,
+    sentAt: new Date().toISOString(),
+  });
+  scheduleSave("inviteLog");
+}
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
@@ -194,6 +207,7 @@ export async function shareInvite(req: AuthenticatedRequest, res: Response) {
 
   const fromName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
   await sendInviteEmail(email, fromName);
+  logInvite(user.email, fromName, email.trim().toLowerCase());
   res.status(200).json({ message: "Invitation envoyée" });
 }
 

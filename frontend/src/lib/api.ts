@@ -216,6 +216,19 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   return res.json();
 }
 
+export interface InviteLogEntry {
+  fromEmail: string;
+  fromName: string;
+  toEmail: string;
+  sentAt: string;
+}
+
+export async function getAdminInvites(): Promise<InviteLogEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/invites`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
 export async function getMe(): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "GET",

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import AppShell from "@/components/AppShell";
-import { getAdminStats, getAdminUsers, AdminStats, AdminUser } from "@/lib/api";
+import { getAdminStats, getAdminUsers, getAdminInvites, AdminStats, AdminUser, InviteLogEntry } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 
 function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
@@ -20,12 +20,13 @@ export default function AdminPage() {
   const { t } = useLocale();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [invites, setInvites] = useState<InviteLogEntry[]>([]);
   const [denied, setDenied] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getAdminStats(), getAdminUsers()])
-      .then(([s, u]) => { setStats(s); setUsers(u); })
+    Promise.all([getAdminStats(), getAdminUsers(), getAdminInvites()])
+      .then(([s, u, i]) => { setStats(s); setUsers(u); setInvites(i); })
       .catch(() => setDenied(true))
       .finally(() => setLoading(false));
   }, []);
@@ -95,6 +96,43 @@ export default function AdminPage() {
             </div>
           </>
         )}
+
+        {/* Invite log */}
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.inviteLog")}</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteFrom")}</th>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteTo")}</th>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteDate")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invites.map((inv, i) => (
+                    <tr key={`${inv.sentAt}-${i}`} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="text-zinc-900 dark:text-slate-100 font-mono text-xs">{inv.fromEmail}</span>
+                        {inv.fromName && inv.fromName !== inv.fromEmail && (
+                          <span className="ml-2 text-zinc-400 dark:text-slate-500 text-xs">({inv.fromName})</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{inv.toEmail}</td>
+                      <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{formatDate(inv.sentAt)}</td>
+                    </tr>
+                  ))}
+                  {invites.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.noInvites")}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
         {/* User list */}
         <div>

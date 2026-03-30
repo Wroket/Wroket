@@ -8,7 +8,7 @@ const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
 
 const DOMAINS = [
   "users", "todos", "notifications", "collaborators",
-  "teams", "projects", "sessions", "webhooks",
+  "teams", "projects", "sessions", "webhooks", "inviteLog",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -22,6 +22,7 @@ export interface StoreData {
   projects?: Record<string, unknown>;
   sessions?: Record<string, unknown>;
   webhooks?: Record<string, unknown[]>;
+  inviteLog?: unknown[];
 }
 
 let cachedStore: StoreData = {};

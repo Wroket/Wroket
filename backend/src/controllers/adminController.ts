@@ -1,7 +1,7 @@
 import { Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
-import { isAdmin, getAdminStats, getAdminUsers } from "../services/adminService";
+import { isAdmin, getAdminStats, getAdminUsers, getInviteLog } from "../services/adminService";
 
 function requireAdmin(req: AuthenticatedRequest, res: Response): boolean {
   if (!req.user || !isAdmin(req.user.email)) {
@@ -19,4 +19,9 @@ export async function adminStats(req: AuthenticatedRequest, res: Response) {
 export async function adminUsers(req: AuthenticatedRequest, res: Response) {
   if (!requireAdmin(req, res)) return;
   res.status(200).json(getAdminUsers());
+}
+
+export async function adminInviteLog(req: AuthenticatedRequest, res: Response) {
+  if (!requireAdmin(req, res)) return;
+  res.status(200).json(getInviteLog());
 }

@@ -92,6 +92,19 @@ export function getAdminStats(): AdminStats {
   };
 }
 
+export interface InviteLogEntry {
+  fromEmail: string;
+  fromName: string;
+  toEmail: string;
+  sentAt: string;
+}
+
+export function getInviteLog(): InviteLogEntry[] {
+  const store = getStore();
+  const log = (store.inviteLog ?? []) as InviteLogEntry[];
+  return [...log].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+}
+
 export function getAdminUsers(): UserSummary[] {
   const store = getStore();
   const users = Object.values(store.users ?? {}) as Array<Record<string, unknown>>;
