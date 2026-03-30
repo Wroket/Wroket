@@ -12,6 +12,7 @@ import {
   markAllNotificationsRead,
   acceptCollaboration,
   declineCollaboration,
+  shareInviteApi,
   AuthMeResponse,
   AppNotification,
 } from "@/lib/api";
@@ -251,6 +252,27 @@ export default function AppShell({ children }: AppShellProps) {
 
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareSending, setShareSending] = useState(false);
+  const [shareResult, setShareResult] = useState<"success" | "error" | null>(null);
+
+  const handleShareInvite = async () => {
+    if (!shareEmail.includes("@")) return;
+    setShareSending(true);
+    setShareResult(null);
+    try {
+      await shareInviteApi(shareEmail);
+      setShareResult("success");
+      setShareEmail("");
+      setTimeout(() => { setShareOpen(false); setShareResult(null); }, 2000);
+    } catch {
+      setShareResult("error");
+    } finally {
+      setShareSending(false);
+    }
+  };
+
   const handleLogout = async () => {
     try { await logout(); } finally { window.location.href = "/login"; }
   };
@@ -476,6 +498,16 @@ export default function AppShell({ children }: AppShellProps) {
               )}
             </div>
             <button
+              onClick={() => { setShareOpen(true); setShareResult(null); }}
+              className="rounded border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 p-2 sm:px-4 sm:py-2 text-sm text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+              aria-label={t("app.share")}
+            >
+              <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span className="hidden sm:inline">{t("app.share")}</span>
+            </button>
+            <button
               onClick={handleLogout}
               className="rounded border border-zinc-200 dark:border-slate-600 p-2 sm:px-4 sm:py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
               aria-label={t("app.logout")}
@@ -605,6 +637,45 @@ export default function AppShell({ children }: AppShellProps) {
       </div>
 
       <TutorialModal open={showTutorial} onClose={closeTutorial} />
+
+      {shareOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShareOpen(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("app.share")}</h3>
+            <p className="text-sm text-zinc-500 dark:text-slate-400 mb-4">{t("app.share.placeholder")}</p>
+            <input
+              type="email"
+              autoFocus
+              value={shareEmail}
+              onChange={(e) => setShareEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleShareInvite(); }}
+              placeholder="email@exemple.com"
+              className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            />
+            {shareResult === "success" && (
+              <p className="mt-3 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">{t("app.share.success")}</p>
+            )}
+            {shareResult === "error" && (
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-800 rounded-md px-3 py-2">{t("app.share.error")}</p>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setShareOpen(false)}
+                className="flex-1 rounded-lg border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
+              >
+                {t("edit.cancel")}
+              </button>
+              <button
+                onClick={handleShareInvite}
+                disabled={shareSending || !shareEmail.includes("@")}
+                className="flex-1 rounded-lg bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {shareSending ? t("app.share.sending") : t("app.share.send")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

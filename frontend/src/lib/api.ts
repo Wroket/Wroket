@@ -167,6 +167,22 @@ export async function getGoogleSsoUrl(): Promise<string> {
   return data.url;
 }
 
+export async function shareInviteApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/share-invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    const message = typeof body === "object" && body !== null && "message" in body
+      ? (body as { message: string }).message
+      : "Erreur lors de l'envoi";
+    throw new Error(message);
+  }
+}
+
 export async function getMe(): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "GET",

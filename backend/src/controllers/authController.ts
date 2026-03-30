@@ -16,7 +16,7 @@ import {
   AuthUser,
   WorkingHours,
 } from "../services/authService";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../services/emailService";
+import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "../services/emailService";
 import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
 import { ValidationError } from "../utils/errors";
 
@@ -181,6 +181,20 @@ export async function lookupUserByUid(req: AuthenticatedRequest, res: Response) 
     return;
   }
   res.status(200).json({ uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName });
+}
+
+export async function shareInvite(req: AuthenticatedRequest, res: Response) {
+  const user = req.user;
+  if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
+
+  const { email } = req.body as { email?: unknown };
+  if (typeof email !== "string" || !email.includes("@")) {
+    throw new ValidationError("Email requis");
+  }
+
+  const fromName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  await sendInviteEmail(email, fromName);
+  res.status(200).json({ message: "Invitation envoyée" });
 }
 
 export async function updateProfile(req: AuthenticatedRequest, res: Response) {

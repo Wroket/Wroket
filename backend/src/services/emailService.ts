@@ -76,6 +76,54 @@ export async function sendVerificationEmail(
 }
 
 /**
+ * Sends an invitation email to discover Wroket.
+ */
+export async function sendInviteEmail(
+  toEmail: string,
+  fromName: string,
+  locale: "fr" | "en" = "fr",
+): Promise<void> {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const signupUrl = `${frontendUrl}/login`;
+
+  const subject = locale === "fr"
+    ? `${fromName} vous invite à découvrir Wroket`
+    : `${fromName} invites you to try Wroket`;
+
+  const html = locale === "fr"
+    ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        <h2 style="color:#334155">${fromName} vous recommande Wroket !</h2>
+        <p>Wroket est une application collaborative de gestion de tâches, simple et efficace.</p>
+        <a href="${signupUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0">Créer mon compte gratuitement</a>
+        <p style="font-size:13px;color:#64748b">Ou copiez ce lien : ${signupUrl}</p>
+      </div>`
+    : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        <h2 style="color:#334155">${fromName} recommends Wroket!</h2>
+        <p>Wroket is a simple and effective collaborative task management app.</p>
+        <a href="${signupUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0">Create my free account</a>
+        <p style="font-size:13px;color:#64748b">Or copy this link: ${signupUrl}</p>
+      </div>`;
+
+  const t = getTransporter();
+
+  try {
+    const info = await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: toEmail,
+      subject,
+      html,
+    });
+    if (SMTP_USER) {
+      console.log("[email] Invite sent to %s from %s (messageId: %s)", toEmail, fromName, info.messageId);
+    } else {
+      console.log("[email] (dry-run) Invite email for %s from %s", toEmail, fromName);
+    }
+  } catch (err) {
+    console.error("[email] Failed to send invite to %s: %s", toEmail, err);
+  }
+}
+
+/**
  * Sends a password reset link.
  */
 export async function sendPasswordResetEmail(
