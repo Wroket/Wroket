@@ -3,6 +3,7 @@ import { Response } from "express";
 import { AuthenticatedRequest } from "./authController";
 import {
   listNotes,
+  listSharedNotes,
   getNote,
   createNote,
   updateNote,
@@ -15,6 +16,10 @@ import { ValidationError } from "../utils/errors";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   res.status(200).json(listNotes(req.user!.uid));
+}
+
+export async function listShared(req: AuthenticatedRequest, res: Response) {
+  res.status(200).json(listSharedNotes(req.user!.uid, req.user!.email));
 }
 
 export async function get(req: AuthenticatedRequest, res: Response) {
@@ -39,6 +44,21 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   deleteNote(req.user!.uid, id);
   res.status(200).json({ ok: true });
+}
+
+export async function exportNotes(req: AuthenticatedRequest, res: Response) {
+  const notes = listNotes(req.user!.uid);
+  const md = notes
+    .map((n) => {
+      const header = `# ${n.title || "Sans titre"}\n`;
+      const meta = n.folder ? `> Dossier: ${n.folder}\n` : "";
+      const tags = n.tags?.length ? `> Tags: ${n.tags.join(", ")}\n` : "";
+      return header + meta + tags + "\n" + (n.content || "") + "\n";
+    })
+    .join("\n---\n\n");
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=wroket-notes.md");
+  res.send(md);
 }
 
 export async function sync(req: AuthenticatedRequest, res: Response) {

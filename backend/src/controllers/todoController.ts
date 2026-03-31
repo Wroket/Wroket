@@ -9,14 +9,15 @@ import {
   listArchivedTodos,
   updateTodo,
   canAccessTodo,
+  batchReorder,
   CreateTodoInput,
   UpdateTodoInput,
 } from "../services/todoService";
-import { listComments, addComment, deleteComment, editComment, toggleReaction, parseMentions } from "../services/commentService";
+import { listComments, addComment, deleteComment, editComment, toggleReaction, parseMentions, getCommentCounts } from "../services/commentService";
 import { findUserByEmail } from "../services/authService";
 import { createNotification } from "../services/notificationService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
-import { logActivity } from "../services/activityLogService";
+import { logActivity, getTaskActivity } from "../services/activityLogService";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const todos = listTodos(req.user!.uid);
@@ -34,12 +35,12 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
-  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo } = req.body as Partial<CreateTodoInput>;
+  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence } = req.body as Partial<CreateTodoInput>;
   if (!title || !priority) {
     throw new ValidationError("Titre et priorité requis");
   }
 
-  const todo = createTodo(req.user!.uid, { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo });
+  const todo = createTodo(req.user!.uid, { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence });
   logActivity(req.user!.uid, req.user!.email, "create", "todo", todo.id, { title: todo.title });
 
   try {
@@ -220,4 +221,59 @@ export async function toggleReactionHandler(req: AuthenticatedRequest, res: Resp
   if (!emoji || typeof emoji !== "string") throw new ValidationError("Emoji requis");
   const comment = toggleReaction(todoId, req.params.commentId as string, req.user!.uid, emoji);
   res.status(200).json(comment);
+}
+
+export async function commentCounts(req: AuthenticatedRequest, res: Response) {
+  const todos = listTodos(req.user!.uid);
+  const todoIds = todos.map((t) => t.id);
+  res.status(200).json(getCommentCounts(todoIds));
+}
+
+export async function exportCsv(req: AuthenticatedRequest, res: Response) {
+  const todos = listTodos(req.user!.uid);
+  const header = "id,title,status,priority,effort,deadline,tags,projectId,createdAt\n";
+  const rows = todos
+    .map((t) => {
+      const fields = [
+        t.id,
+        csvSafe(t.title ?? ""),
+        t.status,
+        t.priority ?? "",
+        t.effort ?? "",
+        t.deadline ?? "",
+        csvSafe((t.tags ?? []).join(", ")),
+        t.projectId ?? "",
+        t.createdAt ?? "",
+      ];
+      return fields.join(",");
+    })
+    .join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=wroket-tasks.csv");
+  res.send(header + rows);
+}
+
+const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
+
+/** Wraps value in double-quotes and neutralises formula injection triggers. */
+function csvSafe(value: string): string {
+  let v = value.replace(/"/g, '""');
+  if (v.length > 0 && CSV_FORMULA_TRIGGERS.has(v[0])) {
+    v = `'${v}`;
+  }
+  return `"${v}"`;
+}
+
+export async function taskActivity(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.id as string;
+  if (!canAccessTodo(req.user!.uid, todoId)) throw new ForbiddenError("Accès refusé");
+  const entries = getTaskActivity(todoId);
+  res.status(200).json(entries);
+}
+
+export async function reorderTodos(req: AuthenticatedRequest, res: Response) {
+  const { todoIds } = req.body as { todoIds?: string[] };
+  if (!Array.isArray(todoIds)) throw new ValidationError("todoIds requis");
+  const updated = batchReorder(req.user!.uid, todoIds);
+  res.status(200).json({ message: "OK", updated });
 }

@@ -65,18 +65,25 @@ export function exportUserData(uid: string): UserDataExport {
   return { user: sanitizeUserForExport(user), todos, comments, notifications, notes, teams, projects, activityLog };
 }
 
+const SENSITIVE_FIELDS = [
+  "passwordHashB64", "passwordSaltB64",
+  "googleCalendarTokens", "emailVerifyToken",
+  "resetToken", "resetTokenExpiry",
+];
+
 function sanitizeUserForExport(user: Record<string, unknown>): Record<string, unknown> {
-  const { passwordHashB64, ...rest } = user;
-  void passwordHashB64;
-  return rest;
+  const clean = { ...user };
+  for (const field of SENSITIVE_FIELDS) delete clean[field];
+  return clean;
 }
 
 export function deleteUserData(uid: string): void {
   const store = getStore();
 
-  // Remove user
-  const users = (store.users ?? {}) as Record<string, unknown>;
+  // Remove user (save email before deletion for cleanup)
+  const users = (store.users ?? {}) as Record<string, Record<string, unknown>>;
   if (!users[uid]) throw new NotFoundError("Utilisateur introuvable");
+  const userEmail = (users[uid].email as string) ?? "";
   delete users[uid];
   scheduleSave("users");
 
@@ -128,4 +135,46 @@ export function deleteUserData(uid: string): void {
   const webhookStore = (store.webhooks ?? {}) as Record<string, unknown>;
   delete webhookStore[uid];
   scheduleSave("webhooks");
+
+  // Remove owned projects
+  const projectStore = (store.projects ?? {}) as Record<string, Record<string, unknown>>;
+  for (const [id, proj] of Object.entries(projectStore)) {
+    if (proj.ownerUid === uid) delete projectStore[id];
+  }
+  scheduleSave("projects");
+
+  // Remove from teams (memberships) and delete owned teams
+  const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
+  for (const [id, team] of Object.entries(teamStore)) {
+    if (team.ownerUid === uid) {
+      delete teamStore[id];
+    } else {
+      const members = (team.members as Array<{ email: string }>) ?? [];
+      team.members = members.filter((m) => m.email !== userEmail);
+    }
+  }
+  scheduleSave("teams");
+
+  // Remove collaborator entries
+  const collabStore = (store.collaborators ?? {}) as Record<string, unknown[]>;
+  delete collabStore[uid];
+  for (const [ownerUid, list] of Object.entries(collabStore)) {
+    collabStore[ownerUid] = list.filter((c: unknown) => {
+      const entry = c as Record<string, unknown>;
+      return entry.email !== userEmail;
+    });
+  }
+  scheduleSave("collaborators");
+
+  // Clean up assigned tasks from other users
+  const allTodos = (store.todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
+  for (const userTodos of Object.values(allTodos)) {
+    for (const todo of Object.values(userTodos)) {
+      if (todo.assignedTo === uid) {
+        todo.assignedTo = null;
+        todo.assignmentStatus = null;
+      }
+    }
+  }
+  scheduleSave("todos");
 }

@@ -1,8 +1,20 @@
 import { getStore } from "../persistence";
-import { createNotification } from "./notificationService";
+import { createNotification, listNotifications } from "./notificationService";
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1h
-const notifiedSet = new Set<string>();
+
+/**
+ * Check if a deadline reminder was already sent today for this user+todo+type.
+ * Uses persisted notifications as source of truth (survives restarts).
+ */
+function alreadyNotifiedToday(userId: string, todoId: string, type: string, todayStr: string): boolean {
+  const notifs = listNotifications(userId);
+  return notifs.some((n) =>
+    n.type === type &&
+    n.data?.todoId === todoId &&
+    n.createdAt.startsWith(todayStr),
+  );
+}
 
 /**
  * Scans all active todos for upcoming deadlines and creates
@@ -29,10 +41,7 @@ function checkDeadlines(): void {
       const todoId = todo.id as string;
 
       if (deadlineStr === todayStr) {
-        const key = `today:${todoId}:${todayStr}`;
-        if (notifiedSet.has(key)) continue;
-        notifiedSet.add(key);
-
+        if (alreadyNotifiedToday(userId, todoId, "deadline_today", todayStr)) continue;
         createNotification(
           userId,
           "deadline_today",
@@ -41,10 +50,7 @@ function checkDeadlines(): void {
           { todoId },
         );
       } else if (deadlineDate > now && deadlineDate <= in24h) {
-        const key = `24h:${todoId}:${todayStr}`;
-        if (notifiedSet.has(key)) continue;
-        notifiedSet.add(key);
-
+        if (alreadyNotifiedToday(userId, todoId, "deadline_approaching", todayStr)) continue;
         createNotification(
           userId,
           "deadline_approaching",
@@ -57,8 +63,15 @@ function checkDeadlines(): void {
   }
 }
 
+let reminderTimer: ReturnType<typeof setInterval> | null = null;
+
 export function startReminderJob(): void {
   console.log("[reminders] Démarrage du job de rappels (intervalle: 1h)");
   checkDeadlines();
-  setInterval(checkDeadlines, REMINDER_INTERVAL_MS);
+  reminderTimer = setInterval(checkDeadlines, REMINDER_INTERVAL_MS);
+  reminderTimer.unref();
+}
+
+export function stopReminderJob(): void {
+  if (reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
 }

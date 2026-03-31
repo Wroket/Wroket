@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
-import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi } from "@/lib/api";
-import type { Todo, Priority, Effort, AuthMeResponse, Comment } from "@/lib/api";
+import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators } from "@/lib/api";
+import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 
 export interface TaskEditModalProps {
@@ -17,6 +17,7 @@ export interface TaskEditModalProps {
     assignedTo: string | null;
     estimatedMinutes: number | null;
     tags: string[];
+    recurrence: Recurrence | null;
   };
   onFormChange: (updates: Partial<TaskEditModalProps["form"]>) => void;
   onSave: () => void;
@@ -62,12 +63,21 @@ export default function TaskEditModal({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [reactionPickerCommentId, setReactionPickerCommentId] = useState<string | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionResults, setMentionResults] = useState<Collaborator[]>([]);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const [allCollaborators, setAllCollaborators] = useState<Collaborator[]>([]);
+  const commentInputRef = useRef<HTMLInputElement>(null);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
       const c = await getComments(todoId);
       setComments(c);
     } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    getCollaborators().then(setAllCollaborators).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -94,6 +104,37 @@ export default function TaskEditModal({
     onFormChange({ tags: form.tags.filter((t2) => t2 !== tag) });
   };
 
+  const handleCommentChange = (val: string) => {
+    setCommentText(val);
+    const cursor = commentInputRef.current?.selectionStart ?? val.length;
+    const before = val.slice(0, cursor);
+    const atMatch = before.match(/@([^\s@]*)$/);
+    if (atMatch) {
+      const q = atMatch[1].toLowerCase();
+      setMentionQuery(q);
+      setMentionResults(
+        allCollaborators
+          .filter((c) => c.status === "active" && c.email.toLowerCase().includes(q))
+          .slice(0, 5)
+      );
+      setMentionIdx(0);
+    } else {
+      setMentionQuery(null);
+      setMentionResults([]);
+    }
+  };
+
+  const insertMention = (email: string) => {
+    const cursor = commentInputRef.current?.selectionStart ?? commentText.length;
+    const before = commentText.slice(0, cursor);
+    const after = commentText.slice(cursor);
+    const replaced = before.replace(/@([^\s@]*)$/, `@${email} `);
+    setCommentText(replaced + after);
+    setMentionQuery(null);
+    setMentionResults([]);
+    setTimeout(() => commentInputRef.current?.focus(), 0);
+  };
+
   const handlePostComment = async () => {
     if (!commentText.trim() || !todo) return;
     setCommentLoading(true);
@@ -101,6 +142,8 @@ export default function TaskEditModal({
       const c = await postCommentApi(todo.id, commentText.trim());
       setComments((prev) => [...prev, c]);
       setCommentText("");
+      setMentionQuery(null);
+      setMentionResults([]);
     } catch { /* ignore */ }
     setCommentLoading(false);
   };
@@ -241,6 +284,76 @@ export default function TaskEditModal({
               )}
             </div>
           </div>
+          {/* Recurrence */}
+          <div className="rounded border border-zinc-200 dark:border-slate-700 p-3 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!form.recurrence}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    onFormChange({ recurrence: { frequency: "weekly", interval: 1 } });
+                  } else {
+                    onFormChange({ recurrence: null });
+                  }
+                }}
+                className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500"
+              />
+              <span className="text-xs font-medium text-zinc-700 dark:text-slate-300">
+                🔄 {t("edit.recurrenceEnabled" as TranslationKey)}
+              </span>
+            </label>
+            {form.recurrence && (
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                    {t("edit.recurrence" as TranslationKey)}
+                  </label>
+                  <select
+                    value={form.recurrence.frequency}
+                    onChange={(e) =>
+                      onFormChange({ recurrence: { ...form.recurrence!, frequency: e.target.value as RecurrenceFrequency } })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  >
+                    <option value="daily">{t("edit.recurrenceDaily" as TranslationKey)}</option>
+                    <option value="weekly">{t("edit.recurrenceWeekly" as TranslationKey)}</option>
+                    <option value="monthly">{t("edit.recurrenceMonthly" as TranslationKey)}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                    {t("edit.recurrenceInterval" as TranslationKey)}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={form.recurrence.interval}
+                    onChange={(e) =>
+                      onFormChange({ recurrence: { ...form.recurrence!, interval: Math.max(1, Number(e.target.value) || 1) } })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                    {t("edit.recurrenceEnd" as TranslationKey)}
+                  </label>
+                  <input
+                    type="date"
+                    value={form.recurrence.endDate ?? ""}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) =>
+                      onFormChange({ recurrence: { ...form.recurrence!, endDate: e.target.value || undefined } })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
               {t("assign.label")}
@@ -375,15 +488,44 @@ export default function TaskEditModal({
               </div>
             ))}
           </div>
-          <div className="flex gap-1.5">
-            <input
-              type="text"
-              placeholder={t("comments.placeholder" as TranslationKey)}
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handlePostComment(); } }}
-              className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
+          <div className="relative flex gap-1.5">
+            <div className="flex-1 relative">
+              <input
+                ref={commentInputRef}
+                type="text"
+                placeholder={t("comments.placeholder" as TranslationKey)}
+                value={commentText}
+                onChange={(e) => handleCommentChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (mentionResults.length > 0) {
+                    if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx((i) => Math.min(i + 1, mentionResults.length - 1)); return; }
+                    if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx((i) => Math.max(i - 1, 0)); return; }
+                    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionResults[mentionIdx].email); return; }
+                    if (e.key === "Escape") { e.preventDefault(); setMentionQuery(null); setMentionResults([]); return; }
+                  }
+                  if (e.key === "Enter") { e.preventDefault(); handlePostComment(); }
+                }}
+                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              />
+              {mentionResults.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg z-50 max-h-32 overflow-y-auto">
+                  {mentionResults.map((c, i) => (
+                    <button
+                      key={c.email}
+                      type="button"
+                      onClick={() => insertMention(c.email)}
+                      className={`w-full text-left px-2 py-1.5 text-xs transition-colors ${
+                        i === mentionIdx
+                          ? "bg-slate-100 dark:bg-slate-700 text-zinc-900 dark:text-slate-100"
+                          : "text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {c.email}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button type="button" onClick={handlePostComment} disabled={commentLoading || !commentText.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100 disabled:opacity-40">
               {t("comments.send" as TranslationKey)}
             </button>

@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError, ValidationError } from "../utils/errors";
+import { getTeam, getTeamRole } from "./teamService";
 
 export interface Note {
   id: string;
@@ -9,6 +10,10 @@ export interface Note {
   title: string;
   content: string;
   pinned: boolean;
+  folder?: string;
+  tags?: string[];
+  shared?: boolean;
+  teamId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -17,12 +22,20 @@ export interface CreateNoteInput {
   title?: string;
   content?: string;
   id?: string;
+  folder?: string;
+  tags?: string[];
+  shared?: boolean;
+  teamId?: string;
 }
 
 export interface UpdateNoteInput {
   title?: string;
   content?: string;
   pinned?: boolean;
+  folder?: string;
+  tags?: string[];
+  shared?: boolean;
+  teamId?: string;
 }
 
 const notesByUser = new Map<string, Map<string, Note>>();
@@ -77,11 +90,30 @@ export function getNote(userId: string, noteId: string): Note {
   return note;
 }
 
+function validateSharing(userId: string, shared?: boolean, teamId?: string): void {
+  if (shared && teamId) {
+    const team = getTeam(teamId);
+    if (!team) throw new ValidationError("Équipe introuvable");
+    const store = getStore();
+    const users = (store.users ?? {}) as Record<string, Record<string, unknown>>;
+    const userEmail = (users[userId]?.email as string) ?? "";
+    const role = getTeamRole(team, userId, userEmail);
+    if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
+  }
+}
+
 export function createNote(userId: string, input: CreateNoteInput): Note {
   const title = (input.title ?? "").trim();
   if (title.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
   const content = input.content ?? "";
   if (content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
+
+  const folder = input.folder?.trim() || undefined;
+  const tags = input.tags?.length ? input.tags.slice(0, 10) : undefined;
+  const shared = input.shared ?? undefined;
+  const teamId = input.teamId?.trim() || undefined;
+
+  validateSharing(userId, shared, teamId);
 
   const now = new Date().toISOString();
   const note: Note = {
@@ -90,6 +122,10 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
     title: title || "Sans titre",
     content,
     pinned: false,
+    folder,
+    tags,
+    shared: shared && teamId ? true : undefined,
+    teamId: shared && teamId ? teamId : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -113,6 +149,19 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
   }
   if (input.pinned !== undefined) {
     note.pinned = input.pinned;
+  }
+  if (input.folder !== undefined) {
+    note.folder = input.folder.trim() || undefined;
+  }
+  if (input.tags !== undefined) {
+    note.tags = input.tags.length ? input.tags.slice(0, 10) : undefined;
+  }
+  if (input.shared !== undefined || input.teamId !== undefined) {
+    const wantShared = input.shared ?? note.shared;
+    const wantTeamId = (input.teamId !== undefined ? input.teamId.trim() : note.teamId) || undefined;
+    validateSharing(userId, wantShared, wantTeamId);
+    note.shared = wantShared && wantTeamId ? true : undefined;
+    note.teamId = wantShared && wantTeamId ? wantTeamId : undefined;
   }
 
   note.updatedAt = new Date().toISOString();
@@ -160,4 +209,31 @@ export function syncNotes(userId: string, incoming: Array<{ id: string; title: s
 
   persist();
   return listNotes(userId);
+}
+
+/** Returns notes shared by other users with teams the current user belongs to. */
+export function listSharedNotes(uid: string, userEmail: string): Note[] {
+  const store = getStore();
+  const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
+
+  const userTeamIds: string[] = [];
+  for (const [teamId, team] of Object.entries(teamStore)) {
+    const members = (team.members as Array<{ email: string }>) ?? [];
+    if (team.ownerUid === uid || members.some((m) => m.email === userEmail)) {
+      userTeamIds.push(teamId);
+    }
+  }
+
+  const noteStore = (store.notes ?? {}) as Record<string, Record<string, Note>>;
+  const shared: Note[] = [];
+  for (const [noteOwnerUid, userNotes] of Object.entries(noteStore)) {
+    if (noteOwnerUid === uid) continue;
+    for (const note of Object.values(userNotes)) {
+      if (note.shared && note.teamId && userTeamIds.includes(note.teamId)) {
+        shared.push(note);
+      }
+    }
+  }
+
+  return shared.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }

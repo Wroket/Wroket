@@ -32,13 +32,16 @@
 - [x] **Dates de début** — Champ `startDate` sur les tâches pour positionnement Gantt
 - [x] **Persistance hybride** — Cache in-memory + Firestore (prod) ou `local-store.json` (dev local)
 - [x] **Sécurité** — Helmet, CORS, rate limiting, validation inputs, bcrypt, cookies httpOnly
-- [x] **Hardening sécurité** — Audit et correctifs : OAuth state cryptographique, échappement HTML emails, autorisation commentaires, redaction tokens logs, guard admin middleware, restriction réassignation, CSRF verify-email (GET→POST), arrêt gracieux (flushNow), traçabilité requêtes (X-Request-Id), logging structuré
+- [x] **Hardening sécurité (v1)** — OAuth state cryptographique, échappement HTML emails, autorisation commentaires, redaction tokens logs, guard admin middleware, restriction réassignation, CSRF verify-email (GET→POST), arrêt gracieux (flushNow), traçabilité requêtes (X-Request-Id), logging structuré
+- [x] **Hardening sécurité (v2)** — Google SSO CSRF (state cookie + token single-use), SSRF webhook (résolution DNS anti-rebinding), persistence Firestore (dirty set post-commit), RGPD export (strip tokens/salt), graceful shutdown complet (server.close + interval cleanup), CSP/HSTS/X-Frame-Options, cap inviteLog, validation commentaires (400 vs 404), res.ok sur tous les fetch frontend
+- [x] **Hardening sécurité (v3)** — Recherche globale avec contrôle d'accès projets (listProjects), partage notes avec vérification membership équipe, validation récurrence (interval 1-365, endDate), protection CSV formula injection (neutralisation =+@-), reorder batch unique persist (cap 200), rate limit /auth/search et /auth/my-export, attachments : MIME allowlist + path traversal guard (resolveAndGuard) + sanitisation filename + Content-Disposition RFC 5987 + nosniff, query search type safety + cap 200 chars
 - [x] **Harmonisation UI** — Couleurs boutons slate-700 (light), responsive amélioré, formulaire 2 lignes
-- [x] **Kanban Board** — Vue Kanban dans la partie Projets (tâches par phase, drag-style)
+- [x] **Nettoyage code** — Suppression dead code (countComments, loadStore/saveStore deprecated, getActivityForUser, void stats), suppression requireAdminCheck dupliqué (déjà en middleware), fusion boucles admin, import statique au lieu de require()
+- [x] **Kanban Board** — Vue Kanban dans la partie Projets (tâches par phase, drag-style), bouton "Ajouter une phase" visible dans toutes les vues (Board, Kanban, Gantt)
 - [x] **Archives** — Archivage automatique des tâches terminées (>7j), page dédiée `/todos/archives`, restauration
 - [x] **Calendrier & Slots** — Working hours dans paramètres, calcul de créneaux (3 propositions), booking sur une tâche
 - [x] **Intégration Google Calendar** — OAuth2 natif (fetch), lecture/écriture agenda Google, token auto-refresh
-- [x] **Agenda** — Vue calendrier semaine, fusion événements Wroket (code couleur Eisenhower) + Google Calendar
+- [x] **Agenda** — Vue calendrier semaine, fusion événements Wroket (code couleur Eisenhower) + Google Calendar, double-clic sur tâche Wroket pour édition directe (modale TaskEditModal + refresh automatique)
 - [x] **Responsive mobile** — Viewport meta, sidebar hamburger, tableaux scrollables, badges wrap, bouton edit tactile
 - [x] **Branding Wroket** — Identité visuelle (fusée + checkmark), palette Slate + Emerald, icône app, logo bicolore
 - [x] **Page Notifications** — Page dédiée `/notifications` avec filtres (tous/lus/non-lus), actions par type
@@ -63,40 +66,35 @@
 - [x] **Bloc-notes** — Éditeur de notes en ligne et hors ligne (localStorage + sync auto), épinglage, recherche
 - [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/code`, `/warning` dans l'éditeur de notes
 - [x] **Aide contextuelle notes** — Bouton ampoule avec liste des commandes et info hors ligne
+- [x] **Timezone utilisateur** — Détection automatique du fuseau horaire navigateur, auto-correction des profils UTC, dropdown dans les paramètres avec alerte de désynchronisation
+- [x] **Page d'accueil** — Landing page marketing avec hero animé, 6 flip cards interactives (features), CTA, footer
+- [x] **Tutoriel mis à jour** — 7 étapes couvrant notes, agenda, commandes slash, Google Calendar
+- [x] **Favicon Wroket** — Logo Wroket (fond blanc) dans les onglets navigateur (icon.png + apple-icon.png)
+- [x] **Responsive bloc-notes** — Pattern master-detail mobile (liste ou éditeur plein écran) avec bouton retour
+- [x] **Dark mode boutons** — Harmonisation couleurs boutons en dark mode (slate-600 au lieu de slate-100), correction tabs illisibles dark mode (archives, projets, SlotPicker)
+- [x] **Import CSV → Projet** — Upload CSV pour créer un projet complet (phases + tâches), prévisualisation avant import, validation
+- [x] **Commentaires avancés** — Édition de commentaires, réactions emoji (👍 ✅ ❤️), @mentions avec autocomplétion des collaborateurs
+- [x] **Popup commentaires** — Icône commentaire sur les tâches (Cards, Liste, Radar) avec popup hover via `createPortal`, chargement lazy des commentaires
+- [x] **Administration complète (RGPD)** — Dashboard admin : stats globales (users, tâches, projets, notes, commentaires, uptime), liste utilisateurs (dernière connexion, notes, taux de complétion), journal d'activité, sessions actives, intégrations, registre RGPD, export/suppression conformes
 
-## Fonctionnel mais à consolider
+## Fonctionnel — consolidé
 
-- [ ] **Sessions persistantes** — Persister les sessions dans `local-store.json` (perdues au redémarrage backend)
-- [ ] **Changement de mot de passe** — Route `PUT /auth/password` + UI dans Paramètres
-- [ ] **Paramètres > Historique** — Afficher l'historique des actions récentes
-- [ ] **Paramètres > Administration** — Export JSON des données + suppression de compte
+- [x] **Sessions persistantes** — Sessions persistées dans le store Firestore/JSON, hydratées au démarrage, survient aux redémarrages
+- [x] **Changement de mot de passe** — Route `PUT /auth/password` avec vérification ancien mot de passe, invalidation des autres sessions, formulaire dans Paramètres > Profil
+- [x] **Paramètres > Historique** — Historique des actions récentes de l'utilisateur avec pagination, icônes par type d'entité, formatage date/heure
+- [x] **Paramètres > Administration** — Export JSON complet de ses données (tâches, projets, notes, commentaires), suppression de compte avec confirmation SUPPRIMER, nettoyage cookie
 
-## Fonctionnalités manquantes
+## Nouvellement implémenté
 
-- [ ] **Recherche globale** — Recherche textuelle dans les tâches, projets, membres
-- [ ] **Tâches récurrentes** — Créer des tâches qui se répètent automatiquement (hebdo/mensuel)
-- [ ] **Pièces jointes** — Attacher des fichiers à une tâche (GCS bucket)
-- [ ] **Drag & drop** — Réordonner les tâches dans la liste / Kanban
-- [ ] **Export CSV/PDF** — Exporter ses tâches ou rapports de projet
-- [ ] **Activité / audit log** — Historique des actions par tâche
-- [ ] **Import CSV → Projet** — Importer un fichier CSV pour créer un projet complet (phases + tâches) en une opération
-  - Template CSV : `phase`, `task_title`, `priority`, `effort`, `deadline`, `start_date`, `assignee_email`, `tags`
-  - Les phases sont auto-créées à partir des valeurs distinctes de la colonne `phase`
-  - Validation : champs obligatoires (`phase`, `task_title`), enums, format dates, emails existants
-  - UI : page d'upload avec prévisualisation des données parsées avant confirmation
-  - Endpoint : `POST /projects/import` (multipart/form-data)
-- [ ] **Commentaires avancés** — Enrichir le système de commentaires existant sur les tâches
-  - Édition de commentaires (bouton modifier, historique de modification)
-  - @mentions : autocomplétion des membres d'équipe, notification in-app + webhook au mentionné
-  - Réactions : emoji picker sur chaque commentaire (👍 ✅ ❤️ etc.), compteur par réaction
-- [ ] **Administration complète (RGPD)** — Dashboard admin exhaustif, conforme RGPD
-  - Statistiques globales : utilisateurs actifs/inactifs, tâches créées/complétées par période, projets, équipes
-  - Journal d'activité : historique des actions (création, modification, suppression) avec utilisateur, date, entité
-  - Historique de connexions : dernière connexion par utilisateur, sessions actives
-  - Taux de complétion par utilisateur et par équipe
-  - Vue d'ensemble des intégrations (webhooks configurés, Google Calendar connectés)
-  - Gestion utilisateurs : désactiver/réactiver un compte, reset mot de passe admin
-  - Conformité RGPD : export des données personnelles d'un utilisateur (droit d'accès), suppression complète d'un compte et ses données (droit à l'oubli), anonymisation, registre des traitements
+- [x] **Recherche globale** — Barre de recherche dans le header (debounced 300ms), recherche textuelle dans tâches (titre + tags), projets (nom + description), notes (titre + contenu), résultats groupés par type
+- [x] **Tâches récurrentes** — Récurrence quotidienne/hebdomadaire/mensuelle avec intervalle configurable, date de fin optionnelle, clonage automatique à la complétion avec deadline recalculée, badge 🔄 sur les tâches récurrentes
+- [x] **Pièces jointes** — Upload de fichiers sur les tâches (max 5 Mo, max 5 par tâche), stockage local (UPLOAD_DIR), téléchargement, suppression, API REST avec multer
+- [x] **Drag & drop** — Réordonnancement des tâches en vue liste avec @dnd-kit, drag handle (⋮⋮), persistance de l'ordre via `sortOrder`, endpoint batch `PUT /todos/reorder`
+- [x] **Export CSV** — Export de toutes les tâches au format CSV (id, titre, statut, priorité, effort, deadline, tags, projet, date)
+- [x] **Audit log par tâche** — Historique des actions par tâche (GET /:id/activity), filtrage par entityId+entityType, limité à 50 entrées
+- [x] **Notes — dossiers / tags** — Champs `folder` et `tags` sur les notes, acceptés en création et mise à jour
+- [x] **Notes — export Markdown** — Export de toutes les notes en un seul fichier Markdown avec métadonnées (dossier, tags), route GET /notes/export
+- [x] **Notes partagées** — Partage de notes avec une équipe via `shared` + `teamId`, endpoint GET /notes/shared pour lister les notes partagées par les membres des équipes de l'utilisateur
 
 ## Intégrations & Connecteurs
 
@@ -117,9 +115,14 @@
 
 ## À l'étude (R&D)
 
-- [ ] **Notes partagées** — Partage de notes entre membres d'une équipe, édition collaborative
-- [ ] **Notes — dossiers / tags** — Organisation des notes par dossiers et tags
-- [ ] **Notes — export** — Export de notes en PDF ou Markdown
+- [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
+- [ ] **Multi-calendriers** — Connecter plusieurs calendriers externes sur un même compte Wroket
+  - Plusieurs comptes Google Calendar (perso + pro)
+  - Outlook / Microsoft 365 (OAuth2 Microsoft Graph)
+  - CalDAV générique (Nextcloud, iCloud, Fastmail…)
+  - Gestion dans Paramètres > Intégrations : ajout, nom personnalisé, couleur, toggle visibilité
+  - Fusion de tous les calendriers dans la vue Agenda avec code couleur par source
+  - Prise en compte de tous les calendriers actifs dans le calcul des créneaux disponibles (SlotPicker)
 
 ## Sécurité & Auth
 
@@ -133,8 +136,20 @@
 - [x] **Guard admin (middleware)** — `requireAdmin` au niveau routeur pour les routes `/admin`
 - [x] **Restriction réassignation** — Les assignés ne peuvent plus modifier le champ `assignedTo`
 - [x] **CSRF verify-email** — Migration GET→POST avec rétrocompatibilité (body + query)
-- [x] **Arrêt gracieux** — `flushNow()` sur SIGTERM/SIGINT pour éviter la perte de données (debounce 500ms)
+- [x] **Arrêt gracieux** — `flushNow()` sur SIGTERM/SIGINT pour éviter la perte de données (debounce 500ms), `server.close()` + cleanup intervals
 - [x] **Traçabilité requêtes** — Header `X-Request-Id` + logging structuré JSON (prod) / lisible (dev)
+- [x] **Google SSO CSRF** — Token `state` cryptographique (CSPRNG 32 bytes), stocké en cookie httpOnly, validé single-use au callback
+- [x] **SSRF webhook** — Résolution DNS avant dispatch pour bloquer les attaques DNS rebinding (nip.io, localtest.me), validation IPv4/IPv6 privées
+- [x] **CSP / HSTS** — Content-Security-Policy, Strict-Transport-Security (2 ans + preload), X-Frame-Options DENY, Referrer-Policy, Permissions-Policy
+- [x] **Persistence Firestore safe** — Dirty domains retirés uniquement après commit réussi (évite perte silencieuse de données)
+- [x] **RGPD export sécurisé** — Strip de tous les champs sensibles (salt, tokens OAuth/reset/verify) dans l'export utilisateur
+- [x] **Memory leak fix** — Purge quotidienne du set de déduplication des rappels deadline (notifiedSet)
+- [x] **Recherche sécurisée** — Contrôle d'accès projets via `listProjects`, type safety `req.query.q`, cap longueur 200 chars, rate limit `lookupLimiter`
+- [x] **Partage notes sécurisé** — Vérification membership équipe (`getTeamRole`) avant partage, rejet si utilisateur non membre, cap tags à 10
+- [x] **Validation récurrence** — Intervalle entier fini 1–365, fréquence whitelistée, date de fin validée, guard `isNaN` dans `calculateNextDueDate`
+- [x] **CSV export sécurisé** — Neutralisation formula injection (=, +, -, @, tab, CR) via préfixe `'` dans les cellules
+- [x] **Reorder sécurisé** — Batch unique persist (1 seul `scheduleSave`), cap 200 items, vérification propriété (`isOwner`)
+- [x] **Attachments sécurisés** — MIME allowlist (images, PDF, docs, CSV, ZIP, JSON), `resolveAndGuard` anti path-traversal, `sanitizeFilename`, Content-Disposition RFC 5987, `X-Content-Type-Options: nosniff`
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
 - [ ] **2FA** — Authentification à deux facteurs (TOTP)
 

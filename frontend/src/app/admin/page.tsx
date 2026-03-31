@@ -125,6 +125,15 @@ export default function AdminPage() {
 
   const rateForUser = (uid: string) => completionRates.find((r) => r.uid === uid);
 
+  const formatUptime = (seconds: number) => {
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (d > 0) return `${d}j ${h}h`;
+    if (h > 0) return `${h}h ${m}min`;
+    return `${m}min`;
+  };
+
   const RGPD_REGISTRY = [
     { data: "Email, prénom, nom", purpose: "Authentification & profil", retention: "Durée du compte" },
     { data: "Tâches, projets, commentaires", purpose: "Fonctionnalités applicatives", retention: "Durée du compte" },
@@ -172,17 +181,23 @@ export default function AdminPage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.tasks")}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <StatCard label={t("admin.usersTotal")} value={stats.tasks.total} />
                 <StatCard label={t("admin.tasksActive")} value={stats.tasks.active} />
                 <StatCard label={t("admin.tasksCompleted")} value={stats.tasks.completed} />
                 <StatCard label={t("admin.tasksCancelled")} value={stats.tasks.cancelled} />
+                <StatCard label={t("admin.tasksScheduled" as TranslationKey)} value={stats.tasks.scheduled} />
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <StatCard label={t("admin.projects")} value={stats.projects.total} sub={`${stats.projects.active} ${t("admin.projectsActive").toLowerCase()}`} />
               <StatCard label={t("admin.teams")} value={stats.teams} />
               <StatCard label={t("admin.invites")} value={stats.invitesSent} />
+              <StatCard label={t("admin.notes" as TranslationKey)} value={stats.notes} />
+              <StatCard label={t("admin.comments" as TranslationKey)} value={stats.comments} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <StatCard label={t("admin.uptime" as TranslationKey)} value={formatUptime(stats.uptime)} />
             </div>
 
             {/* Invite log */}
@@ -225,8 +240,10 @@ export default function AdminPage() {
                   <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.name")}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.verified")}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.taskCount")}</th>
+                  <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.notes" as TranslationKey)}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.completionRate" as TranslationKey)}</th>
                   <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.joined")}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.lastLogin" as TranslationKey)}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">RGPD</th>
                 </tr>
               </thead>
@@ -243,8 +260,10 @@ export default function AdminPage() {
                           : <span className="inline-block w-2 h-2 rounded-full bg-zinc-300 dark:bg-slate-600" title="Non vérifié" />}
                       </td>
                       <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.taskCount}</td>
+                      <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.noteCount ?? 0}</td>
                       <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{rate ? `${rate.rate}%` : "—"}</td>
                       <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{formatDate(u.createdAt)}</td>
+                      <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => handleExportUser(u.uid)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline" title={t("admin.rgpd.export" as TranslationKey)}>

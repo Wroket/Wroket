@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import Link from "next/link";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
@@ -384,7 +385,7 @@ export default function ProjectsPage() {
   const [linkPhaseId, setLinkPhaseId] = useState<string | null>(null);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[] });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -611,6 +612,7 @@ export default function ProjectsPage() {
       assignedTo: todo.assignedTo ?? null,
       estimatedMinutes: todo.estimatedMinutes ?? null,
       tags: todo.tags ?? [],
+      recurrence: todo.recurrence ?? null,
     });
     setEditAssignEmail("");
     setEditAssignedUser(null);
@@ -632,6 +634,7 @@ export default function ProjectsPage() {
         assignedTo: editForm.assignedTo,
         estimatedMinutes: editForm.estimatedMinutes,
         tags: editForm.tags,
+        recurrence: editForm.recurrence,
       });
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
       setEditingTodo(null);
@@ -979,7 +982,7 @@ export default function ProjectsPage() {
               <button
                 key={tab}
                 onClick={() => setDetailTab(tab)}
-                className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}
+                className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}
               >
                 {t(`projects.${tab}` as TranslationKey)}
               </button>
@@ -1105,35 +1108,6 @@ export default function ProjectsPage() {
                 );
               })()}
 
-              {/* Add Phase button */}
-              {showAddPhase ? (
-                <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-                  <h4 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3">{t("phase.add" as TranslationKey)}</h4>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      value={newPhaseName}
-                      onChange={(e) => setNewPhaseName(e.target.value)}
-                      placeholder={t("phase.namePlaceholder" as TranslationKey)}
-                      className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-                      autoFocus
-                    />
-                    <input type="date" value={newPhaseStart} onChange={(e) => setNewPhaseStart(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" placeholder={t("phase.startDate" as TranslationKey)} />
-                    <input type="date" value={newPhaseEnd} onChange={(e) => setNewPhaseEnd(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" placeholder={t("phase.endDate" as TranslationKey)} />
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <button onClick={handleAddPhase} disabled={!newPhaseName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save" as TranslationKey)}</button>
-                    <button onClick={() => { setShowAddPhase(false); setNewPhaseName(""); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowAddPhase(true)}
-                  className="w-full rounded-md border-2 border-dashed border-zinc-200 dark:border-slate-700 py-3 text-sm font-medium text-zinc-400 dark:text-slate-500 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors"
-                >
-                  + {t("phase.add" as TranslationKey)}
-                </button>
-              )}
             </div>
           ) : detailTab === "kanban" ? (
             /* ═══ KANBAN VIEW ═══ */
@@ -1329,6 +1303,36 @@ export default function ProjectsPage() {
             </div>
           )}
 
+          {/* Add Phase button (visible in all views) */}
+          {showAddPhase ? (
+            <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
+              <h4 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3">{t("phase.add" as TranslationKey)}</h4>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  value={newPhaseName}
+                  onChange={(e) => setNewPhaseName(e.target.value)}
+                  placeholder={t("phase.namePlaceholder" as TranslationKey)}
+                  className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+                  autoFocus
+                />
+                <input type="date" value={newPhaseStart} onChange={(e) => setNewPhaseStart(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" placeholder={t("phase.startDate" as TranslationKey)} />
+                <input type="date" value={newPhaseEnd} onChange={(e) => setNewPhaseEnd(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" placeholder={t("phase.endDate" as TranslationKey)} />
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button onClick={handleAddPhase} disabled={!newPhaseName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save" as TranslationKey)}</button>
+                <button onClick={() => { setShowAddPhase(false); setNewPhaseName(""); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddPhase(true)}
+              className="w-full rounded-md border-2 border-dashed border-zinc-200 dark:border-slate-700 py-3 text-sm font-medium text-zinc-400 dark:text-slate-500 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors"
+            >
+              + {t("phase.add" as TranslationKey)}
+            </button>
+          )}
+
           {/* ── Add task modal ── */}
           {showAddTask && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }}>
@@ -1467,9 +1471,17 @@ export default function ProjectsPage() {
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("projects.title" as TranslationKey)}</h2>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("projects.subtitle" as TranslationKey)}</p>
           </div>
-          <button onClick={() => setShowCreate(true)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">
-            {t("projects.create" as TranslationKey)}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/projects/import"
+              className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              {t("projects.import" as TranslationKey)}
+            </Link>
+            <button onClick={() => setShowCreate(true)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">
+              {t("projects.create" as TranslationKey)}
+            </button>
+          </div>
         </div>
 
         {projects.length === 0 && !showCreate ? (

@@ -38,10 +38,22 @@ export function listComments(todoId: string): Comment[] {
   return commentsByTodo.get(todoId) ?? [];
 }
 
+/**
+ * Returns comment counts for a list of todo IDs.
+ */
+export function getCommentCounts(todoIds: string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const id of todoIds) {
+    const count = commentsByTodo.get(id)?.length ?? 0;
+    if (count > 0) result[id] = count;
+  }
+  return result;
+}
+
 export function addComment(todoId: string, userId: string, userEmail: string, text: string): Comment {
   const trimmed = text.trim();
-  if (!trimmed) throw new NotFoundError("Le commentaire ne peut pas être vide");
-  if (trimmed.length > 2000) throw new NotFoundError("Commentaire trop long (max 2000 caractères)");
+  if (!trimmed) throw new ValidationError("Le commentaire ne peut pas être vide");
+  if (trimmed.length > 2000) throw new ValidationError("Commentaire trop long (max 2000 caractères)");
 
   const comment: Comment = {
     id: crypto.randomUUID(),
@@ -121,6 +133,3 @@ export function parseMentions(text: string): string[] {
   return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
 }
 
-export function countComments(todoId: string): number {
-  return (commentsByTodo.get(todoId) ?? []).length;
-}

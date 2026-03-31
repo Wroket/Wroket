@@ -11,6 +11,7 @@ import {
   QUADRANT_CONFIG,
   SUBTASK_BADGE_CLS,
 } from "@/lib/todoConstants";
+import CommentHoverIcon from "@/components/CommentHoverIcon";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 
 interface TodoCardProps {
@@ -26,6 +27,7 @@ interface TodoCardProps {
   subtasksExpanded?: boolean;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
+  commentCount?: number;
 }
 
 export default function TodoCard({
@@ -41,6 +43,7 @@ export default function TodoCard({
   subtasksExpanded = false,
   meUid,
   userDisplayName,
+  commentCount = 0,
 }: TodoCardProps) {
   const { t } = useLocale();
   const badge = PRIORITY_BADGES[todo.priority];
@@ -108,6 +111,11 @@ export default function TodoCard({
               {t("assign.accepted" as TranslationKey)}
             </span>
           )}
+          {todo.recurrence && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+              🔄
+            </span>
+          )}
           {todo.scheduledSlot && (
             <ScheduledSlotBadge slot={todo.scheduledSlot} />
           )}
@@ -159,6 +167,11 @@ export default function TodoCard({
               onCleared={onScheduleUpdate}
             />
           )}
+          <CommentHoverIcon
+            todoId={todo.id}
+            commentCount={commentCount}
+            onClick={() => onEdit?.(todo)}
+          />
           {onEdit && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(todo); }}

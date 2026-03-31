@@ -501,6 +501,34 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
   return { ...toAuthUser(user), sessionToken };
 }
 
+export function changePassword(uid: string, currentPassword: string, newPassword: string, currentSessionToken?: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+
+  if (!user.passwordSaltB64 || !user.passwordHashB64) {
+    throw new AppError(400, "Compte créé via Google SSO — utilisez la réinitialisation par email pour définir un mot de passe");
+  }
+
+  const currentHash = pbkdf2Hash(currentPassword, user.passwordSaltB64);
+  if (!crypto.timingSafeEqual(Buffer.from(currentHash, "base64"), Buffer.from(user.passwordHashB64, "base64"))) {
+    throw new AppError(401, "Mot de passe actuel incorrect");
+  }
+
+  if (newPassword.length < 8) {
+    throw new ValidationError("Nouveau mot de passe trop court (min 8 caractères)");
+  }
+
+  const saltB64 = crypto.randomBytes(16).toString("base64");
+  user.passwordSaltB64 = saltB64;
+  user.passwordHashB64 = pbkdf2Hash(newPassword, saltB64);
+
+  for (const [tok, sess] of sessionsByToken) {
+    if (sess.uid === uid && tok !== currentSessionToken) sessionsByToken.delete(tok);
+  }
+  persistSessions();
+  persistUsers();
+}
+
 export function logout(cookies: string | undefined): void {
   const token = extractSessionToken(cookies);
   if (token) {
