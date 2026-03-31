@@ -263,6 +263,7 @@ function TasksSection() {
   });
   const [whSaving, setWhSaving] = useState(false);
   const [whSaved, setWhSaved] = useState(false);
+  const [tzMismatch, setTzMismatch] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,11 +278,14 @@ function TasksSection() {
         }
         if (me.workingHours) {
           setWh(me.workingHours);
+          if (me.workingHours.timezone !== detectedTz) {
+            setTzMismatch(true);
+          }
         }
       } catch { /* auth handled by AppShell */ }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [detectedTz]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -415,7 +419,33 @@ function TasksSection() {
 
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.whTimezone")}</label>
-          <span className="text-sm text-zinc-700 dark:text-slate-300">{wh.timezone}</span>
+          <select
+            value={wh.timezone}
+            onChange={(e) => { setWh({ ...wh, timezone: e.target.value }); setTzMismatch(false); }}
+            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 shadow-sm focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+          >
+            {[
+              "Europe/Paris", "Europe/London", "Europe/Berlin", "Europe/Madrid", "Europe/Rome",
+              "Europe/Brussels", "Europe/Amsterdam", "Europe/Zurich", "Europe/Vienna",
+              "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+              "America/Toronto", "America/Sao_Paulo", "America/Mexico_City",
+              "Asia/Tokyo", "Asia/Shanghai", "Asia/Singapore", "Asia/Dubai", "Asia/Kolkata",
+              "Australia/Sydney", "Pacific/Auckland", "Africa/Casablanca", "UTC",
+            ].map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+          </select>
+          {tzMismatch && (
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <span>⚠️</span>
+              <span>{t("settings.tzMismatch").replace("{tz}", detectedTz)}</span>
+              <button
+                type="button"
+                onClick={() => { setWh({ ...wh, timezone: detectedTz }); setTzMismatch(false); }}
+                className="ml-auto text-xs font-semibold text-amber-800 dark:text-amber-200 underline hover:no-underline"
+              >
+                {t("settings.tzApply")}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

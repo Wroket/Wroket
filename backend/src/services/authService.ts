@@ -17,9 +17,14 @@ export interface WorkingHours {
 export const DEFAULT_WORKING_HOURS: WorkingHours = {
   start: "09:00",
   end: "17:00",
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Paris",
+  timezone: "Europe/Paris",
   daysOfWeek: [1, 2, 3, 4, 5],
 };
+
+function isValidTimezone(tz: string): boolean {
+  try { Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; }
+  catch { return false; }
+}
 
 export interface GoogleCalendarTokens {
   accessToken: string;
@@ -151,6 +156,7 @@ function pbkdf2Hash(password: string, saltB64: string): string {
 export interface RegisterInput {
   email: string;
   password: string;
+  timezone?: string;
 }
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24h
@@ -179,10 +185,12 @@ export function register(input: RegisterInput): AuthUser & { verifyToken: string
   const verifyToken = generateVerifyToken();
 
   const createdAt = new Date().toISOString();
+  const tz = input.timezone && isValidTimezone(input.timezone) ? input.timezone : DEFAULT_WORKING_HOURS.timezone;
   const stored: StoredUser = {
     uid, email, firstName: "", lastName: "",
     passwordSaltB64: saltB64, passwordHashB64: hashB64,
     effortMinutes: DEFAULT_EFFORT_MINUTES,
+    workingHours: { ...DEFAULT_WORKING_HOURS, timezone: tz },
     emailVerified: false,
     emailVerifyToken: verifyToken,
     emailVerifyExpiresAt: Date.now() + VERIFY_TOKEN_TTL_MS,
@@ -288,6 +296,7 @@ export function resetPassword(token: string, newPassword: string): void {
 export interface LoginInput {
   email: string;
   password: string;
+  timezone?: string;
 }
 
 export function login(input: LoginInput): AuthUser & { sessionToken: string } {
@@ -309,6 +318,15 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
 
   if (!user.emailVerified) {
     throw new AppError(403, "EMAIL_NOT_VERIFIED");
+  }
+
+  // Auto-fix timezone from client when it's missing or defaulted to UTC
+  if (input.timezone && isValidTimezone(input.timezone)) {
+    const currentTz = user.workingHours?.timezone ?? "UTC";
+    if (currentTz === "UTC" || !user.workingHours) {
+      user.workingHours = { ...(user.workingHours ?? DEFAULT_WORKING_HOURS), timezone: input.timezone };
+      persistUsers();
+    }
   }
 
   for (const [tok, sess] of sessionsByToken) {
@@ -429,10 +447,12 @@ export function findUserByUid(uid: string): AuthUser | null {
  * Logs in (or registers) a user via Google SSO.
  * The email is auto-verified since Google has already validated it.
  */
-export function loginWithGoogle(profile: { email: string; firstName: string; lastName: string }): AuthUser & { sessionToken: string } {
+export function loginWithGoogle(profile: { email: string; firstName: string; lastName: string; timezone?: string }): AuthUser & { sessionToken: string } {
   const email = normalizeEmail(profile.email);
   const uid = uidFromEmail(email);
   let user = usersByUid.get(uid);
+
+  const tz = profile.timezone && isValidTimezone(profile.timezone) ? profile.timezone : DEFAULT_WORKING_HOURS.timezone;
 
   if (!user) {
     const saltB64 = crypto.randomBytes(16).toString("base64");
@@ -446,22 +466,27 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
       passwordSaltB64: saltB64,
       passwordHashB64: hashB64,
       effortMinutes: DEFAULT_EFFORT_MINUTES,
+      workingHours: { ...DEFAULT_WORKING_HOURS, timezone: tz },
       emailVerified: true,
       createdAt: new Date().toISOString(),
     };
     usersByUid.set(uid, user);
     persistUsers();
-    console.log("[auth] Google SSO — new user created: %s", email);
+    console.log("[auth] Google SSO — new user created: %s (tz: %s)", email, tz);
   } else {
-    if (!user.emailVerified) {
-      user.emailVerified = true;
-      persistUsers();
-    }
+    let changed = false;
+    if (!user.emailVerified) { user.emailVerified = true; changed = true; }
     if (!user.firstName && profile.firstName) {
       user.firstName = profile.firstName;
       user.lastName = profile.lastName;
-      persistUsers();
+      changed = true;
     }
+    const currentTz = user.workingHours?.timezone ?? "UTC";
+    if (currentTz === "UTC" && tz !== "UTC") {
+      user.workingHours = { ...(user.workingHours ?? DEFAULT_WORKING_HOURS), timezone: tz };
+      changed = true;
+    }
+    if (changed) persistUsers();
   }
 
   for (const [tok, sess] of sessionsByToken) {

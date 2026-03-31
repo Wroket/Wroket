@@ -38,12 +38,12 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export async function register(req: Request, res: Response) {
-  const { email, password } = req.body as { email?: unknown; password?: unknown };
+  const { email, password, timezone } = req.body as { email?: unknown; password?: unknown; timezone?: unknown };
   if (typeof email !== "string" || typeof password !== "string") {
     throw new ValidationError("Email et mot de passe requis");
   }
 
-  const result = registerService({ email, password });
+  const result = registerService({ email, password, timezone: typeof timezone === "string" ? timezone : undefined });
   await sendVerificationEmail(email, result.verifyToken);
   res.status(201).json({ message: "Compte créé. Vérifiez votre email.", needsVerification: true });
 }
@@ -113,10 +113,14 @@ export async function googleSsoCallback(req: Request, res: Response) {
 
   try {
     const userInfo = await exchangeGoogleSsoCode(code);
+    const cookieHeader = req.headers.cookie ?? "";
+    const tzMatch = cookieHeader.match(/(?:^|;\s*)tz=([^;]*)/);
+    const timezone = tzMatch ? decodeURIComponent(tzMatch[1]) : undefined;
     const result = loginWithGoogle({
       email: userInfo.email,
       firstName: userInfo.given_name ?? "",
       lastName: userInfo.family_name ?? "",
+      timezone,
     });
 
     const cookieSecure = process.env.COOKIE_SECURE === "true";
@@ -136,12 +140,12 @@ export async function googleSsoCallback(req: Request, res: Response) {
 }
 
 export async function login(req: Request, res: Response) {
-  const { email, password } = req.body as { email?: unknown; password?: unknown };
+  const { email, password, timezone } = req.body as { email?: unknown; password?: unknown; timezone?: unknown };
   if (typeof email !== "string" || typeof password !== "string") {
     throw new ValidationError("Email et mot de passe requis");
   }
 
-  const result = loginService({ email, password });
+  const result = loginService({ email, password, timezone: typeof timezone === "string" ? timezone : undefined });
 
   const cookieSecure = process.env.COOKIE_SECURE === "true";
   res.cookie(COOKIE_NAME, result.sessionToken, {

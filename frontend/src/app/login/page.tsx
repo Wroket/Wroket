@@ -49,6 +49,8 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setError(null);
     try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      document.cookie = `tz=${encodeURIComponent(tz)};path=/;max-age=300;SameSite=Lax`;
       const url = await getGoogleSsoUrl();
       window.location.href = url;
     } catch {

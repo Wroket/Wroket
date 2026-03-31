@@ -497,6 +497,8 @@ const translations = {
   "settings.whStart": { fr: "Début", en: "Start" },
   "settings.whEnd": { fr: "Fin", en: "End" },
   "settings.whTimezone": { fr: "Fuseau horaire", en: "Timezone" },
+  "settings.tzMismatch": { fr: "Votre navigateur détecte {tz}. Voulez-vous mettre à jour ?", en: "Your browser detects {tz}. Update?" },
+  "settings.tzApply": { fr: "Appliquer", en: "Apply" },
   "settings.whDays": { fr: "Jours de travail", en: "Working days" },
   "settings.whMon": { fr: "Lun", en: "Mon" },
   "settings.whTue": { fr: "Mar", en: "Tue" },

@@ -43,13 +43,18 @@ async function parseJsonOrThrow(res: Response): Promise<unknown> {
   }
 }
 
+function getBrowserTimezone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+  catch { return "Europe/Paris"; }
+}
+
 export async function login(
   payload: LoginPayload
 ): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, timezone: getBrowserTimezone() }),
     credentials: "include"
   });
 
@@ -70,7 +75,7 @@ export async function register(
   const res = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, timezone: getBrowserTimezone() }),
     credentials: "include"
   });
 
