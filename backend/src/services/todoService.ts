@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
@@ -195,6 +195,22 @@ export function listAssignedToMe(userId: string): Todo[] {
   );
 }
 
+/**
+ * Check whether `userId` can access (read/comment on) a todo.
+ *
+ * WHY: The original code had no access check on the comment endpoints.
+ * Any authenticated user could read or post comments on any task by
+ * supplying an arbitrary todoId. This function is the single source of
+ * truth for "can this user see this task?".
+ *
+ * A user can access a todo if:
+ *   1. They own it, OR
+ *   2. They are the assignee
+ */
+export function canAccessTodo(userId: string, todoId: string): boolean {
+  return findTodoForUser(userId, todoId) !== null;
+}
+
 export function createTodo(userId: string, input: CreateTodoInput): Todo {
   if (!input.title || input.title.trim().length === 0) {
     throw new ValidationError("Le titre est requis");
@@ -259,14 +275,14 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
  * Finds a todo by id — first in the user's own map, then across
  * all users for tasks assigned to this user.
  */
-function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap: Map<string, Todo> } | null {
+function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap: Map<string, Todo>; isOwner: boolean } | null {
   const own = getUserTodos(userId);
   const ownTodo = own.get(todoId);
-  if (ownTodo) return { todo: ownTodo, ownerMap: own };
+  if (ownTodo) return { todo: ownTodo, ownerMap: own, isOwner: true };
 
   for (const [, todos] of todosByUser) {
     const t = todos.get(todoId);
-    if (t && t.assignedTo === userId) return { todo: t, ownerMap: todos };
+    if (t && t.assignedTo === userId) return { todo: t, ownerMap: todos, isOwner: false };
   }
   return null;
 }
@@ -274,7 +290,14 @@ function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap
 export function updateTodo(userId: string, todoId: string, input: UpdateTodoInput): Todo {
   const found = findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
-  const { todo, ownerMap: todos } = found;
+  const { todo, ownerMap: todos, isOwner } = found;
+
+  // FIX: Only the task owner can change the assignee. Previously an
+  // assignee could call updateTodo with { assignedTo: "someone_else" }
+  // and steal/re-route the task away from the owner's control.
+  if (input.assignedTo !== undefined && !isOwner) {
+    throw new ForbiddenError("Seul le propriétaire de la tâche peut modifier l'assignation");
+  }
 
   if (input.title !== undefined) {
     if (input.title.trim().length === 0) throw new ValidationError("Le titre est requis");

@@ -20,6 +20,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "
 import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
 import { ValidationError } from "../utils/errors";
 import { getStore, scheduleSave } from "../persistence";
+import { parseCookies } from "../utils/parseCookies";
 
 function logInvite(fromEmail: string, fromName: string, toEmail: string): void {
   const store = getStore();
@@ -49,7 +50,10 @@ export async function register(req: Request, res: Response) {
 }
 
 export async function verifyEmail(req: Request, res: Response) {
-  const token = req.query.token;
+  // FIX: Accept token from POST body instead of GET query string.
+  // A GET endpoint that mutates state is vulnerable to CSRF via
+  // SameSite=Lax cookies (top-level navigations send cookies).
+  const token = req.body?.token ?? req.query.token;
   if (typeof token !== "string") {
     throw new ValidationError("Token requis");
   }
@@ -113,9 +117,14 @@ export async function googleSsoCallback(req: Request, res: Response) {
 
   try {
     const userInfo = await exchangeGoogleSsoCode(code);
-    const cookieHeader = req.headers.cookie ?? "";
-    const tzMatch = cookieHeader.match(/(?:^|;\s*)tz=([^;]*)/);
-    const timezone = tzMatch ? decodeURIComponent(tzMatch[1]) : undefined;
+
+    // Fix: use parseCookies instead of a hand-rolled regex.
+    // The original regex `cookieHeader.match(/(?:^|;\s*)tz=([^;]*)/)` skipped
+    // URI-decoding and would silently break for any timezone containing an
+    // encoded character (rare but possible for custom tz strings).
+    const cookies = parseCookies(req.headers.cookie);
+    const timezone = cookies.tz || undefined;
+
     const result = loginWithGoogle({
       email: userInfo.email,
       firstName: userInfo.given_name ?? "",

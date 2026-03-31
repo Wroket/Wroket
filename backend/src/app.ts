@@ -5,6 +5,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
 import { errorHandler } from "./middlewares/errorHandler";
+import { requestId } from "./middlewares/requestId";
 import healthRoutes from "./routes/healthRoutes";
 import authRoutes from "./routes/authRoutes";
 import todoRoutes from "./routes/todoRoutes";
@@ -40,6 +41,7 @@ app.use(
   })
 );
 app.use(express.json({ limit: "128kb" }));
+app.use(requestId);
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,

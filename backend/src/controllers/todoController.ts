@@ -8,12 +8,13 @@ import {
   listAssignedToMe,
   listArchivedTodos,
   updateTodo,
+  canAccessTodo,
   CreateTodoInput,
   UpdateTodoInput,
 } from "../services/todoService";
 import { listComments, addComment, deleteComment } from "../services/commentService";
 import { createNotification } from "../services/notificationService";
-import { ValidationError } from "../utils/errors";
+import { ForbiddenError, ValidationError } from "../utils/errors";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const todos = listTodos(req.user!.uid);
@@ -133,13 +134,25 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
 
 // ── Comments ──
 
+/**
+ * FIX: Verify the requesting user can access the todo before allowing
+ * comment operations. Previously any authenticated user could read/write
+ * comments on any task by supplying an arbitrary todoId.
+ */
+
 export async function getComments(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
+  if (!canAccessTodo(req.user!.uid, todoId)) {
+    throw new ForbiddenError("Accès refusé à cette tâche");
+  }
   res.status(200).json(listComments(todoId));
 }
 
 export async function postComment(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
+  if (!canAccessTodo(req.user!.uid, todoId)) {
+    throw new ForbiddenError("Accès refusé à cette tâche");
+  }
   const { text } = req.body as { text?: string };
   if (!text || typeof text !== "string") throw new ValidationError("Texte requis");
   const comment = addComment(todoId, req.user!.uid, req.user!.email, text);
@@ -148,6 +161,9 @@ export async function postComment(req: AuthenticatedRequest, res: Response) {
 
 export async function removeComment(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
+  if (!canAccessTodo(req.user!.uid, todoId)) {
+    throw new ForbiddenError("Accès refusé à cette tâche");
+  }
   const commentId = req.params.commentId as string;
   deleteComment(todoId, commentId, req.user!.uid);
   res.status(200).json({ ok: true });
