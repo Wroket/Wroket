@@ -25,10 +25,6 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Wroket",
   description: "Wroket — task management app",
-  icons: {
-    icon: "/wroket-logo.png",
-    apple: "/wroket-logo.png",
-  },
 };
 
 export default function RootLayout({
