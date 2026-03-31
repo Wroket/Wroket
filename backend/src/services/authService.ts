@@ -530,4 +530,24 @@ export function removeGoogleCalendarTokens(uid: string): void {
   persistUsers();
 }
 
+export function getActiveSessions(): Array<{ uid: string; email: string; expiresAt: number }> {
+  const now = Date.now();
+  const sessions: Array<{ uid: string; email: string; expiresAt: number }> = [];
+  for (const [, session] of sessionsByToken) {
+    if (now <= session.expiresAt) {
+      const user = usersByUid.get(session.uid);
+      sessions.push({ uid: session.uid, email: user?.email ?? "?", expiresAt: session.expiresAt });
+    }
+  }
+  return sessions;
+}
+
+export function countGoogleCalendarConnected(): number {
+  let count = 0;
+  for (const user of usersByUid.values()) {
+    if (user.googleCalendarTokens) count++;
+  }
+  return count;
+}
+
 export { COOKIE_NAME };

@@ -79,7 +79,24 @@
 - [ ] **Drag & drop** — Réordonner les tâches dans la liste / Kanban
 - [ ] **Export CSV/PDF** — Exporter ses tâches ou rapports de projet
 - [ ] **Activité / audit log** — Historique des actions par tâche
-- [ ] **Import / projets** — Possibilité d'importer des projets sous format csv, excel ou Google Sheet
+- [ ] **Import CSV → Projet** — Importer un fichier CSV pour créer un projet complet (phases + tâches) en une opération
+  - Template CSV : `phase`, `task_title`, `priority`, `effort`, `deadline`, `start_date`, `assignee_email`, `tags`
+  - Les phases sont auto-créées à partir des valeurs distinctes de la colonne `phase`
+  - Validation : champs obligatoires (`phase`, `task_title`), enums, format dates, emails existants
+  - UI : page d'upload avec prévisualisation des données parsées avant confirmation
+  - Endpoint : `POST /projects/import` (multipart/form-data)
+- [ ] **Commentaires avancés** — Enrichir le système de commentaires existant sur les tâches
+  - Édition de commentaires (bouton modifier, historique de modification)
+  - @mentions : autocomplétion des membres d'équipe, notification in-app + webhook au mentionné
+  - Réactions : emoji picker sur chaque commentaire (👍 ✅ ❤️ etc.), compteur par réaction
+- [ ] **Administration complète (RGPD)** — Dashboard admin exhaustif, conforme RGPD
+  - Statistiques globales : utilisateurs actifs/inactifs, tâches créées/complétées par période, projets, équipes
+  - Journal d'activité : historique des actions (création, modification, suppression) avec utilisateur, date, entité
+  - Historique de connexions : dernière connexion par utilisateur, sessions actives
+  - Taux de complétion par utilisateur et par équipe
+  - Vue d'ensemble des intégrations (webhooks configurés, Google Calendar connectés)
+  - Gestion utilisateurs : désactiver/réactiver un compte, reset mot de passe admin
+  - Conformité RGPD : export des données personnelles d'un utilisateur (droit d'accès), suppression complète d'un compte et ses données (droit à l'oubli), anonymisation, registre des traitements
 
 ## Intégrations & Connecteurs
 

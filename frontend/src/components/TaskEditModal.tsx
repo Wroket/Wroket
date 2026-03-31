@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
-import { getComments, postCommentApi, deleteCommentApi } from "@/lib/api";
+import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi } from "@/lib/api";
 import type { Todo, Priority, Effort, AuthMeResponse, Comment } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 
@@ -59,6 +59,9 @@ export default function TaskEditModal({
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [reactionPickerCommentId, setReactionPickerCommentId] = useState<string | null>(null);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
@@ -109,6 +112,27 @@ export default function TaskEditModal({
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     } catch { /* ignore */ }
   };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!todo || !editingText.trim()) return;
+    try {
+      const updated = await editCommentApi(todo.id, commentId, editingText.trim());
+      setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
+      setEditingCommentId(null);
+      setEditingText("");
+    } catch { /* ignore */ }
+  };
+
+  const handleToggleReaction = async (commentId: string, emoji: string) => {
+    if (!todo) return;
+    try {
+      const updated = await toggleReactionApi(todo.id, commentId, emoji);
+      setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
+    } catch { /* ignore */ }
+    setReactionPickerCommentId(null);
+  };
+
+  const REACTION_EMOJIS = ["\u{1F44D}", "\u{1F44E}", "\u2764\uFE0F", "\u{1F604}", "\u{1F680}", "\u2705"];
 
   return (
     <div
@@ -300,19 +324,54 @@ export default function TaskEditModal({
             ) : comments.map((c) => (
               <div key={c.id} className="bg-zinc-50 dark:bg-slate-800/60 rounded px-3 py-2 text-xs group">
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-medium text-zinc-700 dark:text-slate-300">{c.userEmail}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-zinc-700 dark:text-slate-300">{c.userEmail}</span>
+                    {c.editedAt && <span className="text-[10px] text-zinc-400 dark:text-slate-500 italic">{t("comments.edited" as TranslationKey)}</span>}
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-zinc-400 dark:text-slate-500">
                       {new Date(c.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </span>
                     {currentUserUid === c.userId && (
-                      <button type="button" onClick={() => handleDeleteComment(c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
+                      <>
+                        <button type="button" onClick={() => { setEditingCommentId(c.id); setEditingText(c.text); }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" title={t("comments.edit" as TranslationKey)}>
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                        <button type="button" onClick={() => handleDeleteComment(c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
-                <p className="text-zinc-600 dark:text-slate-400 whitespace-pre-wrap">{c.text}</p>
+                {editingCommentId === c.id ? (
+                  <div className="flex gap-1.5 mt-1">
+                    <input type="text" value={editingText} onChange={(e) => setEditingText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEditComment(c.id); } if (e.key === "Escape") setEditingCommentId(null); }} autoFocus className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500" />
+                    <button type="button" onClick={() => handleEditComment(c.id)} disabled={!editingText.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-2 py-1 text-xs text-white disabled:opacity-40">{t("edit.save")}</button>
+                    <button type="button" onClick={() => setEditingCommentId(null)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-600 dark:text-slate-300">{t("edit.cancel")}</button>
+                  </div>
+                ) : (
+                  <p className="text-zinc-600 dark:text-slate-400 whitespace-pre-wrap">{c.text.split(/(@[\w.+-]+@[\w.-]+)/g).map((part, i) => /^@[\w.+-]+@[\w.-]+$/.test(part) ? <span key={i} className="text-blue-600 dark:text-blue-400 font-medium">{part}</span> : part)}</p>
+                )}
+                {/* Reactions */}
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {c.reactions && Object.entries(c.reactions).map(([emoji, userIds]) => (
+                    <button key={emoji} type="button" onClick={() => handleToggleReaction(c.id, emoji)} className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] border transition-colors ${currentUserUid && userIds.includes(currentUserUid) ? "border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40" : "border-zinc-200 dark:border-slate-700 hover:border-zinc-400 dark:hover:border-slate-500"}`}>
+                      <span>{emoji}</span>
+                      <span className="text-zinc-500 dark:text-slate-400">{userIds.length}</span>
+                    </button>
+                  ))}
+                  <div className="relative">
+                    <button type="button" onClick={() => setReactionPickerCommentId(reactionPickerCommentId === c.id ? null : c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none" title={t("comments.addReaction" as TranslationKey)}>+</button>
+                    {reactionPickerCommentId === c.id && (
+                      <div className="absolute bottom-full left-0 mb-1 flex gap-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-zinc-200 dark:border-slate-700 p-1.5 z-10">
+                        {REACTION_EMOJIS.map((emoji) => (
+                          <button key={emoji} type="button" onClick={() => handleToggleReaction(c.id, emoji)} className="hover:bg-zinc-100 dark:hover:bg-slate-700 rounded p-0.5 text-sm">{emoji}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>

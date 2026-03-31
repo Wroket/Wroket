@@ -4,7 +4,7 @@ import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError } from "../utils/errors";
 import { dispatchWebhooks, type WebhookEvent } from "./webhookService";
 
-export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today";
+export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today" | "comment_mention";
 
 export interface Notification {
   id: string;

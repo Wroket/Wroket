@@ -298,3 +298,17 @@ export async function testWebhook(url: string, platform: WebhookPlatform): Promi
     return false;
   }
 }
+
+export function getWebhooksOverview(): { total: number; active: number; byPlatform: Record<string, number> } {
+  let total = 0;
+  let active = 0;
+  const byPlatform: Record<string, number> = {};
+  for (const list of webhooksByUser.values()) {
+    for (const w of list) {
+      total++;
+      if (w.enabled) active++;
+      byPlatform[w.platform] = (byPlatform[w.platform] ?? 0) + 1;
+    }
+  }
+  return { total, active, byPlatform };
+}

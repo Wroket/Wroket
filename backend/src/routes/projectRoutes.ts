@@ -12,8 +12,13 @@ import {
   patchPhase,
   removePhase,
 } from "../controllers/projectController";
+import { uploadMiddleware, preview, confirm } from "../controllers/importController";
 
 const router = Router();
+
+// CSV import routes (before /:id to avoid param conflicts)
+router.post("/import/preview", requireAuth, uploadMiddleware, preview);
+router.post("/import/confirm", requireAuth, uploadMiddleware, confirm);
 
 router.get("/", requireAuth, list);
 router.post("/", requireAuth, create);
