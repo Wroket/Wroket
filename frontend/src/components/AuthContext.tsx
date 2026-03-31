@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthContextType>({
   refresh: async () => {},
 });
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthMeResponse | null>(null);
