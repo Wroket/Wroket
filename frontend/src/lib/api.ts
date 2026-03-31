@@ -25,12 +25,27 @@ export interface SlotProposal {
   label: string;
 }
 
+export interface GoogleCalendarEntry {
+  calendarId: string;
+  label: string;
+  color: string;
+  enabled: boolean;
+  primary?: boolean;
+}
+
+export interface GoogleAccountPublic {
+  id: string;
+  email: string;
+  calendars: GoogleCalendarEntry[];
+}
+
 export interface AuthMeResponse {
   uid: string;
   email: string;
   firstName: string;
   lastName: string;
   effortMinutes: { light: number; medium: number; heavy: number };
+  googleAccounts?: GoogleAccountPublic[];
   workingHours: WorkingHours;
   googleCalendarConnected: boolean;
 }
@@ -1105,7 +1120,11 @@ export interface CalendarEvent {
   priority?: string;
   effort?: string;
   deadline?: string | null;
+  calendarId?: string;
+  calendarColor?: string;
+  accountEmail?: string;
 }
+
 
 export interface CalendarEventsResponse {
   wroketEvents: CalendarEvent[];
@@ -1131,6 +1150,32 @@ export async function getGoogleAuthUrl(): Promise<{ url: string }> {
 
 export async function disconnectGoogleCalendar(): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/calendar/google/disconnect`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur de déconnexion");
+}
+
+export async function getAccountCalendars(accountId: string): Promise<GoogleCalendarEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/calendar/google/accounts/${encodeURIComponent(accountId)}/calendars`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les calendriers");
+  return res.json();
+}
+
+export async function saveAccountCalendars(accountId: string, calendars: GoogleCalendarEntry[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/google/accounts/${encodeURIComponent(accountId)}/calendars`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ calendars }),
+  });
+  if (!res.ok) throw new Error("Impossible de sauvegarder");
+}
+
+export async function disconnectGoogleAccount(accountId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/google/disconnect/${encodeURIComponent(accountId)}`, {
     method: "DELETE",
     credentials: "include",
   });

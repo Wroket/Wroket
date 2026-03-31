@@ -6,17 +6,45 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 
+const SvgIcon = ({ d, className = "" }: { d: string; className?: string }) => (
+  <svg className={`w-6 h-6 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+
+const FEATURE_ICONS: Record<string, ReactNode> = {
+  eisenhower: (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <rect x="13" y="3" width="8" height="8" rx="1" />
+      <rect x="3" y="13" width="8" height="8" rx="1" />
+      <rect x="13" y="13" width="8" height="8" rx="1" />
+    </svg>
+  ),
+  calendar: <SvgIcon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+  notepad: <SvgIcon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />,
+  kanban: (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="5" height="18" rx="1" />
+      <rect x="10" y="3" width="5" height="12" rx="1" />
+      <rect x="17" y="3" width="5" height="15" rx="1" />
+    </svg>
+  ),
+  collab: <SvgIcon d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
+  notifs: <SvgIcon d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />,
+};
+
 const FEATURES_KEYS = [
-  { titleKey: "landing.f1.title", descKey: "landing.f1.desc", icon: "⚡", previewId: "eisenhower" },
-  { titleKey: "landing.f2.title", descKey: "landing.f2.desc", icon: "📅", previewId: "calendar" },
-  { titleKey: "landing.f3.title", descKey: "landing.f3.desc", icon: "📝", previewId: "notepad" },
-  { titleKey: "landing.f4.title", descKey: "landing.f4.desc", icon: "👥", previewId: "teams" },
-  { titleKey: "landing.f5.title", descKey: "landing.f5.desc", icon: "👁️", previewId: "views" },
-  { titleKey: "landing.f6.title", descKey: "landing.f6.desc", icon: "🔔", previewId: "notifs" },
+  { titleKey: "landing.f1.title", descKey: "landing.f1.desc", previewId: "eisenhower" },
+  { titleKey: "landing.f2.title", descKey: "landing.f2.desc", previewId: "calendar" },
+  { titleKey: "landing.f3.title", descKey: "landing.f3.desc", previewId: "notepad" },
+  { titleKey: "landing.f4.title", descKey: "landing.f4.desc", previewId: "kanban" },
+  { titleKey: "landing.f5.title", descKey: "landing.f5.desc", previewId: "collab" },
+  { titleKey: "landing.f6.title", descKey: "landing.f6.desc", previewId: "notifs" },
 ] as const;
 
 function FlipCard({ icon, titleKey, descKey, preview, t }: {
-  icon: string;
+  icon: ReactNode;
   titleKey: TranslationKey;
   descKey: TranslationKey;
   preview: ReactNode;
@@ -46,7 +74,9 @@ function FlipCard({ icon, titleKey, descKey, preview, t }: {
           className="p-6 rounded-2xl bg-white dark:bg-slate-800/50 border border-zinc-100 dark:border-slate-700/50 flex flex-col"
           style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
         >
-          <span className="text-3xl block mb-4">{icon}</span>
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
+            {icon}
+          </div>
           <h3 className="text-base font-semibold mb-2">{t(titleKey)}</h3>
           <p className="text-sm text-zinc-500 dark:text-slate-400 leading-relaxed flex-1">{t(descKey)}</p>
         </div>
@@ -56,7 +86,7 @@ function FlipCard({ icon, titleKey, descKey, preview, t }: {
           style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
         >
           <h3 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-3 flex items-center gap-1.5">
-            <span>{icon}</span> {t(titleKey)}
+            <span className="text-emerald-500 dark:text-emerald-400">{icon}</span> {t(titleKey)}
           </h3>
           <div className="flex-1 flex items-center">{preview}</div>
         </div>
@@ -65,16 +95,16 @@ function FlipCard({ icon, titleKey, descKey, preview, t }: {
   );
 }
 
-function FeaturePreview({ id }: { id: string }) {
+function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
   switch (id) {
     case "eisenhower":
       return (
         <div className="grid grid-cols-2 gap-1.5 w-full">
           {[
-            { label: "Urgent + Important", bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300" },
+            { label: fr ? "Urgent + Important" : "Urgent + Important", bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300" },
             { label: "Important", bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300" },
-            { label: "Urgent", bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300" },
-            { label: "Planifier", bg: "bg-zinc-100 dark:bg-slate-700", text: "text-zinc-600 dark:text-slate-300" },
+            { label: fr ? "Urgent" : "Urgent", bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300" },
+            { label: fr ? "Planifier" : "Schedule", bg: "bg-zinc-100 dark:bg-slate-700", text: "text-zinc-600 dark:text-slate-300" },
           ].map((q) => (
             <div key={q.label} className={`${q.bg} rounded-lg p-2 flex flex-col items-center justify-center min-h-[52px]`}>
               <span className={`text-[10px] font-semibold ${q.text} text-center leading-tight`}>{q.label}</span>
@@ -92,9 +122,17 @@ function FeaturePreview({ id }: { id: string }) {
           {["09:00", "09:30", "10:00", "10:30", "11:00"].map((h, i) => (
             <div key={h} className="flex items-center gap-2">
               <span className="text-[10px] text-zinc-400 dark:text-slate-500 w-8 shrink-0 font-mono">{h}</span>
-              {i === 1 || i === 2 ? (
-                <div className={`flex-1 rounded px-2 py-1 text-[10px] font-medium ${i === 1 ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-l-2 border-emerald-500" : "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-l-2 border-indigo-500"}`}>
-                  {i === 1 ? "Préparer la démo" : "Réunion équipe"}
+              {i === 1 ? (
+                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-l-2 border-red-500">
+                  {fr ? "Urgent : Démo client" : "Urgent: Client demo"}
+                </div>
+              ) : i === 2 ? (
+                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-l-2 border-emerald-500">
+                  perso@gmail.com
+                </div>
+              ) : i === 3 ? (
+                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-l-2 border-violet-500">
+                  pro@company.com
                 </div>
               ) : (
                 <div className="flex-1 rounded border border-dashed border-zinc-200 dark:border-slate-700 h-6" />
@@ -106,73 +144,82 @@ function FeaturePreview({ id }: { id: string }) {
     case "notepad":
       return (
         <div className="w-full bg-zinc-50 dark:bg-slate-800 rounded-lg p-3 space-y-1.5 text-left font-mono">
-          <p className="text-[10px] text-zinc-700 dark:text-slate-200">Idées pour la V2 :</p>
-          <p className="text-[10px] text-zinc-500 dark:text-slate-400">- Revoir le onboarding</p>
+          <p className="text-[10px] text-zinc-700 dark:text-slate-200">{fr ? "Idées pour la V2 :" : "V2 ideas:"}</p>
+          <p className="text-[10px] text-zinc-500 dark:text-slate-400">- {fr ? "Revoir le onboarding" : "Revamp onboarding"}</p>
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-zinc-500 dark:text-slate-400">-</span>
             <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1 rounded font-semibold">/task</span>
-            <span className="text-[10px] text-zinc-600 dark:text-slate-300">Refactorer l&apos;auth</span>
+            <span className="text-[10px] text-zinc-600 dark:text-slate-300">{fr ? "Refactorer l'auth" : "Refactor auth"}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-zinc-500 dark:text-slate-400">-</span>
             <span className="text-[10px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 px-1 rounded font-semibold">/deadline</span>
-            <span className="text-[10px] text-zinc-600 dark:text-slate-300">15 avril</span>
+            <span className="text-[10px] text-zinc-600 dark:text-slate-300">{fr ? "15 avril" : "April 15"}</span>
           </div>
           <div className="mt-1 flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400">
             <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-            Synchronisé
+            {fr ? "Synchronisé" : "Synced"}
           </div>
         </div>
       );
-    case "teams":
+    case "kanban":
       return (
-        <div className="w-full space-y-2">
+        <div className="w-full flex gap-2">
           {[
-            { name: "Marketing", members: 4, progress: 72 },
-            { name: "Produit", members: 3, progress: 45 },
-            { name: "Tech", members: 6, progress: 88 },
-          ].map((team) => (
-            <div key={team.name} className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-[8px] text-white font-bold shrink-0">
-                {team.name[0]}
+            { phase: "Design", items: [fr ? "Maquettes" : "Mockups", "Review"], color: "bg-violet-400" },
+            { phase: "Dev", items: ["Auth API", "Tests"], color: "bg-emerald-400" },
+            { phase: "Deploy", items: ["CI/CD"], color: "bg-sky-400" },
+          ].map((col) => (
+            <div key={col.phase} className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 mb-1.5">
+                <div className={`w-2 h-2 rounded-full ${col.color}`} />
+                <span className="text-[9px] font-bold text-zinc-600 dark:text-slate-300 uppercase tracking-wide">{col.phase}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[10px] font-semibold text-zinc-700 dark:text-slate-200 truncate">{team.name}</span>
-                  <span className="text-[9px] text-zinc-400 dark:text-slate-500">{team.members} membres</span>
-                </div>
-                <div className="w-full h-1.5 bg-zinc-100 dark:bg-slate-700 rounded-full mt-0.5">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${team.progress}%` }} />
-                </div>
+              <div className="space-y-1">
+                {col.items.map((item) => (
+                  <div key={item} className="bg-white dark:bg-slate-700 rounded px-2 py-1.5 text-[9px] text-zinc-700 dark:text-slate-200 border border-zinc-100 dark:border-slate-600 shadow-sm">
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
         </div>
       );
-    case "views":
+    case "collab":
       return (
-        <div className="w-full grid grid-cols-3 gap-2">
-          {[
-            { label: "Liste", icon: <><line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="14" y2="18" /></> },
-            { label: "Cards", icon: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></> },
-            { label: "Radar", icon: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><line x1="12" y1="3" x2="12" y2="7" /><line x1="12" y1="17" x2="12" y2="21" /><line x1="3" y1="12" x2="7" y2="12" /><line x1="17" y1="12" x2="21" y2="12" /></> },
-          ].map((v) => (
-            <div key={v.label} className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-zinc-50 dark:bg-slate-800 border border-zinc-100 dark:border-slate-700">
-              <svg className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                {v.icon}
-              </svg>
-              <span className="text-[10px] font-medium text-zinc-600 dark:text-slate-300">{v.label}</span>
+        <div className="w-full space-y-2">
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-slate-800">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-[7px] text-white font-bold shrink-0">J</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] text-zinc-700 dark:text-slate-200">{fr ? "Julie a assigné" : "Julie assigned"} <span className="font-semibold">{fr ? "Refactorer l'auth" : "Refactor auth"}</span></p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[8px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1.5 rounded-full font-medium">{fr ? "Accepter" : "Accept"}</span>
+                <span className="text-[8px] bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 rounded-full font-medium">{fr ? "Refuser" : "Decline"}</span>
+              </div>
             </div>
-          ))}
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-slate-800">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-rose-500 flex items-center justify-center text-[7px] text-white font-bold shrink-0">M</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] text-zinc-700 dark:text-slate-200"><span className="text-indigo-600 dark:text-indigo-400 font-medium">@Marc</span> {fr ? "Bien reçu, je m'en occupe" : "Got it, I'm on it"}</p>
+              <span className="text-[8px] text-zinc-400 dark:text-slate-500">{fr ? "il y a 5 min" : "5 min ago"}</span>
+            </div>
+          </div>
+          <div className="flex gap-1.5 px-2">
+            {["Slack", "Discord", "Teams"].map((p) => (
+              <span key={p} className="text-[8px] bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-medium">{p}</span>
+            ))}
+          </div>
         </div>
       );
     case "notifs":
       return (
         <div className="w-full space-y-1.5">
           {[
-            { text: "Julie vous a assigné une tâche", time: "2 min", dot: "bg-emerald-500" },
-            { text: "Deadline dans 1h : Démo client", time: "58 min", dot: "bg-amber-500" },
-            { text: "Nouveau commentaire sur « Auth »", time: "3h", dot: "bg-indigo-500" },
+            { text: fr ? "Julie vous a assigné une tâche" : "Julie assigned you a task", time: "2 min", dot: "bg-emerald-500" },
+            { text: fr ? "Deadline dans 1h : Démo client" : "Deadline in 1h: Client demo", time: "58 min", dot: "bg-amber-500" },
+            { text: fr ? "Nouveau commentaire sur « Auth »" : "New comment on 'Auth'", time: "3h", dot: "bg-indigo-500" },
           ].map((n) => (
             <div key={n.text} className="flex items-start gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-slate-800">
               <div className={`w-2 h-2 rounded-full ${n.dot} mt-1 shrink-0`} />
@@ -326,23 +373,29 @@ export default function LandingPage() {
             </div>
             <div className="p-6 space-y-3">
               {[
-                { label: "Lancer la campagne marketing", prio: "Haute", color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300", check: true },
-                { label: "Préparer la démo client", prio: "Moyenne", color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300", check: true },
-                { label: "Refactorer le module auth", prio: "Basse", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300", check: false },
-                { label: "Mettre à jour la documentation", prio: "Basse", color: "bg-zinc-100 dark:bg-slate-700 text-zinc-600 dark:text-slate-300", check: false },
+                { label: locale === "fr" ? "Lancer la campagne marketing" : "Launch marketing campaign", prio: locale === "fr" ? "Haute" : "High", color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300", check: true, tag: "marketing", slot: locale === "fr" ? "Lun 09:00" : "Mon 09:00" },
+                { label: locale === "fr" ? "Préparer la démo client" : "Prepare client demo", prio: locale === "fr" ? "Haute" : "High", color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300", check: false, tag: null, slot: locale === "fr" ? "Mar 14:00" : "Tue 14:00" },
+                { label: locale === "fr" ? "Refactorer le module auth" : "Refactor auth module", prio: locale === "fr" ? "Moyenne" : "Medium", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300", check: false, tag: "tech", slot: null },
+                { label: locale === "fr" ? "Mettre à jour la documentation" : "Update documentation", prio: locale === "fr" ? "Basse" : "Low", color: "bg-zinc-100 dark:bg-slate-700 text-zinc-600 dark:text-slate-300", check: false, tag: null, slot: null },
               ].map((task) => (
                 <div key={task.label} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-zinc-50 dark:bg-slate-800/50 border border-zinc-100 dark:border-slate-700/50">
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${task.check ? "bg-emerald-500 border-emerald-500" : "border-zinc-300 dark:border-slate-600"}`}>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${task.check ? "bg-emerald-500 border-emerald-500" : "border-zinc-300 dark:border-slate-600"}`}>
                     {task.check && (
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     )}
                   </div>
-                  <span className={`text-sm flex-1 ${task.check ? "line-through text-zinc-400 dark:text-slate-500" : "text-zinc-700 dark:text-slate-200"}`}>
+                  <span className={`text-sm flex-1 min-w-0 truncate text-left ${task.check ? "line-through text-zinc-400 dark:text-slate-500" : "text-zinc-700 dark:text-slate-200"}`}>
                     {task.label}
                   </span>
-                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${task.color}`}>
+                  {task.tag && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 shrink-0">{task.tag}</span>
+                  )}
+                  {task.slot && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 shrink-0">{task.slot}</span>
+                  )}
+                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 w-[72px] text-center ${task.color}`}>
                     {task.prio}
                   </span>
                 </div>
@@ -364,10 +417,10 @@ export default function LandingPage() {
             {FEATURES_KEYS.map((f) => (
               <FlipCard
                 key={f.titleKey}
-                icon={f.icon}
+                icon={FEATURE_ICONS[f.previewId]}
                 titleKey={f.titleKey}
                 descKey={f.descKey}
-                preview={<FeaturePreview id={f.previewId} />}
+                preview={<FeaturePreview id={f.previewId} fr={locale === "fr"} />}
                 t={t}
               />
             ))}

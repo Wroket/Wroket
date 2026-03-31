@@ -23,6 +23,7 @@ import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
+import PageHelpButton from "@/components/PageHelpButton";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import TaskEditModal from "@/components/TaskEditModal";
@@ -929,6 +930,18 @@ export default function TodosPage() {
               <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
                 {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
               </h2>
+              <PageHelpButton
+                title={t("todos.listTitle")}
+                items={[
+                  { text: t("help.todos.views" as TranslationKey) },
+                  { text: t("help.todos.dnd" as TranslationKey) },
+                  { text: t("help.todos.edit" as TranslationKey) },
+                  { text: t("help.todos.recurrence" as TranslationKey) },
+                  { text: t("help.todos.attachments" as TranslationKey) },
+                  { text: t("help.todos.comments" as TranslationKey) },
+                  { text: t("help.todos.export" as TranslationKey) },
+                ]}
+              />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
                 {(["all", "personal", "assigned"] as TaskScope[]).map((s) => (
                   <button

@@ -193,7 +193,16 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     res.status(401).json({ message: "Non authentifié" });
     return;
   }
-  res.status(200).json({ uid: user.uid, email: user.email, firstName: user.firstName, lastName: user.lastName, effortMinutes: user.effortMinutes, workingHours: user.workingHours, googleCalendarConnected: user.googleCalendarConnected });
+  res.status(200).json({
+    uid: user.uid,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    effortMinutes: user.effortMinutes,
+    workingHours: user.workingHours,
+    googleCalendarConnected: user.googleCalendarConnected,
+    googleAccounts: user.googleAccounts,
+  });
 }
 
 export async function lookupUser(req: AuthenticatedRequest, res: Response) {

@@ -16,9 +16,9 @@ interface TutorialStep {
 const STEPS: TutorialStep[] = [
   { titleKey: "tutorial.step1.title", descKey: "tutorial.step1.desc", icon: "✏️", color: "from-blue-500 to-indigo-600" },
   { titleKey: "tutorial.step2.title", descKey: "tutorial.step2.desc", icon: "👁️", color: "from-violet-500 to-purple-600" },
-  { titleKey: "tutorial.step3.title", descKey: "tutorial.step3.desc", icon: "📝", color: "from-teal-500 to-cyan-600" },
+  { titleKey: "tutorial.step3.title", descKey: "tutorial.step3.desc", icon: "📁", color: "from-amber-500 to-orange-600" },
   { titleKey: "tutorial.step4.title", descKey: "tutorial.step4.desc", icon: "📅", color: "from-sky-500 to-blue-600" },
-  { titleKey: "tutorial.step5.title", descKey: "tutorial.step5.desc", icon: "📁", color: "from-amber-500 to-orange-600" },
+  { titleKey: "tutorial.step5.title", descKey: "tutorial.step5.desc", icon: "📝", color: "from-teal-500 to-cyan-600" },
   { titleKey: "tutorial.step6.title", descKey: "tutorial.step6.desc", icon: "👥", color: "from-emerald-500 to-teal-600" },
   { titleKey: "tutorial.step7.title", descKey: "tutorial.step7.desc", icon: "🚀", color: "from-rose-500 to-pink-600" },
 ];

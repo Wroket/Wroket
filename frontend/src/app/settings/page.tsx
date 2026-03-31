@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import PageHelpButton from "@/components/PageHelpButton";
 import {
   getMe,
   updateProfile,
@@ -96,13 +98,28 @@ const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
 
 export default function SettingsPage() {
   const { t, locale, setLocale: changeLocale } = useLocale();
-  const [active, setActive] = useState<Section>("profile");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [active, setActive] = useState<Section>(
+    SECTIONS.some((s) => s.key === tabParam) ? (tabParam as Section) : "profile",
+  );
 
   return (
     <AppShell>
       <div className="max-w-[1000px] space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("settings.title")}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("settings.title")}</h2>
+            <PageHelpButton
+              title={t("settings.title")}
+              items={[
+                { text: t("help.settings.lang" as TranslationKey) },
+                { text: t("help.settings.hours" as TranslationKey) },
+                { text: t("help.settings.teams" as TranslationKey) },
+                { text: t("help.settings.activity" as TranslationKey) },
+              ]}
+            />
+          </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.subtitle")}</p>
         </div>
 
@@ -406,7 +423,7 @@ function TasksSection() {
                   onClick={() => toggleDay(dayVal)}
                   className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                     active
-                      ? "bg-slate-700 text-white dark:bg-slate-100 dark:text-slate-100"
+                      ? "bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-100"
                       : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
                   }`}
                 >
@@ -573,10 +590,15 @@ function IntegrationsSection() {
   const handleTest = async (wh: WebhookConfig) => {
     setTesting(wh.id);
     setTestResult(null);
-    const ok = await testWebhookApi(wh.url, wh.platform);
-    setTestResult({ id: wh.id, ok });
-    setTesting(null);
-    setTimeout(() => setTestResult(null), 4000);
+    try {
+      const ok = await testWebhookApi(wh.url, wh.platform);
+      setTestResult({ id: wh.id, ok });
+    } catch {
+      setTestResult({ id: wh.id, ok: false });
+    } finally {
+      setTesting(null);
+      setTimeout(() => setTestResult(null), 4000);
+    }
   };
 
   const inputCls = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
@@ -713,7 +735,7 @@ function IntegrationsSection() {
                         onClick={() => toggleEvent(ev.key)}
                         className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                           active
-                            ? "bg-slate-700 text-white dark:bg-slate-100 dark:text-slate-100"
+                            ? "bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-100"
                             : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
                         }`}
                       >
@@ -923,7 +945,7 @@ function AdminSection() {
     setError(null);
     setDeleting(true);
     try {
-      await deleteMyAccount(confirmWord === "SUPPRIMER" ? "SUPPRIMER" : deleteConfirm);
+      await deleteMyAccount(deleteConfirm);
       window.location.href = "/login";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");

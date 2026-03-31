@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
+import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
 import { useToast } from "@/components/Toast";
 import {
   getCalendarEvents,
-  getGoogleAuthUrl,
-  disconnectGoogleCalendar,
   getMe,
   getTodos,
   updateTodo,
@@ -19,8 +19,10 @@ import {
   type Effort,
   type AuthMeResponse,
   type Recurrence,
+  type GoogleAccountPublic,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import type { TranslationKey } from "@/lib/i18n";
 import { useUserLookup } from "@/lib/userUtils";
 import { classify, type EisenhowerQuadrant } from "@/lib/classify";
 
@@ -28,6 +30,17 @@ const HOUR_HEIGHT = 60;
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 22;
 const TOTAL_HOURS = DAY_END_HOUR - DAY_START_HOUR;
+
+const ACCOUNT_COLORS = [
+  "#10b981", // emerald
+  "#8b5cf6", // violet
+  "#3b82f6", // blue
+  "#f59e0b", // amber
+  "#ec4899", // pink
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#6366f1", // indigo
+];
 
 const QUADRANT_COLORS: Record<EisenhowerQuadrant, { bg: string; border: string; text: string; icon: string; label: string }> = {
   "do-first": { bg: "bg-red-100 dark:bg-red-900/40", border: "border-red-500", text: "text-red-800 dark:text-red-200", icon: "🔥", label: "Faire" },
@@ -64,6 +77,15 @@ function formatHour(h: number): string {
   return `${h.toString().padStart(2, "0")}:00`;
 }
 
+function hexToTintBg(hex: string, opacity = 0.15): string {
+  const clean = hex.replace("#", "");
+  if (clean.length < 6) return `rgba(16,185,129,${opacity})`;
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${opacity})`;
+}
+
 export default function AgendaPage() {
   const { t, locale } = useLocale();
   const { user } = useAuth();
@@ -73,7 +95,10 @@ export default function AgendaPage() {
   const [wroketEvents, setWroketEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleAccounts, setGoogleAccounts] = useState<GoogleAccountPublic[]>([]);
+  const [hiddenAccounts, setHiddenAccounts] = useState<Set<string>>(new Set());
+  const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
+  const calendarMenuRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
@@ -83,6 +108,14 @@ export default function AgendaPage() {
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const accountColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    googleAccounts.forEach((acc, i) => {
+      map.set(acc.email, ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]);
+    });
+    return map;
+  }, [googleAccounts]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
@@ -94,11 +127,21 @@ export default function AgendaPage() {
     (async () => {
       try {
         const me = await getMe();
-        if (!cancelled) setGoogleConnected(!!me.googleCalendarConnected);
+        if (!cancelled) setGoogleAccounts(me.googleAccounts ?? []);
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (calendarMenuRef.current && !calendarMenuRef.current.contains(e.target as Node)) {
+        setCalendarMenuOpen(false);
+      }
+    }
+    if (calendarMenuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [calendarMenuOpen]);
 
   const weekDays = useMemo(() => {
     const d = new Date(currentDate);
@@ -138,22 +181,21 @@ export default function AgendaPage() {
   const goPrev = useCallback(() => setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; }), []);
   const goNext = useCallback(() => setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; }), []);
 
-  const handleConnectGoogle = async () => {
-    try {
-      const { url } = await getGoogleAuthUrl();
-      window.location.href = url;
-    } catch { /* ignore */ }
+  const toggleAccountVisibility = (email: string) => {
+    setHiddenAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
   };
 
-  const handleDisconnectGoogle = async () => {
-    try {
-      await disconnectGoogleCalendar();
-      setGoogleConnected(false);
-      setGoogleEvents([]);
-    } catch { /* ignore */ }
-  };
+  const visibleGoogleEvents = useMemo(
+    () => googleEvents.filter((ev) => !ev.accountEmail || !hiddenAccounts.has(ev.accountEmail)),
+    [googleEvents, hiddenAccounts],
+  );
 
-  const allEvents = useMemo(() => [...wroketEvents, ...googleEvents], [wroketEvents, googleEvents]);
+  const allEvents = useMemo(() => [...wroketEvents, ...visibleGoogleEvents], [wroketEvents, visibleGoogleEvents]);
 
   const eventsForDay = useCallback(
     (day: Date, allDay: boolean) =>
@@ -166,8 +208,7 @@ export default function AgendaPage() {
 
   const weekLabel = useMemo(() => {
     const fmt = new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "long", year: "numeric" });
-    const s = fmt.format(weekDays[0]);
-    const e = fmt.format(weekDays[6]);
+    fmt.format(weekDays[0]);
     const startDay = weekDays[0].getDate();
     const endParts = fmt.formatToParts(weekDays[6]);
     const endDay = endParts.find((p) => p.type === "day")?.value ?? "";
@@ -176,6 +217,8 @@ export default function AgendaPage() {
     if (weekDays[0].getMonth() === weekDays[6].getMonth()) {
       return `${startDay} - ${endDay} ${endMonth} ${endYear}`;
     }
+    const s = fmt.format(weekDays[0]);
+    const e = fmt.format(weekDays[6]);
     return `${s} - ${e}`;
   }, [weekDays, locale]);
 
@@ -194,6 +237,13 @@ export default function AgendaPage() {
   const hasAllDayEvents = useMemo(() => weekDays.some((d) => eventsForDay(d, true).length > 0), [weekDays, eventsForDay]);
 
   const hours = useMemo(() => Array.from({ length: TOTAL_HOURS }, (_, i) => DAY_START_HOUR + i), []);
+
+  const getAccountColor = (accountEmail?: string): string => {
+    if (!accountEmail) return ACCOUNT_COLORS[0];
+    return accountColorMap.get(accountEmail) ?? ACCOUNT_COLORS[0];
+  };
+
+  // ── Task editing ──
 
   const handleDoubleClickEvent = async (ev: CalendarEvent) => {
     if (ev.source !== "wroket") return;
@@ -283,6 +333,16 @@ export default function AgendaPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{t("agenda.title")}</h1>
+            <PageHelpButton
+              title={t("agenda.title")}
+              items={[
+                { text: t("help.agenda.week" as TranslationKey) },
+                { text: t("help.agenda.edit" as TranslationKey) },
+                { text: t("help.agenda.google" as TranslationKey) },
+                { text: t("help.agenda.colors" as TranslationKey) },
+                { text: t("help.agenda.smartSlots" as TranslationKey) },
+              ]}
+            />
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -316,35 +376,68 @@ export default function AgendaPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {googleConnected ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                  {t("agenda.googleConnected")}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleDisconnectGoogle}
-                  className="rounded px-2.5 py-1 text-xs text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                >
-                  {t("agenda.disconnect")}
-                </button>
-              </div>
-            ) : (
+            {/* Calendar picker dropdown */}
+            <div className="relative" ref={calendarMenuRef}>
               <button
                 type="button"
-                onClick={handleConnectGoogle}
-                className="rounded px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                onClick={() => setCalendarMenuOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                {t("agenda.connectGoogle")}
+                {t("agenda.calendars" as TranslationKey)}
+                {googleAccounts.length > 0 && (
+                  <span className="ml-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {googleAccounts.length - hiddenAccounts.size}
+                  </span>
+                )}
+                <svg className={`w-3 h-3 transition-transform ${calendarMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
-            )}
+
+              {calendarMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-zinc-200 dark:border-slate-700 z-50 overflow-hidden">
+                  {googleAccounts.length > 0 ? (
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {googleAccounts.map((acc) => {
+                        const color = accountColorMap.get(acc.email) ?? ACCOUNT_COLORS[0];
+                        const visible = !hiddenAccounts.has(acc.email);
+                        return (
+                          <label
+                            key={acc.id}
+                            className="flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={visible}
+                              onChange={() => toggleAccountVisibility(acc.email)}
+                              className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                            <span className="text-xs text-zinc-700 dark:text-slate-200 flex-1 truncate font-medium">{acc.email}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-3 text-center">
+                      <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.noGoogleAccounts" as TranslationKey)}</p>
+                    </div>
+                  )}
+                  <div className="border-t border-zinc-100 dark:border-slate-700 px-3 py-2">
+                    <Link
+                      href="/agenda/manage"
+                      onClick={() => setCalendarMenuOpen(false)}
+                      className="block w-full text-center text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                    >
+                      {t("agenda.manageCalendars" as TranslationKey)}
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -401,14 +494,16 @@ export default function AgendaPage() {
                         {dayAllDay.map((ev) => {
                           const isWroket = ev.source === "wroket";
                           const qc = isWroket ? QUADRANT_COLORS[classifyEvent(ev)] : null;
+                          const acctColor = !isWroket ? getAccountColor(ev.accountEmail) : "";
                           return (
                             <div
                               key={ev.id}
                               className={`rounded px-1.5 py-0.5 text-[11px] truncate border-l-2 ${
                                 isWroket && qc
                                   ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
-                                  : "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-200"
+                                  : "text-zinc-800 dark:text-slate-200"
                               }`}
+                              style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
                               onDoubleClick={() => handleDoubleClickEvent(ev)}
                             >
                               {isWroket && qc ? `${qc.icon} ` : ""}{ev.summary}
@@ -462,16 +557,28 @@ export default function AgendaPage() {
                           const pos = getEventPosition(ev);
                           const isWroket = ev.source === "wroket";
                           const qc = isWroket ? QUADRANT_COLORS[classifyEvent(ev)] : null;
+                          const acctColor = !isWroket ? getAccountColor(ev.accountEmail) : "";
+                          const googleTitle = !isWroket
+                            ? `${ev.summary} (${ev.accountEmail ?? t("agenda.googleEvent")})`
+                            : undefined;
                           return (
                             <div
                               key={ev.id}
                               className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm ${
                                 isWroket && qc
                                   ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
-                                  : "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 cursor-default"
+                                  : "text-zinc-800 dark:text-slate-200 cursor-default"
                               }`}
-                              style={{ top: pos.top, height: pos.height, minHeight: 22 }}
-                              title={`${ev.summary}${isWroket && qc ? ` — ${qc.icon} ${qc.label}` : ` (${t("agenda.googleEvent")})`}`}
+                              style={{
+                                top: pos.top,
+                                height: pos.height,
+                                minHeight: 22,
+                                ...(!isWroket ? {
+                                  borderLeftColor: acctColor,
+                                  backgroundColor: hexToTintBg(acctColor, 0.18),
+                                } : {}),
+                              }}
+                              title={isWroket && qc ? `${ev.summary} — ${qc.icon} ${qc.label}` : googleTitle}
                               onDoubleClick={() => handleDoubleClickEvent(ev)}
                             >
                               <div className="text-xs font-semibold truncate leading-snug">

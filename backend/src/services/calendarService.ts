@@ -1,4 +1,4 @@
-import { listTodos } from "./todoService";
+import { listTodos, type Priority } from "./todoService";
 import { WorkingHours } from "./authService";
 
 export interface TimeSlot {
@@ -91,6 +91,65 @@ function tzLocalToUtc(year: number, month: number, day: number, hour: number, mi
   return new Date(asUtc.getTime() - offsetMs);
 }
 
+/* ── Scheduling context ── */
+
+export interface SchedulingContext {
+  priority?: Priority;
+  deadline?: string | null;
+  startDate?: string | null;
+}
+
+const DEFER_RATIO: Record<Priority, number> = {
+  high: 0,
+  medium: 0.3,
+  low: 0.5,
+};
+
+/**
+ * Compute the ideal search window [windowStart, deadlineCap] based on
+ * priority and deadline. High-priority or no-deadline tasks start ASAP;
+ * lower-priority tasks with distant deadlines are deferred to keep
+ * early slots free for urgent work.
+ */
+function computeSchedulingWindow(
+  now: Date,
+  durationMinutes: number,
+  ctx?: SchedulingContext,
+): { windowStart: Date; deadlineCap: Date | null } {
+  if (!ctx?.deadline) {
+    const start = ctx?.startDate ? new Date(ctx.startDate) : now;
+    return { windowStart: start > now ? start : now, deadlineCap: null };
+  }
+
+  const deadline = new Date(ctx.deadline);
+  if (isNaN(deadline.getTime()) || deadline <= now) {
+    return { windowStart: now, deadlineCap: null };
+  }
+
+  const DAY_MS = 24 * 3600_000;
+  const cap = new Date(deadline.getTime() - DAY_MS);
+  if (cap <= now) {
+    return { windowStart: now, deadlineCap: cap > now ? cap : null };
+  }
+
+  const startDate = ctx.startDate ? new Date(ctx.startDate) : null;
+  const effectiveStart = startDate && startDate > now ? startDate : now;
+
+  const msLeft = cap.getTime() - effectiveStart.getTime();
+  const ratio = DEFER_RATIO[ctx.priority ?? "medium"];
+  const deferMs = msLeft * ratio;
+
+  let windowStart = new Date(effectiveStart.getTime() + deferMs);
+
+  const minBufferMs = durationMinutes * 60_000 + 4 * 3600_000;
+  const latestPossibleStart = new Date(cap.getTime() - minBufferMs);
+  if (windowStart > latestPossibleStart) {
+    windowStart = latestPossibleStart > effectiveStart ? latestPossibleStart : effectiveStart;
+  }
+
+  return { windowStart, deadlineCap: cap };
+}
+
 /* ── Slot finder ── */
 
 export function findAvailableSlots(
@@ -100,10 +159,14 @@ export function findAvailableSlots(
   busySlots: TimeSlot[],
   maxResults: number = 3,
   startFrom?: Date,
+  schedulingCtx?: SchedulingContext,
 ): SlotProposal[] {
   const now = startFrom ?? new Date();
   const tz = workingHours.timezone;
   const allTodos = listTodos(userId);
+
+  const { windowStart, deadlineCap } = computeSchedulingWindow(now, durationMinutes, schedulingCtx);
+  const effectiveStart = windowStart > now ? windowStart : now;
 
   const occupiedSlots: TimeSlot[] = [
     ...busySlots,
@@ -120,16 +183,10 @@ export function findAvailableSlots(
   const [startH, startM] = workingHours.start.split(":").map(Number);
   const [endH, endM]     = workingHours.end.split(":").map(Number);
 
-  const todayInTz = getPartsInTz(now, tz);
-
-  // Debug log — remove once timezone is confirmed working
-  const probeOffset = getUtcOffsetMs(now, tz);
-  console.log("[tz-debug] timezone=%s offset=%dms (%dh) serverTz=%s nodeVersion=%s",
-    tz, probeOffset, probeOffset / 3600000,
-    Intl.DateTimeFormat().resolvedOptions().timeZone, process.version);
+  const startInTz = getPartsInTz(effectiveStart, tz);
 
   for (let dayOffset = 0; dayOffset < searchDays && proposals.length < maxResults; dayOffset++) {
-    const refPoint = tzLocalToUtc(todayInTz.year, todayInTz.month, todayInTz.day + dayOffset, 12, 0, tz);
+    const refPoint = tzLocalToUtc(startInTz.year, startInTz.month, startInTz.day + dayOffset, 12, 0, tz);
     const dayParts = getPartsInTz(refPoint, tz);
 
     if (!workingHours.daysOfWeek.includes(dayParts.dayOfWeek)) continue;
@@ -137,9 +194,11 @@ export function findAvailableSlots(
     const dayStart = tzLocalToUtc(dayParts.year, dayParts.month, dayParts.day, startH, startM, tz);
     const dayEnd   = tzLocalToUtc(dayParts.year, dayParts.month, dayParts.day, endH, endM, tz);
 
+    if (deadlineCap && dayStart >= deadlineCap) break;
+
     let slotStart: Date;
-    if (now > dayStart) {
-      slotStart = new Date(Math.ceil(now.getTime() / 900_000) * 900_000);
+    if (effectiveStart > dayStart) {
+      slotStart = new Date(Math.ceil(effectiveStart.getTime() / 900_000) * 900_000);
     } else {
       slotStart = new Date(dayStart);
     }
@@ -148,6 +207,7 @@ export function findAvailableSlots(
       const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60_000);
 
       if (slotEnd > dayEnd) break;
+      if (deadlineCap && slotEnd > deadlineCap) break;
 
       const overlaps = occupiedSlots.some(
         (occ) => slotStart < occ.end && slotEnd > occ.start,
@@ -164,10 +224,6 @@ export function findAvailableSlots(
         slotStart = new Date(slotStart.getTime() + 15 * 60_000);
       }
     }
-  }
-
-  if (proposals.length > 0) {
-    console.log("[tz-debug] firstSlot iso=%s label=%s", proposals[0].start, proposals[0].label);
   }
 
   return proposals;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
+import PageHelpButton from "@/components/PageHelpButton";
 import { getTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -98,7 +99,18 @@ export default function DashboardPage() {
       <div className="max-w-[1200px] space-y-6">
         {/* ── Title ── */}
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("dashboard.title")}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("dashboard.title")}</h2>
+            <PageHelpButton
+              title={t("dashboard.title")}
+              items={[
+                { text: t("help.dashboard.overview" as TranslationKey) },
+                { text: t("help.dashboard.radar" as TranslationKey) },
+                { text: t("help.dashboard.notifs" as TranslationKey) },
+                { text: t("help.dashboard.progress" as TranslationKey) },
+              ]}
+            />
+          </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("dashboard.subtitle")}</p>
         </div>
 

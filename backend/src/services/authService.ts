@@ -32,6 +32,28 @@ export interface GoogleCalendarTokens {
   expiresAt: number; // epoch ms
 }
 
+export interface GoogleCalendarEntry {
+  calendarId: string;
+  label: string;
+  color: string;
+  enabled: boolean;
+}
+
+/** A connected Google account with its OAuth tokens and selected calendars */
+export interface GoogleAccount {
+  id: string;
+  email: string;
+  tokens: GoogleCalendarTokens;
+  calendars: GoogleCalendarEntry[];
+}
+
+/** Public version exposed to frontend (no tokens) */
+export interface GoogleAccountPublic {
+  id: string;
+  email: string;
+  calendars: GoogleCalendarEntry[];
+}
+
 export interface AuthUser {
   uid: string;
   email: string;
@@ -40,6 +62,7 @@ export interface AuthUser {
   effortMinutes: EffortMinutes;
   workingHours: WorkingHours;
   googleCalendarConnected: boolean;
+  googleAccounts: GoogleAccountPublic[];
   emailVerified: boolean;
 }
 
@@ -52,7 +75,11 @@ interface StoredUser {
   passwordHashB64: string;
   effortMinutes?: EffortMinutes;
   workingHours?: WorkingHours;
+  /** @deprecated migrated to googleAccounts */
   googleCalendarTokens?: GoogleCalendarTokens;
+  /** @deprecated migrated to googleAccounts */
+  googleCalendars?: GoogleCalendarEntry[];
+  googleAccounts?: GoogleAccount[];
   emailVerified?: boolean;
   emailVerifyToken?: string;
   emailVerifyExpiresAt?: number;
@@ -122,7 +149,28 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
+/** Migrate legacy single-account format to googleAccounts[] */
+function migrateGoogleAccounts(user: StoredUser): void {
+  if (user.googleCalendarTokens && !user.googleAccounts?.length) {
+    user.googleAccounts = [{
+      id: crypto.randomUUID(),
+      email: "Google Calendar",
+      tokens: user.googleCalendarTokens,
+      calendars: user.googleCalendars ?? [],
+    }];
+    delete user.googleCalendarTokens;
+    delete user.googleCalendars;
+    persistUsers();
+  }
+}
+
+function resolveGoogleAccounts(user: StoredUser): GoogleAccount[] {
+  migrateGoogleAccounts(user);
+  return user.googleAccounts ?? [];
+}
+
 function toAuthUser(user: StoredUser): AuthUser {
+  const accounts = resolveGoogleAccounts(user);
   return {
     uid: user.uid,
     email: user.email,
@@ -130,7 +178,8 @@ function toAuthUser(user: StoredUser): AuthUser {
     lastName: user.lastName ?? "",
     effortMinutes: user.effortMinutes ?? DEFAULT_EFFORT_MINUTES,
     workingHours: user.workingHours ?? DEFAULT_WORKING_HOURS,
-    googleCalendarConnected: !!user.googleCalendarTokens,
+    googleCalendarConnected: accounts.length > 0,
+    googleAccounts: accounts.map((a) => ({ id: a.id, email: a.email, calendars: a.calendars })),
     emailVerified: user.emailVerified ?? false,
   };
 }
@@ -537,24 +586,110 @@ export function logout(cookies: string | undefined): void {
   }
 }
 
-export function setGoogleCalendarTokens(uid: string, tokens: GoogleCalendarTokens): void {
+// ── Google Accounts (multi-account) ──
+
+export function getGoogleAccounts(uid: string): GoogleAccount[] {
+  const user = usersByUid.get(uid);
+  if (!user) return [];
+  return resolveGoogleAccounts(user);
+}
+
+const MAX_GOOGLE_ACCOUNTS = 5;
+
+export function addGoogleAccount(uid: string, email: string, tokens: GoogleCalendarTokens): GoogleAccount {
   const user = usersByUid.get(uid);
   if (!user) throw new NotFoundError("Utilisateur introuvable");
-  user.googleCalendarTokens = tokens;
-  usersByUid.set(uid, user);
+  migrateGoogleAccounts(user);
+  const accounts = user.googleAccounts ?? [];
+  const existing = accounts.find((a) => a.email === email);
+  if (existing) {
+    if (tokens.refreshToken) {
+      existing.tokens = tokens;
+    } else {
+      existing.tokens.accessToken = tokens.accessToken;
+      existing.tokens.expiresAt = tokens.expiresAt;
+    }
+    persistUsers();
+    return existing;
+  }
+  if (accounts.length >= MAX_GOOGLE_ACCOUNTS) {
+    throw new ValidationError(`Maximum ${MAX_GOOGLE_ACCOUNTS} comptes Google autorisés`);
+  }
+  const account: GoogleAccount = {
+    id: crypto.randomUUID(),
+    email,
+    tokens,
+    calendars: [],
+  };
+  accounts.push(account);
+  user.googleAccounts = accounts;
+  persistUsers();
+  return account;
+}
+
+export function getGoogleAccountTokens(uid: string, accountId: string): GoogleCalendarTokens | null {
+  const accounts = getGoogleAccounts(uid);
+  return accounts.find((a) => a.id === accountId)?.tokens ?? null;
+}
+
+export function updateGoogleAccountTokens(uid: string, accountId: string, tokens: GoogleCalendarTokens): void {
+  const user = usersByUid.get(uid);
+  if (!user) return;
+  const accounts = resolveGoogleAccounts(user);
+  const account = accounts.find((a) => a.id === accountId);
+  if (account) {
+    account.tokens = tokens;
+    persistUsers();
+  }
+}
+
+export function removeGoogleAccount(uid: string, accountId: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  migrateGoogleAccounts(user);
+  const accounts = user.googleAccounts ?? [];
+  const exists = accounts.some((a) => a.id === accountId);
+  if (!exists) throw new NotFoundError("Compte Google introuvable");
+  user.googleAccounts = accounts.filter((a) => a.id !== accountId);
   persistUsers();
 }
 
-export function getGoogleCalendarTokens(uid: string): GoogleCalendarTokens | null {
-  const user = usersByUid.get(uid);
-  return user?.googleCalendarTokens ?? null;
-}
-
-export function removeGoogleCalendarTokens(uid: string): void {
+export function removeAllGoogleAccounts(uid: string): void {
   const user = usersByUid.get(uid);
   if (!user) return;
   delete user.googleCalendarTokens;
-  usersByUid.set(uid, user);
+  delete user.googleCalendars;
+  delete user.googleAccounts;
+  persistUsers();
+}
+
+export function setGoogleAccountCalendars(uid: string, accountId: string, calendars: GoogleCalendarEntry[]): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const accounts = resolveGoogleAccounts(user);
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) throw new NotFoundError("Compte Google introuvable");
+  account.calendars = calendars;
+  persistUsers();
+}
+
+// Legacy compat wrappers (used by bookSlot/clearSlot for write operations on first account)
+export function getGoogleCalendarTokens(uid: string): GoogleCalendarTokens | null {
+  const accounts = getGoogleAccounts(uid);
+  return accounts[0]?.tokens ?? null;
+}
+
+export function setGoogleCalendarTokens(uid: string, tokens: GoogleCalendarTokens): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  migrateGoogleAccounts(user);
+  const accounts = user.googleAccounts ?? [];
+  if (accounts.length > 0) {
+    accounts[0].tokens = tokens;
+  } else {
+    accounts.push({ id: crypto.randomUUID(), email: "Google Calendar", tokens, calendars: [] });
+    user.googleAccounts = accounts;
+  }
   persistUsers();
 }
 
@@ -573,7 +708,8 @@ export function getActiveSessions(): Array<{ uid: string; email: string; expires
 export function countGoogleCalendarConnected(): number {
   let count = 0;
   for (const user of usersByUid.values()) {
-    if (user.googleCalendarTokens) count++;
+    migrateGoogleAccounts(user);
+    if ((user.googleAccounts ?? []).length > 0) count++;
   }
   return count;
 }

@@ -37,9 +37,14 @@
 - [x] **Hardening sécurité (v3)** — Recherche globale avec contrôle d'accès projets (listProjects), partage notes avec vérification membership équipe, validation récurrence (interval 1-365, endDate), protection CSV formula injection (neutralisation =+@-), reorder batch unique persist (cap 200), rate limit /auth/search et /auth/my-export, attachments : MIME allowlist + path traversal guard (resolveAndGuard) + sanitisation filename + Content-Disposition RFC 5987 + nosniff, query search type safety + cap 200 chars
 - [x] **Harmonisation UI** — Couleurs boutons slate-700 (light), responsive amélioré, formulaire 2 lignes
 - [x] **Nettoyage code** — Suppression dead code (countComments, loadStore/saveStore deprecated, getActivityForUser, void stats), suppression requireAdminCheck dupliqué (déjà en middleware), fusion boucles admin, import statique au lieu de require()
-- [x] **Kanban Board** — Vue Kanban dans la partie Projets (tâches par phase, drag-style), bouton "Ajouter une phase" visible dans toutes les vues (Board, Kanban, Gantt)
+- [x] **Kanban Board** — Vue Kanban dans la partie Projets (tâches par phase, drag & drop entre colonnes @dnd-kit), bouton "Ajouter une phase" visible dans toutes les vues (Board, Kanban, Gantt)
 - [x] **Archives** — Archivage automatique des tâches terminées (>7j), page dédiée `/todos/archives`, restauration
 - [x] **Calendrier & Slots** — Working hours dans paramètres, calcul de créneaux (3 propositions), booking sur une tâche
+- [x] **Planification intelligente des slots** — Les créneaux proposés tiennent compte de la priorité et de la deadline de la tâche
+  - Ratio de report : high=0%, medium=30%, low=50% du temps restant avant deadline
+  - Fenêtre de recherche bornée à deadline - 1 jour (marge de sécurité)
+  - Respect du champ `startDate` comme borne inférieure
+  - Les tâches haute priorité/deadline proche réservent les premiers créneaux, les basse priorité sont reportées
 - [x] **Intégration Google Calendar** — OAuth2 natif (fetch), lecture/écriture agenda Google, token auto-refresh
 - [x] **Agenda** — Vue calendrier semaine, fusion événements Wroket (code couleur Eisenhower) + Google Calendar, double-clic sur tâche Wroket pour édition directe (modale TaskEditModal + refresh automatique)
 - [x] **Responsive mobile** — Viewport meta, sidebar hamburger, tableaux scrollables, badges wrap, bouton edit tactile
@@ -67,8 +72,9 @@
 - [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/code`, `/warning` dans l'éditeur de notes
 - [x] **Aide contextuelle notes** — Bouton ampoule avec liste des commandes et info hors ligne
 - [x] **Timezone utilisateur** — Détection automatique du fuseau horaire navigateur, auto-correction des profils UTC, dropdown dans les paramètres avec alerte de désynchronisation
-- [x] **Page d'accueil** — Landing page marketing avec hero animé, 6 flip cards interactives (features), CTA, footer
-- [x] **Tutoriel mis à jour** — 7 étapes couvrant notes, agenda, commandes slash, Google Calendar
+- [x] **Page d'accueil** — Landing page marketing bilingue FR/EN : hero avec mini-visuel interactif (tags, slots planifiés), 6 flip cards avec icônes SVG et previews (Eisenhower, Agenda multi-comptes, Notes, Kanban, Collaboration, Notifications), CTA, footer
+- [x] **Tutoriel mis à jour** — 7 étapes exhaustives (tâches, vues, projets/Kanban, agenda, notes, équipes, démarrage)
+- [x] **Aide contextuelle par page** — Bouton ampoule (PageHelpButton) avec popup portal sur chaque page (Dashboard, Tâches, Projets, Agenda, Notes, Paramètres), puces des features disponibles
 - [x] **Favicon Wroket** — Logo Wroket (fond blanc) dans les onglets navigateur (icon.png + apple-icon.png)
 - [x] **Responsive bloc-notes** — Pattern master-detail mobile (liste ou éditeur plein écran) avec bouton retour
 - [x] **Dark mode boutons** — Harmonisation couleurs boutons en dark mode (slate-600 au lieu de slate-100), correction tabs illisibles dark mode (archives, projets, SlotPicker)
@@ -116,12 +122,17 @@
 ## À l'étude (R&D)
 
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
-- [ ] **Multi-calendriers** — Connecter plusieurs calendriers externes sur un même compte Wroket
-  - Plusieurs comptes Google Calendar (perso + pro)
+- [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
+  - Modèle `googleAccounts[]` avec tokens + email par compte, migration automatique de l'ancien format single-account
+  - OAuth callback : détection de l'email du compte via CalendarList API, ajout au tableau (ou mise à jour si déjà connecté)
+  - Endpoints per-account : `GET/PUT /calendar/google/accounts/:accountId/calendars`, `DELETE /calendar/google/disconnect/:accountId`
+  - Page dédiée Agenda > Gérer les agendas : liste des comptes connectés avec calendriers par compte, bouton "Ajouter un compte Google", déconnexion individuelle
+  - Dropdown multi-comptes dans l'Agenda avec toggle de visibilité par compte, couleurs distinctes par compte
+  - Navigation sidebar "Agenda" en dossier déployable (Mon agenda / Gérer les agendas)
+  - RGPD : `googleAccounts` strippé de l'export utilisateur
+- [ ] **Multi-calendriers externes** — Connecter des fournisseurs supplémentaires
   - Outlook / Microsoft 365 (OAuth2 Microsoft Graph)
   - CalDAV générique (Nextcloud, iCloud, Fastmail…)
-  - Gestion dans Paramètres > Intégrations : ajout, nom personnalisé, couleur, toggle visibilité
-  - Fusion de tous les calendriers dans la vue Agenda avec code couleur par source
   - Prise en compte de tous les calendriers actifs dans le calcul des créneaux disponibles (SlotPicker)
 
 ## Sécurité & Auth
@@ -150,6 +161,7 @@
 - [x] **CSV export sécurisé** — Neutralisation formula injection (=, +, -, @, tab, CR) via préfixe `'` dans les cellules
 - [x] **Reorder sécurisé** — Batch unique persist (1 seul `scheduleSave`), cap 200 items, vérification propriété (`isOwner`)
 - [x] **Attachments sécurisés** — MIME allowlist (images, PDF, docs, CSV, ZIP, JSON), `resolveAndGuard` anti path-traversal, `sanitizeFilename`, Content-Disposition RFC 5987, `X-Content-Type-Options: nosniff`
+- [x] **Hardening sécurité (v4)** — Préservation refresh_token Google lors de re-auth, suppression fuite body Google dans erreurs, validation dates ISO (format + start<end + range max 90j), fan-out Google Calendar plafonné (20 requêtes parallèles max), max 5 comptes Google par user, calendarId length-bound (200), clearSlot/disconnectGoogle 404 si introuvable, protection open redirect auth URL Google, handleTest try/catch, correction bug logique deleteMyAccount
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
 - [ ] **2FA** — Authentification à deux facteurs (TOTP)
 

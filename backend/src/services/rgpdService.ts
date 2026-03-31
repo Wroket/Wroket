@@ -67,8 +67,8 @@ export function exportUserData(uid: string): UserDataExport {
 
 const SENSITIVE_FIELDS = [
   "passwordHashB64", "passwordSaltB64",
-  "googleCalendarTokens", "emailVerifyToken",
-  "resetToken", "resetTokenExpiry",
+  "googleCalendarTokens", "googleAccounts",
+  "emailVerifyToken", "resetToken", "resetTokenExpiry",
 ];
 
 function sanitizeUserForExport(user: Record<string, unknown>): Record<string, unknown> {

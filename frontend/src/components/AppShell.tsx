@@ -74,14 +74,17 @@ const TASKS_NAV = {
   ],
 };
 
-const AGENDA_ITEM = {
+const AGENDA_NAV = {
   tKey: "nav.agenda" as TranslationKey,
-  href: "/agenda",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   ),
+  children: [
+    { tKey: "nav.myAgenda" as TranslationKey, href: "/agenda" },
+    { tKey: "nav.manageCalendars" as TranslationKey, href: "/agenda/manage" },
+  ],
 };
 
 const NOTES_ITEM = {
@@ -165,6 +168,7 @@ export default function AppShell({ children }: AppShellProps) {
   const { showTutorial, openTutorial, closeTutorial } = useTutorial();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
+  const [agendaOpen, setAgendaOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
@@ -193,6 +197,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (pathname.startsWith("/todos")) setTasksOpen(true);
+    if (pathname.startsWith("/agenda")) setAgendaOpen(true);
     setMobileMenuOpen(false);
   }, [pathname]);
 
@@ -700,7 +705,41 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             )}
           </div>
-          <NavLink href={AGENDA_ITEM.href} icon={AGENDA_ITEM.icon} label={t(AGENDA_ITEM.tKey)} active={pathname === "/agenda"} onClick={closeMobileMenu} />
+          <div>
+            <button
+              type="button"
+              onClick={() => setAgendaOpen((v) => !v)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                pathname.startsWith("/agenda")
+                  ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                  : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+              }`}
+            >
+              {AGENDA_NAV.icon}
+              <span className="flex-1 text-left">{t(AGENDA_NAV.tKey)}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform ${agendaOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            {agendaOpen && (
+              <div className="ml-7 mt-0.5 space-y-0.5">
+                {AGENDA_NAV.children.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    onClick={closeMobileMenu}
+                    className={`block px-3 py-2 rounded text-sm transition-colors ${
+                      pathname === child.href
+                        ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                        : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {t(child.tKey)}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           <NavLink href={NOTES_ITEM.href} icon={NOTES_ITEM.icon} label={t(NOTES_ITEM.tKey)} active={pathname === "/notes"} onClick={closeMobileMenu} />
           {NAV_ITEMS.slice(1).map((item) => (
             <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
@@ -790,7 +829,40 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <NavLink href={AGENDA_ITEM.href} icon={AGENDA_ITEM.icon} label={t(AGENDA_ITEM.tKey)} active={pathname === "/agenda"} />
+            <div>
+              <button
+                type="button"
+                onClick={() => setAgendaOpen((v) => !v)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                  pathname.startsWith("/agenda")
+                    ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                    : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+                }`}
+              >
+                {AGENDA_NAV.icon}
+                <span className="flex-1 text-left">{t(AGENDA_NAV.tKey)}</span>
+                <svg className={`w-3.5 h-3.5 transition-transform ${agendaOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              {agendaOpen && (
+                <div className="ml-7 mt-0.5 space-y-0.5">
+                  {AGENDA_NAV.children.map((child) => (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      className={`block px-3 py-2 rounded text-sm transition-colors ${
+                        pathname === child.href
+                          ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                          : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      {t(child.tKey)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
             <NavLink href={NOTES_ITEM.href} icon={NOTES_ITEM.icon} label={t(NOTES_ITEM.tKey)} active={pathname === "/notes"} />
             {NAV_ITEMS.slice(1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />

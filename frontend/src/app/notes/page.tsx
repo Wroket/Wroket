@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import AppShell from "@/components/AppShell";
+import PageHelpButton from "@/components/PageHelpButton";
 import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
@@ -18,7 +19,6 @@ export default function NotesPage() {
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [showHelp, setShowHelp] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
@@ -118,61 +118,17 @@ export default function NotesPage() {
                 {t("notes.title" as TranslationKey)}
               </h1>
               <div className="flex items-center gap-1.5 relative">
-                <button
-                  type="button"
-                  onClick={() => setShowHelp((v) => !v)}
-                  className={`rounded-lg p-1.5 transition-colors ${showHelp ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600" : "text-zinc-400 dark:text-slate-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"}`}
-                  title="Aide & commandes"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </button>
-                {showHelp && (
-                  <>
-                    <div className="fixed inset-0 z-[50]" onClick={() => setShowHelp(false)} />
-                    <div className="absolute top-full right-0 mt-2 z-[60] w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-zinc-200 dark:border-slate-600 p-3 space-y-3">
-                      <div>
-                        <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200 mb-1.5">Commandes /</p>
-                        <p className="text-[10px] text-zinc-500 dark:text-slate-400 mb-2">Tapez <kbd className="font-mono bg-zinc-100 dark:bg-slate-700 px-1 rounded">/</kbd> dans l&apos;éditeur pour ouvrir le menu.</p>
-                        <div className="space-y-1">
-                          {[
-                            { cmd: "/task", desc: "Créer une tâche" },
-                            { cmd: "/assign", desc: "Mentionner un collaborateur" },
-                            { cmd: "/deadline", desc: "Insérer une échéance" },
-                            { cmd: "/project", desc: "Lier à un projet" },
-                            { cmd: "/date", desc: "Date du jour" },
-                            { cmd: "/time", desc: "Heure actuelle" },
-                            { cmd: "/code", desc: "Bloc de code" },
-                          ].map((item) => (
-                            <div key={item.cmd} className="flex items-center gap-2">
-                              <code className="text-[10px] font-mono font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded shrink-0">{item.cmd}</code>
-                              <span className="text-[10px] text-zinc-500 dark:text-slate-400 truncate">{item.desc}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="border-t border-zinc-100 dark:border-slate-700 pt-2">
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0 mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                          </span>
-                          <div>
-                            <p className="text-[10px] font-semibold text-zinc-700 dark:text-slate-200">Mode hors ligne</p>
-                            <p className="text-[10px] text-zinc-500 dark:text-slate-400 leading-relaxed">
-                              Les notes sont sauvegardées localement et se synchronisent automatiquement au retour en ligne.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="border-t border-zinc-100 dark:border-slate-700 pt-2">
-                        <p className="text-[10px] text-zinc-400 dark:text-slate-500">
-                          <kbd className="font-mono bg-zinc-100 dark:bg-slate-700 px-1 rounded">Ctrl+N</kbd> nouvelle note
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                )}
+                <PageHelpButton
+                  title={t("notes.title" as TranslationKey)}
+                  items={[
+                    { text: t("help.notes.slash" as TranslationKey) },
+                    { text: t("help.notes.folders" as TranslationKey) },
+                    { text: t("help.notes.tags" as TranslationKey) },
+                    { text: t("help.notes.export" as TranslationKey) },
+                    { text: t("help.notes.sharing" as TranslationKey) },
+                    { text: t("help.notes.offline" as TranslationKey) },
+                  ]}
+                />
                 <button
                   type="button"
                   onClick={handleNew}

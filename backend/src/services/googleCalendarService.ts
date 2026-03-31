@@ -1,4 +1,10 @@
-import { getGoogleCalendarTokens, setGoogleCalendarTokens, GoogleCalendarTokens } from "./authService";
+import {
+  getGoogleCalendarTokens,
+  setGoogleCalendarTokens,
+  getGoogleAccountTokens,
+  updateGoogleAccountTokens,
+  type GoogleCalendarTokens,
+} from "./authService";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
@@ -47,8 +53,7 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleCalenda
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Google token exchange failed: ${body}`);
+    throw new Error("Google token exchange failed");
   }
 
   const data = await res.json() as {
@@ -65,16 +70,30 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleCalenda
 }
 
 /**
- * Get a valid access token, refreshing if expired.
+ * Get a valid access token, refreshing if expired (legacy: first account).
  */
 async function getValidAccessToken(uid: string): Promise<string | null> {
   const tokens = getGoogleCalendarTokens(uid);
   if (!tokens) return null;
+  return refreshIfNeeded(tokens, (updated) => setGoogleCalendarTokens(uid, updated));
+}
 
+/**
+ * Get a valid access token for a specific account, refreshing if expired.
+ */
+export async function getValidAccessTokenForAccount(uid: string, accountId: string): Promise<string | null> {
+  const tokens = getGoogleAccountTokens(uid, accountId);
+  if (!tokens) return null;
+  return refreshIfNeeded(tokens, (updated) => updateGoogleAccountTokens(uid, accountId, updated));
+}
+
+async function refreshIfNeeded(
+  tokens: GoogleCalendarTokens,
+  onRefresh: (updated: GoogleCalendarTokens) => void,
+): Promise<string | null> {
   if (Date.now() < tokens.expiresAt - 60_000) {
     return tokens.accessToken;
   }
-
   if (!tokens.refreshToken) return null;
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -91,27 +110,121 @@ async function getValidAccessToken(uid: string): Promise<string | null> {
   if (!res.ok) return null;
 
   const data = await res.json() as { access_token: string; expires_in: number };
-
   const updated: GoogleCalendarTokens = {
     accessToken: data.access_token,
     refreshToken: tokens.refreshToken,
     expiresAt: Date.now() + data.expires_in * 1000,
   };
-  setGoogleCalendarTokens(uid, updated);
+  onRefresh(updated);
   return updated.accessToken;
 }
 
 /**
- * List Google Calendar events between timeMin and timeMax.
+ * Fetch the email of a Google account using its access token (via calendarList primary).
+ */
+export async function fetchGoogleAccountEmail(accessToken: string): Promise<string> {
+  try {
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) return "Google Calendar";
+    const data = await res.json() as {
+      items?: Array<{ id: string; primary?: boolean }>;
+    };
+    const primary = (data.items ?? []).find((c) => c.primary);
+    return primary?.id ?? "Google Calendar";
+  } catch {
+    return "Google Calendar";
+  }
+}
+
+export interface GoogleCalendarListItem {
+  id: string;
+  summary: string;
+  backgroundColor: string;
+  primary?: boolean;
+}
+
+/**
+ * List all calendars available on a specific Google account.
+ */
+export async function listGoogleCalendarListForAccount(uid: string, accountId: string): Promise<GoogleCalendarListItem[]> {
+  const accessToken = await getValidAccessTokenForAccount(uid, accountId);
+  if (!accessToken) return [];
+  return fetchCalendarList(accessToken);
+}
+
+/**
+ * List all calendars available on the user's Google account (legacy: first account).
+ */
+export async function listGoogleCalendarList(uid: string): Promise<GoogleCalendarListItem[]> {
+  const accessToken = await getValidAccessToken(uid);
+  if (!accessToken) return [];
+  return fetchCalendarList(accessToken);
+}
+
+async function fetchCalendarList(accessToken: string): Promise<GoogleCalendarListItem[]> {
+  try {
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as {
+      items?: Array<{
+        id: string;
+        summary?: string;
+        backgroundColor?: string;
+        primary?: boolean;
+      }>;
+    };
+    return (data.items ?? []).map((c) => ({
+      id: c.id,
+      summary: c.summary ?? c.id,
+      backgroundColor: c.backgroundColor ?? "#4285f4",
+      primary: c.primary,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * List events for a specific account + calendar.
+ */
+export async function listEventsForAccount(
+  uid: string,
+  accountId: string,
+  calendarId: string,
+  timeMin: string,
+  timeMax: string,
+): Promise<GoogleCalendarEvent[]> {
+  const accessToken = await getValidAccessTokenForAccount(uid, accountId);
+  if (!accessToken) return [];
+  return fetchEvents(accessToken, calendarId, timeMin, timeMax);
+}
+
+/**
+ * List Google Calendar events between timeMin and timeMax for a specific calendar (legacy).
  */
 export async function listGoogleCalendarEvents(
   uid: string,
   timeMin: string,
   timeMax: string,
+  calendarId = "primary",
 ): Promise<GoogleCalendarEvent[]> {
   const accessToken = await getValidAccessToken(uid);
   if (!accessToken) return [];
+  return fetchEvents(accessToken, calendarId, timeMin, timeMax);
+}
 
+async function fetchEvents(
+  accessToken: string,
+  calendarId: string,
+  timeMin: string,
+  timeMax: string,
+): Promise<GoogleCalendarEvent[]> {
   const params = new URLSearchParams({
     timeMin,
     timeMax,
@@ -122,12 +235,10 @@ export async function listGoogleCalendarEvents(
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
-
     if (!res.ok) return [];
-
     const data = await res.json() as {
       items?: Array<{
         id: string;
@@ -136,7 +247,6 @@ export async function listGoogleCalendarEvents(
         end?: { dateTime?: string; date?: string };
       }>;
     };
-
     return (data.items ?? []).map((item) => ({
       id: item.id,
       summary: item.summary ?? "(Sans titre)",

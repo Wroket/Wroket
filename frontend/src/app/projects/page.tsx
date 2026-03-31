@@ -2,9 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
+import PageHelpButton from "@/components/PageHelpButton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SubtaskModal from "@/components/SubtaskModal";
 import TaskEditModal from "@/components/TaskEditModal";
@@ -333,6 +345,26 @@ function GanttChart({
   );
 }
 
+/* ─── Kanban DnD wrappers ─── */
+
+function DroppablePhaseColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`flex-1 overflow-y-auto px-2 py-2 space-y-2 transition-colors ${isOver ? "bg-blue-50/50 dark:bg-blue-950/20 ring-2 ring-blue-400/40 ring-inset rounded" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
+function DraggableKanbanCard({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} className={`touch-none ${isDragging ? "opacity-30" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
 /* ─── Main Page ─── */
 
 export default function ProjectsPage() {
@@ -395,6 +427,18 @@ export default function ProjectsPage() {
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
 
   const [confirm, setConfirm] = useState<{ title: string; message: string; action: () => void } | null>(null);
+
+  const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
+  const kanbanSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const draggedTodo = useMemo(
+    () => (draggedTodoId ? projectTodos.find((t) => t.id === draggedTodoId) ?? null : null),
+    [draggedTodoId, projectTodos],
+  );
+
+  const handleKanbanDragStart = useCallback((event: DragStartEvent) => {
+    setDraggedTodoId(String(event.active.id));
+  }, []);
 
   const orderedPhases = useMemo(
     () => [...(selectedProject?.phases ?? [])].sort((a, b) => a.order - b.order),
@@ -599,6 +643,19 @@ export default function ProjectsPage() {
       toast.error(err instanceof Error ? err.message : "Error");
     }
   };
+
+  const handleKanbanDragEnd = useCallback((event: DragEndEvent) => {
+    setDraggedTodoId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const todoId = String(active.id);
+    const newPhaseId = String(over.id);
+    const todo = projectTodos.find((t) => t.id === todoId);
+    if (!todo) return;
+    const currentPhaseId = todo.phaseId ?? "__none__";
+    if (currentPhaseId === newPhaseId) return;
+    handleMoveTaskToPhase(todoId, newPhaseId === "__none__" ? null : newPhaseId);
+  }, [projectTodos, handleMoveTaskToPhase]);
 
   // ── Edit modal handlers ──
 
@@ -1111,190 +1168,207 @@ export default function ProjectsPage() {
             </div>
           ) : detailTab === "kanban" ? (
             /* ═══ KANBAN VIEW ═══ */
-            <div className="overflow-x-auto pb-4">
-              <div className="flex gap-4" style={{ minWidth: Math.max(orderedPhases.length + 1, 3) * 290 + "px" }}>
-                {(() => {
-                  const kanbanPhases = orderedPhases.length > 0
-                    ? orderedPhases
-                    : [{ id: "__none__", name: t("phase.unassigned" as TranslationKey), color: "#94a3b8", order: 0, projectId: "", startDate: null, endDate: null, createdAt: "" } as ProjectPhase];
-                  const unassigned = projectTodos.filter((td) => !td.parentId && !td.phaseId);
+            <DndContext sensors={kanbanSensors} onDragStart={handleKanbanDragStart} onDragEnd={handleKanbanDragEnd}>
+              <div className="overflow-x-auto pb-4">
+                <div className="flex gap-4" style={{ minWidth: Math.max(orderedPhases.length + 1, 3) * 290 + "px" }}>
+                  {(() => {
+                    const kanbanPhases = orderedPhases.length > 0
+                      ? orderedPhases
+                      : [{ id: "__none__", name: t("phase.unassigned" as TranslationKey), color: "#94a3b8", order: 0, projectId: "", startDate: null, endDate: null, createdAt: "" } as ProjectPhase];
+                    const unassigned = projectTodos.filter((td) => !td.parentId && !td.phaseId);
 
-                  return (
-                    <>
-                      {kanbanPhases.map((phase) => {
-                        const isReal = phase.id !== "__none__";
-                        const phaseTasks = isReal
-                          ? projectTodos.filter((td) => !td.parentId && td.phaseId === phase.id)
-                          : unassigned;
-                        const active = phaseTasks.filter((td) => td.status === "active");
-                        const completed = phaseTasks.filter((td) => td.status === "completed");
-                        const other = phaseTasks.filter((td) => td.status !== "active" && td.status !== "completed");
+                    return (
+                      <>
+                        {kanbanPhases.map((phase) => {
+                          const isReal = phase.id !== "__none__";
+                          const phaseTasks = isReal
+                            ? projectTodos.filter((td) => !td.parentId && td.phaseId === phase.id)
+                            : unassigned;
+                          const active = phaseTasks.filter((td) => td.status === "active");
+                          const completed = phaseTasks.filter((td) => td.status === "completed");
+                          const other = phaseTasks.filter((td) => td.status !== "active" && td.status !== "completed");
 
-                        return (
-                          <div
-                            key={phase.id}
-                            className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]"
-                          >
-                            <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
-                              <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: phase.color }} />
-                              <span className="text-sm font-semibold text-zinc-700 dark:text-slate-200 truncate flex-1">{phase.name}</span>
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-slate-700 text-zinc-600 dark:text-slate-400">{phaseTasks.length}</span>
-                            </div>
+                          return (
+                            <div
+                              key={phase.id}
+                              className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]"
+                            >
+                              <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
+                                <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: phase.color }} />
+                                <span className="text-sm font-semibold text-zinc-700 dark:text-slate-200 truncate flex-1">{phase.name}</span>
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-slate-700 text-zinc-600 dark:text-slate-400">{phaseTasks.length}</span>
+                              </div>
 
-                            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
-                              {active.length === 0 && completed.length === 0 && other.length === 0 && (
-                                <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("phase.empty" as TranslationKey)}</p>
-                              )}
+                              <DroppablePhaseColumn id={phase.id}>
+                                {active.length === 0 && completed.length === 0 && other.length === 0 && (
+                                  <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("phase.empty" as TranslationKey)}</p>
+                                )}
 
-                              {active.map((todo) => {
-                                const dl = deadlineLabel(todo.deadline, t);
-                                const subs = getSubtasks(todo.id);
-                                return (
-                                  <div
-                                    key={todo.id}
-                                    className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-pointer group/card"
-                                    onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "completed"); }}
-                                        className="w-4 h-4 mt-0.5 rounded border border-zinc-300 dark:border-slate-600 flex items-center justify-center text-zinc-400 hover:border-green-500 hover:text-green-500 transition-colors shrink-0"
+                                {active.map((todo) => {
+                                  const dl = deadlineLabel(todo.deadline, t);
+                                  const subs = getSubtasks(todo.id);
+                                  return (
+                                    <DraggableKanbanCard key={todo.id} id={todo.id}>
+                                      <div
+                                        className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group/card"
+                                        onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
                                       >
-                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                      </button>
-                                      <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 leading-snug flex-1 min-w-0">{todo.title}</p>
-                                      <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0">
-                                        <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("subtask.add" as TranslationKey)}>
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                        </button>
-                                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTask(todo); }} className="text-zinc-400 hover:text-red-500 transition-colors p-0.5">
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
+                                        <div className="flex items-start gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "completed"); }}
+                                            className="w-4 h-4 mt-0.5 rounded border border-zinc-300 dark:border-slate-600 flex items-center justify-center text-zinc-400 hover:border-green-500 hover:text-green-500 transition-colors shrink-0"
+                                          >
+                                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                          </button>
+                                          <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 leading-snug flex-1 min-w-0">{todo.title}</p>
+                                          <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0">
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("subtask.add" as TranslationKey)}>
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                            </button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTask(todo); }} className="text-zinc-400 hover:text-red-500 transition-colors p-0.5">
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 mt-2 flex-wrap">
+                                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
+                                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
+                                          {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
+                                          {subs.length > 0 && (
+                                            <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subs.length} ↳</span>
+                                          )}
+                                          {todo.assignedTo && todo.assignedTo !== meUid && (
+                                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 truncate max-w-[100px]">← {displayName(todo.userId)}</span>
+                                          )}
+                                          {todo.assignedTo && todo.assignedTo !== todo.userId && todo.userId === meUid && (
+                                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 truncate max-w-[100px]">→ {displayName(todo.assignedTo)}</span>
+                                          )}
+                                        </div>
+                                        {subs.length > 0 && (
+                                          <div className="mt-2 space-y-1 border-t border-zinc-100 dark:border-slate-800 pt-1.5">
+                                            {subs.map((sub) => (
+                                              <div key={sub.id} className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-slate-400">
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(sub, sub.status === "completed" ? "active" : "completed"); }}
+                                                  className={`w-3 h-3 rounded-sm border flex items-center justify-center shrink-0 ${sub.status === "completed" ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 dark:border-slate-600"}`}
+                                                >
+                                                  {sub.status === "completed" && <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                                </button>
+                                                <span className={sub.status === "completed" ? "line-through opacity-60" : ""}>{sub.title}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-2 flex-wrap">
-                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
-                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
-                                      {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
-                                      {subs.length > 0 && (
-                                        <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subs.length} ↳</span>
-                                      )}
-                                      {todo.assignedTo && todo.assignedTo !== meUid && (
-                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 truncate max-w-[100px]">← {displayName(todo.userId)}</span>
-                                      )}
-                                      {todo.assignedTo && todo.assignedTo !== todo.userId && todo.userId === meUid && (
-                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 truncate max-w-[100px]">→ {displayName(todo.assignedTo)}</span>
-                                      )}
-                                    </div>
-                                    {subs.length > 0 && (
-                                      <div className="mt-2 space-y-1 border-t border-zinc-100 dark:border-slate-800 pt-1.5">
-                                        {subs.map((sub) => (
-                                          <div key={sub.id} className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-slate-400">
+                                    </DraggableKanbanCard>
+                                  );
+                                })}
+
+                                {completed.length > 0 && (
+                                  <div className="pt-1">
+                                    <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.completed" as TranslationKey)}</p>
+                                    {completed.map((todo) => (
+                                      <DraggableKanbanCard key={todo.id} id={todo.id}>
+                                        <div
+                                          className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-60 cursor-grab active:cursor-grabbing"
+                                          onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
+                                        >
+                                          <div className="flex items-center gap-2">
                                             <button
                                               type="button"
-                                              onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(sub, sub.status === "completed" ? "active" : "completed"); }}
-                                              className={`w-3 h-3 rounded-sm border flex items-center justify-center shrink-0 ${sub.status === "completed" ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 dark:border-slate-600"}`}
+                                              onClick={() => handleTaskStatusChange(todo, "active")}
+                                              className="w-4 h-4 rounded bg-green-500 border border-green-500 flex items-center justify-center text-white shrink-0"
                                             >
-                                              {sub.status === "completed" && <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                             </button>
-                                            <span className={sub.status === "completed" ? "line-through opacity-60" : ""}>{sub.title}</span>
+                                            <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{todo.title}</span>
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
+                                        </div>
+                                      </DraggableKanbanCard>
+                                    ))}
                                   </div>
-                                );
-                              })}
+                                )}
 
-                              {completed.length > 0 && (
-                                <div className="pt-1">
-                                  <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.completed" as TranslationKey)}</p>
-                                  {completed.map((todo) => (
-                                    <div
-                                      key={todo.id}
-                                      className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-60 cursor-pointer"
-                                      onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleTaskStatusChange(todo, "active")}
-                                          className="w-4 h-4 rounded bg-green-500 border border-green-500 flex items-center justify-center text-white shrink-0"
+                                {other.length > 0 && (
+                                  <div className="pt-1">
+                                    <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.cancelled" as TranslationKey)}</p>
+                                    {other.map((todo) => (
+                                      <DraggableKanbanCard key={todo.id} id={todo.id}>
+                                        <div
+                                          className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-40 cursor-grab active:cursor-grabbing"
+                                          onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
                                         >
-                                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                        </button>
-                                        <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{todo.title}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                                          <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{todo.title}</span>
+                                        </div>
+                                      </DraggableKanbanCard>
+                                    ))}
+                                  </div>
+                                )}
+                              </DroppablePhaseColumn>
 
-                              {other.length > 0 && (
-                                <div className="pt-1">
-                                  <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.cancelled" as TranslationKey)}</p>
-                                  {other.map((todo) => (
-                                    <div
-                                      key={todo.id}
-                                      className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-40 cursor-pointer"
-                                      onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
-                                    >
-                                      <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{todo.title}</span>
-                                    </div>
-                                  ))}
+                              {isReal && (
+                                <div className="px-2 py-2 border-t border-zinc-200 dark:border-slate-700 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setShowAddTask(true); setAddTaskPhaseId(phase.id); }}
+                                    className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 rounded px-2 py-1.5 transition-colors flex items-center justify-center gap-1"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                    {t("projects.addTask" as TranslationKey)}
+                                  </button>
                                 </div>
                               )}
                             </div>
+                          );
+                        })}
 
-                            {isReal && (
-                              <div className="px-2 py-2 border-t border-zinc-200 dark:border-slate-700 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => { setShowAddTask(true); setAddTaskPhaseId(phase.id); }}
-                                  className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 rounded px-2 py-1.5 transition-colors flex items-center justify-center gap-1"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                                  {t("projects.addTask" as TranslationKey)}
-                                </button>
-                              </div>
-                            )}
+                        {orderedPhases.length > 0 && unassigned.length > 0 && (
+                          <div className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]">
+                            <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
+                              <span className="w-3 h-3 rounded-sm shrink-0 bg-zinc-400" />
+                              <span className="text-sm font-semibold text-zinc-500 dark:text-slate-400 truncate flex-1">{t("phase.unassigned" as TranslationKey)}</span>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-slate-700 text-zinc-600 dark:text-slate-400">{unassigned.length}</span>
+                            </div>
+                            <DroppablePhaseColumn id="__none__">
+                              {unassigned.map((todo) => {
+                                const dl = deadlineLabel(todo.deadline, t);
+                                return (
+                                  <DraggableKanbanCard key={todo.id} id={todo.id}>
+                                    <div
+                                      className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                                      onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
+                                    >
+                                      <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{todo.title}</p>
+                                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
+                                        {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
+                                      </div>
+                                    </div>
+                                  </DraggableKanbanCard>
+                                );
+                              })}
+                            </DroppablePhaseColumn>
                           </div>
-                        );
-                      })}
-
-                      {orderedPhases.length > 0 && unassigned.length > 0 && (
-                        <div className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]">
-                          <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
-                            <span className="w-3 h-3 rounded-sm shrink-0 bg-zinc-400" />
-                            <span className="text-sm font-semibold text-zinc-500 dark:text-slate-400 truncate flex-1">{t("phase.unassigned" as TranslationKey)}</span>
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-slate-700 text-zinc-600 dark:text-slate-400">{unassigned.length}</span>
-                          </div>
-                          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
-                            {unassigned.map((todo) => {
-                              const dl = deadlineLabel(todo.deadline, t);
-                              return (
-                                <div
-                                  key={todo.id}
-                                  className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-pointer"
-                                  onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
-                                >
-                                  <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{todo.title}</p>
-                                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
-                                    {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
-            </div>
+
+              <DragOverlay>
+                {draggedTodo ? (
+                  <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 p-2.5 shadow-xl w-[260px] rotate-2 opacity-90">
+                    <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{draggedTodo.title}</p>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[draggedTodo.priority].cls}`}>{t(`priority.${draggedTodo.priority}` as TranslationKey)}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           ) : (
             /* ═══ GANTT VIEW ═══ */
             <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
@@ -1468,7 +1542,19 @@ export default function ProjectsPage() {
       <div className="max-w-[1000px] space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("projects.title" as TranslationKey)}</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("projects.title" as TranslationKey)}</h2>
+              <PageHelpButton
+                title={t("projects.title" as TranslationKey)}
+                items={[
+                  { text: t("help.projects.create" as TranslationKey) },
+                  { text: t("help.projects.views" as TranslationKey) },
+                  { text: t("help.projects.kanbanDnd" as TranslationKey) },
+                  { text: t("help.projects.gantt" as TranslationKey) },
+                  { text: t("help.projects.import" as TranslationKey) },
+                ]}
+              />
+            </div>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("projects.subtitle" as TranslationKey)}</p>
           </div>
           <div className="flex items-center gap-2">
