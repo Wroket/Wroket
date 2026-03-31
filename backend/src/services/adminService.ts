@@ -1,11 +1,23 @@
 import { getStore } from "../persistence";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "francois@broudeur.com")
+/**
+ * FIX: Do not fall back to a hardcoded email. If ADMIN_EMAILS is not
+ * configured the admin panel is simply inaccessible — which is the safe
+ * default. The original code fell back to "francois@broudeur.com",
+ * meaning an unconfigured production deploy would grant admin access to
+ * whoever registered that email.
+ */
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
-  .map((e) => e.trim().toLowerCase());
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+if (ADMIN_EMAILS.length === 0) {
+  console.warn("[admin] ADMIN_EMAILS not configured — admin panel disabled");
+}
 
 export function isAdmin(email: string): boolean {
-  return ADMIN_EMAILS.includes(email.toLowerCase());
+  return ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
 interface UserSummary {
@@ -43,14 +55,10 @@ export function getAdminStats(): AdminStats {
   };
   for (const u of users) {
     if (u.emailVerified) userStats.verified++;
-    if (u.googleCalendarTokens) userStats.googleSso++;
     const created = new Date(u.createdAt as string).getTime();
     if (created >= d7) userStats.last7d++;
     if (created >= d30) userStats.last30d++;
-    if (!u.passwordSaltB64 || (u.passwordHashB64 as string)?.length > 100) userStats.googleSso++;
   }
-  // Deduplicate googleSso count — count users without a real password (random 64-char hex hash from SSO)
-  userStats.googleSso = 0;
   for (const u of users) {
     const hash = u.passwordHashB64 as string | undefined;
     if (hash && hash.length > 80) userStats.googleSso++;

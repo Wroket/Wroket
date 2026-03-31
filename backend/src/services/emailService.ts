@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { escapeHtml } from "../utils/escapeHtml";
 
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
@@ -87,7 +88,10 @@ export async function sendVerificationEmail(
     if (SMTP_USER) {
       console.log("[email] Verification sent to %s (messageId: %s)", toEmail, info.messageId);
     } else {
-      console.log("[email] (dry-run) Verification email for %s — token: %s", toEmail, token);
+      // FIX: Never log the actual token — it is equivalent to a password.
+      // If logs are forwarded to a log aggregator the token is stored
+      // indefinitely and accessible to anyone with log access.
+      console.log("[email] (dry-run) Verification email queued for %s", toEmail);
     }
   } catch (err) {
     console.error("[email] Failed to send verification to %s: %s", toEmail, err);
@@ -105,14 +109,19 @@ export async function sendInviteEmail(
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   const signupUrl = `${frontendUrl}/login`;
 
+  // FIX: Escape user-controlled fromName before embedding in HTML.
+  // The original code interpolated the raw value, allowing HTML injection
+  // (e.g. a user could set their name to <img src=x onerror=...>).
+  const safeName = escapeHtml(fromName);
+
   const subject = locale === "fr"
-    ? `${fromName} vous invite à découvrir Wroket`
-    : `${fromName} invites you to try Wroket`;
+    ? `${safeName} vous invite à découvrir Wroket`
+    : `${safeName} invites you to try Wroket`;
 
   const html = locale === "fr"
     ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
         ${emailHeader()}
-        <h2 style="color:#334155">${fromName} vous recommande Wroket !</h2>
+        <h2 style="color:#334155">${safeName} vous recommande Wroket !</h2>
         <p>Wroket est une application collaborative de gestion de tâches, simple et efficace.</p>
         <a href="${signupUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0">Créer mon compte gratuitement</a>
         <p style="font-size:13px;color:#64748b">Ou copiez ce lien : ${signupUrl}</p>
@@ -120,7 +129,7 @@ export async function sendInviteEmail(
       </div>`
     : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
         ${emailHeader()}
-        <h2 style="color:#334155">${fromName} recommends Wroket!</h2>
+        <h2 style="color:#334155">${safeName} recommends Wroket!</h2>
         <p>Wroket is a simple and effective collaborative task management app.</p>
         <a href="${signupUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0">Create my free account</a>
         <p style="font-size:13px;color:#64748b">Or copy this link: ${signupUrl}</p>
@@ -193,7 +202,8 @@ export async function sendPasswordResetEmail(
     if (SMTP_USER) {
       console.log("[email] Password reset sent to %s (messageId: %s)", toEmail, info.messageId);
     } else {
-      console.log("[email] (dry-run) Password reset email for %s — token: %s", toEmail, token);
+      // FIX: Never log the actual reset token.
+      console.log("[email] (dry-run) Password reset email queued for %s", toEmail);
     }
   } catch (err) {
     console.error("[email] Failed to send password reset to %s: %s", toEmail, err);

@@ -138,6 +138,27 @@ export function scheduleSave(domain?: Domain): void {
   }, 500);
 }
 
+/**
+ * Immediately flush any pending writes to disk or Firestore.
+ *
+ * Why: the 500 ms debounce in scheduleSave means a process crash or SIGTERM
+ * between a write and the timer firing will silently lose the last mutation.
+ * Call this in SIGTERM / SIGINT handlers (see server.ts) to guarantee the
+ * store is consistent when the container shuts down — especially important on
+ * Cloud Run where instances are replaced frequently.
+ */
+export async function flushNow(): Promise<void> {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  if (USE_LOCAL) {
+    saveToDisk();
+  } else {
+    await saveToFirestore();
+  }
+}
+
 /** @deprecated Use getStore() instead */
 export function loadStore(): StoreData {
   return cachedStore;

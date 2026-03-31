@@ -32,6 +32,7 @@
 - [x] **Dates de début** — Champ `startDate` sur les tâches pour positionnement Gantt
 - [x] **Persistance hybride** — Cache in-memory + Firestore (prod) ou `local-store.json` (dev local)
 - [x] **Sécurité** — Helmet, CORS, rate limiting, validation inputs, bcrypt, cookies httpOnly
+- [x] **Hardening sécurité** — Audit et correctifs : OAuth state cryptographique, échappement HTML emails, autorisation commentaires, redaction tokens logs, guard admin middleware, restriction réassignation, CSRF verify-email (GET→POST), arrêt gracieux (flushNow), traçabilité requêtes (X-Request-Id), logging structuré
 - [x] **Harmonisation UI** — Couleurs boutons slate-700 (light), responsive amélioré, formulaire 2 lignes
 - [x] **Kanban Board** — Vue Kanban dans la partie Projets (tâches par phase, drag-style)
 - [x] **Archives** — Archivage automatique des tâches terminées (>7j), page dédiée `/todos/archives`, restauration
@@ -108,6 +109,15 @@
 - [x] **Réinitialisation de mot de passe** — Flux "mot de passe oublié" par email
 - [x] **Vérification d'email** — Confirmer l'adresse email à l'inscription
 - [x] **Google SSO** — Connexion via Google OAuth2
+- [x] **OAuth state validation** — Tokens cryptographiques aléatoires (CSPRNG) remplaçant les UID bruts comme paramètre `state` OAuth
+- [x] **Protection injection HTML** — Échappement des contenus utilisateur dans les templates email (`escapeHtml`)
+- [x] **Autorisation commentaires** — Vérification `canAccessTodo()` avant ajout/suppression de commentaires
+- [x] **Redaction tokens** — Les tokens de vérification/reset ne sont plus loggés en clair (dry-run)
+- [x] **Guard admin (middleware)** — `requireAdmin` au niveau routeur pour les routes `/admin`
+- [x] **Restriction réassignation** — Les assignés ne peuvent plus modifier le champ `assignedTo`
+- [x] **CSRF verify-email** — Migration GET→POST avec rétrocompatibilité (body + query)
+- [x] **Arrêt gracieux** — `flushNow()` sur SIGTERM/SIGINT pour éviter la perte de données (debounce 500ms)
+- [x] **Traçabilité requêtes** — Header `X-Request-Id` + logging structuré JSON (prod) / lisible (dev)
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
 - [ ] **2FA** — Authentification à deux facteurs (TOTP)
 

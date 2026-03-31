@@ -43,6 +43,29 @@ async function parseJsonOrThrow(res: Response): Promise<unknown> {
   }
 }
 
+/**
+ * Safely extract a `message` string from an unknown API response body.
+ *
+ * Why: the original code repeated the pattern
+ *   `typeof body === "object" && body !== null && "message" in body
+ *     ? (body as any).message`
+ * 17 times across this file. The `as any` cast suppresses TypeScript
+ * entirely — if the response shape changes we get a runtime `undefined`
+ * instead of a compile-time error.  This helper replaces every occurrence
+ * with a single, typed narrowing that returns a `string` in all cases.
+ */
+function extractApiMessage(body: unknown, fallback: string): string {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "message" in body &&
+    typeof (body as Record<string, unknown>).message === "string"
+  ) {
+    return (body as { message: string }).message;
+  }
+  return fallback;
+}
+
 function getBrowserTimezone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
   catch { return "Europe/Paris"; }
@@ -60,12 +83,7 @@ export async function login(
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (body as any).message
-        : "Identifiants invalides";
-    throw new Error(String(message));
+    throw new Error(extractApiMessage(body, "Identifiants invalides"));
   }
 }
 
@@ -81,12 +99,7 @@ export async function register(
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (body as any).message
-        : "Impossible de s'enregistrer";
-    throw new Error(String(message));
+    throw new Error(extractApiMessage(body, "Impossible de s'enregistrer"));
   }
 
   const body = await res.json();
@@ -94,18 +107,16 @@ export async function register(
 }
 
 export async function verifyEmailApi(token: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/auth/verify-email?token=${encodeURIComponent(token)}`, {
-    method: "GET",
+  const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
     credentials: "include",
   });
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur de vérification";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Erreur de vérification"));
   }
 }
 
@@ -119,11 +130,7 @@ export async function resendVerificationApi(email: string): Promise<void> {
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur lors du renvoi";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Erreur lors du renvoi"));
   }
 }
 
@@ -137,11 +144,7 @@ export async function forgotPasswordApi(email: string): Promise<void> {
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
 }
 
@@ -155,11 +158,7 @@ export async function resetPasswordApi(token: string, password: string): Promise
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur lors de la réinitialisation";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Erreur lors de la réinitialisation"));
   }
 }
 
@@ -181,10 +180,7 @@ export async function shareInviteApi(email: string): Promise<void> {
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message = typeof body === "object" && body !== null && "message" in body
-      ? (body as { message: string }).message
-      : "Erreur lors de l'envoi";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Erreur lors de l'envoi"));
   }
 }
 
@@ -257,11 +253,7 @@ export async function updateProfile(payload: { firstName?: string; lastName?: st
 
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Impossible de mettre à jour le profil";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Impossible de mettre à jour le profil"));
   }
 
   return (await res.json()) as AuthMeResponse;
@@ -373,11 +365,7 @@ export async function createTodo(payload: CreateTodoPayload): Promise<Todo> {
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Impossible de créer la tâche";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Impossible de créer la tâche"));
   }
   return (await res.json()) as Todo;
 }
@@ -391,11 +379,7 @@ export async function updateTodo(id: string, payload: UpdateTodoPayload): Promis
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Impossible de modifier la tâche";
-    throw new Error(message);
+    throw new Error(extractApiMessage(body, "Impossible de modifier la tâche"));
   }
   return (await res.json()) as Todo;
 }
@@ -565,11 +549,7 @@ export async function inviteCollaborator(email: string): Promise<Collaborator> {
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur"
-    );
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as Collaborator;
 }
@@ -619,11 +599,7 @@ export async function createTeam(name: string, members: string[]): Promise<Team>
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur"
-    );
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as Team;
 }
@@ -637,11 +613,7 @@ export async function addTeamMember(teamId: string, email: string): Promise<Team
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur"
-    );
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as Team;
 }
@@ -664,11 +636,7 @@ export async function updateMemberRoleApi(teamId: string, email: string, role: "
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(
-      typeof body === "object" && body !== null && "message" in body
-        ? (body as { message: string }).message
-        : "Erreur"
-    );
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as Team;
 }
@@ -765,7 +733,7 @@ export async function createProject(payload: CreateProjectPayload): Promise<Proj
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(typeof body === "object" && body !== null && "message" in body ? (body as { message: string }).message : "Erreur");
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as Project;
 }
@@ -824,7 +792,7 @@ export async function createPhase(projectId: string, payload: CreatePhasePayload
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(typeof body === "object" && body !== null && "message" in body ? (body as { message: string }).message : "Erreur");
+    throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as ProjectPhase;
 }
@@ -1034,4 +1002,3 @@ export async function syncNotesApi(notes: Array<{ id: string; title: string; con
   if (!res.ok) throw new Error("Sync failed");
   return res.json();
 }
-

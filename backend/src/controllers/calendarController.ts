@@ -18,6 +18,7 @@ import {
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent,
 } from "../services/googleCalendarService";
+import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 
 export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId;
@@ -83,27 +84,40 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function googleAuthUrl(req: AuthenticatedRequest, res: Response) {
-  const state = req.user!.uid;
+  // FIX: Use a cryptographically random state token instead of the raw UID.
+  // The token is stored server-side and validated on callback.
+  const state = createOAuthState(req.user!.uid);
   const url = getGoogleAuthUrl(state);
   res.status(200).json({ url });
 }
 
 export async function googleCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
   const code = req.query.code as string;
-  const uid = req.query.state as string;
+  const state = req.query.state as string;
 
-  if (!code || !uid) {
-    res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/settings?error=google_auth_failed`);
+  if (!code || !state) {
+    res.redirect(`${frontendUrl}/settings?error=google_auth_failed`);
+    return;
+  }
+
+  // FIX: Validate and consume the state token. This prevents:
+  //   1. An attacker from injecting their own code with a victim's UID
+  //   2. Replay attacks (token is single-use)
+  //   3. Stale flows (token expires after 10 min)
+  const uid = consumeOAuthState(state);
+  if (!uid) {
+    res.redirect(`${frontendUrl}/settings?error=google_auth_failed`);
     return;
   }
 
   try {
     const tokens = await exchangeCodeForTokens(code);
     setGoogleCalendarTokens(uid, tokens);
-    res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/agenda?google=connected`);
+    res.redirect(`${frontendUrl}/agenda?google=connected`);
   } catch (err) {
     console.error("[google-oauth] Error:", err);
-    res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/settings?error=google_auth_failed`);
+    res.redirect(`${frontendUrl}/settings?error=google_auth_failed`);
   }
 }
 
