@@ -38,12 +38,16 @@ export default function NotesPage() {
   const handleNew = useCallback(async () => {
     const id = await addNote();
     setSelectedId(id);
+    setMobileShowEditor(true);
     setTimeout(() => titleRef.current?.focus(), 50);
   }, [addNote]);
+
+  const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
   const handleSelect = useCallback((note: Note) => {
     setSelectedId(note.id);
     setDeleteConfirm(null);
+    setMobileShowEditor(true);
   }, []);
 
   const handleTitleChange = useCallback((value: string) => {
@@ -106,7 +110,7 @@ export default function NotesPage() {
     <AppShell>
       <div className="flex h-[calc(100vh-65px)] overflow-hidden">
         {/* Sidebar - Note list */}
-        <div className="w-72 shrink-0 border-r border-zinc-200 dark:border-slate-700 flex flex-col bg-zinc-50 dark:bg-slate-900/50">
+        <div className={`w-full md:w-72 shrink-0 border-r border-zinc-200 dark:border-slate-700 flex flex-col bg-zinc-50 dark:bg-slate-900/50 ${mobileShowEditor ? "hidden md:flex" : "flex"}`}>
           {/* Header */}
           <div className="p-3 border-b border-zinc-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
@@ -247,11 +251,20 @@ export default function NotesPage() {
         </div>
 
         {/* Editor */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className={`flex-1 flex flex-col min-w-0 ${mobileShowEditor ? "flex" : "hidden md:flex"}`}>
           {selected ? (
             <>
               {/* Editor toolbar */}
               <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMobileShowEditor(false)}
+                  className="md:hidden p-1.5 -ml-1 rounded text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
                 <input
                   ref={titleRef}
                   type="text"

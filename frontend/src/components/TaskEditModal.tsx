@@ -325,7 +325,7 @@ export default function TaskEditModal({
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handlePostComment(); } }}
               className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
             />
-            <button type="button" onClick={handlePostComment} disabled={commentLoading || !commentText.trim()} className="rounded bg-slate-700 dark:bg-slate-100 px-3 py-1 text-xs font-medium text-white dark:text-slate-900 disabled:opacity-40">
+            <button type="button" onClick={handlePostComment} disabled={commentLoading || !commentText.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100 disabled:opacity-40">
               {t("comments.send" as TranslationKey)}
             </button>
           </div>
@@ -383,7 +383,7 @@ export default function TaskEditModal({
               type="button"
               onClick={onSave}
               disabled={saving || !form.title.trim()}
-              className="rounded bg-slate-700 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
+              className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
             >
               {saving ? t("edit.saving") : t("edit.save")}
             </button>

@@ -203,7 +203,7 @@ export default function SubtaskModal({
             type="button"
             onClick={handleSubmit}
             disabled={creating || !title.trim()}
-            className="rounded bg-slate-700 dark:bg-slate-100 px-5 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 transition-colors"
+            className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
           >
             {creating ? t("subtask.adding") : t("subtask.create")}
           </button>

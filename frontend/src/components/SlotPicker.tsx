@@ -175,14 +175,14 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                 <button
                   type="button"
                   onClick={() => setMode("suggested")}
-                  className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "suggested" ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
+                  className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "suggested" ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
                 >
                   {t("schedule.suggested" as TranslationKey)}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
-                  className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "manual" ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
+                  className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "manual" ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
                 >
                   {t("schedule.manual" as TranslationKey)}
                 </button>
@@ -245,7 +245,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   type="button"
                   onClick={handleManualBook}
                   disabled={booking || !manualDate || !manualTime}
-                  className="w-full rounded bg-slate-700 dark:bg-slate-200 px-3 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-50 transition-colors"
+                  className="w-full rounded bg-slate-700 dark:bg-slate-200 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                 >
                   {t("schedule.book" as TranslationKey)}
                 </button>
@@ -299,7 +299,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                       type="button"
                       onClick={() => handleBook(slot)}
                       disabled={booking}
-                      className="shrink-0 rounded bg-slate-700 dark:bg-slate-100 px-3 py-1 text-xs font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-50 transition-colors"
+                      className="shrink-0 rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                     >
                       {t("schedule.select" as TranslationKey)}
                     </button>

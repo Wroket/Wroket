@@ -601,7 +601,7 @@ export default function TodosPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded bg-slate-700 dark:bg-slate-100 px-6 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 whitespace-nowrap transition-colors h-[42px] shrink-0"
+                className="rounded bg-slate-700 dark:bg-slate-600 px-6 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 whitespace-nowrap transition-colors h-[42px] shrink-0"
               >
                 {submitting ? t("todos.adding") : t("todos.add")}
               </button>
@@ -904,7 +904,7 @@ export default function TodosPage() {
                     onClick={() => setScope(s)}
                     className={`px-3 py-1 text-xs font-medium transition-colors ${
                       scope === s
-                        ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
+                        ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                         : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
                     } ${s !== "all" ? "border-l border-zinc-200 dark:border-slate-600" : ""}`}
                   >
@@ -943,7 +943,7 @@ export default function TodosPage() {
                   onClick={() => setMainView("list")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
                     mainView === "list"
-                      ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
+                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
@@ -957,7 +957,7 @@ export default function TodosPage() {
                   onClick={() => setMainView("cards")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "cards"
-                      ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
+                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
@@ -971,7 +971,7 @@ export default function TodosPage() {
                   onClick={() => setMainView("radar")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "radar"
-                      ? "bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900"
+                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >

@@ -201,7 +201,7 @@ function Tooltip({
 
   return (
     <div
-      className="absolute z-50 bg-slate-700 dark:bg-slate-100 text-white dark:text-slate-900 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none"
+      className="absolute z-50 bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none"
       style={{ ...verticalStyle, ...horizontalStyle }}
     >
       <p className="font-semibold text-sm mb-1.5">{todo.title}</p>

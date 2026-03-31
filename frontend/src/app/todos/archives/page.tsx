@@ -103,7 +103,7 @@ export default function ArchivesPage() {
               onClick={() => setFilter(key)}
               className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${
                 filter === key
-                  ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900"
+                  ? "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-100"
                   : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"
               }`}
             >
