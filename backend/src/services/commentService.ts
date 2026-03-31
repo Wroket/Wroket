@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
-import { NotFoundError } from "../utils/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export interface Comment {
   id: string;
@@ -10,6 +10,8 @@ export interface Comment {
   userEmail: string;
   text: string;
   createdAt: string;
+  editedAt?: string;
+  reactions?: Record<string, string[]>;
 }
 
 const commentsByTodo = new Map<string, Comment[]>();
@@ -68,6 +70,55 @@ export function deleteComment(todoId: string, commentId: string, userId: string)
   if (list[idx].userId !== userId) throw new NotFoundError("Non autorisé");
   list.splice(idx, 1);
   persist();
+}
+
+export function editComment(todoId: string, commentId: string, userId: string, newText: string): Comment {
+  const trimmed = newText.trim();
+  if (!trimmed) throw new ValidationError("Le commentaire ne peut pas être vide");
+  if (trimmed.length > 2000) throw new ValidationError("Commentaire trop long (max 2000 caractères)");
+
+  const list = commentsByTodo.get(todoId);
+  if (!list) throw new NotFoundError("Commentaire introuvable");
+  const comment = list.find((c) => c.id === commentId);
+  if (!comment) throw new NotFoundError("Commentaire introuvable");
+  if (comment.userId !== userId) throw new ForbiddenError("Non autorisé");
+
+  comment.text = trimmed;
+  comment.editedAt = new Date().toISOString();
+  persist();
+  return comment;
+}
+
+export function toggleReaction(todoId: string, commentId: string, userId: string, emoji: string): Comment {
+  if (!emoji || emoji.length > 8) throw new ValidationError("Emoji invalide");
+
+  const list = commentsByTodo.get(todoId);
+  if (!list) throw new NotFoundError("Commentaire introuvable");
+  const comment = list.find((c) => c.id === commentId);
+  if (!comment) throw new NotFoundError("Commentaire introuvable");
+
+  if (!comment.reactions) comment.reactions = {};
+  const users = comment.reactions[emoji] ?? [];
+  const idx = users.indexOf(userId);
+  if (idx === -1) {
+    users.push(userId);
+  } else {
+    users.splice(idx, 1);
+  }
+  if (users.length === 0) {
+    delete comment.reactions[emoji];
+  } else {
+    comment.reactions[emoji] = users;
+  }
+  if (Object.keys(comment.reactions).length === 0) delete comment.reactions;
+  persist();
+  return comment;
+}
+
+export function parseMentions(text: string): string[] {
+  const matches = text.match(/@([\w.+-]+@[\w.-]+)/g);
+  if (!matches) return [];
+  return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
 }
 
 export function countComments(todoId: string): number {

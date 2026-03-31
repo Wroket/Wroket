@@ -12,9 +12,11 @@ import {
   CreateTodoInput,
   UpdateTodoInput,
 } from "../services/todoService";
-import { listComments, addComment, deleteComment } from "../services/commentService";
+import { listComments, addComment, deleteComment, editComment, toggleReaction, parseMentions } from "../services/commentService";
+import { findUserByEmail } from "../services/authService";
 import { createNotification } from "../services/notificationService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
+import { logActivity } from "../services/activityLogService";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const todos = listTodos(req.user!.uid);
@@ -38,6 +40,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
   }
 
   const todo = createTodo(req.user!.uid, { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo });
+  logActivity(req.user!.uid, req.user!.email, "create", "todo", todo.id, { title: todo.title });
 
   try {
     if (todo.assignedTo && todo.assignedTo !== req.user!.uid) {
@@ -123,12 +126,14 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     console.warn("[todo.update] notification failed:", err);
   }
 
+  logActivity(req.user!.uid, req.user!.email, "update", "todo", todo.id, { title: todo.title });
   res.status(200).json(todo);
 }
 
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const todo = deleteTodo(req.user!.uid, id);
+  logActivity(req.user!.uid, req.user!.email, "delete", "todo", todo.id, { title: todo.title });
   res.status(200).json(todo);
 }
 
@@ -156,6 +161,19 @@ export async function postComment(req: AuthenticatedRequest, res: Response) {
   const { text } = req.body as { text?: string };
   if (!text || typeof text !== "string") throw new ValidationError("Texte requis");
   const comment = addComment(todoId, req.user!.uid, req.user!.email, text);
+
+  try {
+    for (const email of parseMentions(text)) {
+      if (email === req.user!.email) continue;
+      const mentioned = findUserByEmail(email);
+      if (mentioned) {
+        createNotification(mentioned.uid, "comment_mention", "Mention dans un commentaire", `${req.user!.email} vous a mentionné dans un commentaire`, { todoId });
+      }
+    }
+  } catch (err) {
+    console.warn("[comment] mention notification failed:", err);
+  }
+
   res.status(201).json(comment);
 }
 
@@ -167,4 +185,39 @@ export async function removeComment(req: AuthenticatedRequest, res: Response) {
   const commentId = req.params.commentId as string;
   deleteComment(todoId, commentId, req.user!.uid);
   res.status(200).json({ ok: true });
+}
+
+export async function editCommentHandler(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.id as string;
+  if (!canAccessTodo(req.user!.uid, todoId)) {
+    throw new ForbiddenError("Accès refusé à cette tâche");
+  }
+  const { text } = req.body as { text?: string };
+  if (!text || typeof text !== "string") throw new ValidationError("Texte requis");
+  const comment = editComment(todoId, req.params.commentId as string, req.user!.uid, text);
+
+  try {
+    for (const email of parseMentions(text)) {
+      if (email === req.user!.email) continue;
+      const mentioned = findUserByEmail(email);
+      if (mentioned) {
+        createNotification(mentioned.uid, "comment_mention", "Mention dans un commentaire", `${req.user!.email} vous a mentionné dans un commentaire`, { todoId });
+      }
+    }
+  } catch (err) {
+    console.warn("[comment] mention notification failed:", err);
+  }
+
+  res.status(200).json(comment);
+}
+
+export async function toggleReactionHandler(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.id as string;
+  if (!canAccessTodo(req.user!.uid, todoId)) {
+    throw new ForbiddenError("Accès refusé à cette tâche");
+  }
+  const { emoji } = req.body as { emoji?: string };
+  if (!emoji || typeof emoji !== "string") throw new ValidationError("Emoji requis");
+  const comment = toggleReaction(todoId, req.params.commentId as string, req.user!.uid, emoji);
+  res.status(200).json(comment);
 }

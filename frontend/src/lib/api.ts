@@ -230,6 +230,78 @@ export async function getAdminInvites(): Promise<InviteLogEntry[]> {
   return res.json();
 }
 
+export interface ActivityLogEntry {
+  id: string;
+  userId: string;
+  userEmail: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface SessionInfo {
+  uid: string;
+  email: string;
+  expiresAt: number;
+}
+
+export interface IntegrationOverview {
+  webhooks: { total: number; active: number; byPlatform: Record<string, number> };
+  googleCalendarConnected: number;
+}
+
+export interface CompletionRate {
+  uid: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  total: number;
+  completed: number;
+  rate: number;
+}
+
+export async function getAdminActivity(params?: { limit?: number; offset?: number; userId?: string; entityType?: string }): Promise<{ entries: ActivityLogEntry[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.offset) qs.set("offset", String(params.offset));
+  if (params?.userId) qs.set("userId", params.userId);
+  if (params?.entityType) qs.set("entityType", params.entityType);
+  const res = await fetch(`${API_BASE_URL}/admin/activity?${qs.toString()}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function getAdminSessions(): Promise<SessionInfo[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/sessions`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function getAdminIntegrations(): Promise<IntegrationOverview> {
+  const res = await fetch(`${API_BASE_URL}/admin/integrations`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function getAdminUserExport(uid: string): Promise<unknown> {
+  const res = await fetch(`${API_BASE_URL}/admin/users/${uid}/export`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function deleteAdminUser(uid: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/users/${uid}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error("Erreur lors de la suppression");
+}
+
+export async function getAdminCompletionRates(): Promise<CompletionRate[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/users/completion-rates`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
 export async function getMe(): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "GET",
@@ -393,6 +465,8 @@ export interface Comment {
   userEmail: string;
   text: string;
   createdAt: string;
+  editedAt?: string;
+  reactions?: Record<string, string[]>;
 }
 
 export async function getComments(todoId: string): Promise<Comment[]> {
@@ -412,11 +486,33 @@ export async function postCommentApi(todoId: string, text: string): Promise<Comm
   return res.json();
 }
 
+export async function editCommentApi(todoId: string, commentId: string, text: string): Promise<Comment> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de modifier le commentaire");
+  return res.json();
+}
+
 export async function deleteCommentApi(todoId: string, commentId: string): Promise<void> {
   await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
     method: "DELETE",
     credentials: "include",
   });
+}
+
+export async function toggleReactionApi(todoId: string, commentId: string, emoji: string): Promise<Comment> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}/reactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ emoji }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de réagir");
+  return res.json();
 }
 
 export async function deleteTodo(id: string): Promise<Todo> {
@@ -452,7 +548,7 @@ export async function lookupUserByUid(uid: string): Promise<AuthMeResponse | nul
 
 // ── Notifications ──
 
-export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today";
+export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today" | "comment_mention";
 
 export interface AppNotification {
   id: string;
@@ -1000,5 +1096,66 @@ export async function syncNotesApi(notes: Array<{ id: string; title: string; con
     credentials: "include",
   });
   if (!res.ok) throw new Error("Sync failed");
+  return res.json();
+}
+
+// ── CSV Import ──
+
+export interface ImportParsedTask {
+  row: number;
+  phase: string;
+  title: string;
+  priority: Priority;
+  effort: Effort;
+  deadline: string | null;
+  startDate: string | null;
+  assigneeEmail: string | null;
+  assigneeUid: string | null;
+  tags: string[];
+}
+
+export interface ImportError {
+  row: number;
+  field: string;
+  message: string;
+}
+
+export interface ImportPreview {
+  projectName: string;
+  phases: { name: string; taskCount: number }[];
+  tasks: ImportParsedTask[];
+  errors: ImportError[];
+}
+
+export async function uploadCsvPreview(file: File, projectName: string): Promise<ImportPreview> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("projectName", projectName);
+  const res = await fetch(`${API_BASE_URL}/projects/import/preview`, {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de l'analyse du CSV"));
+  }
+  return res.json();
+}
+
+export async function confirmCsvImport(file: File, projectName: string, teamId: string | null): Promise<{ project: Project; taskCount: number }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("projectName", projectName);
+  if (teamId) fd.append("teamId", teamId);
+  const res = await fetch(`${API_BASE_URL}/projects/import/confirm`, {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de l'import"));
+  }
   return res.json();
 }

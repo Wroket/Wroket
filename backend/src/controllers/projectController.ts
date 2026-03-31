@@ -19,6 +19,7 @@ import {
 } from "../services/projectService";
 import { listTodos } from "../services/todoService";
 import { NotFoundError, ForbiddenError } from "../utils/errors";
+import { logActivity } from "../services/activityLogService";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const projects = listProjects(req.user!.uid, req.user!.email);
@@ -44,6 +45,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     teamId: req.body.teamId,
   };
   const project = createProject(req.user!.uid, req.user!.email, input);
+  logActivity(req.user!.uid, req.user!.email, "create", "project", project.id, { name: project.name });
   res.status(201).json(project);
 }
 
@@ -55,11 +57,13 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   if (req.body.teamId !== undefined) input.teamId = req.body.teamId;
   if (req.body.status !== undefined) input.status = req.body.status;
   const project = updateProject(req.user!.uid, req.user!.email, id, input);
+  logActivity(req.user!.uid, req.user!.email, "update", "project", project.id, { name: project.name });
   res.status(200).json(project);
 }
 
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
+  logActivity(req.user!.uid, req.user!.email, "delete", "project", id);
   deleteProject(req.user!.uid, id);
   res.status(204).end();
 }
