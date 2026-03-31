@@ -5,6 +5,10 @@ import AppShell from "@/components/AppShell";
 import {
   getMe,
   updateProfile,
+  changePassword as changePasswordApi,
+  getMyExport,
+  deleteMyAccount,
+  getMyActivity,
   getWebhooks,
   saveWebhook,
   deleteWebhookApi,
@@ -13,6 +17,7 @@ import {
   type WebhookConfig,
   type WebhookEvent,
   type WebhookPlatform,
+  type ActivityLogEntry,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
@@ -199,12 +204,7 @@ function ProfileSection() {
             className="w-full rounded border border-zinc-200 dark:border-slate-700 px-3 py-2 text-sm text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 cursor-not-allowed"
           />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.password")}</label>
-          <button type="button" className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-            {t("settings.changePassword")}
-          </button>
-        </div>
+        <ChangePasswordForm />
       </div>
       <div className="pt-4 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
         <button
@@ -759,50 +759,223 @@ function IntegrationsSection() {
   );
 }
 
-function HistorySection() {
+function ChangePasswordForm() {
   const { t } = useLocale();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const inputCls = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
+
+  const handleSubmit = async () => {
+    setError(null);
+    if (next !== confirm) { setError(t("settings.passwordMismatch" as TranslationKey)); return; }
+    setSaving(true);
+    try {
+      await changePasswordApi(current, next);
+      setSuccess(true);
+      setCurrent(""); setNext(""); setConfirm("");
+      setTimeout(() => { setSuccess(false); setOpen(false); }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally { setSaving(false); }
+  };
+
+  if (!open) {
+    return (
+      <div>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.password" as TranslationKey)}</label>
+        <button type="button" onClick={() => setOpen(true)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
+          {t("settings.changePassword" as TranslationKey)}
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.historyTitle")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">
-        {t("settings.historyDesc")}
-      </p>
-      <div className="border border-zinc-200 dark:border-slate-700 rounded-md divide-y divide-zinc-200 dark:divide-slate-700">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <span className="text-sm text-zinc-600 dark:text-slate-300">{t("settings.noActivity")}</span>
-          <span className="text-xs text-zinc-400 dark:text-slate-500">—</span>
-        </div>
+    <div className="space-y-3 p-4 bg-zinc-50 dark:bg-slate-800/50 rounded-md border border-zinc-200 dark:border-slate-700">
+      <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100">{t("settings.passwordTitle" as TranslationKey)}</h4>
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {success && <p className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.passwordChanged" as TranslationKey)}</p>}
+      <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder={t("settings.currentPassword" as TranslationKey)} className={inputCls} />
+      <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={t("settings.newPassword" as TranslationKey)} className={inputCls} />
+      <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("settings.confirmPassword" as TranslationKey)} className={inputCls} />
+      <div className="flex gap-2">
+        <button type="button" onClick={handleSubmit} disabled={saving || !current || !next || !confirm}
+          className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
+          {t("settings.passwordChange" as TranslationKey)}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setError(null); }}
+          className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
+          {t("cancel" as TranslationKey)}
+        </button>
       </div>
     </div>
   );
 }
 
+const ACTION_LABELS: Record<string, { fr: string; en: string }> = {
+  create: { fr: "Création", en: "Created" },
+  update: { fr: "Modification", en: "Updated" },
+  delete: { fr: "Suppression", en: "Deleted" },
+  complete: { fr: "Complétée", en: "Completed" },
+  cancel: { fr: "Annulée", en: "Cancelled" },
+  assign: { fr: "Assignée", en: "Assigned" },
+  comment: { fr: "Commentaire", en: "Comment" },
+  login: { fr: "Connexion", en: "Login" },
+};
+
+const ENTITY_ICONS: Record<string, string> = {
+  todo: "📋", project: "📁", team: "👥", note: "📝", comment: "💬", user: "👤",
+};
+
+function HistorySection() {
+  const { t, locale } = useLocale();
+  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const load = async (offset = 0) => {
+    try {
+      const result = await getMyActivity({ limit: 30, offset });
+      if (offset === 0) {
+        setEntries(result.entries);
+      } else {
+        setEntries((prev) => [...prev, ...result.entries]);
+      }
+      setTotal(result.total);
+    } catch { /* ignore */ }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.historyTitle")}</h3>
+      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.historyDesc")}</p>
+      {loading ? (
+        <p className="text-sm text-zinc-400 dark:text-slate-500">{t("loading")}</p>
+      ) : entries.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.noActivity")}</p>
+      ) : (
+        <>
+          <div className="border border-zinc-200 dark:border-slate-700 rounded-md divide-y divide-zinc-200 dark:divide-slate-700 max-h-[500px] overflow-y-auto">
+            {entries.map((e) => (
+              <div key={e.id} className="px-4 py-3 flex items-start gap-3">
+                <span className="text-base shrink-0 mt-0.5">{ENTITY_ICONS[e.entityType] ?? "📌"}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-zinc-800 dark:text-slate-200">
+                    <span className="font-medium">{ACTION_LABELS[e.action]?.[locale] ?? e.action}</span>
+                    {" — "}
+                    <span className="text-zinc-600 dark:text-slate-400">{e.entityType}</span>
+                    {e.details?.title ? <span className="text-zinc-500 dark:text-slate-500"> &quot;{String(e.details.title)}&quot;</span> : null}
+                  </p>
+                  <p className="text-xs text-zinc-400 dark:text-slate-500 mt-0.5">
+                    {new Date(e.createdAt).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {entries.length < total && (
+            <button type="button" onClick={() => load(entries.length)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              {t("settings.loadMore" as TranslationKey)} ({entries.length}/{total})
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminSection() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const [exporting, setExporting] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirmWord = locale === "fr" ? "SUPPRIMER" : "DELETE";
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const data = await getMyExport();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `wroket-export-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur");
+    } finally { setExporting(false); }
+  };
+
+  const handleDelete = async () => {
+    setError(null);
+    setDeleting(true);
+    try {
+      await deleteMyAccount(confirmWord === "SUPPRIMER" ? "SUPPRIMER" : deleteConfirm);
+      window.location.href = "/login";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally { setDeleting(false); }
+  };
 
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.adminTitle")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">
-        {t("settings.adminDesc")}
-      </p>
-      <div className="space-y-4">
-        <div className="bg-zinc-50 dark:bg-slate-800/50 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-          <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100 mb-1">{t("settings.userManagement")}</h4>
-          <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.userManagementDesc")}</p>
-        </div>
-        <div className="bg-zinc-50 dark:bg-slate-800/50 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-          <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100 mb-1">{t("settings.dataExport")}</h4>
-          <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.dataExportDesc")}</p>
-        </div>
-        <div className="bg-red-50 dark:bg-red-950/30 rounded-md border border-red-200 dark:border-red-800 p-4">
-          <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">{t("settings.dangerZone")}</h4>
-          <p className="text-xs text-red-600/70 dark:text-red-400/70 mb-3">{t("settings.dangerDesc")}</p>
-          <button type="button" className="rounded border border-red-300 dark:border-red-700 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors">
+      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.adminDesc")}</p>
+
+      <div className="bg-zinc-50 dark:bg-slate-800/50 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
+        <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100 mb-1">{t("settings.dataExport")}</h4>
+        <p className="text-xs text-zinc-500 dark:text-slate-400 mb-3">{t("settings.dataExportDesc")}</p>
+        <button type="button" onClick={handleExport} disabled={exporting}
+          className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
+          {exporting ? "..." : t("settings.exportBtn" as TranslationKey)}
+        </button>
+      </div>
+
+      <div className="bg-red-50 dark:bg-red-950/30 rounded-md border border-red-200 dark:border-red-800 p-4">
+        <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">{t("settings.dangerZone")}</h4>
+        <p className="text-xs text-red-600/70 dark:text-red-400/70 mb-3">{t("settings.dangerDesc")}</p>
+        {!showDelete ? (
+          <button type="button" onClick={() => setShowDelete(true)}
+            className="rounded border border-red-300 dark:border-red-700 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors">
             {t("settings.deleteAccount")}
           </button>
-        </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-red-600 dark:text-red-400 font-medium">{t("settings.deleteConfirmTitle" as TranslationKey)}</p>
+            <p className="text-xs text-red-600/70 dark:text-red-400/70">{t("settings.deleteConfirmDesc" as TranslationKey)}</p>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <input
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={confirmWord}
+              className="w-full max-w-xs rounded border border-red-300 dark:border-red-700 px-3 py-2 text-sm text-red-900 dark:text-red-100 bg-white dark:bg-red-950/50 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={handleDelete} disabled={deleting || deleteConfirm !== confirmWord}
+                className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 transition-colors">
+                {deleting ? t("settings.deleting" as TranslationKey) : t("settings.deleteAccount")}
+              </button>
+              <button type="button" onClick={() => { setShowDelete(false); setDeleteConfirm(""); setError(null); }}
+                className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
+                {t("cancel" as TranslationKey)}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

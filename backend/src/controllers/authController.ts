@@ -7,6 +7,7 @@ import {
   logout as logoutService,
   register as registerService,
   updateProfile as updateProfileService,
+  changePassword as changePasswordService,
   findUserByEmail,
   findUserByUid,
   verifyEmail as verifyEmailService,
@@ -16,21 +17,24 @@ import {
   AuthUser,
   WorkingHours,
 } from "../services/authService";
+import { exportUserData, deleteUserData } from "../services/rgpdService";
+import { getActivityLog } from "../services/activityLogService";
 import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "../services/emailService";
-import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
+import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode, consumeSsoState } from "../services/googleSsoService";
 import { ValidationError } from "../utils/errors";
 import { getStore, scheduleSave } from "../persistence";
 import { parseCookies } from "../utils/parseCookies";
 
+const MAX_INVITE_LOG = 10_000;
+
 function logInvite(fromEmail: string, fromName: string, toEmail: string): void {
   const store = getStore();
   if (!store.inviteLog) store.inviteLog = [];
-  (store.inviteLog as unknown[]).push({
-    fromEmail,
-    fromName,
-    toEmail,
-    sentAt: new Date().toISOString(),
-  });
+  const log = store.inviteLog as unknown[];
+  log.push({ fromEmail, fromName, toEmail, sentAt: new Date().toISOString() });
+  if (log.length > MAX_INVITE_LOG) {
+    store.inviteLog = log.slice(-MAX_INVITE_LOG);
+  }
   scheduleSave("inviteLog");
 }
 
@@ -102,15 +106,29 @@ export async function resetPassword(req: Request, res: Response) {
 }
 
 export async function googleSsoUrl(_req: Request, res: Response) {
-  const url = getGoogleSsoAuthUrl();
+  const { url, state } = getGoogleSsoAuthUrl();
+  const cookieSecure = process.env.COOKIE_SECURE === "true";
+  res.cookie("oauth_state", state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: cookieSecure,
+    path: "/",
+    maxAge: 10 * 60 * 1000,
+  });
   res.status(200).json({ url });
 }
 
 export async function googleSsoCallback(req: Request, res: Response) {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   const code = req.query.code as string | undefined;
+  const stateParam = req.query.state as string | undefined;
 
-  if (!code) {
+  const cookies = parseCookies(req.headers.cookie);
+  const storedState = cookies.oauth_state;
+
+  res.clearCookie("oauth_state", { path: "/" });
+
+  if (!code || !stateParam || !storedState || stateParam !== storedState || !consumeSsoState(stateParam)) {
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
     return;
   }
@@ -118,11 +136,6 @@ export async function googleSsoCallback(req: Request, res: Response) {
   try {
     const userInfo = await exchangeGoogleSsoCode(code);
 
-    // Fix: use parseCookies instead of a hand-rolled regex.
-    // The original regex `cookieHeader.match(/(?:^|;\s*)tz=([^;]*)/)` skipped
-    // URI-decoding and would silently break for any timezone containing an
-    // encoded character (rare but possible for custom tz strings).
-    const cookies = parseCookies(req.headers.cookie);
     const timezone = cookies.tz || undefined;
 
     const result = loginWithGoogle({
@@ -277,4 +290,46 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     workingHours: validatedWorkingHours,
   });
   res.status(200).json(updated);
+}
+
+export async function changePassword(req: Request, res: Response) {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
+  const { currentPassword, newPassword } = req.body as Record<string, unknown>;
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    throw new ValidationError("Mot de passe actuel et nouveau requis");
+  }
+  const cookies = parseCookies(req.headers.cookie);
+  const sessionToken = cookies.auth_token;
+  changePasswordService(user.uid, currentPassword, newPassword, sessionToken);
+  res.status(200).json({ message: "Mot de passe modifié" });
+}
+
+export async function myExport(req: Request, res: Response) {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
+  const data = exportUserData(user.uid);
+  res.status(200).json(data);
+}
+
+export async function myDeleteAccount(req: Request, res: Response) {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
+  const { confirmation } = req.body as Record<string, unknown>;
+  if (confirmation !== "SUPPRIMER") {
+    throw new ValidationError("Tapez SUPPRIMER pour confirmer");
+  }
+  deleteUserData(user.uid);
+  res.clearCookie(COOKIE_NAME, { path: "/" });
+  res.status(200).json({ message: "Compte supprimé" });
+}
+
+export async function myActivity(req: Request, res: Response) {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
+  const { limit, offset } = req.query as Record<string, string | undefined>;
+  const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 50, 200) : 50;
+  const parsedOffset = Math.max(0, offset ? parseInt(offset, 10) || 0 : 0);
+  const result = getActivityLog({ userId: user.uid, limit: parsedLimit, offset: parsedOffset });
+  res.status(200).json(result);
 }

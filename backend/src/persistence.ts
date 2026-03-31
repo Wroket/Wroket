@@ -8,7 +8,7 @@ const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
 
 const DOMAINS = [
   "users", "todos", "notifications", "collaborators",
-  "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "activityLog",
+  "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "activityLog", "attachments",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -26,6 +26,7 @@ export interface StoreData {
   comments?: Record<string, unknown[]>;
   notes?: Record<string, Record<string, unknown>>;
   activityLog?: unknown[];
+  attachments?: Record<string, unknown[]>;
 }
 
 let cachedStore: StoreData = {};
@@ -71,16 +72,17 @@ async function loadFromFirestore(): Promise<StoreData> {
 async function saveToFirestore(): Promise<void> {
   if (!db || dirtyDomains.size === 0) return;
   const batch = db.batch();
-  for (const domain of dirtyDomains) {
+  const saving = new Set(dirtyDomains);
+  for (const domain of saving) {
     const ref = db.collection("store").doc(domain);
     const data = (cachedStore as Record<string, unknown>)[domain];
     if (data !== undefined) {
       batch.set(ref, { data });
     }
   }
-  dirtyDomains.clear();
   try {
     await batch.commit();
+    for (const d of saving) dirtyDomains.delete(d);
   } catch (err) {
     console.error("[persistence] Firestore batch save failed: %s", err);
   }
@@ -160,12 +162,3 @@ export async function flushNow(): Promise<void> {
   }
 }
 
-/** @deprecated Use getStore() instead */
-export function loadStore(): StoreData {
-  return cachedStore;
-}
-
-/** @deprecated Use scheduleSave() instead */
-export function saveStore(_data: StoreData): void {
-  scheduleSave();
-}

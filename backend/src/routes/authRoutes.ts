@@ -1,7 +1,8 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 
-import { getMe, login, logout, register, updateProfile, lookupUser, lookupUserByUid, verifyEmail, resendVerification, forgotPassword, resetPassword, googleSsoUrl, googleSsoCallback, shareInvite } from "../controllers/authController";
+import { getMe, login, logout, register, updateProfile, changePassword, myExport, myDeleteAccount, myActivity, lookupUser, lookupUserByUid, verifyEmail, resendVerification, forgotPassword, resetPassword, googleSsoUrl, googleSsoCallback, shareInvite } from "../controllers/authController";
+import { globalSearch } from "../controllers/searchController";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const authLimiter = rateLimit({
@@ -47,6 +48,11 @@ authRoutes.get("/google/callback", googleSsoCallback);
 authRoutes.post("/share-invite", requireAuth, authLimiter, shareInvite);
 authRoutes.get("/me", requireAuth, getMe);
 authRoutes.put("/me", requireAuth, updateProfile);
+authRoutes.put("/password", requireAuth, authLimiter, changePassword);
+authRoutes.get("/my-export", requireAuth, authLimiter, myExport);
+authRoutes.post("/my-delete", requireAuth, authLimiter, myDeleteAccount);
+authRoutes.get("/my-activity", requireAuth, myActivity);
+authRoutes.get("/search", requireAuth, lookupLimiter, globalSearch);
 authRoutes.get("/lookup", requireAuth, lookupLimiter, lookupUser);
 authRoutes.get("/lookup-uid", requireAuth, lookupLimiter, lookupUserByUid);
 

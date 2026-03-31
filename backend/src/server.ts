@@ -1,24 +1,27 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import http from "http";
 import { initStore, flushNow } from "./persistence";
 
 const port = Number(process.env.PORT) || 3000;
+let server: http.Server | null = null;
+let shuttingDown = false;
 
-/**
- * Graceful shutdown handler.
- *
- * Why: scheduleSave() debounces writes by 500 ms to batch Firestore commits.
- * If the process is killed (SIGTERM from Cloud Run, Ctrl-C in dev) between a
- * write and the debounce firing, the last mutation is silently lost.
- *
- * Cloud Run sends SIGTERM and gives the container up to the configured
- * termination grace period (default 10 s) to finish. Calling flushNow()
- * drains the debounce queue synchronously (local) or awaits the Firestore
- * batch before exiting, keeping the store consistent across deploys.
- */
 async function shutdown(signal: string): Promise<void> {
-  console.log(`[server] ${signal} received — flushing store and exiting`);
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[server] ${signal} received — shutting down`);
+
+  if (server) {
+    server.close();
+  }
+
+  try {
+    const { stopReminderJob } = await import("./services/reminderService");
+    stopReminderJob();
+  } catch { /* not started yet */ }
+
   try {
     await flushNow();
     console.log("[server] Store flushed, exiting cleanly");
@@ -35,10 +38,9 @@ async function main(): Promise<void> {
   await initStore();
 
   const { default: app } = await import("./app");
-
   const { startReminderJob } = await import("./services/reminderService");
 
-  app.listen(port, () => {
+  server = app.listen(port, () => {
     console.log(`[server] Backend listening on port ${port}`);
     startReminderJob();
   });

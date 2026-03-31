@@ -1,54 +1,45 @@
 import { Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
-import { isAdmin, getAdminStats, getAdminUsers, getInviteLog } from "../services/adminService";
+import { getAdminStats, getAdminUsers, getInviteLog } from "../services/adminService";
 import { getActivityLog } from "../services/activityLogService";
 import { getActiveSessions, countGoogleCalendarConnected } from "../services/authService";
 import { getWebhooksOverview } from "../services/webhookService";
 import { exportUserData, deleteUserData } from "../services/rgpdService";
+import { getStore } from "../persistence";
 
-function requireAdminCheck(req: AuthenticatedRequest, res: Response): boolean {
-  if (!req.user || !isAdmin(req.user.email)) {
-    res.status(403).json({ message: "Accès refusé" });
-    return false;
-  }
-  return true;
-}
-
-export async function adminStats(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
+export async function adminStats(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getAdminStats());
 }
 
-export async function adminUsers(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
+export async function adminUsers(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getAdminUsers());
 }
 
-export async function adminInviteLog(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
+export async function adminInviteLog(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getInviteLog());
 }
 
+const MAX_ACTIVITY_LIMIT = 500;
+
 export async function adminActivity(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
   const { userId, entityType, limit, offset } = req.query as Record<string, string | undefined>;
+  const parsedLimit = limit ? parseInt(limit, 10) : 50;
+  const parsedOffset = offset ? parseInt(offset, 10) : 0;
   const result = getActivityLog({
     userId: userId || undefined,
     entityType: entityType || undefined,
-    limit: limit ? parseInt(limit, 10) : 50,
-    offset: offset ? parseInt(offset, 10) : 0,
+    limit: Math.min(Number.isFinite(parsedLimit) ? parsedLimit : 50, MAX_ACTIVITY_LIMIT),
+    offset: Number.isFinite(parsedOffset) ? parsedOffset : 0,
   });
   res.status(200).json(result);
 }
 
-export async function adminSessions(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
+export async function adminSessions(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getActiveSessions());
 }
 
-export async function adminIntegrations(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
+export async function adminIntegrations(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json({
     webhooks: getWebhooksOverview(),
     googleCalendarConnected: countGoogleCalendarConnected(),
@@ -56,27 +47,20 @@ export async function adminIntegrations(req: AuthenticatedRequest, res: Response
 }
 
 export async function adminUserExport(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
   const uid = req.params.uid as string;
   const data = exportUserData(uid);
   res.status(200).json(data);
 }
 
 export async function adminUserDelete(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
   const uid = req.params.uid as string;
   deleteUserData(uid);
   res.status(204).end();
 }
 
-export async function adminCompletionRates(req: AuthenticatedRequest, res: Response) {
-  if (!requireAdminCheck(req, res)) return;
+export async function adminCompletionRates(_req: AuthenticatedRequest, res: Response) {
   const users = getAdminUsers();
-  const stats = getAdminStats();
-  const todoStore = (() => {
-    const { getStore } = require("../persistence");
-    return (getStore().todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
-  })();
+  const todoStore = (getStore().todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
 
   const rates = users.map((u) => {
     const userTodos = todoStore[u.uid] ?? {};
@@ -97,6 +81,5 @@ export async function adminCompletionRates(req: AuthenticatedRequest, res: Respo
     };
   });
 
-  void stats;
   res.status(200).json(rates);
 }

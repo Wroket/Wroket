@@ -1,16 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
+import TaskEditModal from "@/components/TaskEditModal";
+import { useToast } from "@/components/Toast";
 import {
   getCalendarEvents,
   getGoogleAuthUrl,
   disconnectGoogleCalendar,
   getMe,
+  getTodos,
+  updateTodo,
+  lookupUser,
   type CalendarEvent,
   type Todo,
+  type Priority,
+  type Effort,
+  type AuthMeResponse,
+  type Recurrence,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUserLookup } from "@/lib/userUtils";
 import { classify, type EisenhowerQuadrant } from "@/lib/classify";
 
 const HOUR_HEIGHT = 60;
@@ -55,12 +66,23 @@ function formatHour(h: number): string {
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { resolveUser, displayName, cache: userCache } = useUserLookup();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [wroketEvents, setWroketEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [now, setNow] = useState(new Date());
+
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as Recurrence | null });
+  const [editAssignEmail, setEditAssignEmail] = useState("");
+  const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
+  const [editAssignError, setEditAssignError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
@@ -172,6 +194,87 @@ export default function AgendaPage() {
   const hasAllDayEvents = useMemo(() => weekDays.some((d) => eventsForDay(d, true).length > 0), [weekDays, eventsForDay]);
 
   const hours = useMemo(() => Array.from({ length: TOTAL_HOURS }, (_, i) => DAY_START_HOUR + i), []);
+
+  const handleDoubleClickEvent = async (ev: CalendarEvent) => {
+    if (ev.source !== "wroket") return;
+    try {
+      const todos = await getTodos();
+      const todo = todos.find((t) => t.id === ev.id);
+      if (!todo) { toast.error("Tâche introuvable"); return; }
+      setEditingTodo(todo);
+      setEditForm({
+        title: todo.title,
+        priority: todo.priority,
+        effort: todo.effort ?? "medium",
+        deadline: todo.deadline ?? "",
+        assignedTo: todo.assignedTo ?? null,
+        estimatedMinutes: todo.estimatedMinutes ?? null,
+        tags: todo.tags ?? [],
+        recurrence: todo.recurrence ?? null,
+      });
+      setEditAssignEmail("");
+      setEditAssignedUser(null);
+      setEditAssignError(null);
+      if (todo.assignedTo && !userCache[todo.assignedTo]) {
+        resolveUser(todo.assignedTo);
+      }
+    } catch {
+      toast.error("Impossible de charger la tâche");
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!editingTodo) return;
+    setEditSaving(true);
+    try {
+      await updateTodo(editingTodo.id, {
+        title: editForm.title,
+        priority: editForm.priority,
+        effort: editForm.effort,
+        deadline: editForm.deadline || null,
+        assignedTo: editForm.assignedTo,
+        estimatedMinutes: editForm.estimatedMinutes,
+        tags: editForm.tags,
+        recurrence: editForm.recurrence,
+      });
+      setEditingTodo(null);
+      toast.success("Tâche mise à jour");
+      const start = weekDays[0].toISOString();
+      const endDate = new Date(weekDays[6]);
+      endDate.setHours(23, 59, 59, 999);
+      const data = await getCalendarEvents(start, endDate.toISOString());
+      setWroketEvents(data.wroketEvents);
+      setGoogleEvents(data.googleEvents);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleEditAssignLookup = (email: string) => {
+    setEditAssignEmail(email);
+    setEditAssignError(null);
+    clearTimeout(editAssignLookupTimer.current);
+    if (!email.includes("@") || email.length < 5) {
+      setEditAssignedUser(null);
+      return;
+    }
+    editAssignLookupTimer.current = setTimeout(async () => {
+      try {
+        const found = await lookupUser(email);
+        if (found) {
+          setEditAssignedUser(found);
+          setEditForm((f) => ({ ...f, assignedTo: found.uid }));
+        } else {
+          setEditAssignedUser(null);
+          setEditAssignError("Utilisateur introuvable");
+        }
+      } catch {
+        setEditAssignedUser(null);
+      }
+    }, 400);
+  };
 
   return (
     <AppShell>
@@ -303,9 +406,10 @@ export default function AgendaPage() {
                               key={ev.id}
                               className={`rounded px-1.5 py-0.5 text-[11px] truncate border-l-2 ${
                                 isWroket && qc
-                                  ? `${qc.bg} ${qc.border} ${qc.text}`
+                                  ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
                                   : "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-200"
                               }`}
+                              onDoubleClick={() => handleDoubleClickEvent(ev)}
                             >
                               {isWroket && qc ? `${qc.icon} ` : ""}{ev.summary}
                             </div>
@@ -361,13 +465,14 @@ export default function AgendaPage() {
                           return (
                             <div
                               key={ev.id}
-                              className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden cursor-default transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm ${
+                              className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm ${
                                 isWroket && qc
-                                  ? `${qc.bg} ${qc.border} ${qc.text}`
-                                  : "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-200"
+                                  ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
+                                  : "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 cursor-default"
                               }`}
                               style={{ top: pos.top, height: pos.height, minHeight: 22 }}
                               title={`${ev.summary}${isWroket && qc ? ` — ${qc.icon} ${qc.label}` : ` (${t("agenda.googleEvent")})`}`}
+                              onDoubleClick={() => handleDoubleClickEvent(ev)}
                             >
                               <div className="text-xs font-semibold truncate leading-snug">
                                 {isWroket && qc ? `${qc.icon} ` : ""}{ev.summary}
@@ -412,6 +517,24 @@ export default function AgendaPage() {
             </div>
           </div>
         )}
+
+        <TaskEditModal
+          todo={editingTodo}
+          form={editForm}
+          onFormChange={(updates) => setEditForm((f) => ({ ...f, ...updates }))}
+          onSave={saveEdit}
+          onClose={() => setEditingTodo(null)}
+          saving={editSaving}
+          assignEmail={editAssignEmail}
+          onAssignEmailChange={handleEditAssignLookup}
+          assignedUser={editAssignedUser}
+          assignError={editAssignError}
+          onAssignLookup={() => {}}
+          onClearAssign={() => setEditForm((f) => ({ ...f, assignedTo: null }))}
+          userDisplayName={displayName}
+          effortDefaults={user?.effortMinutes}
+          currentUserUid={user?.uid}
+        />
       </div>
     </AppShell>
   );

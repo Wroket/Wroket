@@ -21,7 +21,7 @@ export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response
     throw new ValidationError("URL de webhook invalide");
   }
 
-  const config = upsertWebhook(req.user!.uid, {
+  const config = await upsertWebhook(req.user!.uid, {
     id: typeof id === "string" ? id : undefined,
     label: typeof label === "string" ? label : "Webhook",
     url: url as string,

@@ -13,8 +13,10 @@ import {
   acceptCollaboration,
   declineCollaboration,
   shareInviteApi,
+  globalSearch,
   AuthMeResponse,
   AppNotification,
+  SearchResult,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
@@ -279,6 +281,50 @@ export default function AppShell({ children }: AppShellProps) {
 
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const close = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSearchOpen(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", onKey); };
+  }, [searchOpen]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (value.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    setSearchLoading(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await globalSearch(value);
+        setSearchResults(results);
+        setSearchOpen(true);
+      } catch { setSearchResults([]); }
+      finally { setSearchLoading(false); }
+    }, 300);
+  }, []);
+
+  const handleSearchResultClick = useCallback((result: SearchResult) => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+    if (result.type === "todo") window.location.href = "/todos";
+    else if (result.type === "project") window.location.href = `/projects`;
+    else if (result.type === "note") window.location.href = "/notes";
+  }, []);
+
   const [shareOpen, setShareOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [shareSending, setShareSending] = useState(false);
@@ -352,6 +398,64 @@ export default function AppShell({ children }: AppShellProps) {
             </h1>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
+            {/* Search bar */}
+            <div className="relative hidden sm:block" ref={searchRef}>
+              <div className="relative">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+                  placeholder={t("search.placeholder" as TranslationKey)}
+                  className="w-48 lg:w-64 rounded-lg border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 pl-8 pr-3 py-1.5 text-sm text-zinc-900 dark:text-slate-100 placeholder:text-zinc-400 dark:placeholder:text-slate-500 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 transition-colors"
+                />
+                {searchLoading && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-zinc-300 dark:border-slate-500 border-t-emerald-500 rounded-full animate-spin" />
+                )}
+              </div>
+              {searchOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50">
+                  {searchResults.length === 0 && searchQuery.length >= 2 ? (
+                    <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults" as TranslationKey)}</p>
+                  ) : (
+                    <>
+                      {(["todo", "project", "note"] as const).map((type) => {
+                        const group = searchResults.filter((r) => r.type === type);
+                        if (group.length === 0) return null;
+                        const labelKey = type === "todo" ? "search.todos" : type === "project" ? "search.projects" : "search.notes";
+                        const icon = type === "todo" ? "\u{1F4CB}" : type === "project" ? "\u{1F4C1}" : "\u{1F4DD}";
+                        return (
+                          <div key={type}>
+                            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
+                              {icon} {t(labelKey as TranslationKey)}
+                            </div>
+                            {group.map((result) => (
+                              <button
+                                key={`${result.type}-${result.id}`}
+                                type="button"
+                                onClick={() => handleSearchResultClick(result)}
+                                className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors border-b border-zinc-50 dark:border-slate-800/50 last:border-b-0"
+                              >
+                                <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
+                                {result.snippet && (
+                                  <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>
+                                )}
+                                {result.status && (
+                                  <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400">{result.status}</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <Link href="/settings" className="flex items-center gap-2 rounded px-1.5 sm:px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
               <div className="w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">

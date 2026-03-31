@@ -14,6 +14,15 @@ export interface ScheduledSlot {
   calendarEventId: string | null;
 }
 
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+
+export interface Recurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  nextDueDate?: string;
+  endDate?: string;
+}
+
 export interface Todo {
   id: string;
   userId: string;
@@ -31,6 +40,8 @@ export interface Todo {
   tags: string[];
   status: TodoStatus;
   scheduledSlot: ScheduledSlot | null;
+  recurrence: Recurrence | null;
+  sortOrder: number | null;
   statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -48,6 +59,8 @@ export interface CreateTodoInput {
   projectId?: string | null;
   phaseId?: string | null;
   assignedTo?: string | null;
+  recurrence?: Recurrence | null;
+  sortOrder?: number | null;
 }
 
 export interface UpdateTodoInput {
@@ -64,11 +77,48 @@ export interface UpdateTodoInput {
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
   scheduledSlot?: ScheduledSlot | null;
+  recurrence?: Recurrence | null;
+  sortOrder?: number | null;
 }
 
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
 const VALID_EFFORTS: Effort[] = ["light", "medium", "heavy"];
 const VALID_STATUSES: TodoStatus[] = ["active", "completed", "cancelled", "deleted"];
+const VALID_FREQUENCIES: RecurrenceFrequency[] = ["daily", "weekly", "monthly"];
+
+function validateRecurrence(rec: Recurrence): void {
+  if (!VALID_FREQUENCIES.includes(rec.frequency)) {
+    throw new ValidationError("Fréquence invalide (daily, weekly, monthly)");
+  }
+  if (!Number.isFinite(rec.interval) || !Number.isInteger(rec.interval) || rec.interval < 1 || rec.interval > 365) {
+    throw new ValidationError("Intervalle invalide (entier entre 1 et 365)");
+  }
+  if (rec.endDate) {
+    const d = new Date(rec.endDate);
+    if (isNaN(d.getTime())) throw new ValidationError("Date de fin de récurrence invalide");
+  }
+}
+
+function calculateNextDueDate(
+  currentDeadline: string,
+  frequency: RecurrenceFrequency,
+  interval: number,
+): string {
+  const date = new Date(currentDeadline);
+  if (isNaN(date.getTime())) throw new ValidationError("Date de référence invalide pour récurrence");
+  switch (frequency) {
+    case "daily":
+      date.setDate(date.getDate() + interval);
+      break;
+    case "weekly":
+      date.setDate(date.getDate() + 7 * interval);
+      break;
+    case "monthly":
+      date.setMonth(date.getMonth() + interval);
+      break;
+  }
+  return date.toISOString().split("T")[0];
+}
 
 const todosByUser = new Map<string, Map<string, Todo>>();
 
@@ -113,6 +163,12 @@ function persistTodos(): void {
         }
         if ((todo as unknown as Record<string, unknown>).scheduledSlot === undefined) {
           todo.scheduledSlot = null;
+        }
+        if ((todo as unknown as Record<string, unknown>).recurrence === undefined) {
+          todo.recurrence = null;
+        }
+        if ((todo as unknown as Record<string, unknown>).sortOrder === undefined) {
+          todo.sortOrder = null;
         }
         if (!todo.statusChangedAt) {
           todo.statusChangedAt = todo.status === "active" ? todo.createdAt : todo.updatedAt;
@@ -211,6 +267,27 @@ export function canAccessTodo(userId: string, todoId: string): boolean {
   return findTodoForUser(userId, todoId) !== null;
 }
 
+const MAX_REORDER_SIZE = 200;
+
+/**
+ * Updates sortOrder for a batch of owned todos in a single persist.
+ * Returns the count of successfully updated items.
+ */
+export function batchReorder(userId: string, todoIds: string[]): number {
+  const capped = todoIds.slice(0, MAX_REORDER_SIZE);
+  let updated = 0;
+  for (let i = 0; i < capped.length; i++) {
+    const found = findTodoForUser(userId, capped[i]);
+    if (found && found.isOwner) {
+      found.todo.sortOrder = i;
+      found.todo.updatedAt = new Date().toISOString();
+      updated++;
+    }
+  }
+  if (updated > 0) persistTodos();
+  return updated;
+}
+
 export function createTodo(userId: string, input: CreateTodoInput): Todo {
   if (!input.title || input.title.trim().length === 0) {
     throw new ValidationError("Le titre est requis");
@@ -243,6 +320,10 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     }
   }
 
+  if (input.recurrence) {
+    validateRecurrence(input.recurrence);
+  }
+
   const now = new Date().toISOString();
   const todo: Todo = {
     id: crypto.randomUUID(),
@@ -260,6 +341,8 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     deadline: input.deadline ?? null,
     tags: (input.tags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10),
     scheduledSlot: null,
+    recurrence: input.recurrence ?? null,
+    sortOrder: typeof input.sortOrder === "number" ? input.sortOrder : null,
     status: "active",
     statusChangedAt: now,
     createdAt: now,
@@ -365,10 +448,62 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   if (input.scheduledSlot !== undefined) {
     todo.scheduledSlot = input.scheduledSlot;
   }
+  if (input.recurrence !== undefined) {
+    if (input.recurrence) {
+      validateRecurrence(input.recurrence);
+    }
+    todo.recurrence = input.recurrence;
+  }
+  if (input.sortOrder !== undefined) {
+    todo.sortOrder = input.sortOrder;
+  }
 
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
   persistTodos();
+
+  if (
+    input.status === "completed" &&
+    todo.recurrence &&
+    todo.deadline
+  ) {
+    const { frequency, interval, endDate } = todo.recurrence;
+    const nextDeadline = calculateNextDueDate(todo.deadline, frequency, interval);
+    const pastEnd = endDate && nextDeadline > endDate;
+    if (!pastEnd) {
+      const ownerTodos = getUserTodos(todo.userId);
+      const now2 = new Date().toISOString();
+      const clone: Todo = {
+        id: crypto.randomUUID(),
+        userId: todo.userId,
+        parentId: null,
+        projectId: todo.projectId,
+        phaseId: todo.phaseId,
+        assignedTo: todo.assignedTo,
+        assignmentStatus: todo.assignedTo ? "pending" : null,
+        title: todo.title,
+        priority: todo.priority,
+        effort: todo.effort,
+        estimatedMinutes: todo.estimatedMinutes,
+        startDate: null,
+        deadline: nextDeadline,
+        tags: [...todo.tags],
+        scheduledSlot: null,
+        recurrence: {
+          ...todo.recurrence,
+          nextDueDate: calculateNextDueDate(nextDeadline, frequency, interval),
+        },
+        sortOrder: null,
+        status: "active",
+        statusChangedAt: now2,
+        createdAt: now2,
+        updatedAt: now2,
+      };
+      ownerTodos.set(clone.id, clone);
+      persistTodos();
+    }
+  }
+
   return todo;
 }
 

@@ -53,6 +53,12 @@ export function logActivity(
   persist();
 }
 
+export function getTaskActivity(todoId: string): ActivityLogEntry[] {
+  return activityLog
+    .filter((e) => e.entityId === todoId && e.entityType === "todo")
+    .slice(0, 50);
+}
+
 export function getActivityLog(filters?: {
   userId?: string;
   entityType?: string;
@@ -68,6 +74,3 @@ export function getActivityLog(filters?: {
   return { entries: filtered.slice(offset, offset + limit), total };
 }
 
-export function getActivityForUser(userId: string): ActivityLogEntry[] {
-  return activityLog.filter((e) => e.userId === userId);
-}

@@ -16,6 +16,7 @@ import calendarRoutes from "./routes/calendarRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import noteRoutes from "./routes/noteRoutes";
+import attachmentRoutes from "./routes/attachmentRoutes";
 
 dotenv.config();
 
@@ -61,6 +62,7 @@ app.use("/calendar", apiLimiter, calendarRoutes);
 app.use("/webhooks", apiLimiter, webhookRoutes);
 app.use("/admin", apiLimiter, adminRoutes);
 app.use("/notes", apiLimiter, noteRoutes);
+app.use("/attachments", apiLimiter, attachmentRoutes);
 
 app.use(errorHandler);
 

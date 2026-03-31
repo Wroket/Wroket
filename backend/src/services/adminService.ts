@@ -28,15 +28,20 @@ interface UserSummary {
   emailVerified: boolean;
   googleSso: boolean;
   taskCount: number;
+  noteCount: number;
   createdAt: string;
+  lastLoginAt: string;
 }
 
 interface AdminStats {
   users: { total: number; verified: number; last7d: number; last30d: number; googleSso: number };
-  tasks: { total: number; active: number; completed: number; cancelled: number };
+  tasks: { total: number; active: number; completed: number; cancelled: number; scheduled: number };
   projects: { total: number; active: number };
   teams: number;
   invitesSent: number;
+  notes: number;
+  comments: number;
+  uptime: number;
 }
 
 export function getAdminStats(): AdminStats {
@@ -58,14 +63,12 @@ export function getAdminStats(): AdminStats {
     const created = new Date(u.createdAt as string).getTime();
     if (created >= d7) userStats.last7d++;
     if (created >= d30) userStats.last30d++;
-  }
-  for (const u of users) {
     const hash = u.passwordHashB64 as string | undefined;
     if (hash && hash.length > 80) userStats.googleSso++;
   }
 
   const todoStore = store.todos ?? {};
-  let taskTotal = 0, taskActive = 0, taskCompleted = 0, taskCancelled = 0;
+  let taskTotal = 0, taskActive = 0, taskCompleted = 0, taskCancelled = 0, taskScheduled = 0;
   for (const userTodos of Object.values(todoStore)) {
     const todos = userTodos as Record<string, Record<string, unknown>>;
     for (const todo of Object.values(todos)) {
@@ -74,6 +77,7 @@ export function getAdminStats(): AdminStats {
       if (status === "active") taskActive++;
       else if (status === "completed") taskCompleted++;
       else if (status === "cancelled") taskCancelled++;
+      if (todo.scheduledSlot) taskScheduled++;
     }
   }
 
@@ -91,12 +95,29 @@ export function getAdminStats(): AdminStats {
     invitesSent += (list as unknown[]).length;
   }
 
+  // Notes count
+  const noteStore = store.notes ?? {};
+  let notesCount = 0;
+  for (const userNotes of Object.values(noteStore)) {
+    notesCount += Object.keys(userNotes as Record<string, unknown>).length;
+  }
+
+  // Comments count
+  const commentStore = store.comments ?? {};
+  let commentsCount = 0;
+  for (const list of Object.values(commentStore)) {
+    commentsCount += (list as unknown[]).length;
+  }
+
   return {
     users: userStats,
-    tasks: { total: taskTotal, active: taskActive, completed: taskCompleted, cancelled: taskCancelled },
+    tasks: { total: taskTotal, active: taskActive, completed: taskCompleted, cancelled: taskCancelled, scheduled: taskScheduled },
     projects: projectStats,
     teams,
     invitesSent,
+    notes: notesCount,
+    comments: commentsCount,
+    uptime: process.uptime(),
   };
 }
 
@@ -117,12 +138,28 @@ export function getAdminUsers(): UserSummary[] {
   const store = getStore();
   const users = Object.values(store.users ?? {}) as Array<Record<string, unknown>>;
   const todoStore = store.todos ?? {};
+  const noteStoreAll = store.notes ?? {};
+
+  // Determine last login from active sessions
+  const sessionStore = (store.sessions ?? {}) as Record<string, Record<string, unknown>>;
+  const lastLoginMap = new Map<string, number>();
+  for (const session of Object.values(sessionStore)) {
+    const suid = session.uid as string;
+    const created = session.createdAt ? new Date(session.createdAt as string).getTime() : 0;
+    const expiresAt = (session.expiresAt as number) ?? 0;
+    const loginTs = created || (expiresAt - 30 * 24 * 60 * 60 * 1000);
+    const prev = lastLoginMap.get(suid) ?? 0;
+    if (loginTs > prev) lastLoginMap.set(suid, loginTs);
+  }
 
   return users.map((u) => {
     const uid = u.uid as string;
     const userTodos = (todoStore as Record<string, Record<string, unknown>>)[uid] ?? {};
     const taskCount = Object.keys(userTodos).length;
+    const userNotes = (noteStoreAll as Record<string, Record<string, unknown>>)[uid] ?? {};
+    const noteCount = Object.keys(userNotes).length;
     const hash = u.passwordHashB64 as string | undefined;
+    const lastLogin = lastLoginMap.get(uid);
 
     return {
       uid,
@@ -132,7 +169,9 @@ export function getAdminUsers(): UserSummary[] {
       emailVerified: !!u.emailVerified,
       googleSso: !!(hash && hash.length > 80),
       taskCount,
+      noteCount,
       createdAt: (u.createdAt as string) ?? "",
+      lastLoginAt: lastLogin ? new Date(lastLogin).toISOString() : "",
     };
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

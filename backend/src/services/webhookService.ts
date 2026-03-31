@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import dns from "dns/promises";
 import { URL } from "url";
 
 import { getStore, scheduleSave } from "../persistence";
@@ -66,10 +67,10 @@ export function listWebhooks(uid: string): WebhookConfig[] {
   return getUserWebhooks(uid);
 }
 
-export function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id" | "createdAt"> & { id?: string }): WebhookConfig {
+export async function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id" | "createdAt"> & { id?: string }): Promise<WebhookConfig> {
   const list = getUserWebhooks(uid);
 
-  validateWebhookUrl(input.url);
+  await validateWebhookUrl(input.url);
 
   const events = (input.events ?? []).filter((e) => VALID_EVENTS.includes(e));
   if (events.length === 0) events.push("task_assigned");
@@ -193,12 +194,34 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
   }
 }
 
-const BLOCKED_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"]);
+const BLOCKED_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]", "metadata.google.internal"]);
+
+function isPrivateIP(ip: string): boolean {
+  const normalized = ip.replace(/^\[|\]$/g, "");
+  if (BLOCKED_HOSTS.has(normalized)) return true;
+  if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
+
+  const parts = normalized.split(".");
+  if (parts.length === 4) {
+    const [a, b] = parts.map(Number);
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 0) return true;
+  }
+
+  if (normalized.startsWith("fe80:") || normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+
+  return false;
+}
 
 /**
  * Reject URLs targeting private/internal networks (SSRF protection).
+ * Resolves DNS to block rebinding attacks (e.g. nip.io, localtest.me).
  */
-function validateWebhookUrl(raw: string): URL {
+async function validateWebhookUrl(raw: string): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(raw);
@@ -212,18 +235,20 @@ function validateWebhookUrl(raw: string): URL {
 
   const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
 
-  if (BLOCKED_HOSTS.has(hostname)) {
+  if (BLOCKED_HOSTS.has(hostname) || isPrivateIP(hostname)) {
     throw new ValidationError("URL vers un hôte interne non autorisée");
   }
 
-  const parts = hostname.split(".");
-  if (
-    parts[0] === "10" ||
-    parts[0] === "169" && parts[1] === "254" ||
-    parts[0] === "192" && parts[1] === "168" ||
-    parts[0] === "172" && Number(parts[1]) >= 16 && Number(parts[1]) <= 31
-  ) {
-    throw new ValidationError("URL vers un réseau privé non autorisée");
+  try {
+    const addresses = await dns.resolve4(hostname).catch(() => [] as string[]);
+    const addresses6 = await dns.resolve6(hostname).catch(() => [] as string[]);
+    for (const addr of [...addresses, ...addresses6]) {
+      if (isPrivateIP(addr)) {
+        throw new ValidationError("URL vers un réseau privé non autorisée (résolution DNS)");
+      }
+    }
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
   }
 
   return parsed;
@@ -255,20 +280,16 @@ export function dispatchWebhooks(
   };
 
   for (const webhook of matching) {
-    try {
-      validateWebhookUrl(webhook.url);
-    } catch {
-      console.warn("[webhook] URL bloquée pour %s (%s)", webhook.label, webhook.url);
-      continue;
-    }
-    const body = formatPayload(webhook.platform, payload);
-    fetch(webhook.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+    validateWebhookUrl(webhook.url).then((validUrl) => {
+      const body = formatPayload(webhook.platform, payload);
+      return fetch(validUrl.href, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      });
     }).catch((err) => {
-      console.warn("[webhook] dispatch failed for %s (%s): %s", webhook.label, webhook.url, err);
+      console.warn("[webhook] dispatch failed for %s: %s", webhook.label, (err as Error).message ?? err);
     });
   }
 }
@@ -285,7 +306,7 @@ export async function testWebhook(url: string, platform: WebhookPlatform): Promi
   };
 
   try {
-    validateWebhookUrl(url);
+    await validateWebhookUrl(url);
     const body = formatPayload(platform, payload);
     const res = await fetch(url, {
       method: "POST",

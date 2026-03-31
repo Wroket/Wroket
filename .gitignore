@@ -28,3 +28,7 @@ Thumbs.db
 
 *.tsbuildinfo
 
+uploads/
+
+improvements/
+.claude/

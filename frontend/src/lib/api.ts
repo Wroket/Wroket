@@ -188,10 +188,13 @@ export async function shareInviteApi(email: string): Promise<void> {
 
 export interface AdminStats {
   users: { total: number; verified: number; last7d: number; last30d: number; googleSso: number };
-  tasks: { total: number; active: number; completed: number; cancelled: number };
+  tasks: { total: number; active: number; completed: number; cancelled: number; scheduled: number };
   projects: { total: number; active: number };
   teams: number;
   invitesSent: number;
+  notes: number;
+  comments: number;
+  uptime: number;
 }
 
 export interface AdminUser {
@@ -202,7 +205,9 @@ export interface AdminUser {
   emailVerified: boolean;
   googleSso: boolean;
   taskCount: number;
+  noteCount: number;
   createdAt: string;
+  lastLoginAt: string;
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
@@ -342,6 +347,118 @@ export async function logout(): Promise<void> {
   }
 }
 
+// ── Password / Account ──
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Erreur lors du changement de mot de passe");
+  }
+}
+
+export async function getMyExport(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${API_BASE_URL}/auth/my-export`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger l'export");
+  return res.json();
+}
+
+export async function deleteMyAccount(confirmation: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/my-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Erreur lors de la suppression");
+  }
+}
+
+export async function getMyActivity(params?: { limit?: number; offset?: number }): Promise<{ entries: ActivityLogEntry[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.offset) qs.set("offset", String(params.offset));
+  const res = await fetch(`${API_BASE_URL}/auth/my-activity?${qs.toString()}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger l'historique");
+  return res.json();
+}
+
+// ── Search ──
+
+export interface SearchResult {
+  type: "todo" | "project" | "note";
+  id: string;
+  title: string;
+  snippet?: string;
+  status?: string;
+}
+
+export async function globalSearch(query: string): Promise<SearchResult[]> {
+  if (query.length < 2) return [];
+  const res = await fetch(`${API_BASE_URL}/auth/search?q=${encodeURIComponent(query)}`, { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+// ── Attachments ──
+
+export interface Attachment {
+  id: string;
+  todoId: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
+export async function uploadAttachment(todoId: string, file: File): Promise<Attachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(extractApiMessage(data, "Erreur d'upload"));
+  }
+  return res.json();
+}
+
+export async function getAttachments(todoId: string): Promise<Attachment[]> {
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}`, { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function downloadAttachment(todoId: string, attachmentId: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}/${attachmentId}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de télécharger");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function deleteAttachmentApi(todoId: string, attachmentId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}/${attachmentId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de supprimer");
+}
+
 // ── Todos ──
 
 export type Priority = "low" | "medium" | "high";
@@ -349,6 +466,15 @@ export type Effort = "light" | "medium" | "heavy";
 export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
 
 export type AssignmentStatus = "pending" | "accepted" | "declined";
+
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+
+export interface Recurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  nextDueDate?: string;
+  endDate?: string;
+}
 
 export interface Todo {
   id: string;
@@ -366,6 +492,8 @@ export interface Todo {
   deadline: string | null;
   tags: string[];
   scheduledSlot: ScheduledSlot | null;
+  recurrence: Recurrence | null;
+  sortOrder?: number | null;
   status: TodoStatus;
   statusChangedAt: string;
   createdAt: string;
@@ -384,6 +512,7 @@ export interface CreateTodoPayload {
   projectId?: string | null;
   phaseId?: string | null;
   assignedTo?: string | null;
+  recurrence?: Recurrence | null;
 }
 
 export interface UpdateTodoPayload {
@@ -399,6 +528,7 @@ export interface UpdateTodoPayload {
   phaseId?: string | null;
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
+  recurrence?: Recurrence | null;
 }
 
 export async function getTodos(): Promise<Todo[]> {
@@ -475,6 +605,12 @@ export async function getComments(todoId: string): Promise<Comment[]> {
   return res.json();
 }
 
+export async function getCommentCounts(): Promise<Record<string, number>> {
+  const res = await fetch(`${API_BASE_URL}/todos/comment-counts`, { credentials: "include" });
+  if (!res.ok) return {};
+  return res.json();
+}
+
 export async function postCommentApi(todoId: string, text: string): Promise<Comment> {
   const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments`, {
     method: "POST",
@@ -498,10 +634,11 @@ export async function editCommentApi(todoId: string, commentId: string, text: st
 }
 
 export async function deleteCommentApi(todoId: string, commentId: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
     method: "DELETE",
     credentials: "include",
   });
+  if (!res.ok) throw new Error("Impossible de supprimer le commentaire");
 }
 
 export async function toggleReactionApi(todoId: string, commentId: string, emoji: string): Promise<Comment> {
@@ -522,6 +659,16 @@ export async function deleteTodo(id: string): Promise<Todo> {
   });
   if (!res.ok) throw new Error("Impossible de supprimer la tâche");
   return (await res.json()) as Todo;
+}
+
+export async function reorderTodos(todoIds: string[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/todos/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ todoIds }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur de réordonnancement");
 }
 
 // ── User lookup ──
@@ -581,17 +728,19 @@ export async function getUnreadCount(): Promise<number> {
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+  const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
     method: "PUT",
     credentials: "include",
   });
+  if (!res.ok) throw new Error("Impossible de marquer la notification comme lue");
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  await fetch(`${API_BASE_URL}/notifications/read-all`, {
+  const res = await fetch(`${API_BASE_URL}/notifications/read-all`, {
     method: "PUT",
     credentials: "include",
   });
+  if (!res.ok) throw new Error("Impossible de marquer les notifications comme lues");
 }
 
 // ── Teams & Collaborators ──
@@ -651,10 +800,11 @@ export async function inviteCollaborator(email: string): Promise<Collaborator> {
 }
 
 export async function removeCollaborator(email: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/teams/collaborators/${encodeURIComponent(email)}`, {
+  const res = await fetch(`${API_BASE_URL}/teams/collaborators/${encodeURIComponent(email)}`, {
     method: "DELETE",
     credentials: "include",
   });
+  if (!res.ok) throw new Error("Impossible de supprimer le collaborateur");
 }
 
 export async function acceptCollaboration(inviterEmail: string): Promise<void> {
@@ -756,10 +906,11 @@ export async function getTeamDashboard(teamId: string): Promise<TeamDashboardDat
 }
 
 export async function deleteTeamApi(teamId: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/teams/${teamId}`, {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}`, {
     method: "DELETE",
     credentials: "include",
   });
+  if (!res.ok) throw new Error("Impossible de supprimer l'équipe");
 }
 
 // ── Projects ──
@@ -1026,10 +1177,11 @@ export async function saveWebhook(config: Partial<WebhookConfig> & { url: string
 }
 
 export async function deleteWebhookApi(id: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/webhooks/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/webhooks/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
+  if (!res.ok) throw new Error("Impossible de supprimer le webhook");
 }
 
 export async function testWebhookApi(url: string, platform: WebhookPlatform): Promise<boolean> {
@@ -1052,6 +1204,10 @@ export interface Note {
   title: string;
   content: string;
   pinned: boolean;
+  folder?: string;
+  tags?: string[];
+  shared?: boolean;
+  teamId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -1062,7 +1218,13 @@ export async function getNotes(): Promise<Note[]> {
   return res.json();
 }
 
-export async function createNoteApi(input: { title?: string; content?: string; id?: string }): Promise<Note> {
+export async function getSharedNotes(): Promise<Note[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/shared`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les notes partagées");
+  return res.json();
+}
+
+export async function createNoteApi(input: { title?: string; content?: string; id?: string; folder?: string; tags?: string[]; shared?: boolean; teamId?: string }): Promise<Note> {
   const res = await fetch(`${API_BASE_URL}/notes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1073,7 +1235,7 @@ export async function createNoteApi(input: { title?: string; content?: string; i
   return res.json();
 }
 
-export async function updateNoteApi(id: string, input: { title?: string; content?: string; pinned?: boolean }): Promise<Note> {
+export async function updateNoteApi(id: string, input: { title?: string; content?: string; pinned?: boolean; folder?: string; tags?: string[]; shared?: boolean; teamId?: string }): Promise<Note> {
   const res = await fetch(`${API_BASE_URL}/notes/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -1085,7 +1247,8 @@ export async function updateNoteApi(id: string, input: { title?: string; content
 }
 
 export async function deleteNoteApi(id: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/notes/${id}`, { method: "DELETE", credentials: "include" });
+  const res = await fetch(`${API_BASE_URL}/notes/${id}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de supprimer la note");
 }
 
 export async function syncNotesApi(notes: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean }>): Promise<Note[]> {
@@ -1097,6 +1260,38 @@ export async function syncNotesApi(notes: Array<{ id: string; title: string; con
   });
   if (!res.ok) throw new Error("Sync failed");
   return res.json();
+}
+
+// ── Export CSV / Activity ──
+
+export async function exportTasksCsv(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/todos/export-csv`, { credentials: "include" });
+  if (!res.ok) throw new Error("Export failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "wroket-tasks.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function getTaskActivity(todoId: string): Promise<ActivityLogEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/activity`, { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function exportNotesMarkdown(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/notes/export`, { credentials: "include" });
+  if (!res.ok) throw new Error("Export failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "wroket-notes.md";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── CSV Import ──
