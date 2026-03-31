@@ -68,6 +68,8 @@ export default function TaskEditModal({
   const [mentionIdx, setMentionIdx] = useState(0);
   const [allCollaborators, setAllCollaborators] = useState<Collaborator[]>([]);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [showAllComments, setShowAllComments] = useState(false);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
@@ -84,6 +86,7 @@ export default function TaskEditModal({
     if (!todo) return;
     setComments([]);
     setCommentText("");
+    setShowAllComments(false);
     let cancelled = false;
     getComments(todo.id).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -186,16 +189,26 @@ export default function TaskEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-edit-modal-title"
-        className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-6"
+        className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3
-          id="task-edit-modal-title"
-          className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-4"
+        <div className="p-6">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          className="w-full flex items-center justify-between mb-3"
         >
-          {t("edit.title")}
-        </h3>
-        <div className="space-y-3">
+          <h3
+            id="task-edit-modal-title"
+            className="text-lg font-semibold text-zinc-900 dark:text-slate-100"
+          >
+            {t("edit.title")}
+          </h3>
+          <svg className={`w-4 h-4 text-zinc-400 dark:text-slate-500 transition-transform ${detailsOpen ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {detailsOpen && <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
               {t("edit.titleField")}
@@ -399,7 +412,9 @@ export default function TaskEditModal({
             </div>
           </div>
         </div>
+        }
 
+        {detailsOpen && <>
         {/* Tags */}
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
@@ -425,16 +440,27 @@ export default function TaskEditModal({
             <button type="button" onClick={handleAddTag} disabled={!tagInput.trim()} className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
           </div>
         </div>
+        </>}
 
         {/* Comments */}
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
           <h4 className="text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">
             {t("comments.title" as TranslationKey)} ({comments.length})
           </h4>
-          <div className="max-h-40 overflow-y-auto space-y-2 mb-2">
+          <div className="max-h-48 overflow-y-auto space-y-2 mb-2">
             {comments.length === 0 ? (
               <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("comments.empty" as TranslationKey)}</p>
-            ) : comments.map((c) => (
+            ) : <>
+            {comments.length > 3 && !showAllComments && (
+              <button
+                type="button"
+                onClick={() => setShowAllComments(true)}
+                className="w-full text-center text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium py-1 transition-colors"
+              >
+                {t("comments.showOlder" as TranslationKey)} ({comments.length - 3})
+              </button>
+            )}
+            {(showAllComments ? comments : comments.slice(-3)).map((c) => (
               <div key={c.id} className="bg-zinc-50 dark:bg-slate-800/60 rounded px-3 py-2 text-xs group">
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-1.5">
@@ -487,6 +513,7 @@ export default function TaskEditModal({
                 </div>
               </div>
             ))}
+            </>}
           </div>
           <div className="relative flex gap-1.5">
             <div className="flex-1 relative">
@@ -589,6 +616,7 @@ export default function TaskEditModal({
               {saving ? t("edit.saving") : t("edit.save")}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

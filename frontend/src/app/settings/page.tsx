@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -97,6 +97,14 @@ const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
 ];
 
 export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const { t, locale, setLocale: changeLocale } = useLocale();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");

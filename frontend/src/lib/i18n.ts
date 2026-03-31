@@ -408,6 +408,7 @@ const translations = {
   "comments.placeholder": { fr: "Ajouter un commentaire...", en: "Add a comment..." },
   "comments.send": { fr: "Envoyer", en: "Send" },
   "comments.empty": { fr: "Aucun commentaire", en: "No comments" },
+  "comments.showOlder": { fr: "Voir les anciens", en: "Show older" },
   "comments.delete": { fr: "Supprimer", en: "Delete" },
   "comments.edit": { fr: "Modifier", en: "Edit" },
   "comments.edited": { fr: "(modifié)", en: "(edited)" },
