@@ -17,7 +17,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-export function getGoogleSsoAuthUrl(): { url: string; state: string } {
+export function getGoogleSsoAuthUrl(loginHint?: string): { url: string; state: string } {
   const state = crypto.randomBytes(32).toString("hex");
   pendingSsoStates.set(state, Date.now());
 
@@ -27,9 +27,15 @@ export function getGoogleSsoAuthUrl(): { url: string; state: string } {
     response_type: "code",
     scope: SSO_SCOPES,
     access_type: "online",
-    prompt: "select_account",
     state,
   });
+
+  if (loginHint) {
+    params.set("login_hint", loginHint);
+  } else {
+    params.set("prompt", "select_account");
+  }
+
   return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, state };
 }
 

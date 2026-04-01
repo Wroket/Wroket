@@ -53,7 +53,8 @@ export default function LoginPage() {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       document.cookie = `tz=${encodeURIComponent(tz)};path=/;max-age=300;SameSite=Lax`;
-      const url = await getGoogleSsoUrl();
+      const hint = localStorage.getItem("wroket-login-email") ?? undefined;
+      const url = await getGoogleSsoUrl(hint);
       window.location.href = url;
     } catch {
       setError(t("login.googleSsoError"));
@@ -77,7 +78,8 @@ export default function LoginPage() {
         return;
       }
 
-      await getMe();
+      const me = await getMe();
+      if (me?.email) localStorage.setItem("wroket-login-email", me.email);
       window.location.href = "/dashboard";
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("login.error");

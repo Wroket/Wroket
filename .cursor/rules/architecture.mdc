@@ -1,0 +1,43 @@
+---
+description: Architecture technique Wroket — production, CI/CD, infra GCP
+alwaysApply: true
+---
+
+# Architecture Wroket
+
+## Projet GCP
+- **Project ID** : `involuted-reach-490718-h4`
+- **Display name** : `Wroket-com-Dev`
+- **Région principale** : `europe-west1` (Belgique)
+
+## Production = Cloud Run (PAS la VM)
+- `wroket.com` / `www.wroket.com` → Cloud Run (`ghs.googlehosted.com`)
+- **Backend** : service Cloud Run `wroket-api` → `https://api.wroket.com`
+- **Frontend** : service Cloud Run `wroket-web` → `https://wroket.com`
+- Service account : `wroket-run@involuted-reach-490718-h4.iam.gserviceaccount.com`
+- Persistance : **Firestore** (database `(default)`, via le SA `wroket-run`)
+
+## VM GCP (environnement secondaire, PAS la prod)
+- Nom : `wroket-vm` | Zone : `europe-west9-b` (Paris)
+- IP : `34.163.195.190` | SSH alias : `gcp-vm` (user `francois`)
+- Service account : `846885741813-compute@developer.gserviceaccount.com`
+- Scopes limités (pas de `datastore`) → pas d'accès Firestore depuis la VM
+- Docker Compose + Nginx + local-store.json (données de test)
+
+## CI/CD
+- **GitHub Actions** (`.github/workflows/deploy.yml`) : lint + type-check sur push/PR
+- **Cloud Build** (`cloudbuild.yaml`) : build images Docker → push Artifact Registry → deploy Cloud Run
+- Registry : `europe-west1-docker.pkg.dev/$PROJECT_ID/wroket/{api,web}`
+
+## Variables d'environnement Cloud Run (wroket-api)
+- `ADMIN_EMAILS` : emails admin séparés par virgule
+- `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_SSO_REDIRECT_URI` : `https://api.wroket.com/auth/google/callback`
+- `GOOGLE_REDIRECT_URI` : `https://api.wroket.com/calendar/google/callback`
+- `COOKIE_SECURE`, `ALLOWED_ORIGINS`, `FRONTEND_URL`
+
+## Règles critiques
+1. **Ne jamais confondre VM et production** — la prod est Cloud Run
+2. Pour modifier une env var en prod : `gcloud run services update wroket-api --region=europe-west1 --update-env-vars KEY=VALUE`
+3. Les déploiements se font via push sur `main` → Cloud Build
+4. Firestore est accessible uniquement via le SA `wroket-run`, pas via la VM

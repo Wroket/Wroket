@@ -213,7 +213,10 @@ export default function AppShell({ children }: AppShellProps) {
     (async () => {
       try {
         const user = await getMe();
-        if (!cancelled) setMe(user);
+        if (!cancelled) {
+          setMe(user);
+          if (user?.email) localStorage.setItem("wroket-login-email", user.email);
+        }
       } catch {
         if (!cancelled) window.location.href = "/login";
       } finally {

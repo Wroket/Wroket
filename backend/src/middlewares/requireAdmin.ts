@@ -22,7 +22,12 @@ export function requireAdmin(
   res: Response,
   next: NextFunction,
 ): void {
-  if (!req.user || !isAdmin(req.user.email)) {
+  const email = req.user?.email;
+  const granted = email ? isAdmin(email) : false;
+  if (!granted) {
+    console.warn("[requireAdmin] denied for email=%s", email ?? "(none)");
+  }
+  if (!req.user || !granted) {
     res.status(403).json({ message: "Accès refusé" });
     return;
   }

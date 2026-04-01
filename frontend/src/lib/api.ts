@@ -177,8 +177,9 @@ export async function resetPasswordApi(token: string, password: string): Promise
   }
 }
 
-export async function getGoogleSsoUrl(): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/auth/google/url`, {
+export async function getGoogleSsoUrl(loginHint?: string): Promise<string> {
+  const params = loginHint ? `?login_hint=${encodeURIComponent(loginHint)}` : "";
+  const res = await fetch(`${API_BASE_URL}/auth/google/url${params}`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erreur d'authentification Google");

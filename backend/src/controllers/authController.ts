@@ -105,8 +105,9 @@ export async function resetPassword(req: Request, res: Response) {
   res.status(200).json({ message: "Mot de passe modifié avec succès" });
 }
 
-export async function googleSsoUrl(_req: Request, res: Response) {
-  const { url, state } = getGoogleSsoAuthUrl();
+export async function googleSsoUrl(req: Request, res: Response) {
+  const loginHint = typeof req.query.login_hint === "string" ? req.query.login_hint : undefined;
+  const { url, state } = getGoogleSsoAuthUrl(loginHint);
   const cookieSecure = process.env.COOKIE_SECURE === "true";
   res.cookie("oauth_state", state, {
     httpOnly: true,

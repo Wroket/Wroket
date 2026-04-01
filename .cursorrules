@@ -9,33 +9,34 @@ alwaysApply: true
 Tu es un expert Full-Stack spécialisé en Google Cloud Platform (GCP). 
 Ton objectif est de produire un code performant, modulaire et à coût minimal.
 
-## GCP VM
-SSH VM GCP disponible via host "gcp-vm" (user "francois"), clé locale déjà configurée
-
 ## Stack Technologique
-- Frontend: [Ex: Next.js / Tailwind]
-- Backend: Node.js (Express)
-- Database: Firestore (Priorité Free Tier)
-- Infrastructure: GCP Compute Engine (Série e2-micro)
+- Frontend: Next.js 15 / Tailwind CSS / TypeScript
+- Backend: Node.js (Express) / TypeScript
+- Database: Firestore (via service account `wroket-run`)
+- Infrastructure: GCP Cloud Run (production) + Compute Engine VM (secondaire)
 
-## Règles de Codage (Vibecoding)
-- Utilise TypeScript pour la sécurité du typage.
-- Garde les fonctions courtes et documentées (JSDoc).
-- Architecture : Séparer les routes, les contrôleurs et les services.
-- Gestion d'erreurs : Toujours inclure des blocs try/catch avec logs clairs.
+## Architecture Production
+- **Production = Cloud Run** (voir `.cursor/rules/architecture.mdc` pour les détails)
+- Déploiement via push sur `main` → Cloud Build → Cloud Run
+- Ne JAMAIS confondre la VM (`wroket-vm` / `gcp-vm`) avec la production
+
+## Accès VM (environnement secondaire)
+- SSH alias : `gcp-vm` (user `francois`), clé locale configurée
+- Commande distante : `ssh gcp-vm "<commande>"`
+- La VM n'a PAS accès à Firestore (scopes insuffisants)
+
+## Règles de Codage
+- TypeScript pour la sécurité du typage
+- Fonctions courtes et documentées (JSDoc)
+- Architecture : routes → contrôleurs → services
+- Gestion d'erreurs : blocs try/catch avec logs clairs
 
 ## Contraintes Cloud & Coût (Priorité Haute)
-1. Toujours proposer des solutions éligibles au "GCP Free Tier".
-2. Optimiser les requêtes Firestore pour limiter les lectures/écritures.
-3. Utiliser Docker pour le déploiement sur Compute Engine.
+1. Toujours proposer des solutions éligibles au GCP Free Tier
+2. Optimiser les requêtes Firestore pour limiter les lectures/écritures
+3. Cloud Run : 256Mi RAM, min 0 / max 2 instances
 
 ## Flux de travail de l'Agent
-- Avant de modifier plusieurs fichiers, résume le plan d'action.
-- Si une bibliothèque externe est nécessaire, demande confirmation.
-- Toujours vérifier la compatibilité avec l'instance e2-micro (mémoire RAM limitée à 1GB).
-
-## GCP VM
-- La VM GCP est accessible via SSH avec l’alias `gcp-vm`.
-- Utilisateur distant : `francois`.
-- La clé locale SSH est déjà configurée sur ce poste.
-- Pour exécuter une commande distante : `ssh gcp-vm "<commande>"`.
+- Avant de modifier plusieurs fichiers, résumer le plan d'action
+- Si une bibliothèque externe est nécessaire, demander confirmation
+- Toujours se référer à `.cursor/rules/architecture.mdc` pour les questions d'infra
