@@ -27,12 +27,16 @@ import {
   updateTodo,
   reorderTodos as reorderTodosApi,
   lookupUser,
+  getCollaborators,
+  getTeams,
   Todo,
   Priority,
   Effort,
   TodoStatus,
   AuthMeResponse,
   Project,
+  Collaborator,
+  Team,
 } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -118,7 +122,11 @@ export default function TodosPage() {
   const [assignEmail, setAssignEmail] = useState("");
   const [assignedUser, setAssignedUser] = useState<AuthMeResponse | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [showAssignSuggestions, setShowAssignSuggestions] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const assignWrapperRef = useRef<HTMLDivElement>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
@@ -202,22 +210,37 @@ export default function TodosPage() {
   }, [openDropdown]);
 
   useEffect(() => {
+    if (!showAssignSuggestions) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (assignWrapperRef.current && !assignWrapperRef.current.contains(e.target as Node)) {
+        setShowAssignSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showAssignSuggestions]);
+
+  useEffect(() => {
     if (!meUid) return;
     let cancelled = false;
     (async () => {
       try {
-        const [mine, archived, assigned, projs, ccounts] = await Promise.all([
+        const [mine, archived, assigned, projs, ccounts, collabs, tms] = await Promise.all([
           getTodos(),
           getArchivedTodos(),
           getAssignedTodos(),
           getProjects(),
           getCommentCounts(),
+          getCollaborators().catch(() => [] as Collaborator[]),
+          getTeams().catch(() => [] as Team[]),
         ]);
         if (!cancelled) {
           setMyTodos([...mine, ...archived]);
           setAssignedTodos(assigned);
           setProjects(projs.filter((p) => p.status === "active"));
           setCommentCounts(ccounts);
+          setCollaborators(collabs.filter((c) => c.status === "active"));
+          setTeams(tms);
           const uids = new Set<string>();
           [...mine, ...assigned].forEach((todo) => {
             if (todo.assignedTo) uids.add(todo.assignedTo);
@@ -373,9 +396,24 @@ export default function TodosPage() {
     }
   };
 
+  const assignSuggestions = useMemo(() => {
+    const selectedProject = projects.find((p) => p.id === selectedProjectId);
+    const teamId = selectedProject?.teamId ?? null;
+    const team = teamId ? teams.find((tm) => tm.id === teamId) : null;
+
+    const emails: string[] = team
+      ? team.members.map((m) => m.email)
+      : collaborators.map((c) => c.email);
+
+    if (!assignEmail || assignEmail.length < 1) return emails;
+    const q = assignEmail.toLowerCase();
+    return emails.filter((e) => e.toLowerCase().includes(q));
+  }, [assignEmail, selectedProjectId, projects, teams, collaborators]);
+
   const handleAssignLookup = (email: string) => {
     setAssignEmail(email);
     setAssignError(null);
+    setShowAssignSuggestions(true);
     clearTimeout(assignLookupTimer.current);
     if (!email.includes("@") || email.length < 5) {
       setAssignedUser(null);
@@ -395,6 +433,20 @@ export default function TodosPage() {
         setAssignedUser(null);
       }
     }, 300);
+  };
+
+  const selectSuggestion = (email: string) => {
+    setAssignEmail(email);
+    setShowAssignSuggestions(false);
+    setAssignError(null);
+    clearTimeout(assignLookupTimer.current);
+    assignLookupTimer.current = setTimeout(async () => {
+      try {
+        const u = await lookupUser(email);
+        if (u) { setAssignedUser(u); setAssignError(null); }
+        else { setAssignedUser(null); setAssignError(t("assign.userNotFound")); }
+      } catch { setAssignedUser(null); }
+    }, 100);
   };
 
   const handleEditAssignLookup = (email: string) => {
@@ -745,12 +797,14 @@ export default function TodosPage() {
                   ))}
                 </select>
               )}
-              <div className="relative col-span-2 sm:flex-1 sm:min-w-[200px]">
+              <div ref={assignWrapperRef} className="relative col-span-2 sm:flex-1 sm:min-w-[200px]">
                 <input
                   type="email"
                   placeholder={t("assign.placeholder")}
                   value={assignEmail}
                   onChange={(e) => handleAssignLookup(e.target.value)}
+                  onFocus={() => setShowAssignSuggestions(true)}
+                  autoComplete="off"
                   className={`w-full rounded border px-3 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 h-[38px] sm:h-[42px] ${
                     assignedUser
                       ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
@@ -765,6 +819,20 @@ export default function TodosPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
+                )}
+                {showAssignSuggestions && assignSuggestions.length > 0 && !assignedUser && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 max-h-40 overflow-y-auto">
+                    {assignSuggestions.slice(0, 8).map((email) => (
+                      <button
+                        key={email}
+                        type="button"
+                        onClick={() => selectSuggestion(email)}
+                        className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors truncate"
+                      >
+                        {email}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -1177,9 +1245,9 @@ export default function TodosPage() {
             </div>
           ) : (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-6">
-              <div className="flex gap-6">
+              <div className="flex flex-col md:flex-row gap-6">
                 {/* Priority list */}
-                <div className="w-72 shrink-0">
+                <div className="w-full md:w-72 md:shrink-0">
                   <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
                     {filters.size === 0
                       ? t("todos.priorities")
@@ -1194,7 +1262,7 @@ export default function TodosPage() {
                         delegate: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800",
                         eliminate: "bg-zinc-50 dark:bg-slate-800/40 border-zinc-200 dark:border-slate-700",
                       };
-                      return priorityTodos.slice(0, 12).map((todo, i) => {
+                      return priorityTodos.slice(0, 5).map((todo, i) => {
                         const q = classify(todo);
                         const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
                         return (
@@ -1351,7 +1419,7 @@ export default function TodosPage() {
                 </div>
 
                 {/* Radar */}
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <EisenhowerRadar todos={activeTodos} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
                 </div>
               </div>

@@ -88,7 +88,7 @@ export default function EisenhowerRadar({ todos, subtaskCounts = {}, meUid, user
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
-    <div className={compact ? "max-w-full mx-auto" : "max-w-[calc(100vh-16rem)] mx-auto"}>
+    <div className={compact ? "max-w-full mx-auto" : "max-w-[min(100%,calc(100vh-16rem))] mx-auto"}>
       {/* Column headers */}
       <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
         <div className="w-10" />
