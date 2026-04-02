@@ -127,6 +127,7 @@ export async function updateProfile(payload: {
   lastName?: string;
   effortMinutes?: { light: number; medium: number; heavy: number };
   workingHours?: WorkingHours;
+  skipNonWorkingDays?: boolean;
 }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PUT",

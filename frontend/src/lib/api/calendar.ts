@@ -36,15 +36,32 @@ export async function getTaskSlots(todoId: string): Promise<{
   return res.json();
 }
 
-export async function bookTaskSlot(todoId: string, start: string, end: string): Promise<Todo> {
+export interface SlotConflict {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+}
+
+export interface BookSlotResult {
+  todo?: Todo;
+  conflict?: true;
+  conflicts?: SlotConflict[];
+}
+
+export async function bookTaskSlot(todoId: string, start: string, end: string, force?: boolean): Promise<BookSlotResult> {
   const res = await fetch(`${API_BASE_URL}/calendar/book/${todoId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ start, end }),
+    body: JSON.stringify({ start, end, force }),
     credentials: "include",
   });
+  if (res.status === 409) {
+    return res.json() as Promise<BookSlotResult>;
+  }
   if (!res.ok) throw new Error("Impossible de réserver le créneau");
-  return res.json();
+  const todo = await res.json() as Todo;
+  return { todo };
 }
 
 export async function clearTaskSlot(todoId: string): Promise<Todo> {

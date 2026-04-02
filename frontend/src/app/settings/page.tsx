@@ -151,7 +151,7 @@ function SettingsContent() {
           </nav>
 
           {/* ── Content ── */}
-          <div className="flex-1 min-w-0 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 sm:p-6">
+          <div className="flex-1 min-w-0 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-8rem)]">
             {active === "profile" && <ProfileSection />}
             {active === "languages" && <LanguagesSection />}
             {active === "tasks" && <TasksSection />}
@@ -289,6 +289,7 @@ function TasksSection() {
   const [whSaving, setWhSaving] = useState(false);
   const [whSaved, setWhSaved] = useState(false);
   const [tzMismatch, setTzMismatch] = useState(false);
+  const [skipNonWorkingDays, setSkipNonWorkingDays] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,6 +308,7 @@ function TasksSection() {
             setTzMismatch(true);
           }
         }
+        setSkipNonWorkingDays(!!me.skipNonWorkingDays);
       } catch { /* auth handled by AppShell */ }
     })();
     return () => { cancelled = true; };
@@ -330,7 +332,7 @@ function TasksSection() {
     setWhSaving(true);
     setWhSaved(false);
     try {
-      await updateProfile({ workingHours: wh });
+      await updateProfile({ workingHours: wh, skipNonWorkingDays });
       setWhSaved(true);
       setTimeout(() => setWhSaved(false), 2000);
     } catch (err) {
@@ -484,6 +486,34 @@ function TasksSection() {
           {whSaving ? t("settings.saving") : t("settings.save")}
         </button>
         {whSaved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
+      </div>
+
+      {/* ── Recurrence on working days ── */}
+      <hr className="border-zinc-200 dark:border-slate-700" />
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.skipNonWorkingDays")}</h3>
+          <p className="text-xs text-zinc-400 dark:text-slate-500 mt-0.5">{t("settings.skipNonWorkingDaysDesc")}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={skipNonWorkingDays}
+          onClick={async () => {
+            const next = !skipNonWorkingDays;
+            setSkipNonWorkingDays(next);
+            try {
+              await updateProfile({ skipNonWorkingDays: next });
+            } catch {
+              setSkipNonWorkingDays(!next);
+            }
+          }}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${skipNonWorkingDays ? "bg-slate-700 dark:bg-slate-500" : "bg-zinc-300 dark:bg-slate-600"}`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ${skipNonWorkingDays ? "translate-x-5" : "translate-x-0"}`}
+          />
+        </button>
       </div>
     </div>
   );

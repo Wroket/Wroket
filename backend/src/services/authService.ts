@@ -61,6 +61,7 @@ export interface AuthUser {
   lastName: string;
   effortMinutes: EffortMinutes;
   workingHours: WorkingHours;
+  skipNonWorkingDays: boolean;
   googleCalendarConnected: boolean;
   googleAccounts: GoogleAccountPublic[];
   emailVerified: boolean;
@@ -80,6 +81,7 @@ interface StoredUser {
   /** @deprecated migrated to googleAccounts */
   googleCalendars?: GoogleCalendarEntry[];
   googleAccounts?: GoogleAccount[];
+  skipNonWorkingDays?: boolean;
   emailVerified?: boolean;
   emailVerifyToken?: string;
   emailVerifyExpiresAt?: number;
@@ -179,6 +181,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     lastName: user.lastName ?? "",
     effortMinutes: user.effortMinutes ?? DEFAULT_EFFORT_MINUTES,
     workingHours: user.workingHours ?? DEFAULT_WORKING_HOURS,
+    skipNonWorkingDays: user.skipNonWorkingDays ?? false,
     googleCalendarConnected: accounts.length > 0,
     googleAccounts: accounts.map((a) => ({ id: a.id, email: a.email, calendars: a.calendars })),
     emailVerified: user.emailVerified ?? false,
@@ -433,6 +436,7 @@ export interface UpdateProfileInput {
   lastName?: string;
   effortMinutes?: EffortMinutes;
   workingHours?: WorkingHours;
+  skipNonWorkingDays?: boolean;
 }
 
 const HH_MM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -478,6 +482,9 @@ export function updateProfile(uid: string, input: UpdateProfileInput): AuthUser 
   if (input.workingHours !== undefined) {
     validateWorkingHours(input.workingHours);
     user.workingHours = input.workingHours;
+  }
+  if (input.skipNonWorkingDays !== undefined) {
+    user.skipNonWorkingDays = !!input.skipNonWorkingDays;
   }
 
   usersByUid.set(uid, user);

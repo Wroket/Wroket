@@ -16,8 +16,11 @@ import {
 import { listComments, addComment, deleteComment, editComment, toggleReaction, parseMentions, getCommentCounts } from "../services/commentService";
 import { findUserByEmail } from "../services/authService";
 import { createNotification } from "../services/notificationService";
+import { deleteGoogleCalendarEvent } from "../services/googleCalendarService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity, getTaskActivity } from "../services/activityLogService";
+
+const TERMINAL_STATUSES = new Set(["completed", "cancelled", "deleted"]);
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const todos = listTodos(req.user!.uid);
@@ -65,6 +68,23 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   const input = req.body as UpdateTodoInput;
   const previousTodo = listTodos(req.user!.uid).find((t) => t.id === id);
   const todo = updateTodo(req.user!.uid, id, input);
+
+  if (
+    input.status &&
+    TERMINAL_STATUSES.has(input.status) &&
+    todo.scheduledSlot
+  ) {
+    const slotStart = new Date(todo.scheduledSlot.start);
+    if (slotStart > new Date()) {
+      if (todo.scheduledSlot.calendarEventId) {
+        deleteGoogleCalendarEvent(req.user!.uid, todo.scheduledSlot.calendarEventId).catch((err) => {
+          console.warn("[todo.update] Google Calendar event cleanup failed:", err);
+        });
+      }
+      updateTodo(req.user!.uid, id, { scheduledSlot: null });
+      todo.scheduledSlot = null;
+    }
+  }
 
   try {
     if (
@@ -134,6 +154,13 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const todo = deleteTodo(req.user!.uid, id);
+
+  if (todo.scheduledSlot?.calendarEventId) {
+    deleteGoogleCalendarEvent(req.user!.uid, todo.scheduledSlot.calendarEventId).catch((err) => {
+      console.warn("[todo.remove] Google Calendar event cleanup failed:", err);
+    });
+  }
+
   logActivity(req.user!.uid, req.user!.email, "delete", "todo", todo.id, { title: todo.title });
   res.status(200).json(todo);
 }

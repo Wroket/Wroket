@@ -47,6 +47,7 @@ export interface AuthMeResponse {
   effortMinutes: { light: number; medium: number; heavy: number };
   googleAccounts?: GoogleAccountPublic[];
   workingHours: WorkingHours;
+  skipNonWorkingDays: boolean;
   googleCalendarConnected: boolean;
 }
 

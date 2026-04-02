@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
-import { updateTodo, listTodos, findTodoForUser, listAssignedToMe, type RecurrenceFrequency } from "../services/todoService";
+import { updateTodo, listTodos, findTodoForUser, listAssignedToMe, type RecurrenceFrequency, type Todo } from "../services/todoService";
 import {
   findUserByUid,
   DEFAULT_WORKING_HOURS,
@@ -36,6 +36,62 @@ function advanceDate(d: Date, freq: RecurrenceFrequency, interval: number): void
   }
 }
 
+interface WroketEvent {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  source: "wroket";
+  priority: string;
+  effort: string;
+  deadline: string | null;
+  recurring?: boolean;
+  delegated?: boolean;
+}
+
+const MAX_EMITTED = 200;
+const MAX_ITERATIONS = 400;
+
+function pushRecurrences(
+  out: WroketEvent[],
+  t: Todo,
+  rangeStart: Date,
+  rangeEnd: Date,
+  skipDays: boolean,
+  workDays: number[],
+): void {
+  const slot = t.scheduledSlot!;
+  const slotStart = new Date(slot.start);
+  const durationMs = new Date(slot.end).getTime() - slotStart.getTime();
+  const { frequency, interval, endDate } = t.recurrence!;
+  const recEnd = endDate ? new Date(endDate) : null;
+  const cursor = new Date(slotStart);
+  let emitted = 0;
+
+  for (let i = 0; i < MAX_ITERATIONS && emitted < MAX_EMITTED; i++) {
+    advanceDate(cursor, frequency, interval);
+    if (recEnd && cursor > recEnd) break;
+    if (cursor > rangeEnd) break;
+    if (skipDays && !workDays.includes(cursor.getDay())) continue;
+    if (cursor < rangeStart) continue;
+
+    out.push({
+      id: `${t.id}_rec_${cursor.toISOString()}`,
+      summary: t.title,
+      start: cursor.toISOString(),
+      end: new Date(cursor.getTime() + durationMs).toISOString(),
+      allDay: false,
+      source: "wroket",
+      priority: t.priority,
+      effort: t.effort,
+      deadline: t.deadline,
+      recurring: true,
+    });
+    emitted++;
+  }
+}
+
 export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
@@ -61,20 +117,88 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
   res.status(200).json({ slots, duration, durationSource, effort, suggestedSlot: todo.suggestedSlot ?? null });
 }
 
+interface ConflictInfo { id: string; title: string; start: string; end: string }
+
+const MAX_CONFLICT_CALENDAR_FETCHES = 10;
+
+async function findConflicts(uid: string, todoId: string, start: Date, end: Date): Promise<ConflictInfo[]> {
+  const conflicts: ConflictInfo[] = [];
+
+  const checkTodo = (t: Todo) => {
+    if (t.id === todoId || t.status !== "active" || !t.scheduledSlot) return;
+    const sStart = new Date(t.scheduledSlot.start);
+    const sEnd = new Date(t.scheduledSlot.end);
+    if (start < sEnd && end > sStart) {
+      conflicts.push({ id: t.id, title: t.title, start: t.scheduledSlot.start, end: t.scheduledSlot.end });
+    }
+  };
+
+  for (const t of listTodos(uid)) checkTodo(t);
+  for (const t of listAssignedToMe(uid)) checkTodo(t);
+
+  const accounts = getGoogleAccounts(uid);
+  if (accounts.length > 0) {
+    const timeMin = start.toISOString();
+    const timeMax = end.toISOString();
+    const fetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
+    for (const account of accounts) {
+      for (const cal of account.calendars) {
+        if (!cal.enabled || fetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
+        fetches.push(listEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax));
+      }
+    }
+    try {
+      const results = await Promise.all(fetches);
+      for (const events of results) {
+        for (const ev of events) {
+          if (ev.allDay) continue;
+          const evStart = new Date(ev.start);
+          const evEnd = new Date(ev.end);
+          if (start < evEnd && end > evStart) {
+            conflicts.push({ id: ev.id, title: ev.summary, start: ev.start, end: ev.end });
+          }
+        }
+      }
+    } catch { /* Google Calendar unavailable — skip */ }
+  }
+
+  return conflicts;
+}
+
 export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
-  const { start, end } = req.body as { start: string; end: string };
+  const { start, end, force } = req.body as { start: string; end: string; force?: unknown };
 
   if (!start || !end) throw new ValidationError("start and end required");
+  if (typeof start !== "string" || typeof end !== "string") throw new ValidationError("start and end must be strings");
   const startDate = new Date(start);
   const endDate = new Date(end);
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) throw new ValidationError("Invalid date format");
   if (startDate >= endDate) throw new ValidationError("start must be before end");
 
+  const MAX_SLOT_DAYS = 7;
+  if (endDate.getTime() - startDate.getTime() > MAX_SLOT_DAYS * 24 * 3600_000) {
+    throw new ValidationError("Slot duration too long");
+  }
+
   const found = findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
+
+  if (!force) {
+    const conflicts = await findConflicts(uid, todoId, startDate, endDate);
+    if (conflicts.length > 0) {
+      const safeConflicts = conflicts.slice(0, 10).map((c) => ({
+        id: c.id,
+        title: c.title.slice(0, 100),
+        start: c.start,
+        end: c.end,
+      }));
+      res.status(409).json({ conflict: true, conflicts: safeConflicts });
+      return;
+    }
+  }
 
   let calendarEventId: string | null = null;
   const tokens = getGoogleCalendarTokens(uid);
@@ -169,75 +293,55 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   const ownedTodos = listTodos(uid);
   const assignedTodos = listAssignedToMe(uid);
   const seenIds = new Set<string>();
-
-  type WroketEvent = {
-    id: string;
-    summary: string;
-    start: string;
-    end: string;
-    allDay: boolean;
-    source: "wroket";
-    priority: string;
-    effort: string;
-    deadline: string | null;
-    recurring?: boolean;
-    delegated?: boolean;
-  };
-
   const wroketEvents: WroketEvent[] = [];
 
-  const allTodos = [...ownedTodos, ...assignedTodos];
-  for (const t of allTodos) {
+  const userCache = new Map<string, { skipDays: boolean; workDays: number[] }>();
+  function getOwnerPrefs(userId: string) {
+    let cached = userCache.get(userId);
+    if (!cached) {
+      const u = findUserByUid(userId);
+      cached = {
+        skipDays: !!u?.skipNonWorkingDays,
+        workDays: (u?.workingHours ?? DEFAULT_WORKING_HOURS).daysOfWeek,
+      };
+      userCache.set(userId, cached);
+    }
+    return cached;
+  }
+
+  for (const t of ownedTodos) {
     if (t.status !== "active" || !t.scheduledSlot) continue;
     if (seenIds.has(t.id)) continue;
     seenIds.add(t.id);
 
     wroketEvents.push({
-      id: t.id,
-      summary: t.title,
-      start: t.scheduledSlot.start,
-      end: t.scheduledSlot.end,
-      allDay: false,
-      source: "wroket",
-      priority: t.priority,
-      effort: t.effort,
-      deadline: t.deadline,
-      delegated: t.userId !== uid,
+      id: t.id, summary: t.title,
+      start: t.scheduledSlot.start, end: t.scheduledSlot.end,
+      allDay: false, source: "wroket",
+      priority: t.priority, effort: t.effort, deadline: t.deadline,
     });
 
     if (t.recurrence) {
-      const slotStart = new Date(t.scheduledSlot.start);
-      const slotEnd = new Date(t.scheduledSlot.end);
-      const durationMs = slotEnd.getTime() - slotStart.getTime();
-      const { frequency, interval, endDate } = t.recurrence;
-      const recEnd = endDate ? new Date(endDate) : null;
+      const { skipDays, workDays } = getOwnerPrefs(t.userId);
+      pushRecurrences(wroketEvents, t, startDate, endDateParsed, skipDays, workDays);
+    }
+  }
+  for (const t of assignedTodos) {
+    if (t.status !== "active" || !t.scheduledSlot) continue;
+    if (seenIds.has(t.id)) continue;
+    seenIds.add(t.id);
 
-      const MAX_OCCURRENCES = 200;
-      const cursor = new Date(slotStart);
+    wroketEvents.push({
+      id: t.id, summary: t.title,
+      start: t.scheduledSlot.start, end: t.scheduledSlot.end,
+      allDay: false, source: "wroket",
+      priority: t.priority, effort: t.effort, deadline: t.deadline,
+      delegated: true,
+    });
 
-      for (let i = 0; i < MAX_OCCURRENCES; i++) {
-        advanceDate(cursor, frequency, interval);
-
-        if (recEnd && cursor > recEnd) break;
-        if (cursor > endDateParsed) break;
-        if (cursor < startDate) continue;
-
-        const occStartISO = cursor.toISOString();
-        const occEndISO = new Date(cursor.getTime() + durationMs).toISOString();
-
-        wroketEvents.push({
-          id: `${t.id}_rec_${occStartISO}`,
-          summary: t.title,
-          start: occStartISO,
-          end: occEndISO,
-          allDay: false,
-          source: "wroket",
-          priority: t.priority,
-          effort: t.effort,
-          deadline: t.deadline,
-          recurring: true,
-        });
-      }
+    if (t.recurrence) {
+      const { skipDays, workDays } = getOwnerPrefs(t.userId);
+      pushRecurrences(wroketEvents, t, startDate, endDateParsed, skipDays, workDays);
     }
   }
 
@@ -274,11 +378,13 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
     allGoogleEvents = results.flat();
   }
 
-  const wroketGoogleIds = new Set(
-    allTodos
-      .filter((t) => t.scheduledSlot?.calendarEventId)
-      .map((t) => t.scheduledSlot!.calendarEventId!),
-  );
+  const wroketGoogleIds = new Set<string>();
+  for (const t of ownedTodos) {
+    if (t.scheduledSlot?.calendarEventId) wroketGoogleIds.add(t.scheduledSlot.calendarEventId);
+  }
+  for (const t of assignedTodos) {
+    if (t.scheduledSlot?.calendarEventId) wroketGoogleIds.add(t.scheduledSlot.calendarEventId);
+  }
   const filteredGoogleEvents = allGoogleEvents.filter((e) => !wroketGoogleIds.has(e.id));
 
   res.status(200).json({ wroketEvents, googleEvents: filteredGoogleEvents });

@@ -652,6 +652,8 @@ const translations = {
   "settings.whTimezone": { fr: "Fuseau horaire", en: "Timezone" },
   "settings.tzMismatch": { fr: "Votre navigateur détecte {tz}. Voulez-vous mettre à jour ?", en: "Your browser detects {tz}. Update?" },
   "settings.tzApply": { fr: "Appliquer", en: "Apply" },
+  "settings.skipNonWorkingDays": { fr: "Récurrences sur jours ouvrés uniquement", en: "Recurrences on working days only" },
+  "settings.skipNonWorkingDaysDesc": { fr: "Les tâches récurrentes seront décalées au prochain jour ouvré si elles tombent un jour non travaillé", en: "Recurring tasks will be shifted to the next working day if they fall on a non-working day" },
   "settings.whDays": { fr: "Jours de travail", en: "Working days" },
   "settings.whMon": { fr: "Lun", en: "Mon" },
   "settings.whTue": { fr: "Mar", en: "Tue" },
@@ -681,6 +683,9 @@ const translations = {
   "schedule.suggestedByOwner": { fr: "Suggéré par le créateur", en: "Suggested by owner" },
   "schedule.suggestSlot": { fr: "Suggérer un créneau", en: "Suggest a slot" },
   "schedule.clearSuggestion": { fr: "Retirer la suggestion", en: "Clear suggestion" },
+  "schedule.conflictTitle": { fr: "Ce créneau chevauche une tâche existante", en: "This slot overlaps with an existing task" },
+  "schedule.conflictCancel": { fr: "Annuler", en: "Cancel" },
+  "schedule.conflictForce": { fr: "Réserver quand même", en: "Book anyway" },
 
   // ── Agenda ──
   "nav.agenda": { fr: "Agenda", en: "Agenda" },

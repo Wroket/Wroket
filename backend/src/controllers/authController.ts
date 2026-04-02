@@ -263,8 +263,8 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     return;
   }
 
-  const { firstName, lastName, effortMinutes, workingHours } = req.body as {
-    firstName?: unknown; lastName?: unknown; effortMinutes?: unknown; workingHours?: unknown;
+  const { firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays } = req.body as {
+    firstName?: unknown; lastName?: unknown; effortMinutes?: unknown; workingHours?: unknown; skipNonWorkingDays?: unknown;
   };
   if (firstName !== undefined && typeof firstName !== "string") {
     throw new ValidationError("Prénom invalide");
@@ -307,6 +307,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     lastName: lastName as string | undefined,
     effortMinutes: validatedEffort,
     workingHours: validatedWorkingHours,
+    skipNonWorkingDays: skipNonWorkingDays !== undefined ? !!skipNonWorkingDays : undefined,
   });
   res.status(200).json(updated);
 }

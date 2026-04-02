@@ -9,6 +9,7 @@ import {
   type ScheduledSlot,
   type SuggestedSlot,
   type SlotProposal,
+  type SlotConflict,
   type Todo,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
@@ -44,6 +45,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const [serverSuggestedSlot, setServerSuggestedSlot] = useState<SuggestedSlot | null>(suggestedSlot ?? null);
   const [booking, setBooking] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [conflicts, setConflicts] = useState<SlotConflict[]>([]);
+  const [pendingSlot, setPendingSlot] = useState<{ start: string; end: string } | null>(null);
   const [mode, setMode] = useState<"suggested" | "manual">("suggested");
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("09:00");
@@ -91,12 +94,21 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     if (!scheduledSlot) fetchSlots();
   };
 
-  const handleBook = async (slot: SlotProposal) => {
+  const doBook = async (start: string, end: string, force?: boolean) => {
     setBooking(true);
     try {
-      const updated = await bookTaskSlot(todoId, slot.start, slot.end);
-      onBooked(updated);
-      setOpen(false);
+      const result = await bookTaskSlot(todoId, start, end, force);
+      if (result.conflict && result.conflicts?.length) {
+        setConflicts(result.conflicts);
+        setPendingSlot({ start, end });
+        return;
+      }
+      if (result.todo) {
+        setConflicts([]);
+        setPendingSlot(null);
+        onBooked(result.todo);
+        setOpen(false);
+      }
     } catch {
       toast.error(t("toast.updateError"));
     } finally {
@@ -104,20 +116,23 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     }
   };
 
-  const handleManualBook = async () => {
+  const handleBook = (slot: SlotProposal) => doBook(slot.start, slot.end);
+
+  const handleManualBook = () => {
     if (!manualDate || !manualTime) return;
     const start = new Date(`${manualDate}T${manualTime}`);
     const end = new Date(start.getTime() + (duration || 30) * 60 * 1000);
-    setBooking(true);
-    try {
-      const updated = await bookTaskSlot(todoId, start.toISOString(), end.toISOString());
-      onBooked(updated);
-      setOpen(false);
-    } catch {
-      /* silent */
-    } finally {
-      setBooking(false);
-    }
+    doBook(start.toISOString(), end.toISOString());
+  };
+
+  const handleForceBook = () => {
+    if (!pendingSlot) return;
+    doBook(pendingSlot.start, pendingSlot.end, true);
+  };
+
+  const handleDismissConflict = () => {
+    setConflicts([]);
+    setPendingSlot(null);
   };
 
   const handleClear = async () => {
@@ -199,7 +214,42 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
           </div>
 
           <div className="p-3">
-            {scheduledSlot ? (
+            {conflicts.length > 0 && pendingSlot ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1.5">
+                    {t("schedule.conflictTitle")}
+                  </p>
+                  {conflicts.map((c) => (
+                    <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-amber-800 dark:text-amber-200 py-0.5">
+                      <span className="shrink-0">⚠️</span>
+                      <span className="truncate font-medium">{c.title}</span>
+                      <span className="shrink-0 text-amber-600 dark:text-amber-400">
+                        {new Date(c.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                        –{new Date(c.end).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDismissConflict}
+                    className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    {t("schedule.conflictCancel")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleForceBook}
+                    disabled={booking}
+                    className="flex-1 rounded bg-amber-600 dark:bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                  >
+                    {t("schedule.conflictForce")}
+                  </button>
+                </div>
+              </div>
+            ) : scheduledSlot ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-3 py-2.5">
                   <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

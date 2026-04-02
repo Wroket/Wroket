@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
+import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
@@ -107,10 +108,22 @@ function validateRecurrence(rec: Recurrence): void {
   }
 }
 
+/**
+ * Advance to the nearest future working day if the date falls outside
+ * the allowed daysOfWeek. Stops after 7 iterations (one full week).
+ */
+function advanceToWorkingDay(date: Date, daysOfWeek: number[]): void {
+  for (let i = 0; i < 7; i++) {
+    if (daysOfWeek.includes(date.getDay())) return;
+    date.setDate(date.getDate() + 1);
+  }
+}
+
 export function calculateNextDueDate(
   currentDeadline: string,
   frequency: RecurrenceFrequency,
   interval: number,
+  workingDaysOnly?: number[],
 ): string {
   const date = new Date(currentDeadline);
   if (isNaN(date.getTime())) throw new ValidationError("Date de référence invalide pour récurrence");
@@ -124,6 +137,9 @@ export function calculateNextDueDate(
     case "monthly":
       date.setMonth(date.getMonth() + interval);
       break;
+  }
+  if (workingDaysOnly?.length) {
+    advanceToWorkingDay(date, workingDaysOnly);
   }
   return date.toISOString().split("T")[0];
 }
@@ -499,7 +515,10 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     todo.deadline
   ) {
     const { frequency, interval, endDate } = todo.recurrence;
-    const nextDeadline = calculateNextDueDate(todo.deadline, frequency, interval);
+    const owner = findUserByUid(todo.userId);
+    const ownerWh = owner?.workingHours ?? DEFAULT_WORKING_HOURS;
+    const workingDays = owner?.skipNonWorkingDays ? ownerWh.daysOfWeek : undefined;
+    const nextDeadline = calculateNextDueDate(todo.deadline, frequency, interval, workingDays);
     const pastEnd = endDate && nextDeadline > endDate;
     if (!pastEnd) {
       const ownerTodos = getUserTodos(todo.userId);
@@ -523,7 +542,7 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
         suggestedSlot: null,
         recurrence: {
           ...todo.recurrence,
-          nextDueDate: calculateNextDueDate(nextDeadline, frequency, interval),
+          nextDueDate: calculateNextDueDate(nextDeadline, frequency, interval, workingDays),
         },
         sortOrder: null,
         status: "active",

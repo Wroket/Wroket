@@ -123,6 +123,7 @@ export type {
   ImportPreview,
 } from "./projects";
 
+export type { SlotConflict, BookSlotResult } from "./calendar";
 export {
   getTaskSlots,
   bookTaskSlot,
