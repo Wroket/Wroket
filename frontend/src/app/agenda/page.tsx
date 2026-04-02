@@ -11,11 +11,14 @@ import {
   getCalendarEvents,
   getMe,
   getTodos,
+  getProjects,
   createTodo,
   updateTodo,
+  bookTaskSlot,
   lookupUser,
   type CalendarEvent,
   type Todo,
+  type Project,
   type Priority,
   type Effort,
   type AuthMeResponse,
@@ -23,69 +26,20 @@ import {
   type GoogleAccountPublic,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
-import type { TranslationKey } from "@/lib/i18n";
 import { useUserLookup } from "@/lib/userUtils";
-import { classify, type EisenhowerQuadrant } from "@/lib/classify";
-
-const HOUR_HEIGHT = 60;
-const DAY_START_HOUR = 6;
-const DAY_END_HOUR = 22;
-const TOTAL_HOURS = DAY_END_HOUR - DAY_START_HOUR;
-
-const ACCOUNT_COLORS = [
-  "#10b981", // emerald
-  "#8b5cf6", // violet
-  "#3b82f6", // blue
-  "#f59e0b", // amber
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#f97316", // orange
-  "#6366f1", // indigo
-];
-
-const QUADRANT_COLORS: Record<EisenhowerQuadrant, { bg: string; border: string; text: string; icon: string; label: string }> = {
-  "do-first": { bg: "bg-red-100 dark:bg-red-900/40", border: "border-red-500", text: "text-red-800 dark:text-red-200", icon: "🔥", label: "Faire" },
-  "schedule":  { bg: "bg-blue-100 dark:bg-blue-900/40", border: "border-blue-500", text: "text-blue-800 dark:text-blue-200", icon: "📅", label: "Planifier" },
-  "delegate":  { bg: "bg-amber-100 dark:bg-amber-900/40", border: "border-amber-500", text: "text-amber-800 dark:text-amber-200", icon: "⚡", label: "Expédier" },
-  "eliminate":  { bg: "bg-zinc-100 dark:bg-slate-700/40", border: "border-zinc-400", text: "text-zinc-700 dark:text-zinc-300", icon: "⏸️", label: "Différer" },
-};
-
-function classifyEvent(ev: CalendarEvent): EisenhowerQuadrant {
-  const pseudo = {
-    priority: (ev.priority ?? "medium") as Todo["priority"],
-    effort: (ev.effort ?? "medium") as Todo["effort"],
-    deadline: ev.deadline ?? null,
-  } as Todo;
-  return classify(pseudo);
-}
-
-function getEventPosition(event: CalendarEvent) {
-  const start = new Date(event.start);
-  const end = new Date(event.end);
-  const topMinutes = (start.getHours() - DAY_START_HOUR) * 60 + start.getMinutes();
-  const durationMinutes = (end.getTime() - start.getTime()) / 60000;
-  return {
-    top: (topMinutes / 60) * HOUR_HEIGHT,
-    height: Math.max((durationMinutes / 60) * HOUR_HEIGHT, 20),
-  };
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function formatHour(h: number): string {
-  return `${h.toString().padStart(2, "0")}:00`;
-}
-
-function hexToTintBg(hex: string, opacity = 0.15): string {
-  const clean = hex.replace("#", "");
-  if (clean.length < 6) return `rgba(16,185,129,${opacity})`;
-  const r = parseInt(clean.substring(0, 2), 16);
-  const g = parseInt(clean.substring(2, 4), 16);
-  const b = parseInt(clean.substring(4, 6), 16);
-  return `rgba(${r},${g},${b},${opacity})`;
-}
+import {
+  HOUR_HEIGHT,
+  DAY_START_HOUR,
+  DAY_END_HOUR,
+  TOTAL_HOURS,
+  ACCOUNT_COLORS,
+  QUADRANT_COLORS,
+  classifyEvent,
+  getEventPosition,
+  isSameDay,
+  formatHour,
+  hexToTintBg,
+} from "./_utils/calendarUtils";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
@@ -104,13 +58,20 @@ export default function AgendaPage() {
   const calendarMenuRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
+  const [projects, setProjects] = useState<Project[]>([]);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [quickCreateDate, setQuickCreateDate] = useState("");
   const [quickCreateTime, setQuickCreateTime] = useState("");
   const [quickCreateTitle, setQuickCreateTitle] = useState("");
   const [quickCreatePriority, setQuickCreatePriority] = useState<Priority>("medium");
   const [quickCreateEffort, setQuickCreateEffort] = useState<Effort>("medium");
+  const [quickCreateProjectId, setQuickCreateProjectId] = useState<string | null>(null);
+  const [quickCreateAssignEmail, setQuickCreateAssignEmail] = useState("");
+  const [quickCreateAssignedUser, setQuickCreateAssignedUser] = useState<AuthMeResponse | null>(null);
+  const [quickCreateAssignError, setQuickCreateAssignError] = useState<string | null>(null);
+  const [quickCreateDuration, setQuickCreateDuration] = useState(30);
   const [quickCreating, setQuickCreating] = useState(false);
+  const quickAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as Recurrence | null, projectId: null as string | null });
@@ -128,6 +89,26 @@ export default function AgendaPage() {
     return map;
   }, [googleAccounts]);
 
+  const sortedProjectOptions = useMemo(() => {
+    const roots = projects.filter((p) => !p.parentProjectId);
+    const childrenMap = new Map<string, Project[]>();
+    for (const p of projects) {
+      if (p.parentProjectId) {
+        const list = childrenMap.get(p.parentProjectId) ?? [];
+        list.push(p);
+        childrenMap.set(p.parentProjectId, list);
+      }
+    }
+    const result: { id: string; label: string }[] = [];
+    for (const root of roots) {
+      result.push({ id: root.id, label: root.name });
+      for (const child of childrenMap.get(root.id) ?? []) {
+        result.push({ id: child.id, label: `  ↳ ${child.name}` });
+      }
+    }
+    return result;
+  }, [projects]);
+
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(interval);
@@ -137,8 +118,11 @@ export default function AgendaPage() {
     let cancelled = false;
     (async () => {
       try {
-        const me = await getMe();
-        if (!cancelled) setGoogleAccounts(me.googleAccounts ?? []);
+        const [me, projs] = await Promise.all([getMe(), getProjects()]);
+        if (!cancelled) {
+          setGoogleAccounts(me.googleAccounts ?? []);
+          setProjects(projs.filter((p) => p.status === "active"));
+        }
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
@@ -301,6 +285,35 @@ export default function AgendaPage() {
 
   // ── Quick create on double-click ──
 
+  const handleQuickAssignLookup = (email: string) => {
+    setQuickCreateAssignEmail(email);
+    setQuickCreateAssignError(null);
+    clearTimeout(quickAssignTimer.current);
+    if (!email.includes("@") || email.length < 5) {
+      setQuickCreateAssignedUser(null);
+      return;
+    }
+    quickAssignTimer.current = setTimeout(async () => {
+      try {
+        const found = await lookupUser(email);
+        if (found) {
+          setQuickCreateAssignedUser(found);
+        } else {
+          setQuickCreateAssignedUser(null);
+          setQuickCreateAssignError(t("assign.notFound"));
+        }
+      } catch {
+        setQuickCreateAssignedUser(null);
+      }
+    }, 400);
+  };
+
+  const getEffortDuration = useCallback((effort: Effort): number => {
+    const defaultMinutes = { light: 10, medium: 30, heavy: 60 };
+    const effortMap = user?.effortMinutes ?? defaultMinutes;
+    return effortMap[effort] ?? 30;
+  }, [user?.effortMinutes]);
+
   const handleDoubleClickSlot = (day: Date, hour: number, minutes: number) => {
     const y = day.getFullYear();
     const m = String(day.getMonth() + 1).padStart(2, "0");
@@ -310,6 +323,11 @@ export default function AgendaPage() {
     setQuickCreateTitle("");
     setQuickCreatePriority("medium");
     setQuickCreateEffort("medium");
+    setQuickCreateDuration(getEffortDuration("medium"));
+    setQuickCreateProjectId(null);
+    setQuickCreateAssignEmail("");
+    setQuickCreateAssignedUser(null);
+    setQuickCreateAssignError(null);
     setShowQuickCreate(true);
   };
 
@@ -317,15 +335,23 @@ export default function AgendaPage() {
     if (!quickCreateTitle.trim() || quickCreating) return;
     setQuickCreating(true);
     try {
-      await createTodo({
+      const todo = await createTodo({
         title: quickCreateTitle.trim(),
         priority: quickCreatePriority,
         effort: quickCreateEffort,
         startDate: quickCreateDate,
         deadline: quickCreateDate,
+        projectId: quickCreateProjectId,
+        assignedTo: quickCreateAssignedUser?.uid ?? null,
       });
+
+      const slotStart = new Date(`${quickCreateDate}T${quickCreateTime}:00`);
+      const slotEnd = new Date(slotStart.getTime() + quickCreateDuration * 60_000);
+
+      await bookTaskSlot(todo.id, slotStart.toISOString(), slotEnd.toISOString());
+
       setShowQuickCreate(false);
-      toast.success(t("agenda.taskCreated" as TranslationKey));
+      toast.success(t("agenda.taskCreated"));
       const data = await getCalendarEvents(dateRange.start, dateRange.end);
       setWroketEvents(data.wroketEvents);
       setGoogleEvents(data.googleEvents);
@@ -351,8 +377,9 @@ export default function AgendaPage() {
     if (ev.source !== "wroket") return;
     try {
       const todos = await getTodos();
-      const todo = todos.find((t) => t.id === ev.id);
-      if (!todo) { toast.error("Tâche introuvable"); return; }
+      const realId = ev.recurring ? ev.id.split("_rec_")[0] : ev.id;
+      const todo = todos.find((t) => t.id === realId);
+      if (!todo) { toast.error(t("toast.taskNotFound")); return; }
       setEditingTodo(todo);
       setEditForm({
         title: todo.title,
@@ -372,7 +399,7 @@ export default function AgendaPage() {
         resolveUser(todo.assignedTo);
       }
     } catch {
-      toast.error("Impossible de charger la tâche");
+      toast.error(t("toast.taskLoadError"));
     }
   };
 
@@ -392,7 +419,7 @@ export default function AgendaPage() {
         projectId: editForm.projectId,
       });
       setEditingTodo(null);
-      toast.success("Tâche mise à jour");
+      toast.success(t("toast.taskUpdated"));
       const data = await getCalendarEvents(dateRange.start, dateRange.end);
       setWroketEvents(data.wroketEvents);
       setGoogleEvents(data.googleEvents);
@@ -437,11 +464,11 @@ export default function AgendaPage() {
             <PageHelpButton
               title={t("agenda.title")}
               items={[
-                { text: t("help.agenda.week" as TranslationKey) },
-                { text: t("help.agenda.edit" as TranslationKey) },
-                { text: t("help.agenda.google" as TranslationKey) },
-                { text: t("help.agenda.colors" as TranslationKey) },
-                { text: t("help.agenda.smartSlots" as TranslationKey) },
+                { text: t("help.agenda.week") },
+                { text: t("help.agenda.edit") },
+                { text: t("help.agenda.google") },
+                { text: t("help.agenda.colors") },
+                { text: t("help.agenda.smartSlots") },
               ]}
             />
             <div className="flex items-center gap-1">
@@ -449,7 +476,7 @@ export default function AgendaPage() {
                 type="button"
                 onClick={goPrev}
                 className="rounded p-1.5 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                aria-label="Previous week"
+                aria-label={t("a11y.previousWeek")}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -466,7 +493,7 @@ export default function AgendaPage() {
                 type="button"
                 onClick={goNext}
                 className="rounded p-1.5 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                aria-label="Next week"
+                aria-label={t("a11y.nextWeek")}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -490,7 +517,7 @@ export default function AgendaPage() {
                       : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200"
                   }`}
                 >
-                  {t(`agenda.view${mode.charAt(0).toUpperCase() + mode.slice(1)}` as TranslationKey)}
+                  {t(`agenda.view${mode.charAt(0).toUpperCase() + mode.slice(1)}`)}
                 </button>
               ))}
             </div>
@@ -504,7 +531,7 @@ export default function AgendaPage() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                {t("agenda.calendars" as TranslationKey)}
+                {t("agenda.calendars")}
                 {googleAccounts.length > 0 && (
                   <span className="ml-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                     {googleAccounts.length - hiddenAccounts.size}
@@ -541,7 +568,7 @@ export default function AgendaPage() {
                     </div>
                   ) : (
                     <div className="px-3 py-3 text-center">
-                      <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.noGoogleAccounts" as TranslationKey)}</p>
+                      <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.noGoogleAccounts")}</p>
                     </div>
                   )}
                   <div className="border-t border-zinc-100 dark:border-slate-700 px-3 py-2">
@@ -550,7 +577,7 @@ export default function AgendaPage() {
                       onClick={() => setCalendarMenuOpen(false)}
                       className="block w-full text-center text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                     >
-                      {t("agenda.manageCalendars" as TranslationKey)}
+                      {t("agenda.manageCalendars")}
                     </Link>
                   </div>
                 </div>
@@ -625,7 +652,7 @@ export default function AgendaPage() {
                               style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
                               onDoubleClick={() => handleDoubleClickEvent(ev)}
                             >
-                              {isWroket && qc ? `${qc.icon} ` : ""}{ev.summary}
+                              {isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
                             </div>
                           );
                         })}
@@ -702,7 +729,7 @@ export default function AgendaPage() {
                               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
                             >
                               <div className="text-xs font-semibold truncate leading-snug">
-                                {isWroket && qc ? `${qc.icon} ` : ""}{ev.summary}
+                                {isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
                               </div>
                               {pos.height >= 36 && (
                                 <div className="text-[10px] opacity-80 mt-0.5 font-medium">
@@ -787,7 +814,7 @@ export default function AgendaPage() {
                               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
                               title={ev.summary}
                             >
-                              {ev.summary}
+                              {ev.recurring ? "↻ " : ""}{ev.summary}
                             </div>
                           );
                         })}
@@ -821,35 +848,103 @@ export default function AgendaPage() {
         {showQuickCreate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowQuickCreate(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-5" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("agenda.newTask" as TranslationKey)}</h3>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("agenda.newTask")}</h3>
               <p className="text-xs text-zinc-400 dark:text-slate-500 mb-4">
-                {quickCreateDate} · {quickCreateTime}
+                {quickCreateDate}
               </p>
               <div className="space-y-3">
                 <input
                   value={quickCreateTitle}
                   onChange={(e) => setQuickCreateTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleQuickCreate(); if (e.key === "Escape") setShowQuickCreate(false); }}
-                  placeholder={t("todos.addPlaceholder" as TranslationKey)}
+                  placeholder={t("todos.addPlaceholder")}
                   autoFocus
                   className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                 />
                 <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("agenda.startTime")}</label>
+                    <input
+                      type="time"
+                      value={quickCreateTime}
+                      onChange={(e) => setQuickCreateTime(e.target.value)}
+                      className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("agenda.duration")}</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={480}
+                      step={5}
+                      value={quickCreateDuration}
+                      onChange={(e) => setQuickCreateDuration(Math.max(5, Math.min(480, Number(e.target.value) || 5)))}
+                      className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
                   <select value={quickCreatePriority} onChange={(e) => setQuickCreatePriority(e.target.value as Priority)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100">
-                    <option value="high">{t("priority.high" as TranslationKey)}</option>
-                    <option value="medium">{t("priority.medium" as TranslationKey)}</option>
-                    <option value="low">{t("priority.low" as TranslationKey)}</option>
+                    <option value="high">{t("priority.high")}</option>
+                    <option value="medium">{t("priority.medium")}</option>
+                    <option value="low">{t("priority.low")}</option>
                   </select>
-                  <select value={quickCreateEffort} onChange={(e) => setQuickCreateEffort(e.target.value as Effort)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100">
-                    <option value="light">{t("effort.light" as TranslationKey)}</option>
-                    <option value="medium">{t("effort.medium" as TranslationKey)}</option>
-                    <option value="heavy">{t("effort.heavy" as TranslationKey)}</option>
+                  <select
+                    value={quickCreateEffort}
+                    onChange={(e) => {
+                      const effort = e.target.value as Effort;
+                      setQuickCreateEffort(effort);
+                      setQuickCreateDuration(getEffortDuration(effort));
+                    }}
+                    className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="light">{t("effort.light")}</option>
+                    <option value="medium">{t("effort.medium")}</option>
+                    <option value="heavy">{t("effort.heavy")}</option>
                   </select>
+                </div>
+                {sortedProjectOptions.length > 0 && (
+                  <select
+                    value={quickCreateProjectId ?? ""}
+                    onChange={(e) => setQuickCreateProjectId(e.target.value || null)}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="">{t("projects.noProject")}</option>
+                    {sortedProjectOptions.map((o) => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                  </select>
+                )}
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder={t("assign.placeholder")}
+                    value={quickCreateAssignEmail}
+                    onChange={(e) => handleQuickAssignLookup(e.target.value)}
+                    className={`w-full rounded border px-3 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 ${
+                      quickCreateAssignedUser
+                        ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
+                        : quickCreateAssignError
+                          ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                          : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
+                    }`}
+                  />
+                  {quickCreateAssignedUser && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                  {quickCreateAssignError && (
+                    <p className="text-xs text-red-500 mt-0.5">{quickCreateAssignError}</p>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => setShowQuickCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("cancel" as TranslationKey)}</button>
-                <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-1.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("settings.save" as TranslationKey)}</button>
+                <button onClick={() => setShowQuickCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("cancel")}</button>
+                <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-1.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("settings.save")}</button>
               </div>
             </div>
           </div>

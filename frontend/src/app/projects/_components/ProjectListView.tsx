@@ -219,7 +219,7 @@ export default function ProjectListView({
   const healthConfig = useMemo(() => getHealthConfig(t), [t]);
 
   const teamName = (teamId: string | null) => {
-    if (!teamId) return t("projects.personal" as TranslationKey);
+    if (!teamId) return t("projects.personal");
     const team = teams.find((te) => te.id === teamId);
     return team ? team.name : teamId;
   };
@@ -268,7 +268,7 @@ export default function ProjectListView({
 
   const handleDelete = (project: Project) => {
     setConfirm({
-      title: t("projects.delete" as TranslationKey),
+      title: t("projects.delete"),
       message: project.name,
       action: async () => {
         setConfirm(null);
@@ -305,7 +305,7 @@ export default function ProjectListView({
       }
       setLastAction(null);
     } catch {
-      toast.error("Erreur lors de l'annulation");
+      toast.error(t("toast.cancelError"));
     } finally {
       setUndoing(false);
     }
@@ -326,6 +326,8 @@ export default function ProjectListView({
     const hasChildren = projects.some((p) => p.parentProjectId === activeId);
     if (hasChildren) { setNestTargetId(null); return; }
     if (isDescendant(activeId, overId)) { setNestTargetId(null); return; }
+    const targetProject = projects.find((p) => p.id === overId);
+    if (targetProject?.parentProjectId) { setNestTargetId(null); return; }
     nestTimerRef.current = setTimeout(() => { setNestTargetId(overId); }, 800);
   };
 
@@ -359,6 +361,7 @@ export default function ProjectListView({
       const targetProject = projects.find((p) => p.id === overId);
       if (!draggedProject || !targetProject) return;
       if (isDescendant(activeId, overId)) return;
+      if (targetProject.parentProjectId) return;
       const previousParentId = draggedProject.parentProjectId;
       setProjects((prev) => prev.map((p) => p.id === activeId ? { ...p, parentProjectId: overId } : p));
       try {
@@ -397,26 +400,26 @@ export default function ProjectListView({
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("projects.title" as TranslationKey)}</h2>
+              <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("projects.title")}</h2>
               <PageHelpButton
-                title={t("projects.title" as TranslationKey)}
+                title={t("projects.title")}
                 items={[
-                  { text: t("help.projects.create" as TranslationKey) },
-                  { text: t("help.projects.views" as TranslationKey) },
-                  { text: t("help.projects.kanbanDnd" as TranslationKey) },
-                  { text: t("help.projects.gantt" as TranslationKey) },
-                  { text: t("help.projects.import" as TranslationKey) },
+                  { text: t("help.projects.create") },
+                  { text: t("help.projects.views") },
+                  { text: t("help.projects.kanbanDnd") },
+                  { text: t("help.projects.gantt") },
+                  { text: t("help.projects.import") },
                 ]}
               />
             </div>
-            <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("projects.subtitle" as TranslationKey)}</p>
+            <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("projects.subtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleUndo}
               disabled={!lastAction || undoing}
-              title={t("todos.undoTitle" as TranslationKey)}
+              title={t("todos.undoTitle")}
               className={`shrink-0 inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 lastAction
                   ? "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
@@ -426,10 +429,10 @@ export default function ProjectListView({
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
               </svg>
-              <span className="hidden sm:inline">{t("todos.undo" as TranslationKey)}</span>
+              <span className="hidden sm:inline">{t("todos.undo")}</span>
             </button>
-            <Link href="/projects/import" className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.import" as TranslationKey)}</Link>
-            <button onClick={() => setShowCreate(true)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("projects.create" as TranslationKey)}</button>
+            <Link href="/projects/import" className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.import")}</Link>
+            <button onClick={() => setShowCreate(true)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("projects.create")}</button>
           </div>
         </div>
 
@@ -438,7 +441,7 @@ export default function ProjectListView({
             <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <p className="text-sm text-zinc-500 dark:text-slate-400">{t("projects.empty" as TranslationKey)}</p>
+            <p className="text-sm text-zinc-500 dark:text-slate-400">{t("projects.empty")}</p>
           </div>
         ) : (
           <DndContext sensors={projectSensors} collisionDetection={closestCenter} onDragStart={handleProjectDragStart} onDragOver={handleProjectDragOver} onDragEnd={handleProjectDragEnd} onDragCancel={handleProjectDragCancel}>
@@ -458,15 +461,15 @@ export default function ProjectListView({
                     }`}
                   >
                     {nestTargetId === project.id && (
-                      <div className="mb-2 text-center text-[11px] font-semibold text-blue-600 dark:text-blue-400 animate-pulse">{t("projects.dropToNest" as TranslationKey)}</div>
+                      <div className="mb-2 text-center text-[11px] font-semibold text-blue-600 dark:text-blue-400 animate-pulse">{t("projects.dropToNest")}</div>
                     )}
                     <div className="flex items-start justify-between">
                       <h3 className="font-semibold text-zinc-900 dark:text-slate-100 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">{project.name}</h3>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-amber-500 transition-colors" title={t("projects.archive" as TranslationKey)}>
+                        <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-amber-500 transition-colors" title={t("projects.archive")}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(project); }} className="text-zinc-400 hover:text-red-500 transition-colors" title={t("projects.delete" as TranslationKey)}>
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(project); }} className="text-zinc-400 hover:text-red-500 transition-colors" title={t("projects.delete")}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
@@ -491,7 +494,7 @@ export default function ProjectListView({
                           {total > 0 && (
                             <div className="mt-3 space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-zinc-500 dark:text-slate-400">{done}/{total} {t("projects.tasksProgress" as TranslationKey)}</span>
+                                <span className="text-[10px] text-zinc-500 dark:text-slate-400">{done}/{total} {t("projects.tasksProgress")}</span>
                                 <div className="flex items-center gap-1.5">
                                   {getAggregatedTime(project.id) > 0 && (
                                     <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-0.5">
@@ -523,7 +526,7 @@ export default function ProjectListView({
                     {children.length > 0 && (
                       <button type="button" onClick={(e) => { e.stopPropagation(); toggleExpand(project.id); }} className="flex items-center gap-1 mt-3 pt-2 border-t border-zinc-100 dark:border-slate-800 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 w-full">
                         <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                        {children.length} {t("projects.subProjects" as TranslationKey).toLowerCase()}
+                        {children.length} {t("projects.subProjects").toLowerCase()}
                       </button>
                     )}
                   </div>
@@ -544,7 +547,7 @@ export default function ProjectListView({
                               )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
-                              <button onClick={async (e) => { e.stopPropagation(); try { const updated = await updateProject(child.id, { parentProjectId: null }); setProjects((prev) => prev.map((p) => p.id === updated.id ? updated : p)); } catch { loadProjects(); } }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 transition-colors" title={t("projects.promoteToRoot" as TranslationKey)}>
+                              <button onClick={async (e) => { e.stopPropagation(); try { const updated = await updateProject(child.id, { parentProjectId: null }); setProjects((prev) => prev.map((p) => p.id === updated.id ? updated : p)); } catch { loadProjects(); } }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 transition-colors" title={t("projects.promoteToRoot")}>
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); handleDelete(child); }} className="text-zinc-300 dark:text-slate-600 hover:text-red-500 transition-colors">
@@ -611,13 +614,13 @@ export default function ProjectListView({
 
         {archivedProjects.length > 0 && (
           <div>
-            <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-400 dark:text-slate-500 mb-3">{t("projects.archived" as TranslationKey)}</h3>
+            <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-400 dark:text-slate-500 mb-3">{t("projects.archived")}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {archivedProjects.map((project) => (
                 <div key={project.id} onClick={() => onSelectProject(project)} className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 cursor-pointer hover:shadow-md transition-all opacity-60">
                   <div className="flex items-start justify-between">
                     <h3 className="font-semibold text-zinc-900 dark:text-slate-100">{project.name}</h3>
-                    <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-blue-500 transition-colors" title={t("projects.restore" as TranslationKey)}>
+                    <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-blue-500 transition-colors" title={t("projects.restore")}>
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     </button>
                   </div>
@@ -632,34 +635,34 @@ export default function ProjectListView({
         {showCreate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.create" as TranslationKey)}</h3>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.create")}</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.name" as TranslationKey)}</label>
-                  <input value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder={t("projects.namePlaceholder" as TranslationKey)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.name")}</label>
+                  <input value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder={t("projects.namePlaceholder")} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.description" as TranslationKey)}</label>
-                  <textarea value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} placeholder={t("projects.descPlaceholder" as TranslationKey)} rows={2} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.description")}</label>
+                  <textarea value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} placeholder={t("projects.descPlaceholder")} rows={2} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.team" as TranslationKey)}</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.team")}</label>
                   <select value={createTeamId ?? ""} onChange={(e) => setCreateTeamId(e.target.value || null)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100">
-                    <option value="">{t("projects.personal" as TranslationKey)}</option>
+                    <option value="">{t("projects.personal")}</option>
                     {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
                   </select>
                 </div>
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <input type="checkbox" checked={useTemplate} onChange={(e) => setUseTemplate(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500 dark:bg-slate-800" />
                   <div>
-                    <span className="text-sm font-medium text-zinc-700 dark:text-slate-300 group-hover:text-zinc-900 dark:group-hover:text-slate-100 transition-colors">{t("projects.useTemplate" as TranslationKey)}</span>
-                    <p className="text-[11px] text-zinc-400 dark:text-slate-500 mt-0.5 leading-snug">{t("projects.templateStandard" as TranslationKey)}</p>
+                    <span className="text-sm font-medium text-zinc-700 dark:text-slate-300 group-hover:text-zinc-900 dark:group-hover:text-slate-100 transition-colors">{t("projects.useTemplate")}</span>
+                    <p className="text-[11px] text-zinc-400 dark:text-slate-500 mt-0.5 leading-snug">{t("projects.templateStandard")}</p>
                   </div>
                 </label>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => setShowCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
-                <button onClick={handleCreate} disabled={!createName.trim() || creating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save" as TranslationKey)}</button>
+                <button onClick={() => setShowCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
+                <button onClick={handleCreate} disabled={!createName.trim() || creating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
               </div>
             </div>
           </div>

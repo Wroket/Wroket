@@ -4,8 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { Project, Priority } from "@/lib/api";
+import { useLocale } from "@/lib/LocaleContext";
 
 /* ─── Types ─── */
+
+interface CommandDef {
+  id: string;
+  labelKey: string;
+  descKey: string;
+  icon: string;
+  execute?: (locale: string) => string;
+  interactive?: boolean;
+}
 
 export interface SlashCommand {
   id: string;
@@ -32,34 +42,24 @@ export interface SlashCommandMenuProps {
   onCreateTask?: (payload: SlashTaskPayload) => Promise<void>;
 }
 
-/* ─── Built-in commands ─── */
+/* ─── Built-in command definitions (locale-agnostic) ─── */
 
-const BUILTIN_COMMANDS: SlashCommand[] = [
-  { id: "task",     label: "Créer une tâche",  description: "Nouvelle tâche depuis la note",     icon: "✅", interactive: true },
-  { id: "assign",   label: "Assigner",         description: "Mentionner un collaborateur",       icon: "👤", interactive: true },
-  { id: "deadline", label: "Échéance",         description: "Insérer une date d'échéance",       icon: "⏰", interactive: true },
-  { id: "project",  label: "Projet",           description: "Lier à un projet",                  icon: "📁", interactive: true },
-  { id: "date",     label: "Date",             description: "Date du jour",                      icon: "📅", execute: () => new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) },
-  { id: "time",     label: "Heure",            description: "Heure actuelle",                    icon: "🕐", execute: () => new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) },
-  { id: "datetime", label: "Date & Heure",     description: "Date et heure actuelles",           icon: "📆", execute: () => { const n = new Date(); return `${n.toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} ${n.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`; } },
-  // { id: "todo",     label: "Checklist",        description: "Liste de cases à cocher",           icon: "☑️", execute: () => "- [ ] \n- [ ] \n- [ ] " },
-  // { id: "list",     label: "Liste",            description: "Liste à puces",                     icon: "📋", execute: () => "- \n- \n- " },
-  // { id: "h1",       label: "Titre 1",          description: "Grand titre",                       icon: "H₁", execute: () => "# " },
-  // { id: "h2",       label: "Titre 2",          description: "Sous-titre",                        icon: "H₂", execute: () => "## " },
-  // { id: "h3",       label: "Titre 3",          description: "Section",                           icon: "H₃", execute: () => "### " },
-  // { id: "hr",       label: "Séparateur",       description: "Ligne horizontale",                 icon: "➖", execute: () => "\n---\n" },
-  { id: "code",     label: "Bloc de code",     description: "Zone de code formatée",             icon: "💻", execute: () => "```\n\n```" },
-  // { id: "table",    label: "Tableau",          description: "Tableau 3 colonnes",                icon: "📊", execute: () => "| Col 1 | Col 2 | Col 3 |\n|-------|-------|-------|\n|       |       |       |" },
-  // { id: "quote",    label: "Citation",         description: "Bloc de citation",                  icon: "💬", execute: () => "> " },
-  // { id: "link",     label: "Lien",             description: "Insérer un lien",                   icon: "🔗", execute: () => "[texte](url)" },
-  // { id: "image",    label: "Image",            description: "Référence image",                   icon: "🖼️", execute: () => "![alt](url)" },
-  // { id: "note",     label: "Note",             description: "Bloc note/remarque",                icon: "📝", execute: () => "> **Note :** " },
-  { id: "warning",  label: "Attention",        description: "Bloc avertissement",                icon: "⚠️", execute: () => "> **⚠️ Attention :** " },
+const COMMAND_DEFS: CommandDef[] = [
+  { id: "task",     labelKey: "slash.task.label",     descKey: "slash.task.desc",     icon: "✅", interactive: true },
+  { id: "assign",   labelKey: "slash.assign.label",   descKey: "slash.assign.desc",   icon: "👤", interactive: true },
+  { id: "deadline", labelKey: "slash.deadline.label",  descKey: "slash.deadline.desc", icon: "⏰", interactive: true },
+  { id: "project",  labelKey: "slash.project.label",   descKey: "slash.project.desc",  icon: "📁", interactive: true },
+  { id: "date",     labelKey: "slash.date.label",      descKey: "slash.date.desc",     icon: "📅", execute: (loc) => new Date().toLocaleDateString(loc === "fr" ? "fr-FR" : "en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) },
+  { id: "time",     labelKey: "slash.time.label",      descKey: "slash.time.desc",     icon: "🕐", execute: (loc) => new Date().toLocaleTimeString(loc === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" }) },
+  { id: "datetime", labelKey: "slash.datetime.label",  descKey: "slash.datetime.desc", icon: "📆", execute: (loc) => { const n = new Date(); const l = loc === "fr" ? "fr-FR" : "en-US"; return `${n.toLocaleDateString(l, { weekday: "long", year: "numeric", month: "long", day: "numeric" })} ${n.toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit" })}`; } },
+  { id: "code",     labelKey: "slash.code.label",      descKey: "slash.code.desc",     icon: "💻", execute: () => "```\n\n```" },
+  { id: "warning",  labelKey: "slash.warning.label",   descKey: "slash.warning.desc",  icon: "⚠️", execute: () => "> **⚠️ Warning :** " },
 ];
 
 /* ─── Component ─── */
 
 export default function SlashCommandMenu({ textareaRef, content, onContentChange, projects, onCreateTask }: SlashCommandMenuProps) {
+  const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -86,13 +86,24 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
 
   useEffect(() => { setMounted(true); }, []);
 
+  const commands: SlashCommand[] = useMemo(() =>
+    COMMAND_DEFS.map((def) => ({
+      id: def.id,
+      label: t(def.labelKey),
+      description: t(def.descKey),
+      icon: def.icon,
+      interactive: def.interactive,
+      execute: def.execute ? () => def.execute!(locale) : undefined,
+    })),
+  [t, locale]);
+
   const filtered = useMemo(() => {
-    if (!query) return BUILTIN_COMMANDS;
+    if (!query) return commands;
     const q = query.toLowerCase();
-    return BUILTIN_COMMANDS.filter(
+    return commands.filter(
       (cmd) => cmd.label.toLowerCase().includes(q) || cmd.id.includes(q) || cmd.description.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, commands]);
 
   useEffect(() => { setSelectedIndex(0); }, [query]);
 
@@ -169,9 +180,9 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
         projectId: taskProject || undefined,
         assignedTo: taskAssign || undefined,
       });
-      insertText(`✅ Tâche créée : "${taskTitle.trim()}"` + (taskDeadline ? ` — échéance ${taskDeadline}` : "") + (taskProject ? ` — projet lié` : ""));
+      insertText(`✅ ${t("slash.task.created")} : "${taskTitle.trim()}"` + (taskDeadline ? ` — ${t("slash.deadline.inserted")} ${taskDeadline}` : "") + (taskProject ? ` — ${t("slash.project.inserted")}` : ""));
     } catch {
-      insertText(`❌ Erreur création tâche : "${taskTitle.trim()}"`);
+      insertText(`❌ ${t("slash.task.error")} : "${taskTitle.trim()}"`);
     }
     setTaskCreating(false);
   }, [taskTitle, taskPriority, taskDeadline, taskProject, taskAssign, onCreateTask, insertText]);
@@ -184,13 +195,14 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
   const handleDeadline = useCallback(() => {
     if (!deadlineValue) return;
     const d = new Date(deadlineValue);
-    const formatted = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    insertText(`📅 Échéance : ${formatted}`);
-  }, [deadlineValue, insertText]);
+    const loc = locale === "fr" ? "fr-FR" : "en-US";
+    const formatted = d.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    insertText(`📅 ${t("slash.deadline.inserted")} : ${formatted}`);
+  }, [deadlineValue, insertText, locale, t]);
 
   const handleSelectProject = useCallback((project: Project) => {
-    insertText(`📁 Projet : ${project.name}`);
-  }, [insertText]);
+    insertText(`📁 ${t("slash.project.inserted")} : ${project.name}`);
+  }, [insertText, t]);
 
   /* ── Position computing ── */
 
@@ -305,36 +317,36 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
           <div className="p-3 space-y-2.5" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm">✅</span>
-              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">Créer une tâche</p>
+              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("slash.task.label")}</p>
             </div>
-            <input autoFocus type="text" placeholder="Titre de la tâche" value={taskTitle}
+            <input autoFocus type="text" placeholder={t("slash.task.titlePlaceholder")} value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateTask(); } }}
               className={inputCls} />
             <div className="grid grid-cols-2 gap-2">
               <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as Priority)} className={inputCls}>
-                <option value="high">🔴 Haute</option>
-                <option value="medium">🟡 Moyenne</option>
-                <option value="low">🟢 Basse</option>
+                <option value="high">🔴 {t("slash.priorityHigh")}</option>
+                <option value="medium">🟡 {t("slash.priorityMedium")}</option>
+                <option value="low">🟢 {t("slash.priorityLow")}</option>
               </select>
               <input type="date" value={taskDeadline} min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setTaskDeadline(e.target.value)} className={inputCls} />
             </div>
             {projects && projects.length > 0 && (
               <select value={taskProject} onChange={(e) => setTaskProject(e.target.value)} className={inputCls}>
-                <option value="">— Projet (optionnel) —</option>
+                <option value="">{t("slash.task.projectOptional")}</option>
                 {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             )}
-            <input type="email" placeholder="Assigner à (email, optionnel)" value={taskAssign}
+            <input type="email" placeholder={t("slash.task.assignPlaceholder")} value={taskAssign}
               onChange={(e) => setTaskAssign(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateTask(); } }}
               className={inputCls} />
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={handleCreateTask} disabled={!taskTitle.trim() || taskCreating} className={btnPrimaryCls}>
-                {taskCreating ? "Création..." : "Créer la tâche"}
+                {taskCreating ? t("slash.task.creating") : t("slash.task.create")}
               </button>
-              <button type="button" onClick={closeMenu} className={btnSecondaryCls}>Annuler</button>
+              <button type="button" onClick={closeMenu} className={btnSecondaryCls}>{t("slash.cancel")}</button>
             </div>
           </div>
         );
@@ -344,67 +356,72 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
           <div className="p-3 space-y-2.5" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm">👤</span>
-              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">Mentionner un collaborateur</p>
+              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("slash.assign.title")}</p>
             </div>
-            <input autoFocus type="email" placeholder="Email du collaborateur" value={assignEmail}
+            <input autoFocus type="email" placeholder={t("slash.assign.placeholder")} value={assignEmail}
               onChange={(e) => setAssignEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAssign(); } }}
               className={inputCls} />
             <div className="flex gap-2 pt-1">
-              <button type="button" onClick={handleAssign} disabled={!assignEmail.trim()} className={btnPrimaryCls}>Insérer</button>
-              <button type="button" onClick={closeMenu} className={btnSecondaryCls}>Annuler</button>
+              <button type="button" onClick={handleAssign} disabled={!assignEmail.trim()} className={btnPrimaryCls}>{t("slash.insert")}</button>
+              <button type="button" onClick={closeMenu} className={btnSecondaryCls}>{t("slash.cancel")}</button>
             </div>
           </div>
         );
 
-      case "deadline":
+      case "deadline": {
+        const quickDates = [
+          { key: "slash.deadline.today", offset: 0 },
+          { key: "slash.deadline.tomorrow", offset: 1 },
+          { key: "slash.deadline.nextWeek", offset: 7 },
+        ];
         return (
           <div className="p-3 space-y-2.5" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm">⏰</span>
-              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">Fixer une échéance</p>
+              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("slash.deadline.title")}</p>
             </div>
             <input autoFocus type="date" min={new Date().toISOString().split("T")[0]} value={deadlineValue}
               onChange={(e) => setDeadlineValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleDeadline(); } }}
               className={inputCls} />
             <div className="flex gap-2 pt-1 flex-wrap">
-              {["Aujourd'hui", "Demain", "Dans 1 semaine"].map((label, i) => {
+              {quickDates.map(({ key, offset }) => {
                 const d = new Date();
-                if (i === 1) d.setDate(d.getDate() + 1);
-                if (i === 2) d.setDate(d.getDate() + 7);
+                d.setDate(d.getDate() + offset);
                 const val = d.toISOString().split("T")[0];
                 return (
-                  <button key={label} type="button" onClick={() => setDeadlineValue(val)}
+                  <button key={key} type="button" onClick={() => setDeadlineValue(val)}
                     className={`rounded text-[10px] px-2 py-1 transition-colors ${
                       deadlineValue === val
                         ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-semibold"
                         : "bg-zinc-100 dark:bg-slate-700 text-zinc-600 dark:text-slate-300 hover:bg-zinc-200 dark:hover:bg-slate-600"
                     }`}>
-                    {label}
+                    {t(key)}
                   </button>
                 );
               })}
             </div>
             <div className="flex gap-2 pt-1">
-              <button type="button" onClick={handleDeadline} disabled={!deadlineValue} className={btnPrimaryCls}>Insérer</button>
-              <button type="button" onClick={closeMenu} className={btnSecondaryCls}>Annuler</button>
+              <button type="button" onClick={handleDeadline} disabled={!deadlineValue} className={btnPrimaryCls}>{t("slash.insert")}</button>
+              <button type="button" onClick={closeMenu} className={btnSecondaryCls}>{t("slash.cancel")}</button>
             </div>
           </div>
         );
+      }
 
       case "project":
         return (
           <div className="p-3 space-y-2.5" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm">📁</span>
-              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">Lier à un projet</p>
+              <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("slash.project.title")}</p>
             </div>
-            <input autoFocus type="text" placeholder="Rechercher un projet..." value={projectSearch}
+            <input autoFocus type="text" placeholder={t("slash.project.searchPlaceholder")} value={projectSearch}
               onChange={(e) => setProjectSearch(e.target.value)} className={inputCls} />
             <div className="max-h-36 overflow-y-auto space-y-0.5">
               {filteredProjects.length === 0 ? (
-                <p className="text-[10px] text-zinc-400 dark:text-slate-500 italic py-2 text-center">Aucun projet trouvé</p>
+                <p className="text-[10px] text-zinc-400 dark:text-slate-500 italic py-2 text-center">{t("slash.project.none")}</p>
               ) : filteredProjects.map((p) => (
                 <button key={p.id} type="button" onClick={() => handleSelectProject(p)}
                   className="w-full text-left px-2 py-1.5 rounded text-xs text-zinc-900 dark:text-slate-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors flex items-center gap-2">
@@ -415,7 +432,7 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
                 </button>
               ))}
             </div>
-            <button type="button" onClick={closeMenu} className={btnSecondaryCls + " w-full"}>Annuler</button>
+            <button type="button" onClick={closeMenu} className={btnSecondaryCls + " w-full"}>{t("slash.cancel")}</button>
           </div>
         );
 
@@ -438,7 +455,7 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
       className="fixed z-[9999] w-60 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-600 py-1"
       style={{ top: menuPos.top, left: menuPos.left }}>
       <div className="px-2 py-1.5 border-b border-zinc-100 dark:border-slate-700">
-        <p className="text-[10px] font-semibold text-zinc-400 dark:text-slate-500 uppercase tracking-wider">Commandes</p>
+        <p className="text-[10px] font-semibold text-zinc-400 dark:text-slate-500 uppercase tracking-wider">{t("slash.commands")}</p>
       </div>
       {filtered.map((cmd, idx) => (
         <button key={cmd.id} type="button"

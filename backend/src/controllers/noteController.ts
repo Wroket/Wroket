@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "./authController";
 import {
   listNotes,
   listSharedNotes,
+  listNotesByTodo,
   getNote,
   createNote,
   updateNote,
@@ -25,6 +26,11 @@ export async function listShared(req: AuthenticatedRequest, res: Response) {
 export async function get(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   res.status(200).json(getNote(req.user!.uid, id));
+}
+
+export async function byTodo(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.todoId as string;
+  res.status(200).json(listNotesByTodo(req.user!.uid, todoId));
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLocale } from "@/lib/LocaleContext";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { TranslationKey } from "@/lib/i18n";
 
 const STORAGE_KEY = "wroket-tutorial-seen";
@@ -51,6 +52,7 @@ export function useTutorial() {
 
 export default function TutorialModal({ open, onClose }: TutorialModalProps) {
   const { t } = useLocale();
+  const trapRef = useFocusTrap(open);
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function TutorialModal({ open, onClose }: TutorialModalProps) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label={t("tutorial.title")} className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Progress bar */}
         <div className="h-1 bg-zinc-100 dark:bg-slate-800">
           <div

@@ -72,6 +72,7 @@ export interface UpdateTodoInput {
   deadline?: string | null;
   tags?: string[];
   status?: TodoStatus;
+  parentId?: string | null;
   projectId?: string | null;
   phaseId?: string | null;
   assignedTo?: string | null;
@@ -99,7 +100,7 @@ function validateRecurrence(rec: Recurrence): void {
   }
 }
 
-function calculateNextDueDate(
+export function calculateNextDueDate(
   currentDeadline: string,
   frequency: RecurrenceFrequency,
   interval: number,
@@ -121,6 +122,8 @@ function calculateNextDueDate(
 }
 
 const todosByUser = new Map<string, Map<string, Todo>>();
+/** Reverse index: todoId → ownerUserId for O(1) cross-user lookup */
+const ownerIndex = new Map<string, string>();
 
 function persistTodos(): void {
   const obj: Record<string, Record<string, Todo>> = {};
@@ -174,6 +177,7 @@ function persistTodos(): void {
           todo.statusChangedAt = todo.status === "active" ? todo.createdAt : todo.updatedAt;
         }
         map.set(id, todo);
+        ownerIndex.set(id, userId);
         count++;
       }
       todosByUser.set(userId, map);
@@ -191,12 +195,8 @@ function getUserTodos(userId: string): Map<string, Todo> {
   return todos;
 }
 
-const ARCHIVE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
-
 export function isArchived(todo: Todo): boolean {
-  if (todo.status === "active") return false;
-  const elapsed = Date.now() - new Date(todo.statusChangedAt).getTime();
-  return elapsed >= ARCHIVE_THRESHOLD_MS;
+  return todo.status !== "active";
 }
 
 export function listArchivedTodos(userId: string): Todo[] {
@@ -350,6 +350,7 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
   };
 
   getUserTodos(userId).set(todo.id, todo);
+  ownerIndex.set(todo.id, userId);
   persistTodos();
   return todo;
 }
@@ -363,9 +364,11 @@ function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap
   const ownTodo = own.get(todoId);
   if (ownTodo) return { todo: ownTodo, ownerMap: own, isOwner: true };
 
-  for (const [, todos] of todosByUser) {
-    const t = todos.get(todoId);
-    if (t && t.assignedTo === userId) return { todo: t, ownerMap: todos, isOwner: false };
+  const ownerId = ownerIndex.get(todoId);
+  if (ownerId) {
+    const ownerMap = todosByUser.get(ownerId);
+    const t = ownerMap?.get(todoId);
+    if (t && t.assignedTo === userId) return { todo: t, ownerMap: ownerMap!, isOwner: false };
   }
   return null;
 }
@@ -418,15 +421,24 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     if (!VALID_STATUSES.includes(input.status)) {
       throw new ValidationError("Statut invalide (active, completed, cancelled, deleted)");
     }
+    if (input.status === "deleted" && !isOwner) {
+      throw new ForbiddenError("Seul le propriétaire peut supprimer la tâche");
+    }
     if (input.status !== todo.status) {
       todo.statusChangedAt = new Date().toISOString();
     }
     todo.status = input.status;
   }
+  if (input.parentId !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier la tâche parente");
+    todo.parentId = input.parentId;
+  }
   if (input.projectId !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier le projet");
     todo.projectId = input.projectId;
   }
   if (input.phaseId !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier la phase");
     todo.phaseId = input.phaseId;
   }
   if (input.startDate !== undefined) {
@@ -500,6 +512,7 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
         updatedAt: now2,
       };
       ownerTodos.set(clone.id, clone);
+      ownerIndex.set(clone.id, todo.userId);
       persistTodos();
     }
   }
@@ -516,6 +529,7 @@ setInterval(() => {
     for (const [id, todo] of todos) {
       if (todo.status === "deleted" && new Date(todo.statusChangedAt).getTime() < cutoff) {
         todos.delete(id);
+        ownerIndex.delete(id);
         cleaned++;
       }
     }
@@ -529,7 +543,8 @@ setInterval(() => {
 export function deleteTodo(userId: string, todoId: string): Todo {
   const found = findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
-  const { todo, ownerMap: todos } = found;
+  const { todo, ownerMap: todos, isOwner } = found;
+  if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut supprimer la tâche");
   const now = new Date().toISOString();
   todo.status = "deleted";
   todo.statusChangedAt = now;

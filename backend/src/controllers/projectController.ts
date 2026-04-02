@@ -13,6 +13,7 @@ import {
   deletePhase,
   canAccessProject,
   canEditProject,
+  canEditProjectContent,
   CreateProjectInput,
   UpdateProjectInput,
   CreatePhaseInput,
@@ -127,8 +128,8 @@ export async function createPhase(req: AuthenticatedRequest, res: Response) {
   const projectId = req.params.id as string;
   const project = getProjectById(projectId);
   if (!project) throw new NotFoundError("Projet introuvable");
-  if (!canEditProject(req.user!.uid, req.user!.email, project)) {
-    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
+  if (!canEditProjectContent(req.user!.uid, req.user!.email, project)) {
+    throw new ForbiddenError("Accès réservé (super-user minimum)");
   }
 
   const input: CreatePhaseInput = {
@@ -145,8 +146,8 @@ export async function patchPhase(req: AuthenticatedRequest, res: Response) {
   const projectId = req.params.id as string;
   const project = getProjectById(projectId);
   if (!project) throw new NotFoundError("Projet introuvable");
-  if (!canEditProject(req.user!.uid, req.user!.email, project)) {
-    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
+  if (!canEditProjectContent(req.user!.uid, req.user!.email, project)) {
+    throw new ForbiddenError("Accès réservé (super-user minimum)");
   }
 
   const phaseId = req.params.phaseId as string;
@@ -164,8 +165,8 @@ export async function removePhase(req: AuthenticatedRequest, res: Response) {
   const projectId = req.params.id as string;
   const project = getProjectById(projectId);
   if (!project) throw new NotFoundError("Projet introuvable");
-  if (!canEditProject(req.user!.uid, req.user!.email, project)) {
-    throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
+  if (!canEditProjectContent(req.user!.uid, req.user!.email, project)) {
+    throw new ForbiddenError("Accès réservé (super-user minimum)");
   }
 
   const phaseId = req.params.phaseId as string;

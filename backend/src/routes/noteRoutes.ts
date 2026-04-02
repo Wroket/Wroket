@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { list, listShared, get, create, update, remove, sync, exportNotes } from "../controllers/noteController";
+import { list, listShared, byTodo, get, create, update, remove, sync, exportNotes } from "../controllers/noteController";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const noteRoutes = Router();
@@ -11,6 +11,7 @@ noteRoutes.get("/", list);
 noteRoutes.post("/", create);
 noteRoutes.get("/export", exportNotes);
 noteRoutes.get("/shared", listShared);
+noteRoutes.get("/by-todo/:todoId", byTodo);
 noteRoutes.post("/sync", sync);
 noteRoutes.get("/:id", get);
 noteRoutes.put("/:id", update);

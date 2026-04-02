@@ -10,8 +10,8 @@ import {
   type SlotProposal,
   type Todo,
 } from "@/lib/api";
-import type { TranslationKey } from "@/lib/i18n";
 import { useLocale } from "@/lib/LocaleContext";
+import { useToast } from "@/components/Toast";
 
 export interface SlotPickerProps {
   todoId: string;
@@ -23,6 +23,7 @@ export interface SlotPickerProps {
 
 export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared, autoOpen }: SlotPickerProps) {
   const { t } = useLocale();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const autoOpenedRef = useRef(false);
 
@@ -93,7 +94,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
       onBooked(updated);
       setOpen(false);
     } catch {
-      /* silent */
+      toast.error(t("toast.updateError"));
     } finally {
       setBooking(false);
     }
@@ -122,7 +123,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
       onCleared(updated);
       setOpen(false);
     } catch {
-      /* silent */
+      toast.error(t("toast.deleteError"));
     } finally {
       setClearing(false);
     }
@@ -135,8 +136,10 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
         setOpen(false);
       }
     };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("mousedown", handleClick); document.removeEventListener("keydown", handleKey); };
   }, [open]);
 
   const formatSlotBadge = (slot: ScheduledSlot): string => {
@@ -151,7 +154,8 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); handleOpen(); }}
-        title={t("schedule.title" as TranslationKey)}
+        title={t("schedule.title")}
+        aria-expanded={open}
         className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors"
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -168,7 +172,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
         >
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-slate-700">
             <h4 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-2">
-              {t("schedule.title" as TranslationKey)}
+              {t("schedule.title")}
             </h4>
             {!scheduledSlot && (
               <div className="flex gap-1">
@@ -177,14 +181,14 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   onClick={() => setMode("suggested")}
                   className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "suggested" ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
                 >
-                  {t("schedule.suggested" as TranslationKey)}
+                  {t("schedule.suggested")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
                   className={`flex-1 text-[11px] font-medium rounded py-1 transition-colors ${mode === "manual" ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700"}`}
                 >
-                  {t("schedule.manual" as TranslationKey)}
+                  {t("schedule.manual")}
                 </button>
               </div>
             )}
@@ -199,7 +203,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   </svg>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                      {t("schedule.booked" as TranslationKey)}
+                      {t("schedule.booked")}
                     </p>
                     <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 truncate">
                       {formatSlotBadge(scheduledSlot)}
@@ -212,18 +216,18 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   disabled={clearing}
                   className="w-full rounded border border-red-200 dark:border-red-800 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 transition-colors"
                 >
-                  {t("schedule.remove" as TranslationKey)}
+                  {t("schedule.remove")}
                 </button>
               </div>
             ) : mode === "manual" ? (
               <div className="space-y-3">
                 {duration > 0 && (
                   <p className="text-[11px] text-zinc-500 dark:text-slate-400">
-                    {t("schedule.duration" as TranslationKey)}: {duration} min
+                    {t("schedule.duration")}: {duration} min
                   </p>
                 )}
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-600 dark:text-slate-300 mb-1">{t("schedule.date" as TranslationKey)}</label>
+                  <label className="block text-[11px] font-medium text-zinc-600 dark:text-slate-300 mb-1">{t("schedule.date")}</label>
                   <input
                     type="date"
                     value={manualDate}
@@ -233,7 +237,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-600 dark:text-slate-300 mb-1">{t("schedule.time" as TranslationKey)}</label>
+                  <label className="block text-[11px] font-medium text-zinc-600 dark:text-slate-300 mb-1">{t("schedule.time")}</label>
                   <input
                     type="time"
                     value={manualTime}
@@ -247,7 +251,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                   disabled={booking || !manualDate || !manualTime}
                   className="w-full rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                 >
-                  {t("schedule.book" as TranslationKey)}
+                  {t("schedule.book")}
                 </button>
               </div>
             ) : loading ? (
@@ -257,20 +261,20 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  <span className="text-xs">{t("schedule.loading" as TranslationKey)}</span>
+                  <span className="text-xs">{t("schedule.loading")}</span>
                 </div>
               </div>
             ) : slots.length === 0 ? (
               <div className="py-6 text-center">
                 <p className="text-xs text-zinc-400 dark:text-slate-500 italic">
-                  {t("schedule.noSlots" as TranslationKey)}
+                  {t("schedule.noSlots")}
                 </p>
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
                   className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  {t("schedule.manual" as TranslationKey)}
+                  {t("schedule.manual")}
                 </button>
               </div>
             ) : (
@@ -278,12 +282,12 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                 {duration > 0 && (
                   <div className="mb-2">
                     <p className="text-[11px] text-zinc-600 dark:text-slate-300 font-medium">
-                      {t("schedule.duration" as TranslationKey)}: {duration} min
+                      {t("schedule.duration")}: {duration} min
                     </p>
                     <p className="text-[10px] text-zinc-400 dark:text-slate-500 italic">
                       {durationSource === "task"
-                        ? t("schedule.sourceTask" as TranslationKey)
-                        : `${t("schedule.sourceSettings" as TranslationKey)} (${effort})`}
+                        ? t("schedule.sourceTask")
+                        : `${t("schedule.sourceSettings")} (${effort})`}
                     </p>
                   </div>
                 )}
@@ -301,7 +305,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                       disabled={booking}
                       className="shrink-0 rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                     >
-                      {t("schedule.select" as TranslationKey)}
+                      {t("schedule.select")}
                     </button>
                   </div>
                 ))}

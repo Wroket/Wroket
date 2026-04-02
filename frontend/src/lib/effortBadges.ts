@@ -7,17 +7,17 @@ export const EFFORT_BADGES: Record<
 > = {
   light: {
     label: "Léger",
-    tKey: "effort.light" as TranslationKey,
+    tKey: "effort.light",
     cls: "bg-sky-400 text-white dark:bg-sky-600",
   },
   medium: {
     label: "Moyen",
-    tKey: "effort.medium" as TranslationKey,
+    tKey: "effort.medium",
     cls: "bg-[#6b8e23] text-white dark:bg-[#556b2f]",
   },
   heavy: {
     label: "Lourd",
-    tKey: "effort.heavy" as TranslationKey,
+    tKey: "effort.heavy",
     cls: "bg-purple-700 text-white dark:bg-purple-800",
   },
 };

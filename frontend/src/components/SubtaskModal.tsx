@@ -1,8 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { useLocale } from "@/lib/LocaleContext";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Todo, Priority, Effort } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
@@ -20,6 +37,90 @@ export interface SubtaskModalProps {
   existingSubtasks: Todo[];
   onCompleteSubtask: (todo: Todo) => void;
   onDeleteSubtask: (todo: Todo) => void;
+  onPromoteSubtask?: (todo: Todo) => void;
+  onReorderSubtasks?: (orderedIds: string[]) => void;
+}
+
+function SortableSubtaskItem({
+  sub,
+  onComplete,
+  onPromote,
+  t,
+}: {
+  sub: Todo;
+  onComplete: (todo: Todo) => void;
+  onPromote?: (todo: Todo) => void;
+  t: (key: TranslationKey) => string;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sub.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(
+      transform ? { ...transform, scaleX: 1, scaleY: 1 } : null,
+    ),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  const badge = PRIORITY_BADGES[sub.priority];
+
+  return (
+    <li ref={setNodeRef} style={style} className="flex items-center gap-1.5 text-sm">
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-0.5"
+        {...attributes}
+        {...listeners}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+        </svg>
+      </button>
+      <button
+        onClick={() => onComplete(sub)}
+        className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
+          sub.status === "completed"
+            ? "bg-green-500 border-green-500 text-white"
+            : "border-zinc-300 dark:border-slate-500 hover:border-green-500 text-transparent hover:text-green-500"
+        }`}
+      >
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </button>
+      <span
+        className={`flex-1 truncate ${
+          sub.status === "completed"
+            ? "line-through text-zinc-400"
+            : "text-zinc-700 dark:text-slate-300"
+        }`}
+      >
+        {sub.title}
+      </span>
+      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>
+        {t(badge.tKey)}
+      </span>
+      {onPromote && (
+        <button
+          type="button"
+          onClick={() => onPromote(sub)}
+          title={t("subtask.promote")}
+          className="text-zinc-400 hover:text-orange-500 transition-colors p-0.5 shrink-0"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.181 8.68a4.503 4.503 0 011.903 6.405m-9.768-2.782L3.56 14.06a4.5 4.5 0 006.364 6.365l.707-.707m6.062-9.192l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-.707.707" />
+          </svg>
+        </button>
+      )}
+    </li>
+  );
 }
 
 export default function SubtaskModal({
@@ -30,12 +131,22 @@ export default function SubtaskModal({
   existingSubtasks,
   onCompleteSubtask,
   onDeleteSubtask,
+  onPromoteSubtask,
+  onReorderSubtasks,
 }: SubtaskModalProps) {
   const { t } = useLocale();
+  const trapRef = useFocusTrap(!!parent);
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [effort, setEffort] = useState<Effort>("medium");
   const [deadline, setDeadline] = useState("");
+
+  void onDeleteSubtask;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+  );
 
   useEffect(() => {
     if (!parent) return;
@@ -65,9 +176,15 @@ export default function SubtaskModal({
     setDeadline("");
   };
 
-  // Suppress unused variable — onDeleteSubtask is part of the public API
-  // for parent components that manage subtask deletion from within this modal.
-  void onDeleteSubtask;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onReorderSubtasks) return;
+    const oldIndex = existingSubtasks.findIndex((s) => s.id === active.id);
+    const newIndex = existingSubtasks.findIndex((s) => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(existingSubtasks, oldIndex, newIndex);
+    onReorderSubtasks(reordered.map((s) => s.id));
+  };
 
   return (
     <div
@@ -75,6 +192,7 @@ export default function SubtaskModal({
       onClick={onClose}
     >
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="subtask-modal-title"
@@ -92,53 +210,21 @@ export default function SubtaskModal({
         </p>
 
         {existingSubtasks.length > 0 && (
-          <ul className="space-y-1.5 mb-4 max-h-40 overflow-y-auto">
-            {existingSubtasks.map((sub) => {
-              const badge = PRIORITY_BADGES[sub.priority];
-              return (
-                <li key={sub.id} className="flex items-center gap-2 text-sm">
-                  <button
-                    onClick={() =>
-                      onCompleteSubtask(sub)
-                    }
-                    className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
-                      sub.status === "completed"
-                        ? "bg-green-500 border-green-500 text-white"
-                        : "border-zinc-300 dark:border-slate-500 hover:border-green-500 text-transparent hover:text-green-500"
-                    }`}
-                  >
-                    <svg
-                      className="w-2.5 h-2.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={3}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </button>
-                  <span
-                    className={`flex-1 truncate ${
-                      sub.status === "completed"
-                        ? "line-through text-zinc-400"
-                        : "text-zinc-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {sub.title}
-                  </span>
-                  <span
-                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}
-                  >
-                    {t(badge.tKey)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={existingSubtasks.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <ul className="space-y-1.5 mb-4 max-h-60 overflow-y-auto">
+                {existingSubtasks.map((sub) => (
+                  <SortableSubtaskItem
+                    key={sub.id}
+                    sub={sub}
+                    onComplete={onCompleteSubtask}
+                    onPromote={onPromoteSubtask}
+                    t={t}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
 
         <div className="space-y-3">
@@ -185,13 +271,6 @@ export default function SubtaskModal({
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            {t("subtask.cancel")}
-          </button>
           <button
             type="button"
             onClick={onClose}

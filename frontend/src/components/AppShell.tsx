@@ -4,7 +4,6 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  getMe,
   logout,
   getNotifications,
   getUnreadCount,
@@ -14,13 +13,14 @@ import {
   declineCollaboration,
   shareInviteApi,
   globalSearch,
-  AuthMeResponse,
   AppNotification,
   SearchResult,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 import TutorialModal, { useTutorial } from "@/components/TutorialModal";
+import { useToast } from "@/components/Toast";
+import { useAuth } from "@/components/AuthContext";
 
 interface AppShellProps {
   children: ReactNode;
@@ -48,47 +48,47 @@ const NAV_ITEMS: { tKey: TranslationKey; href: string; icon: ReactNode }[] = [
 ];
 
 const TEAMS_NAV = {
-  tKey: "nav.teams" as TranslationKey,
+  tKey: "nav.teams",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   ),
   children: [
-    { tKey: "nav.teams" as TranslationKey, href: "/teams" },
-    { tKey: "teamDash.title" as TranslationKey, href: "/teams/dashboard" },
+    { tKey: "nav.myTeams", href: "/teams" },
+    { tKey: "teamDash.title", href: "/teams/dashboard" },
   ],
 };
 
 const TASKS_NAV = {
-  tKey: "nav.tasks" as TranslationKey,
+  tKey: "nav.tasks",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
     </svg>
   ),
   children: [
-    { tKey: "nav.myTasks" as TranslationKey, href: "/todos" },
-    { tKey: "nav.delegated" as TranslationKey, href: "/todos/delegated" },
-    { tKey: "nav.archives" as TranslationKey, href: "/todos/archives" },
+    { tKey: "nav.myTasks", href: "/todos" },
+    { tKey: "nav.delegated", href: "/todos/delegated" },
+    { tKey: "nav.archives", href: "/todos/archives" },
   ],
 };
 
 const AGENDA_NAV = {
-  tKey: "nav.agenda" as TranslationKey,
+  tKey: "nav.agenda",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   ),
   children: [
-    { tKey: "nav.myAgenda" as TranslationKey, href: "/agenda" },
-    { tKey: "nav.manageCalendars" as TranslationKey, href: "/agenda/manage" },
+    { tKey: "nav.myAgenda", href: "/agenda" },
+    { tKey: "nav.manageCalendars", href: "/agenda/manage" },
   ],
 };
 
 const NOTES_ITEM = {
-  tKey: "nav.notes" as TranslationKey,
+  tKey: "nav.notes",
   href: "/notes",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -98,7 +98,7 @@ const NOTES_ITEM = {
 };
 
 const NOTIF_NAV_ITEM = {
-  tKey: "nav.notifications" as TranslationKey,
+  tKey: "nav.notifications",
   href: "/notifications",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -108,7 +108,7 @@ const NOTIF_NAV_ITEM = {
 };
 
 const SETTINGS_ITEM = {
-  tKey: "nav.settings" as TranslationKey,
+  tKey: "nav.settings",
   href: "/settings",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -119,7 +119,7 @@ const SETTINGS_ITEM = {
 };
 
 const ADMIN_ITEM = {
-  tKey: "nav.admin" as TranslationKey,
+  tKey: "nav.admin",
   href: "/admin",
   icon: (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -161,12 +161,13 @@ function timeAgo(iso: string, t: (k: import("@/lib/i18n").TranslationKey) => str
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const { t } = useLocale();
+  const { toast } = useToast();
+  const { user: me, loading } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
-  const [me, setMe] = useState<AuthMeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const { showTutorial, openTutorial, closeTutorial } = useTutorial();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
@@ -198,6 +199,7 @@ export default function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (pathname.startsWith("/todos")) setTasksOpen(true);
     if (pathname.startsWith("/agenda")) setAgendaOpen(true);
+    if (pathname.startsWith("/teams")) setTeamsOpen(true);
     setMobileMenuOpen(false);
   }, [pathname]);
 
@@ -209,22 +211,8 @@ export default function AppShell({ children }: AppShellProps) {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const user = await getMe();
-        if (!cancelled) {
-          setMe(user);
-          if (user?.email) localStorage.setItem("wroket-login-email", user.email);
-        }
-      } catch {
-        if (!cancelled) window.location.href = "/login";
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    if (me?.email) localStorage.setItem("wroket-login-email", me.email);
+  }, [me]);
 
   useEffect(() => {
     let cancelled = false;
@@ -232,7 +220,7 @@ export default function AppShell({ children }: AppShellProps) {
       try {
         const c = await getUnreadCount();
         if (!cancelled) setUnreadCount(c);
-      } catch { /* ignore */ }
+      } catch { /* polling — silent */ }
     };
     fetchCount();
     const interval = setInterval(fetchCount, 30000);
@@ -267,7 +255,7 @@ export default function AppShell({ children }: AppShellProps) {
       try {
         const list = await getNotifications();
         setNotifications(list);
-      } catch { /* ignore */ }
+      } catch { toast.error(t("toast.loadError")); }
     }
   };
 
@@ -276,7 +264,7 @@ export default function AppShell({ children }: AppShellProps) {
       await markNotificationRead(id);
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
       setUnreadCount((c) => Math.max(0, c - 1));
-    } catch { /* ignore */ }
+    } catch { toast.error(t("toast.updateError")); }
   };
 
   const handleMarkAllRead = async () => {
@@ -284,7 +272,7 @@ export default function AppShell({ children }: AppShellProps) {
       await markAllNotificationsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
-    } catch { /* ignore */ }
+    } catch { toast.error(t("toast.updateError")); }
   };
 
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
@@ -295,6 +283,10 @@ export default function AppShell({ children }: AppShellProps) {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, []);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -319,18 +311,19 @@ export default function AppShell({ children }: AppShellProps) {
         const results = await globalSearch(value);
         setSearchResults(results);
         setSearchOpen(true);
-      } catch { setSearchResults([]); }
+      } catch { setSearchResults([]); toast.error(t("toast.loadError")); }
       finally { setSearchLoading(false); }
     }, 300);
-  }, []);
+  }, [t, toast]);
 
   const handleSearchResultClick = useCallback((result: SearchResult) => {
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults([]);
-    if (result.type === "todo") window.location.href = "/todos";
-    else if (result.type === "project") window.location.href = `/projects`;
-    else if (result.type === "note") window.location.href = "/notes";
+    setMobileSearchOpen(false);
+    if (result.type === "todo") window.location.href = `/todos?edit=${result.id}`;
+    else if (result.type === "project") window.location.href = `/projects/${result.id}`;
+    else if (result.type === "note") window.location.href = `/notes?id=${result.id}`;
   }, []);
 
   const [shareOpen, setShareOpen] = useState(false);
@@ -369,7 +362,7 @@ export default function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-slate-950 transition-colors">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:rounded focus:bg-slate-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white">
-        Skip to main content
+        {t("a11y.skipToContent")}
       </a>
 
       {/* ── Header ── */}
@@ -380,7 +373,7 @@ export default function AppShell({ children }: AppShellProps) {
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               className="md:hidden rounded p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-label={mobileMenuOpen ? t("a11y.closeMenu") : t("a11y.openMenu")}
               aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? (
@@ -406,7 +399,18 @@ export default function AppShell({ children }: AppShellProps) {
             </h1>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
-            {/* Search bar */}
+            {/* Mobile search button */}
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(true)}
+              className="sm:hidden rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+              aria-label={t("search.placeholder")}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+            {/* Desktop search bar */}
             <div className="relative hidden sm:block" ref={searchRef}>
               <div className="relative">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -417,7 +421,7 @@ export default function AppShell({ children }: AppShellProps) {
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
-                  placeholder={t("search.placeholder" as TranslationKey)}
+                  placeholder={t("search.placeholder")}
                   className="w-48 lg:w-64 rounded-lg border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 pl-8 pr-3 py-1.5 text-sm text-zinc-900 dark:text-slate-100 placeholder:text-zinc-400 dark:placeholder:text-slate-500 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 transition-colors"
                 />
                 {searchLoading && (
@@ -427,7 +431,7 @@ export default function AppShell({ children }: AppShellProps) {
               {searchOpen && (
                 <div className="absolute left-0 top-full mt-1.5 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50">
                   {searchResults.length === 0 && searchQuery.length >= 2 ? (
-                    <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults" as TranslationKey)}</p>
+                    <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
                   ) : (
                     <>
                       {(["todo", "project", "note"] as const).map((type) => {
@@ -438,7 +442,7 @@ export default function AppShell({ children }: AppShellProps) {
                         return (
                           <div key={type}>
                             <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
-                              {icon} {t(labelKey as TranslationKey)}
+                              {icon} {t(labelKey)}
                             </div>
                             {group.map((result) => (
                               <button
@@ -528,11 +532,11 @@ export default function AppShell({ children }: AppShellProps) {
                                         await acceptCollaboration(notif.data!.inviterEmail);
                                         await handleMarkRead(notif.id);
                                         window.dispatchEvent(new Event("collaborators-updated"));
-                                      } catch { /* ignore */ }
+                                      } catch { toast.error(t("toast.acceptError")); }
                                     }}
                                     className="rounded px-2.5 py-1 text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                                   >
-                                    {t("notif.accept" as TranslationKey)}
+                                    {t("notif.accept")}
                                   </button>
                                   <button
                                     type="button"
@@ -542,11 +546,11 @@ export default function AppShell({ children }: AppShellProps) {
                                         await declineCollaboration(notif.data!.inviterEmail);
                                         await handleMarkRead(notif.id);
                                         window.dispatchEvent(new Event("collaborators-updated"));
-                                      } catch { /* ignore */ }
+                                      } catch { toast.error(t("toast.declineError")); }
                                     }}
                                     className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                                   >
-                                    {t("notif.decline" as TranslationKey)}
+                                    {t("notif.decline")}
                                   </button>
                                 </div>
                               )}
@@ -574,7 +578,7 @@ export default function AppShell({ children }: AppShellProps) {
                     onClick={() => setNotifOpen(false)}
                     className="block text-center px-4 py-2.5 border-t border-zinc-100 dark:border-slate-800 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
                   >
-                    {t("notif.viewAll" as TranslationKey)}
+                    {t("notif.viewAll")}
                   </Link>
                 </div>
               )}
@@ -582,7 +586,7 @@ export default function AppShell({ children }: AppShellProps) {
             <button
               onClick={toggleDarkMode}
               className="rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={darkMode ? t("a11y.toggleDarkMode") : t("a11y.toggleLightMode")}
             >
               {darkMode ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -921,10 +925,69 @@ export default function AppShell({ children }: AppShellProps) {
 
       <TutorialModal open={showTutorial} onClose={closeTutorial} />
 
+      {mobileSearchOpen && (
+        <div className="fixed inset-0 z-[110] bg-white dark:bg-slate-950 flex flex-col sm:hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); setSearchResults([]); }}
+              className="rounded p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800"
+              aria-label={t("edit.cancel")}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="relative flex-1">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder={t("search.placeholder")}
+                className="w-full rounded-lg border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 pl-8 pr-3 py-2 text-sm text-zinc-900 dark:text-slate-100 placeholder:text-zinc-400 dark:placeholder:text-slate-500 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {searchResults.length === 0 && searchQuery.length >= 2 ? (
+              <p className="px-4 py-8 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
+            ) : (
+              (["todo", "project", "note"] as const).map((type) => {
+                const group = searchResults.filter((r) => r.type === type);
+                if (group.length === 0) return null;
+                const labelKey = type === "todo" ? "search.todos" : type === "project" ? "search.projects" : "search.notes";
+                return (
+                  <div key={type}>
+                    <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
+                      {t(labelKey)}
+                    </div>
+                    {group.map((result) => (
+                      <button
+                        key={`${result.type}-${result.id}`}
+                        type="button"
+                        onClick={() => handleSearchResultClick(result)}
+                        className="w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-slate-800 border-b border-zinc-50 dark:border-slate-800/50"
+                      >
+                        <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
+                        {result.snippet && <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
       {shareOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShareOpen(false)}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("app.share")}</h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShareOpen(false)} onKeyDown={(e) => { if (e.key === "Escape") setShareOpen(false); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 id="share-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("app.share")}</h3>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mb-4">{t("app.share.placeholder")}</p>
             <input
               type="email"

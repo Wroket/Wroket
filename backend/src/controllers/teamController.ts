@@ -186,9 +186,11 @@ export async function postUpdateMemberRole(req: AuthenticatedRequest, res: Respo
   const teamId = req.params.teamId as string;
   const { email, role } = req.body as { email?: string; role?: string };
   if (!email || typeof email !== "string") throw new ValidationError("Email requis");
-  if (role !== "admin" && role !== "member") throw new ValidationError("Rôle invalide (admin ou member)");
+  if (role !== "admin" && role !== "super-user" && role !== "user") {
+    throw new ValidationError("Rôle invalide (admin, super-user ou user)");
+  }
 
-  const team = updateMemberRole(teamId, req.user!.uid, email, role);
+  const team = updateMemberRole(teamId, req.user!.uid, req.user!.email, email, role);
   res.status(200).json(team);
 }
 
@@ -252,6 +254,6 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
 
 export async function postDeleteTeam(req: AuthenticatedRequest, res: Response) {
   const teamId = req.params.teamId as string;
-  deleteTeam(teamId, req.user!.uid);
+  deleteTeam(teamId, req.user!.uid, req.user!.email);
   res.status(200).json({ ok: true });
 }

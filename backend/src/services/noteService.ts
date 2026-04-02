@@ -12,6 +12,8 @@ export interface Note {
   pinned: boolean;
   folder?: string;
   tags?: string[];
+  todoId?: string;
+  projectId?: string;
   shared?: boolean;
   teamId?: string;
   createdAt: string;
@@ -24,6 +26,8 @@ export interface CreateNoteInput {
   id?: string;
   folder?: string;
   tags?: string[];
+  todoId?: string;
+  projectId?: string;
   shared?: boolean;
   teamId?: string;
 }
@@ -34,6 +38,8 @@ export interface UpdateNoteInput {
   pinned?: boolean;
   folder?: string;
   tags?: string[];
+  todoId?: string | null;
+  projectId?: string | null;
   shared?: boolean;
   teamId?: string;
 }
@@ -110,6 +116,8 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
 
   const folder = input.folder?.trim() || undefined;
   const tags = input.tags?.length ? input.tags.slice(0, 10) : undefined;
+  const todoId = input.todoId?.trim() || undefined;
+  const projectId = input.projectId?.trim() || undefined;
   const shared = input.shared ?? undefined;
   const teamId = input.teamId?.trim() || undefined;
 
@@ -117,13 +125,15 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
 
   const now = new Date().toISOString();
   const note: Note = {
-    id: input.id || crypto.randomUUID(),
+    id: crypto.randomUUID(),
     userId,
     title: title || "Sans titre",
     content,
     pinned: false,
     folder,
     tags,
+    todoId,
+    projectId,
     shared: shared && teamId ? true : undefined,
     teamId: shared && teamId ? teamId : undefined,
     createdAt: now,
@@ -156,6 +166,12 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
   if (input.tags !== undefined) {
     note.tags = input.tags.length ? input.tags.slice(0, 10) : undefined;
   }
+  if (input.todoId !== undefined) {
+    note.todoId = input.todoId?.trim() || undefined;
+  }
+  if (input.projectId !== undefined) {
+    note.projectId = input.projectId?.trim() || undefined;
+  }
   if (input.shared !== undefined || input.teamId !== undefined) {
     const wantShared = input.shared ?? note.shared;
     const wantTeamId = (input.teamId !== undefined ? input.teamId.trim() : note.teamId) || undefined;
@@ -184,7 +200,10 @@ export function syncNotes(userId: string, incoming: Array<{ id: string; title: s
   const map = getUserNotes(userId);
   const now = new Date().toISOString();
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   for (const item of incoming) {
+    if (!item.id || !UUID_RE.test(item.id)) continue;
     const existing = map.get(item.id);
     if (existing) {
       if (new Date(item.updatedAt) > new Date(existing.updatedAt)) {
@@ -209,6 +228,12 @@ export function syncNotes(userId: string, incoming: Array<{ id: string; title: s
 
   persist();
   return listNotes(userId);
+}
+
+export function listNotesByTodo(userId: string, todoId: string): Note[] {
+  return Array.from(getUserNotes(userId).values())
+    .filter((n) => n.todoId === todoId)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
 /** Returns notes shared by other users with teams the current user belongs to. */

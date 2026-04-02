@@ -31,29 +31,29 @@ export function deadlineLabel(
 
   if (diff < 0)
     return {
-      text: t("deadline.overdue" as TranslationKey),
-      cls: "bg-red-500 text-white",
+      text: t("deadline.overdue"),
+      cls: "bg-red-500 text-white dark:bg-red-600 dark:text-red-50",
       urgent: true,
     };
 
   if (diff === 0)
     return {
-      text: t("deadline.today" as TranslationKey),
-      cls: "bg-orange-500 text-white",
+      text: t("deadline.today"),
+      cls: "bg-orange-500 text-white dark:bg-orange-600 dark:text-orange-50",
       urgent: true,
     };
 
   if (diff === 1)
     return {
-      text: t("deadline.tomorrow" as TranslationKey),
-      cls: "bg-amber-500 text-white",
+      text: t("deadline.tomorrow"),
+      cls: "bg-amber-500 text-white dark:bg-amber-600 dark:text-amber-50",
       urgent: true,
     };
 
   if (diff <= 7)
     return {
-      text: `${diff} ${t("deadline.daysLeft" as TranslationKey)}`,
-      cls: "bg-sky-500 text-white",
+      text: `${diff} ${t("deadline.daysLeft")}`,
+      cls: "bg-sky-500 text-white dark:bg-sky-600 dark:text-sky-50",
       urgent: diff <= 3,
     };
 

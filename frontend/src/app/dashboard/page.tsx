@@ -104,10 +104,10 @@ export default function DashboardPage() {
             <PageHelpButton
               title={t("dashboard.title")}
               items={[
-                { text: t("help.dashboard.overview" as TranslationKey) },
-                { text: t("help.dashboard.radar" as TranslationKey) },
-                { text: t("help.dashboard.notifs" as TranslationKey) },
-                { text: t("help.dashboard.progress" as TranslationKey) },
+                { text: t("help.dashboard.overview") },
+                { text: t("help.dashboard.radar") },
+                { text: t("help.dashboard.notifs") },
+                { text: t("help.dashboard.progress") },
               ]}
             />
           </div>

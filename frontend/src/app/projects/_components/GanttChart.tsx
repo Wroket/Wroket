@@ -1,6 +1,18 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useCallback, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
+import { SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
 import type { ProjectPhase, Todo, TodoStatus, TranslationKey } from "./types";
 
 function daysBetween(a: Date, b: Date): number {
@@ -22,17 +34,62 @@ function monthLabel(d: Date, locale: string): string {
   return d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { month: "short", year: "2-digit" });
 }
 
+type GanttRow = {
+  type: "phase" | "task" | "subtask";
+  id: string;
+  label: string;
+  numbering: string;
+  color: string;
+  startDay: number | null;
+  endDay: number | null;
+  status?: TodoStatus;
+};
+
 interface GanttChartProps {
   phases: ProjectPhase[];
   tasks: Todo[];
   t: (key: TranslationKey) => string;
   locale: string;
+  onMoveTask?: (taskId: string, newPhaseId: string | null, newIndex: number) => void;
 }
 
-export default function GanttChart({ phases, tasks, t, locale }: GanttChartProps) {
+export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const { rows, minDate, totalDays, months } = useMemo(() => {
+  const parentTasks = useMemo(() => tasks.filter((t) => !t.parentId), [tasks]);
+  const subtasksByParent = useMemo(() => {
+    const map = new Map<string, Todo[]>();
+    for (const t of tasks) {
+      if (t.parentId) {
+        const list = map.get(t.parentId) ?? [];
+        list.push(t);
+        map.set(t.parentId, list);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  const tasksByPhase = useMemo(() => {
+    const map = new Map<string, Todo[]>();
+    for (const p of phases) map.set(p.id, []);
+    const unassigned: Todo[] = [];
+    for (const task of parentTasks) {
+      if (task.phaseId && map.has(task.phaseId)) {
+        map.get(task.phaseId)!.push(task);
+      } else {
+        unassigned.push(task);
+      }
+    }
+    for (const [, list] of map) {
+      list.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+    }
+    unassigned.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+    map.set("__none__", unassigned);
+    return map;
+  }, [phases, parentTasks]);
+
+  const { minDate, totalDays, months, phaseBarData } = useMemo(() => {
     const allDates: Date[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -48,7 +105,7 @@ export default function GanttChart({ phases, tasks, t, locale }: GanttChartProps
     }
 
     if (allDates.length <= 1) {
-      return { rows: [], minDate: today, totalDays: 30, months: [] };
+      return { minDate: today, totalDays: 30, months: [], phaseBarData: new Map<string, { startDay: number | null; endDay: number | null }>() };
     }
 
     const sorted = allDates.sort((a, b) => a.getTime() - b.getTime());
@@ -56,99 +113,12 @@ export default function GanttChart({ phases, tasks, t, locale }: GanttChartProps
     const maxD = addDays(sorted[sorted.length - 1], 7);
     const total = Math.max(daysBetween(minD, maxD), 14);
 
-    type Row = {
-      type: "phase" | "task" | "subtask";
-      label: string;
-      numbering: string;
-      color: string;
-      startDay: number | null;
-      endDay: number | null;
-      status?: TodoStatus;
-    };
-
-    const builtRows: Row[] = [];
-    const orderedPhases = [...phases].sort((a, b) => a.order - b.order);
-    const tasksByPhase = new Map<string, Todo[]>();
-    const unassigned: Todo[] = [];
-
-    const parentTasks = tasks.filter((t) => !t.parentId);
-    const subtasksByParent = new Map<string, Todo[]>();
-    for (const t of tasks) {
-      if (t.parentId) {
-        const list = subtasksByParent.get(t.parentId) ?? [];
-        list.push(t);
-        subtasksByParent.set(t.parentId, list);
-      }
-    }
-
-    for (const task of parentTasks) {
-      if (task.phaseId) {
-        const list = tasksByPhase.get(task.phaseId) ?? [];
-        list.push(task);
-        tasksByPhase.set(task.phaseId, list);
-      } else {
-        unassigned.push(task);
-      }
-    }
-
-    let ganttTaskCounter = 0;
-
-    const pushTaskWithSubs = (task: Todo, color: string) => {
-      ganttTaskCounter++;
-      const parentNum = String(ganttTaskCounter);
-      builtRows.push({
-        type: "task",
-        label: task.title,
-        numbering: parentNum,
-        color,
-        startDay: task.startDate ? daysBetween(minD, parseDate(task.startDate)) : null,
-        endDay: task.deadline ? daysBetween(minD, parseDate(task.deadline)) : null,
-        status: task.status,
-      });
-      const subs = subtasksByParent.get(task.id) ?? [];
-      for (let si = 0; si < subs.length; si++) {
-        const sub = subs[si];
-        builtRows.push({
-          type: "subtask",
-          label: sub.title,
-          numbering: `${parentNum}.${si + 1}`,
-          color,
-          startDay: sub.startDate ? daysBetween(minD, parseDate(sub.startDate)) : null,
-          endDay: sub.deadline ? daysBetween(minD, parseDate(sub.deadline)) : null,
-          status: sub.status,
-        });
-      }
-    };
-
-    for (const phase of orderedPhases) {
-      ganttTaskCounter = 0;
-      builtRows.push({
-        type: "phase",
-        label: phase.name,
-        numbering: "",
-        color: phase.color,
+    const pbd = new Map<string, { startDay: number | null; endDay: number | null }>();
+    for (const phase of phases) {
+      pbd.set(phase.id, {
         startDay: phase.startDate ? daysBetween(minD, parseDate(phase.startDate)) : null,
         endDay: phase.endDate ? daysBetween(minD, parseDate(phase.endDate)) : null,
       });
-      const phaseTasks = tasksByPhase.get(phase.id) ?? [];
-      for (const task of phaseTasks) {
-        pushTaskWithSubs(task, phase.color);
-      }
-    }
-
-    if (unassigned.length > 0) {
-      ganttTaskCounter = 0;
-      builtRows.push({
-        type: "phase",
-        label: t("phase.unassigned" as TranslationKey),
-        numbering: "",
-        color: "#94a3b8",
-        startDay: null,
-        endDay: null,
-      });
-      for (const task of unassigned) {
-        pushTaskWithSubs(task, "#94a3b8");
-      }
     }
 
     const builtMonths: { label: string; startDay: number; span: number }[] = [];
@@ -166,106 +136,209 @@ export default function GanttChart({ phases, tasks, t, locale }: GanttChartProps
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
 
-    return { rows: builtRows, minDate: minD, totalDays: total, months: builtMonths };
-  }, [phases, tasks, t, locale]);
+    return { minDate: minD, totalDays: total, months: builtMonths, phaseBarData: pbd };
+  }, [phases, tasks, locale]);
+
+  const getTaskBar = useCallback((task: Todo) => {
+    const startDay = task.startDate ? daysBetween(minDate, parseDate(task.startDate)) : null;
+    const endDay = task.deadline ? daysBetween(minDate, parseDate(task.deadline)) : null;
+    return { startDay, endDay };
+  }, [minDate]);
+
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const findPhaseForTask = useCallback((taskId: string): string => {
+    for (const [phaseId, list] of tasksByPhase) {
+      if (list.some((t) => t.id === taskId)) return phaseId;
+    }
+    return "__none__";
+  }, [tasksByPhase]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setDraggedId(String(event.active.id));
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setDraggedId(null);
+    if (!onMoveTask) return;
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    const sourcePhase = findPhaseForTask(activeId);
+    const allPhaseIds = [...phases.map((p) => p.id), "__none__"];
+    const isOverAPhase = allPhaseIds.includes(overId);
+    const targetPhase = isOverAPhase ? overId : findPhaseForTask(overId);
+
+    const targetTasks = tasksByPhase.get(targetPhase) ?? [];
+
+    if (sourcePhase === targetPhase && !isOverAPhase) {
+      const oldIndex = targetTasks.findIndex((t) => t.id === activeId);
+      const newIndex = targetTasks.findIndex((t) => t.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      onMoveTask(activeId, targetPhase === "__none__" ? null : targetPhase, newIndex);
+    } else {
+      let insertIndex = targetTasks.length;
+      if (!isOverAPhase) {
+        const overIndex = targetTasks.findIndex((t) => t.id === overId);
+        if (overIndex !== -1) insertIndex = overIndex;
+      }
+      onMoveTask(activeId, targetPhase === "__none__" ? null : targetPhase, insertIndex);
+    }
+  }, [onMoveTask, findPhaseForTask, phases, tasksByPhase]);
+
+  const draggedTask = useMemo(
+    () => (draggedId ? parentTasks.find((t) => t.id === draggedId) ?? null : null),
+    [draggedId, parentTasks],
+  );
 
   const todayOffset = daysBetween(minDate, new Date());
   const COL_W = 28;
 
-  if (rows.length === 0) {
+  const orderedPhases = useMemo(() => [...phases].sort((a, b) => a.order - b.order), [phases]);
+
+  const hasData = parentTasks.length > 0;
+
+  if (!hasData) {
     return (
       <div className="text-center py-12 text-sm text-zinc-400 dark:text-slate-500 italic">
-        {t("gantt.noData" as TranslationKey)}
+        {t("gantt.noData")}
       </div>
     );
   }
 
-  return (
-    <div className="overflow-x-auto" ref={containerRef}>
-      <div style={{ minWidth: totalDays * COL_W + 240 }}>
-        <div className="flex border-b border-zinc-200 dark:border-slate-700">
-          <div className="w-[240px] shrink-0" />
-          <div className="flex-1 flex">
-            {months.map((m, i) => (
-              <div
-                key={i}
-                style={{ width: m.span * COL_W, marginLeft: i === 0 ? m.startDay * COL_W : 0 }}
-                className="text-[10px] font-semibold text-zinc-500 dark:text-slate-400 px-1 py-1 border-r border-zinc-100 dark:border-slate-800 uppercase tracking-wider"
-              >
-                {m.label}
-              </div>
-            ))}
+  const renderBar = (startDay: number | null, endDay: number | null, color: string, opacity: number, height: string, label?: string) => {
+    const barStart = startDay ?? 0;
+    const barEnd = endDay ?? barStart;
+    const barWidth = Math.max(barEnd - barStart + 1, 1);
+    const hasBar = startDay !== null || endDay !== null;
+    if (!hasBar) return null;
+    return (
+      <div
+        className={`absolute rounded-sm ${height}`}
+        style={{
+          left: barStart * COL_W + 2,
+          width: barWidth * COL_W - 4,
+          backgroundColor: color,
+          opacity,
+        }}
+      >
+        {label && barWidth * COL_W > 60 && (
+          <span className="text-[9px] text-white font-medium px-1.5 leading-[18px] truncate block">
+            {label}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const renderTaskRow = (task: Todo, numbering: string, color: string, isSubtask: boolean) => {
+    const bar = getTaskBar(task);
+    const rowHeight = isSubtask ? 26 : 32;
+    const barTop = isSubtask ? "top-[5px] h-[14px]" : "top-[7px] h-[18px]";
+    const barOpacity = task.status === "completed" ? 0.35 : isSubtask ? 0.5 : 0.65;
+    const labelPl = isSubtask ? "pl-14" : "pl-8";
+
+    return (
+      <div className="flex items-center border-b border-zinc-100 dark:border-slate-800" style={{ height: rowHeight }}>
+        <div className={`w-[240px] shrink-0 px-3 truncate text-xs text-zinc-600 dark:text-slate-400 ${labelPl}`}>
+          {numbering && (
+            <span className="text-[10px] font-mono font-semibold text-zinc-400 dark:text-slate-500 mr-1.5">{numbering}</span>
+          )}
+          {isSubtask && <span className="text-zinc-300 dark:text-slate-600 mr-1">↳</span>}
+          <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
+        </div>
+        <div className="flex-1 relative" style={{ height: "100%" }}>
+          {todayOffset >= 0 && todayOffset <= totalDays && (
+            <div className="absolute top-0 bottom-0 w-px bg-red-400 dark:bg-red-500 z-10" style={{ left: todayOffset * COL_W + COL_W / 2 }} />
+          )}
+          {renderBar(bar.startDay, bar.endDay, color, barOpacity, barTop, !isSubtask ? task.title : undefined)}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPhaseSection = (phaseId: string, phaseName: string, phaseColor: string, phaseBar: { startDay: number | null; endDay: number | null } | null) => {
+    const phaseTasks = tasksByPhase.get(phaseId) ?? [];
+    let counter = 0;
+
+    return (
+      <div key={phaseId}>
+        {/* Phase header row */}
+        <div className="flex items-center border-b border-zinc-100 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-800/30" style={{ height: 36 }}>
+          <div className="w-[240px] shrink-0 px-3 truncate font-semibold text-xs text-zinc-700 dark:text-slate-300">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm mr-2 align-middle" style={{ backgroundColor: phaseColor }} />
+            {phaseName}
+          </div>
+          <div className="flex-1 relative" style={{ height: "100%" }}>
+            {todayOffset >= 0 && todayOffset <= totalDays && (
+              <div className="absolute top-0 bottom-0 w-px bg-red-400 dark:bg-red-500 z-10" style={{ left: todayOffset * COL_W + COL_W / 2 }} />
+            )}
+            {phaseBar && renderBar(phaseBar.startDay, phaseBar.endDay, phaseColor, 0.85, "top-[8px] h-[20px]")}
           </div>
         </div>
 
-        {rows.map((row, ri) => {
-          const isPhase = row.type === "phase";
-          const isSubtask = row.type === "subtask";
-          const barStart = row.startDay ?? 0;
-          const barEnd = row.endDay ?? barStart;
-          const barWidth = Math.max(barEnd - barStart + 1, 1);
-          const hasBar = row.startDay !== null || row.endDay !== null;
+        {/* Sortable task rows */}
+        <SortablePhaseContainer id={phaseId} items={phaseTasks.map((t) => t.id)}>
+          {phaseTasks.map((task) => {
+            counter++;
+            const parentNum = String(counter);
+            const subs = subtasksByParent.get(task.id) ?? [];
+            return (
+              <SortableBoardTaskRow key={task.id} id={task.id}>
+                {renderTaskRow(task, parentNum, phaseColor, false)}
+                {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`, phaseColor, true))}
+              </SortableBoardTaskRow>
+            );
+          })}
+        </SortablePhaseContainer>
+      </div>
+    );
+  };
 
-          const rowHeight = isPhase ? 36 : isSubtask ? 26 : 32;
-          const labelPl = isPhase ? "" : isSubtask ? "pl-14" : "pl-8";
-          const barTop = isPhase ? "top-[8px] h-[20px]" : isSubtask ? "top-[5px] h-[14px]" : "top-[7px] h-[18px]";
-          const barOpacity = isPhase ? 0.85 : (row.status === "completed" ? 0.35 : isSubtask ? 0.5 : 0.65);
-
-          return (
-            <div
-              key={ri}
-              className={`flex items-center border-b border-zinc-100 dark:border-slate-800 ${isPhase ? "bg-zinc-50/50 dark:bg-slate-800/30" : ""}`}
-              style={{ height: rowHeight }}
-            >
-              <div className={`w-[240px] shrink-0 px-3 truncate ${isPhase ? "font-semibold text-xs text-zinc-700 dark:text-slate-300" : `text-xs text-zinc-600 dark:text-slate-400 ${labelPl}`}`}>
-                {isPhase && (
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-sm mr-2 align-middle"
-                    style={{ backgroundColor: row.color }}
-                  />
-                )}
-                {!isPhase && row.numbering && (
-                  <span className="text-[10px] font-mono font-semibold text-zinc-400 dark:text-slate-500 mr-1.5">{row.numbering}</span>
-                )}
-                {isSubtask && <span className="text-zinc-300 dark:text-slate-600 mr-1">↳</span>}
-                <span className={`${row.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{row.label}</span>
-              </div>
-
-              <div className="flex-1 relative" style={{ height: "100%" }}>
-                {todayOffset >= 0 && todayOffset <= totalDays && (
-                  <div
-                    className="absolute top-0 bottom-0 w-px bg-red-400 dark:bg-red-500 z-10"
-                    style={{ left: todayOffset * COL_W + COL_W / 2 }}
-                  />
-                )}
-
-                {hasBar && (
-                  <div
-                    className={`absolute rounded-sm ${barTop}`}
-                    style={{
-                      left: barStart * COL_W + 2,
-                      width: barWidth * COL_W - 4,
-                      backgroundColor: row.color,
-                      opacity: barOpacity,
-                    }}
-                  >
-                    {!isPhase && !isSubtask && barWidth * COL_W > 60 && (
-                      <span className="text-[9px] text-white font-medium px-1.5 leading-[18px] truncate block">
-                        {row.label}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="overflow-x-auto" ref={containerRef}>
+        <div style={{ minWidth: totalDays * COL_W + 240 }}>
+          <div className="flex border-b border-zinc-200 dark:border-slate-700">
+            <div className="w-[240px] shrink-0" />
+            <div className="flex-1 flex">
+              {months.map((m, i) => (
+                <div
+                  key={i}
+                  style={{ width: m.span * COL_W, marginLeft: i === 0 ? m.startDay * COL_W : 0 }}
+                  className="text-[10px] font-semibold text-zinc-500 dark:text-slate-400 px-1 py-1 border-r border-zinc-100 dark:border-slate-800 uppercase tracking-wider"
+                >
+                  {m.label}
+                </div>
+              ))}
             </div>
-          );
-        })}
+          </div>
 
-        <div className="flex items-center gap-1 mt-2 px-3">
-          <div className="w-3 h-0.5 bg-red-400" />
-          <span className="text-[10px] text-zinc-400 dark:text-slate-500">{t("gantt.today" as TranslationKey)}</span>
+          {orderedPhases.map((phase) =>
+            renderPhaseSection(phase.id, phase.name, phase.color, phaseBarData.get(phase.id) ?? null)
+          )}
+
+          {(tasksByPhase.get("__none__") ?? []).length > 0 &&
+            renderPhaseSection("__none__", t("phase.unassigned"), "#94a3b8", null)
+          }
+
+          <div className="flex items-center gap-1 mt-2 px-3">
+            <div className="w-3 h-0.5 bg-red-400" />
+            <span className="text-[10px] text-zinc-400 dark:text-slate-500">{t("gantt.today")}</span>
+          </div>
         </div>
       </div>
-    </div>
+      <DragOverlay>
+        {draggedTask ? (
+          <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 px-3 py-1.5 shadow-xl rotate-1 opacity-90 max-w-[240px]">
+            <span className="text-xs font-medium text-zinc-800 dark:text-slate-200 truncate block">{draggedTask.title}</span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }

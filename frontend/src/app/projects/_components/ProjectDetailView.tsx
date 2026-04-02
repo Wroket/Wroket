@@ -5,14 +5,17 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  closestCorners,
   useSensor,
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 
 import AppShell from "@/components/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import SubtaskModal from "@/components/SubtaskModal";
 import TaskEditModal from "@/components/TaskEditModal";
 import { useToast } from "@/components/Toast";
@@ -23,6 +26,7 @@ import {
   createTodo,
   updateTodo,
   deleteTodo as apiDeleteTodo,
+  reorderTodos as reorderTodosApi,
   createPhase,
   updatePhaseApi,
   deletePhaseApi,
@@ -36,9 +40,9 @@ import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 
 import GanttChart from "./GanttChart";
-import { DroppablePhaseColumn, DraggableKanbanCard } from "./DndWrappers";
+import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
 import { formatMins, TEMPLATE_PHASES } from "./types";
-import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab } from "./types";
+import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab, Team } from "./types";
 
 interface ProjectDetailViewProps {
   selectedProject: Project;
@@ -52,6 +56,7 @@ interface ProjectDetailViewProps {
   t: (key: TranslationKey) => string;
   locale: string;
   loadProjects: () => Promise<void>;
+  teams: Team[];
 }
 
 export default function ProjectDetailView({
@@ -66,6 +71,7 @@ export default function ProjectDetailView({
   t,
   locale,
   loadProjects,
+  teams,
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
   const { resolveUser, displayName, cache } = useUserLookup();
@@ -109,14 +115,16 @@ export default function ProjectDetailView({
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
 
   const [confirm, setConfirm] = useState<{ title: string; message: string; action: () => void } | null>(null);
+  const [phaseToDelete, setPhaseToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showCreateSub, setShowCreateSub] = useState(false);
   const [subName, setSubName] = useState("");
   const [creatingSub, setCreatingSub] = useState(false);
   const [newTag, setNewTag] = useState("");
 
   const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
+  const [boardDraggedId, setBoardDraggedId] = useState<string | null>(null);
 
-  const kanbanSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const orderedPhases = useMemo(
     () => [...(selectedProject?.phases ?? [])].sort((a, b) => a.order - b.order),
@@ -131,6 +139,9 @@ export default function ProjectDetailView({
       const key = td.phaseId && map.has(td.phaseId) ? td.phaseId : "__none__";
       map.get(key)!.push(td);
     }
+    for (const [, list] of map) {
+      list.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+    }
     return map;
   }, [orderedPhases, projectTodos]);
 
@@ -138,6 +149,9 @@ export default function ProjectDetailView({
     const map: Record<string, Todo[]> = {};
     for (const td of projectTodos) {
       if (td.parentId) (map[td.parentId] ??= []).push(td);
+    }
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
     }
     return map;
   }, [projectTodos]);
@@ -162,6 +176,11 @@ export default function ProjectDetailView({
   const draggedTodo = useMemo(
     () => (draggedTodoId ? projectTodos.find((t) => t.id === draggedTodoId) ?? null : null),
     [draggedTodoId, projectTodos],
+  );
+
+  const boardDraggedTodo = useMemo(
+    () => (boardDraggedId ? projectTodos.find((t) => t.id === boardDraggedId) ?? null : null),
+    [boardDraggedId, projectTodos],
   );
 
   const subProjects = useMemo(
@@ -254,21 +273,25 @@ export default function ProjectDetailView({
 
   const handleDeletePhase = (phaseId: string) => {
     const phaseName = orderedPhases.find(p => p.id === phaseId)?.name ?? "";
-    setConfirm({
-      title: t("phase.delete" as TranslationKey),
-      message: phaseName,
-      action: async () => {
-        setConfirm(null);
-        try {
-          await deletePhaseApi(selectedProject.id, phaseId);
-          const tasksInPhase = projectTodos.filter((td) => td.phaseId === phaseId);
-          await Promise.all(tasksInPhase.map((task) => updateTodo(task.id, { phaseId: null })));
-          await refreshProject(selectedProject.id);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Error");
-        }
-      },
-    });
+    setPhaseToDelete({ id: phaseId, name: phaseName });
+  };
+
+  const executeDeletePhase = async (mode: "move" | "delete") => {
+    if (!phaseToDelete) return;
+    const { id: phaseId } = phaseToDelete;
+    setPhaseToDelete(null);
+    try {
+      const tasksInPhase = projectTodos.filter((td) => td.phaseId === phaseId);
+      if (mode === "move") {
+        await Promise.all(tasksInPhase.map((task) => updateTodo(task.id, { phaseId: null })));
+      } else {
+        await Promise.all(tasksInPhase.map((task) => apiDeleteTodo(task.id)));
+      }
+      await deletePhaseApi(selectedProject.id, phaseId);
+      await refreshProject(selectedProject.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
   };
 
   const handleMoveTaskToPhase = async (taskId: string, phaseId: string | null) => {
@@ -296,6 +319,81 @@ export default function ProjectDetailView({
     if (currentPhaseId === newPhaseId) return;
     handleMoveTaskToPhase(todoId, newPhaseId === "__none__" ? null : newPhaseId);
   }, [projectTodos, handleMoveTaskToPhase]);
+
+  const findPhaseForTask = useCallback((taskId: string): string => {
+    for (const [phaseId, tasks] of tasksByPhase) {
+      if (tasks.some((t) => t.id === taskId)) return phaseId as string;
+    }
+    return "__none__";
+  }, [tasksByPhase]);
+
+  const handleBoardDragStart = useCallback((event: DragStartEvent) => {
+    setBoardDraggedId(String(event.active.id));
+  }, []);
+
+  const handleBoardDragEnd = useCallback(async (event: DragEndEvent) => {
+    setBoardDraggedId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    const sourcePhase = findPhaseForTask(activeId);
+
+    const allPhaseIds = [...orderedPhases.map((p) => p.id), "__none__"];
+    const isOverAPhase = allPhaseIds.includes(overId);
+    const targetPhase = isOverAPhase ? overId : findPhaseForTask(overId);
+
+    if (sourcePhase === targetPhase && !isOverAPhase) {
+      const phaseTasks = (tasksByPhase.get(sourcePhase) ?? []).filter((td) => !td.parentId);
+      const oldIndex = phaseTasks.findIndex((t) => t.id === activeId);
+      const newIndex = phaseTasks.findIndex((t) => t.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+
+      const reordered = arrayMove(phaseTasks, oldIndex, newIndex);
+      setProjectTodos((prev) => {
+        const updated = [...prev];
+        for (let i = 0; i < reordered.length; i++) {
+          const idx = updated.findIndex((t) => t.id === reordered[i].id);
+          if (idx !== -1) updated[idx] = { ...updated[idx], sortOrder: i };
+        }
+        return updated;
+      });
+      try {
+        await reorderTodosApi(reordered.map((t) => t.id));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error");
+      }
+    } else {
+      const newPhaseId = targetPhase === "__none__" ? null : targetPhase;
+      const targetTasks = (tasksByPhase.get(targetPhase) ?? []).filter((td) => !td.parentId);
+      let insertIndex = targetTasks.length;
+      if (!isOverAPhase) {
+        const overIndex = targetTasks.findIndex((t) => t.id === overId);
+        if (overIndex !== -1) insertIndex = overIndex;
+      }
+
+      try {
+        const updated = await updateTodo(activeId, { phaseId: newPhaseId, sortOrder: insertIndex });
+        setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+        const newOrder = [...targetTasks.filter((t) => t.id !== activeId)];
+        newOrder.splice(insertIndex, 0, updated);
+        await reorderTodosApi(newOrder.map((t) => t.id));
+        setProjectTodos((prev) => {
+          const result = [...prev];
+          for (let i = 0; i < newOrder.length; i++) {
+            const idx = result.findIndex((t) => t.id === newOrder[i].id);
+            if (idx !== -1) result[idx] = { ...result[idx], sortOrder: i };
+          }
+          return result;
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error");
+      }
+    }
+  }, [findPhaseForTask, orderedPhases, tasksByPhase, setProjectTodos, toast]);
 
   const openEdit = (todo: Todo) => {
     setEditingTodo(todo);
@@ -357,7 +455,7 @@ export default function ProjectDetailView({
         setEditForm((f) => ({ ...f, assignedTo: found.uid }));
       } else {
         setEditAssignedUser(null);
-        setEditAssignError(t("assign.userNotFound" as TranslationKey));
+        setEditAssignError(t("assign.userNotFound"));
       }
     } catch {
       setEditAssignedUser(null);
@@ -440,20 +538,55 @@ export default function ProjectDetailView({
     }
   };
 
+  const [taskToDelete, setTaskToDelete] = useState<Todo | null>(null);
+
   const handleDeleteTask = (todo: Todo) => {
-    setConfirm({
-      title: t("filter.deleted" as TranslationKey),
-      message: todo.title,
-      action: async () => {
-        setConfirm(null);
-        try {
-          await apiDeleteTodo(todo.id);
-          setProjectTodos((prev) => prev.filter((td) => td.id !== todo.id));
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Error");
+    setTaskToDelete(todo);
+  };
+
+  const executeDeleteTask = async (mode: "promote" | "deleteAll") => {
+    if (!taskToDelete) return;
+    const todo = taskToDelete;
+    setTaskToDelete(null);
+    try {
+      const subs = getSubtasks(todo.id);
+      if (subs.length > 0) {
+        if (mode === "promote") {
+          await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+        } else {
+          await Promise.all(subs.map((s) => apiDeleteTodo(s.id)));
         }
-      },
+      }
+      await apiDeleteTodo(todo.id);
+      await refreshProject(selectedProject.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  const handlePromoteSubtask = async (sub: Todo) => {
+    try {
+      const updated = await updateTodo(sub.id, { parentId: null });
+      setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  const handleReorderSubtasks = async (orderedIds: string[]) => {
+    setProjectTodos((prev) => {
+      const updated = [...prev];
+      orderedIds.forEach((id, idx) => {
+        const i = updated.findIndex((td) => td.id === id);
+        if (i !== -1) updated[i] = { ...updated[i], sortOrder: idx };
+      });
+      return updated;
     });
+    try {
+      await reorderTodosApi(orderedIds);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
   };
 
   const openLinkTask = (phaseId: string | null) => {
@@ -472,7 +605,7 @@ export default function ProjectDetailView({
       setProjects((prev) => [sub, ...prev]);
       setSubName("");
       setShowCreateSub(false);
-      toast.success(t("projects.addSubProject" as TranslationKey));
+      toast.success(t("projects.addSubProject"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {
@@ -508,7 +641,7 @@ export default function ProjectDetailView({
 
   const handleDelete = (project: Project) => {
     setConfirm({
-      title: t("projects.delete" as TranslationKey),
+      title: t("projects.delete"),
       message: project.name,
       action: async () => {
         setConfirm(null);
@@ -525,8 +658,8 @@ export default function ProjectDetailView({
   };
 
   const teamName = (teamId: string | null) => {
-    if (!teamId) return t("projects.personal" as TranslationKey);
-    return teamId;
+    if (!teamId) return t("projects.personal");
+    return teams.find((tm) => tm.id === teamId)?.name ?? t("projects.personal");
   };
 
   /* ─── Render helpers ─── */
@@ -561,7 +694,7 @@ export default function ProjectDetailView({
         )}
 
         {isParent && (
-          <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 dark:text-slate-500 hover:text-blue-500 transition-colors shrink-0" title={t("subtask.add" as TranslationKey)}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 dark:text-slate-500 hover:text-blue-500 transition-colors shrink-0" title={t("subtask.add")}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
           </button>
         )}
@@ -574,7 +707,7 @@ export default function ProjectDetailView({
         </span>
 
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_BADGES[todo.priority].cls}`}>
-          {t(`priority.${todo.priority}` as TranslationKey)}
+          {t(`priority.${todo.priority}`)}
         </span>
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${effortBadge.cls}`}>
           {t(effortBadge.tKey)}
@@ -602,7 +735,7 @@ export default function ProjectDetailView({
             title="Move to phase"
             onClick={(e) => e.stopPropagation()}
           >
-            <option value="">{t("phase.unassigned" as TranslationKey)}</option>
+            <option value="">{t("phase.unassigned")}</option>
             {orderedPhases.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
@@ -611,7 +744,7 @@ export default function ProjectDetailView({
 
         <div className="flex items-center gap-0.5 opacity-0 group-hover/task:opacity-100 transition-opacity shrink-0">
           {todo.status === "active" && (
-            <button type="button" onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "cancelled"); }} title={t("filter.cancelled" as TranslationKey)} className="text-zinc-400 hover:text-amber-600 transition-colors p-0.5">
+            <button type="button" onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "cancelled"); }} title={t("filter.cancelled")} className="text-zinc-400 hover:text-amber-600 transition-colors p-0.5">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
             </button>
           )}
@@ -650,7 +783,7 @@ export default function ProjectDetailView({
       <div className="max-w-[1200px] space-y-4">
         <button type="button" onClick={() => setSelectedProject(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-          {t("projects.backToList" as TranslationKey)}
+          {t("projects.backToList")}
         </button>
 
         {/* Header */}
@@ -660,8 +793,8 @@ export default function ProjectDetailView({
               <input value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
               <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
               <div className="flex gap-2">
-                <button onClick={handleSaveEdit} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("settings.save" as TranslationKey)}</button>
-                <button onClick={() => setEditing(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
+                <button onClick={handleSaveEdit} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("settings.save")}</button>
+                <button onClick={() => setEditing(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
               </div>
             </div>
           ) : (
@@ -672,17 +805,17 @@ export default function ProjectDetailView({
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-xs text-zinc-400 dark:text-slate-500">{teamName(selectedProject.teamId)}</span>
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${selectedProject.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400"}`}>
-                    {t(`projects.${selectedProject.status}` as TranslationKey)}
+                    {t(`projects.${selectedProject.status}`)}
                   </span>
-                  <span className="text-xs text-zinc-400 dark:text-slate-500">{orderedPhases.length} {t("projects.phases" as TranslationKey).toLowerCase()} · {projectTodos.length} {t("projects.tasks" as TranslationKey)}</span>
+                  <span className="text-xs text-zinc-400 dark:text-slate-500">{orderedPhases.length} {t("projects.phases").toLowerCase()} · {projectTodos.length} {t("projects.tasks")}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => { setEditing(true); setEditName(selectedProject.name); setEditDesc(selectedProject.description); }} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-                  {t("projects.edit" as TranslationKey)}
+                  {t("projects.edit")}
                 </button>
                 <button onClick={() => handleArchiveRestore(selectedProject)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-                  {t((selectedProject.status === "active" ? "projects.archive" : "projects.restore") as TranslationKey)}
+                  {t((selectedProject.status === "active" ? "projects.archive" : "projects.restore"))}
                 </button>
               </div>
             </div>
@@ -700,7 +833,7 @@ export default function ProjectDetailView({
             </span>
           ))}
           <div className="inline-flex items-center gap-1">
-            <input type="text" placeholder={t("projects.tagPlaceholder" as TranslationKey)} value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }} className="w-28 rounded-full border border-dashed border-zinc-300 dark:border-slate-600 bg-transparent px-2.5 py-1 text-xs text-zinc-700 dark:text-slate-300 placeholder:text-zinc-400 dark:placeholder:text-slate-500 focus:border-blue-400 dark:focus:border-blue-500 focus:outline-none" />
+            <input type="text" placeholder={t("projects.tagPlaceholder")} value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }} className="w-28 rounded-full border border-dashed border-zinc-300 dark:border-slate-600 bg-transparent px-2.5 py-1 text-xs text-zinc-700 dark:text-slate-300 placeholder:text-zinc-400 dark:placeholder:text-slate-500 focus:border-blue-400 dark:focus:border-blue-500 focus:outline-none" />
             {newTag.trim() && (
               <button type="button" onClick={handleAddTag} className="rounded-full bg-blue-600 dark:bg-blue-500 p-0.5 text-white hover:bg-blue-700 dark:hover:bg-blue-400 transition-colors">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
@@ -712,25 +845,25 @@ export default function ProjectDetailView({
         {/* Parent project breadcrumb */}
         {parentProject && (
           <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-slate-400">
-            <span>{t("projects.parentProject" as TranslationKey)} :</span>
+            <span>{t("projects.parentProject")} :</span>
             <button type="button" onClick={() => handleSelectProject(parentProject)} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">{parentProject.name}</button>
           </div>
         )}
 
-        {/* Sub-projects */}
-        {(subProjects.length > 0 || selectedProject.status === "active") && (
+        {/* Sub-projects — only root projects (not sub-projects) can have children */}
+        {!selectedProject.parentProjectId && (subProjects.length > 0 || selectedProject.status === "active") && (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("projects.subProjects" as TranslationKey)} ({subProjects.length})</h4>
+              <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("projects.subProjects")} ({subProjects.length})</h4>
               {selectedProject.status === "active" && !showCreateSub && (
-                <button type="button" onClick={() => setShowCreateSub(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">+ {t("projects.addSubProject" as TranslationKey)}</button>
+                <button type="button" onClick={() => setShowCreateSub(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">+ {t("projects.addSubProject")}</button>
               )}
             </div>
             {showCreateSub && (
               <div className="flex gap-2 mb-3">
-                <input type="text" placeholder={t("projects.namePlaceholder" as TranslationKey)} value={subName} onChange={(e) => setSubName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleCreateSubProject(); if (e.key === "Escape") setShowCreateSub(false); }} autoFocus className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
-                <button onClick={handleCreateSubProject} disabled={creatingSub || !subName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white dark:text-slate-100 disabled:opacity-40">{t("settings.save" as TranslationKey)}</button>
-                <button onClick={() => { setShowCreateSub(false); setSubName(""); }} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs text-zinc-600 dark:text-slate-300">{t("projects.cancel" as TranslationKey)}</button>
+                <input type="text" placeholder={t("projects.namePlaceholder")} value={subName} onChange={(e) => setSubName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleCreateSubProject(); if (e.key === "Escape") setShowCreateSub(false); }} autoFocus className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
+                <button onClick={handleCreateSubProject} disabled={creatingSub || !subName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white dark:text-slate-100 disabled:opacity-40">{t("settings.save")}</button>
+                <button onClick={() => { setShowCreateSub(false); setSubName(""); }} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs text-zinc-600 dark:text-slate-300">{t("projects.cancel")}</button>
               </div>
             )}
             {subProjects.length > 0 && (
@@ -738,7 +871,7 @@ export default function ProjectDetailView({
                 {subProjects.map((sub) => (
                   <button key={sub.id} type="button" onClick={() => handleSelectProject(sub)} className="w-full flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors text-left">
                     <span className="font-medium text-zinc-800 dark:text-slate-200">{sub.name}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${sub.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400"}`}>{t(`projects.${sub.status}` as TranslationKey)}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${sub.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400"}`}>{t(`projects.${sub.status}`)}</span>
                   </button>
                 ))}
               </div>
@@ -749,7 +882,7 @@ export default function ProjectDetailView({
         {/* Time allocation summary */}
         {!loadingTodos && projectTodos.length > 0 && (
           <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-            <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t("projects.timeAllocation" as TranslationKey)}</h4>
+            <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t("projects.timeAllocation")}</h4>
             <div className="flex flex-wrap gap-3">
               {orderedPhases.map((phase) => {
                 const mins = timeByPhase.byPhase.get(phase.id) ?? 0;
@@ -765,12 +898,12 @@ export default function ProjectDetailView({
               {(timeByPhase.byPhase.get("__none__") ?? 0) > 0 && (
                 <div className="flex items-center gap-2 rounded-md border border-zinc-100 dark:border-slate-700 px-3 py-1.5">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-zinc-300 dark:bg-slate-600" />
-                  <span className="text-xs text-zinc-600 dark:text-slate-300">{t("projects.unassignedPhase" as TranslationKey)}</span>
+                  <span className="text-xs text-zinc-600 dark:text-slate-300">{t("projects.unassignedPhase")}</span>
                   <span className="text-xs font-semibold text-zinc-900 dark:text-slate-100">{formatMins(timeByPhase.byPhase.get("__none__")!)}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 ml-auto">
-                <span className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("projects.totalTime" as TranslationKey)}</span>
+                <span className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("projects.totalTime")}</span>
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatMins(timeByPhase.total)}</span>
               </div>
             </div>
@@ -781,7 +914,7 @@ export default function ProjectDetailView({
         <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-1">
           {(["board", "kanban", "gantt"] as DetailTab[]).map((tab) => (
             <button key={tab} onClick={() => setDetailTab(tab)} className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}>
-              {t(`projects.${tab}` as TranslationKey)}
+              {t(`projects.${tab}`)}
             </button>
           ))}
         </div>
@@ -789,12 +922,15 @@ export default function ProjectDetailView({
         {loadingTodos ? (
           <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
         ) : detailTab === "board" ? (
+          <DndContext sensors={dndSensors} collisionDetection={closestCorners} onDragStart={handleBoardDragStart} onDragEnd={handleBoardDragEnd}>
           <div className="space-y-4">
             {orderedPhases.map((phase) => {
               taskCounter = 0;
               const phaseTasks = tasksByPhase.get(phase.id) ?? [];
-              const phaseActive = phaseTasks.filter((td) => td.status === "active");
-              const phaseDone = phaseTasks.filter((td) => td.status !== "active");
+              const parentTasks = phaseTasks.filter((td) => !td.parentId);
+              const phaseActive = parentTasks.filter((td) => td.status === "active");
+              const phaseDone = parentTasks.filter((td) => td.status !== "active");
+              const sortedParents = [...phaseActive, ...phaseDone];
               const isEditing = editingPhaseId === phase.id;
 
               return (
@@ -806,8 +942,8 @@ export default function ProjectDetailView({
                         <input value={editPhaseName} onChange={(e) => setEditPhaseName(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-sm dark:bg-slate-800 dark:text-slate-100 flex-1 min-w-[120px]" />
                         <input type="date" value={editPhaseStart} onChange={(e) => setEditPhaseStart(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100" />
                         <input type="date" value={editPhaseEnd} onChange={(e) => setEditPhaseEnd(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100" />
-                        <button onClick={handleSavePhase} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100">{t("settings.save" as TranslationKey)}</button>
-                        <button onClick={() => setEditingPhaseId(null)} className="text-xs text-zinc-400 hover:text-zinc-600">{t("projects.cancel" as TranslationKey)}</button>
+                        <button onClick={handleSavePhase} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100">{t("settings.save")}</button>
+                        <button onClick={() => setEditingPhaseId(null)} className="text-xs text-zinc-400 hover:text-zinc-600">{t("projects.cancel")}</button>
                       </div>
                     ) : (
                       <>
@@ -817,35 +953,48 @@ export default function ProjectDetailView({
                             {phase.startDate && <span className="text-[10px] text-zinc-400 dark:text-slate-500">{phase.startDate}</span>}
                             {phase.startDate && phase.endDate && <span className="text-[10px] text-zinc-300 dark:text-slate-600">→</span>}
                             {phase.endDate && <span className="text-[10px] text-zinc-400 dark:text-slate-500">{phase.endDate}</span>}
-                            <span className="text-[10px] text-zinc-400 dark:text-slate-500">({phaseTasks.length} {t("phase.tasks" as TranslationKey)})</span>
+                            <span className="text-[10px] text-zinc-400 dark:text-slate-500">({phaseTasks.length} {t("phase.tasks")})</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button type="button" onClick={() => { setAddTaskPhaseId(phase.id); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1" title={t("projects.addTask" as TranslationKey)}>
+                          <button type="button" onClick={() => { setAddTaskPhaseId(phase.id); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1" title={t("projects.addTask")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                           </button>
                           <button type="button" onClick={() => openLinkTask(phase.id)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-1" title="Link task">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                           </button>
-                          <button type="button" onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.name); setEditPhaseStart(phase.startDate ?? ""); setEditPhaseEnd(phase.endDate ?? ""); }} className="text-zinc-400 hover:text-amber-500 transition-colors p-1" title={t("phase.edit" as TranslationKey)}>
+                          <button type="button" onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.name); setEditPhaseStart(phase.startDate ?? ""); setEditPhaseEnd(phase.endDate ?? ""); }} className="text-zinc-400 hover:text-amber-500 transition-colors p-1" title={t("phase.edit")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
-                          <button type="button" onClick={() => handleDeletePhase(phase.id)} className="text-zinc-400 hover:text-red-500 transition-colors p-1" title={t("phase.delete" as TranslationKey)}>
+                          <button type="button" onClick={() => handleDeletePhase(phase.id)} className="text-zinc-400 hover:text-red-500 transition-colors p-1" title={t("phase.delete")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
                       </>
                     )}
                   </div>
-                  <div className="p-3 space-y-1.5">
-                    {phaseActive.filter(td => !td.parentId).length === 0 && phaseDone.filter(td => !td.parentId).length === 0 ? (
-                      <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("projects.noTasks" as TranslationKey)}</p>
-                    ) : (
-                      <>
-                        {phaseActive.filter(td => !td.parentId).map(renderTaskWithSubtasks)}
-                        {phaseDone.filter(td => !td.parentId).map(renderTaskWithSubtasks)}
-                      </>
-                    )}
+                  <div className="p-3">
+                    <SortablePhaseContainer id={phase.id} items={sortedParents.map((t) => t.id)}>
+                      {sortedParents.length === 0 ? (
+                        <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("projects.noTasks")}</p>
+                      ) : (
+                        sortedParents.map((todo) => {
+                          taskCounter++;
+                          const parentNum = String(taskCounter);
+                          const subs = getSubtasks(todo.id);
+                          return (
+                            <SortableBoardTaskRow key={todo.id} id={todo.id}>
+                              {renderTaskRow(todo, parentNum)}
+                              {subs.length > 0 && (
+                                <div className="ml-6 pl-3 border-l-2 border-zinc-200 dark:border-slate-700 space-y-1 mt-1 mb-1">
+                                  {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`))}
+                                </div>
+                              )}
+                            </SortableBoardTaskRow>
+                          );
+                        })
+                      )}
+                    </SortablePhaseContainer>
                   </div>
                 </div>
               );
@@ -854,11 +1003,15 @@ export default function ProjectDetailView({
             {(() => {
               taskCounter = 0;
               const unassigned = tasksByPhase.get("__none__") ?? [];
-              if (unassigned.length === 0 && orderedPhases.length > 0) return null;
+              const parentUnassigned = unassigned.filter((td) => !td.parentId);
+              const unActive = parentUnassigned.filter((td) => td.status === "active");
+              const unDone = parentUnassigned.filter((td) => td.status !== "active");
+              const sortedUnassigned = [...unActive, ...unDone];
+              if (sortedUnassigned.length === 0 && orderedPhases.length > 0) return null;
               return (
                 <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
                   <div className="px-4 py-3 border-b border-zinc-200 dark:border-slate-700 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-zinc-500 dark:text-slate-400">{t("phase.unassigned" as TranslationKey)} ({unassigned.length})</h3>
+                    <h3 className="text-sm font-semibold text-zinc-500 dark:text-slate-400">{t("phase.unassigned")} ({unassigned.length})</h3>
                     <div className="flex items-center gap-1">
                       <button type="button" onClick={() => { setAddTaskPhaseId(null); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
@@ -868,23 +1021,52 @@ export default function ProjectDetailView({
                       </button>
                     </div>
                   </div>
-                  <div className="p-3 space-y-1.5">
-                    {unassigned.filter(td => !td.parentId).length === 0 ? (
-                      <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("projects.noTasks" as TranslationKey)}</p>
-                    ) : unassigned.filter(td => !td.parentId).map(renderTaskWithSubtasks)}
+                  <div className="p-3">
+                    <SortablePhaseContainer id="__none__" items={sortedUnassigned.map((t) => t.id)}>
+                      {sortedUnassigned.length === 0 ? (
+                        <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("projects.noTasks")}</p>
+                      ) : (
+                        sortedUnassigned.map((todo) => {
+                          taskCounter++;
+                          const parentNum = String(taskCounter);
+                          const subs = getSubtasks(todo.id);
+                          return (
+                            <SortableBoardTaskRow key={todo.id} id={todo.id}>
+                              {renderTaskRow(todo, parentNum)}
+                              {subs.length > 0 && (
+                                <div className="ml-6 pl-3 border-l-2 border-zinc-200 dark:border-slate-700 space-y-1 mt-1 mb-1">
+                                  {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`))}
+                                </div>
+                              )}
+                            </SortableBoardTaskRow>
+                          );
+                        })
+                      )}
+                    </SortablePhaseContainer>
                   </div>
                 </div>
               );
             })()}
           </div>
+          <DragOverlay>
+            {boardDraggedTodo ? (
+              <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 p-2.5 shadow-xl rotate-1 opacity-90 max-w-md">
+                <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{boardDraggedTodo.title}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[boardDraggedTodo.priority].cls}`}>{t(`priority.${boardDraggedTodo.priority}`)}</span>
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+          </DndContext>
         ) : detailTab === "kanban" ? (
-          <DndContext sensors={kanbanSensors} onDragStart={handleKanbanDragStart} onDragEnd={handleKanbanDragEnd}>
+          <DndContext sensors={dndSensors} onDragStart={handleKanbanDragStart} onDragEnd={handleKanbanDragEnd}>
             <div className="overflow-x-auto pb-4">
               <div className="flex gap-4" style={{ minWidth: Math.max(orderedPhases.length + 1, 3) * 290 + "px" }}>
                 {(() => {
                   const kanbanPhases = orderedPhases.length > 0
                     ? orderedPhases
-                    : [{ id: "__none__", name: t("phase.unassigned" as TranslationKey), color: "#94a3b8", order: 0, projectId: "", startDate: null, endDate: null, createdAt: "" } as ProjectPhase];
+                    : [{ id: "__none__", name: t("phase.unassigned"), color: "#94a3b8", order: 0, projectId: "", startDate: null, endDate: null, createdAt: "" } as ProjectPhase];
                   const unassigned = projectTodos.filter((td) => !td.parentId && !td.phaseId);
 
                   return (
@@ -905,7 +1087,7 @@ export default function ProjectDetailView({
                             </div>
                             <DroppablePhaseColumn id={phase.id}>
                               {active.length === 0 && completed.length === 0 && other.length === 0 && (
-                                <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("phase.empty" as TranslationKey)}</p>
+                                <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("phase.empty")}</p>
                               )}
                               {active.map((todo) => {
                                 const dl = deadlineLabel(todo.deadline, t);
@@ -919,7 +1101,7 @@ export default function ProjectDetailView({
                                         </button>
                                         <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 leading-snug flex-1 min-w-0">{todo.title}</p>
                                         <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0">
-                                          <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("subtask.add" as TranslationKey)}>
+                                          <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("subtask.add")}>
                                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                                           </button>
                                           <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTask(todo); }} className="text-zinc-400 hover:text-red-500 transition-colors p-0.5">
@@ -928,7 +1110,7 @@ export default function ProjectDetailView({
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 mt-2 flex-wrap">
-                                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
+                                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
                                         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
                                         {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
                                         {subs.length > 0 && <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subs.length} ↳</span>}
@@ -953,7 +1135,7 @@ export default function ProjectDetailView({
                               })}
                               {completed.length > 0 && (
                                 <div className="pt-1">
-                                  <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.completed" as TranslationKey)}</p>
+                                  <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.completed")}</p>
                                   {completed.map((todo) => (
                                     <DraggableKanbanCard key={todo.id} id={todo.id}>
                                       <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-60 cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
@@ -970,7 +1152,7 @@ export default function ProjectDetailView({
                               )}
                               {other.length > 0 && (
                                 <div className="pt-1">
-                                  <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.cancelled" as TranslationKey)}</p>
+                                  <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.cancelled")}</p>
                                   {other.map((todo) => (
                                     <DraggableKanbanCard key={todo.id} id={todo.id}>
                                       <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-40 cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
@@ -985,7 +1167,7 @@ export default function ProjectDetailView({
                               <div className="px-2 py-2 border-t border-zinc-200 dark:border-slate-700 shrink-0">
                                 <button type="button" onClick={() => { setShowAddTask(true); setAddTaskPhaseId(phase.id); }} className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 rounded px-2 py-1.5 transition-colors flex items-center justify-center gap-1">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                                  {t("projects.addTask" as TranslationKey)}
+                                  {t("projects.addTask")}
                                 </button>
                               </div>
                             )}
@@ -997,7 +1179,7 @@ export default function ProjectDetailView({
                         <div className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]">
                           <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
                             <span className="w-3 h-3 rounded-sm shrink-0 bg-zinc-400" />
-                            <span className="text-sm font-semibold text-zinc-500 dark:text-slate-400 truncate flex-1">{t("phase.unassigned" as TranslationKey)}</span>
+                            <span className="text-sm font-semibold text-zinc-500 dark:text-slate-400 truncate flex-1">{t("phase.unassigned")}</span>
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-slate-700 text-zinc-600 dark:text-slate-400">{unassigned.length}</span>
                           </div>
                           <DroppablePhaseColumn id="__none__">
@@ -1008,7 +1190,7 @@ export default function ProjectDetailView({
                                   <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
                                     <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{todo.title}</p>
                                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
+                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
                                       {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
                                     </div>
                                   </div>
@@ -1028,7 +1210,7 @@ export default function ProjectDetailView({
                 <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 p-2.5 shadow-xl w-[260px] rotate-2 opacity-90">
                   <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{draggedTodo.title}</p>
                   <div className="flex items-center gap-1 mt-1.5">
-                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[draggedTodo.priority].cls}`}>{t(`priority.${draggedTodo.priority}` as TranslationKey)}</span>
+                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[draggedTodo.priority].cls}`}>{t(`priority.${draggedTodo.priority}`)}</span>
                   </div>
                 </div>
               ) : null}
@@ -1036,28 +1218,53 @@ export default function ProjectDetailView({
           </DndContext>
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-            <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-4">{t("gantt.title" as TranslationKey)}</h3>
-            <GanttChart phases={orderedPhases} tasks={projectTodos} t={t} locale={locale} />
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-4">{t("gantt.title")}</h3>
+            <GanttChart
+              phases={orderedPhases}
+              tasks={projectTodos}
+              t={t}
+              locale={locale}
+              onMoveTask={async (taskId, newPhaseId, newIndex) => {
+                try {
+                  const updated = await updateTodo(taskId, { phaseId: newPhaseId, sortOrder: newIndex });
+                  setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+                  const targetPhaseKey = newPhaseId ?? "__none__";
+                  const targetTasks = (tasksByPhase.get(targetPhaseKey) ?? []).filter((td) => !td.parentId && td.id !== taskId);
+                  targetTasks.splice(newIndex, 0, updated);
+                  await reorderTodosApi(targetTasks.map((t2) => t2.id));
+                  setProjectTodos((prev) => {
+                    const result = [...prev];
+                    for (let i = 0; i < targetTasks.length; i++) {
+                      const idx = result.findIndex((t2) => t2.id === targetTasks[i].id);
+                      if (idx !== -1) result[idx] = { ...result[idx], sortOrder: i };
+                    }
+                    return result;
+                  });
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Error");
+                }
+              }}
+            />
           </div>
         )}
 
         {/* Add Phase */}
         {showAddPhase ? (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-            <h4 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3">{t("phase.add" as TranslationKey)}</h4>
+            <h4 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3">{t("phase.add")}</h4>
             <div className="flex flex-col sm:flex-row gap-2">
-              <input value={newPhaseName} onChange={(e) => setNewPhaseName(e.target.value)} placeholder={t("phase.namePlaceholder" as TranslationKey)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" autoFocus />
+              <input value={newPhaseName} onChange={(e) => setNewPhaseName(e.target.value)} placeholder={t("phase.namePlaceholder")} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" autoFocus />
               <input type="date" value={newPhaseStart} onChange={(e) => setNewPhaseStart(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
               <input type="date" value={newPhaseEnd} onChange={(e) => setNewPhaseEnd(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
             </div>
             <div className="flex gap-2 mt-3">
-              <button onClick={handleAddPhase} disabled={!newPhaseName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save" as TranslationKey)}</button>
-              <button onClick={() => { setShowAddPhase(false); setNewPhaseName(""); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
+              <button onClick={handleAddPhase} disabled={!newPhaseName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
+              <button onClick={() => { setShowAddPhase(false); setNewPhaseName(""); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
             </div>
           </div>
         ) : (
           <button type="button" onClick={() => setShowAddPhase(true)} className="w-full rounded-md border-2 border-dashed border-zinc-200 dark:border-slate-700 py-3 text-sm font-medium text-zinc-400 dark:text-slate-500 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors">
-            + {t("phase.add" as TranslationKey)}
+            + {t("phase.add")}
           </button>
         )}
 
@@ -1065,44 +1272,44 @@ export default function ProjectDetailView({
         {showAddTask && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }}>
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.addTask" as TranslationKey)}</h3>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.addTask")}</h3>
               <div className="space-y-3">
-                <input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t("todos.addPlaceholder" as TranslationKey)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" autoFocus />
+                <input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t("todos.addPlaceholder")} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" autoFocus />
                 <div className="flex gap-3">
                   <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as Priority)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100">
-                    <option value="high">{t("priority.high" as TranslationKey)}</option>
-                    <option value="medium">{t("priority.medium" as TranslationKey)}</option>
-                    <option value="low">{t("priority.low" as TranslationKey)}</option>
+                    <option value="high">{t("priority.high")}</option>
+                    <option value="medium">{t("priority.medium")}</option>
+                    <option value="low">{t("priority.low")}</option>
                   </select>
                   <select value={newTaskEffort} onChange={(e) => setNewTaskEffort(e.target.value as Effort)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100">
-                    <option value="light">{t("effort.light" as TranslationKey)}</option>
-                    <option value="medium">{t("effort.medium" as TranslationKey)}</option>
-                    <option value="heavy">{t("effort.heavy" as TranslationKey)}</option>
+                    <option value="light">{t("effort.light")}</option>
+                    <option value="medium">{t("effort.medium")}</option>
+                    <option value="heavy">{t("effort.heavy")}</option>
                   </select>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.startDate" as TranslationKey)}</label>
+                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.startDate")}</label>
                     <input type="date" value={newTaskStartDate} onChange={(e) => setNewTaskStartDate(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("todos.deadlineLabel" as TranslationKey)}</label>
+                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("todos.deadlineLabel")}</label>
                     <input type="date" value={newTaskDeadline} min={new Date().toISOString().split("T")[0]} onChange={(e) => setNewTaskDeadline(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
                   </div>
                 </div>
                 {orderedPhases.length > 0 && (
                   <div>
-                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.phases" as TranslationKey)}</label>
+                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.phases")}</label>
                     <select value={addTaskPhaseId ?? ""} onChange={(e) => setAddTaskPhaseId(e.target.value || null)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100">
-                      <option value="">{t("phase.unassigned" as TranslationKey)}</option>
+                      <option value="">{t("phase.unassigned")}</option>
                       {orderedPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                 )}
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
-                <button onClick={handleAddTask} disabled={!newTaskTitle.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save" as TranslationKey)}</button>
+                <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
+                <button onClick={handleAddTask} disabled={!newTaskTitle.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
               </div>
             </div>
           </div>
@@ -1115,16 +1322,16 @@ export default function ProjectDetailView({
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">Link a task</h3>
               <div className="overflow-y-auto flex-1 space-y-1">
                 {allTodos.length === 0 ? (
-                  <p className="text-sm text-zinc-400 italic text-center py-6">{t("projects.noTasks" as TranslationKey)}</p>
+                  <p className="text-sm text-zinc-400 italic text-center py-6">{t("projects.noTasks")}</p>
                 ) : allTodos.map((todo) => (
                   <button key={todo.id} onClick={() => handleLinkExisting(todo, linkPhaseId)} className="w-full text-left px-3 py-2 rounded hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between gap-2">
                     <span className="text-sm text-zinc-900 dark:text-slate-100 truncate">{todo.title}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
                   </button>
                 ))}
               </div>
               <div className="flex justify-end mt-4">
-                <button onClick={() => setShowLinkTask(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel" as TranslationKey)}</button>
+                <button onClick={() => setShowLinkTask(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
               </div>
             </div>
           </div>
@@ -1158,6 +1365,8 @@ export default function ProjectDetailView({
           existingSubtasks={subtaskParent ? getSubtasks(subtaskParent.id) : []}
           onCompleteSubtask={(sub) => handleTaskStatusChange(sub, sub.status === "completed" ? "active" : "completed")}
           onDeleteSubtask={(sub) => handleDeleteTask(sub)}
+          onPromoteSubtask={handlePromoteSubtask}
+          onReorderSubtasks={handleReorderSubtasks}
         />
 
         <ConfirmDialog
@@ -1167,6 +1376,80 @@ export default function ProjectDetailView({
           onConfirm={() => confirm?.action()}
           onCancel={() => setConfirm(null)}
           variant="danger"
+        />
+
+        {phaseToDelete && (() => {
+          const tasksCount = projectTodos.filter((td) => td.phaseId === phaseToDelete.id).length;
+          return (
+            <div className="fixed inset-0 z-[9998] flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPhaseToDelete(null)} />
+              <div
+                role="dialog"
+                aria-modal="true"
+                className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+              >
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
+                  {t("phase.delete")}
+                </h2>
+                <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-slate-300">
+                  {phaseToDelete.name}
+                </p>
+                <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400">
+                  {tasksCount > 0
+                    ? t("phase.deleteConfirmMessage")
+                    : t("phase.deleteNoTasks")}
+                </p>
+                <div className={`mt-6 grid gap-3 ${tasksCount > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
+                  <button
+                    type="button"
+                    onClick={() => setPhaseToDelete(null)}
+                    className="px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600
+                      text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors text-center"
+                  >
+                    {t("cancel")}
+                  </button>
+                  {tasksCount > 0 ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => executeDeletePhase("move")}
+                        className="px-4 py-2 text-sm rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors
+                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 text-center"
+                      >
+                        {t("phase.deleteMoveTasks")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => executeDeletePhase("delete")}
+                        className="px-4 py-2 text-sm rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors
+                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 text-center"
+                      >
+                        {t("phase.deleteDeleteTasks")}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => executeDeletePhase("move")}
+                      className="px-4 py-2 text-sm rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors
+                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 text-center"
+                    >
+                      {t("phase.delete")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        <DeleteTaskDialog
+          open={!!taskToDelete}
+          taskTitle={taskToDelete?.title ?? ""}
+          subtaskCount={taskToDelete ? getSubtasks(taskToDelete.id).length : 0}
+          onCancel={() => setTaskToDelete(null)}
+          onDeleteAndPromote={() => executeDeleteTask("promote")}
+          onDeleteAll={() => executeDeleteTask("deleteAll")}
         />
       </div>
     </AppShell>

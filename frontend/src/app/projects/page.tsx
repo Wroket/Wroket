@@ -84,6 +84,7 @@ export default function ProjectsPage() {
         t={t}
         locale={locale}
         loadProjects={loadProjects}
+        teams={teams}
       />
     );
   }

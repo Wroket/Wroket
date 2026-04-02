@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
+import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import {
   getTodos,
   updateTodo,
@@ -18,19 +19,35 @@ export default function DelegatedPage() {
   const { t } = useLocale();
   const { user } = useAuth();
   const { resolveUser, displayName } = useUserLookup();
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [allTodos, setAllTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null);
+
+  const todos = useMemo(
+    () => allTodos.filter((todo) => todo.assignedTo && user && todo.assignedTo !== user.uid && !todo.parentId),
+    [allTodos, user],
+  );
+
+  const subtasksByParent = useMemo(() => {
+    const map: Record<string, Todo[]> = {};
+    for (const td of allTodos) {
+      if (td.parentId) (map[td.parentId] ??= []).push(td);
+    }
+    return map;
+  }, [allTodos]);
+
+  const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
       try {
-        const allTodos = await getTodos();
+        const fetched = await getTodos();
         if (cancelled) return;
-        const delegated = allTodos.filter((todo) => todo.assignedTo && todo.assignedTo !== user.uid && !todo.parentId);
-        setTodos(delegated);
+        setAllTodos(fetched);
 
+        const delegated = fetched.filter((todo) => todo.assignedTo && todo.assignedTo !== user.uid && !todo.parentId);
         const uids = new Set<string>();
         delegated.forEach((todo) => { if (todo.assignedTo) uids.add(todo.assignedTo); });
         uids.forEach((uid) => resolveUser(uid));
@@ -43,18 +60,43 @@ export default function DelegatedPage() {
   const handleStatusChange = async (todo: Todo, newStatus: TodoStatus) => {
     try {
       const updated = await updateTodo(todo.id, { status: newStatus });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setAllTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch { /* noop */ }
   };
 
-  const handleDelete = async (todo: Todo) => {
+  const requestDelete = (todo: Todo) => {
+    if (todo.status === "deleted") {
+      executeDelete(todo, "promote");
+    } else {
+      setConfirmDelete(todo);
+    }
+  };
+
+  const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
+    setConfirmDelete(null);
     try {
       if (todo.status === "deleted") {
         const restored = await updateTodo(todo.id, { status: "active" });
-        setTodos((prev) => prev.map((t) => (t.id === restored.id ? restored : t)));
+        setAllTodos((prev) => prev.map((t) => (t.id === restored.id ? restored : t)));
       } else {
+        const subs = getSubtasks(todo.id);
+        if (subs.length > 0) {
+          if (mode === "promote") {
+            const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+            setAllTodos((prev) => prev.map((t) => {
+              const p = promoted.find((u) => u.id === t.id);
+              return p ?? t;
+            }));
+          } else {
+            const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+            setAllTodos((prev) => prev.map((t) => {
+              const d = deleted.find((u) => u.id === t.id);
+              return d ?? t;
+            }));
+          }
+        }
         const updated = await deleteTodo(todo.id);
-        setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+        setAllTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       }
     } catch { /* noop */ }
   };
@@ -206,7 +248,7 @@ export default function DelegatedPage() {
                               </svg>
                             </button>
                             <button
-                              onClick={() => handleDelete(todo)}
+                              onClick={() => requestDelete(todo)}
                               title={t("filter.deleted")}
                               className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                             >
@@ -225,6 +267,15 @@ export default function DelegatedPage() {
           </table>
         </div>
       </div>
+
+      <DeleteTaskDialog
+        open={!!confirmDelete}
+        taskTitle={confirmDelete?.title ?? ""}
+        subtaskCount={confirmDelete ? getSubtasks(confirmDelete.id).length : 0}
+        onCancel={() => setConfirmDelete(null)}
+        onDeleteAndPromote={() => confirmDelete && executeDelete(confirmDelete, "promote")}
+        onDeleteAll={() => confirmDelete && executeDelete(confirmDelete, "deleteAll")}
+      />
     </AppShell>
   );
 }

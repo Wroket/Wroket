@@ -58,7 +58,7 @@
 - [x] **Réinitialisation de mot de passe** — Flux "mot de passe oublié" par email avec token sécurisé
 - [x] **Emails d'invitation** — "Faites découvrir Wroket" : envoi d'email d'invitation avec logo, template HTML
 - [x] **Administration** — Dashboard admin : stats users/tâches/projets/équipes, liste utilisateurs, historique invitations
-- [x] **Rôles dans les équipes** — Owner (tous droits) / Admin (gestion membres + projets) / Member (lecture seule)
+- [x] **Rôles dans les équipes** — Owner (propriétaire implicite) / Admin (gestion team, rôles, invitations + r/w projet) / Super-user (r/w tâches, phases, sous-projets) / User (lecture seule)
 - [x] **Validation deadline** — Interdiction de créer une tâche avec échéance passée (backend + frontend)
 - [x] **SlotPicker amélioré** — Auto-ouverture après création de tâche + mode manuel (date/heure libre)
 - [x] **Tuto Google Calendar** — Étape dédiée dans le tutoriel d'onboarding
@@ -114,6 +114,15 @@
 - [x] **Agenda — vues jour/semaine/mois** — Toggle entre les vues jour, semaine et mois avec navigation adaptée et affichage des événements
 - [x] **Agenda — création rapide** — Double-clic sur un créneau horaire pour créer une tâche rapidement (pré-rempli avec date/heure)
 - [x] **Refactoring page projets** — Découpage de `projects/page.tsx` (2400 → 104 lignes) en 5 sous-composants (`ProjectDetailView`, `ProjectListView`, `GanttChart`, `DndWrappers`, `types`) pour stabiliser Turbopack et éliminer les fuites mémoire
+- [x] **Agenda — heure de début & durée** — Champs éditables "heure de début" et "durée" dans la création rapide de tâche depuis l'agenda, pré-remplis avec l'heure cliquée et la durée par défaut selon l'effort
+- [x] **Drag & drop tâches Board/Gantt** — Réorganisation des tâches et déplacement entre phases dans les vues Board et Gantt (@dnd-kit, SortablePhaseContainer, SortableBoardTaskRow)
+- [x] **Limite sous-projets 1 niveau** — Interdiction de créer un sous-projet dans un sous-projet (validation backend + frontend), masquage dynamique du bouton "Ajouter un sous-projet", drag out restaure le statut projet racine
+- [x] **Suppression phase avec options** — Popup demandant de supprimer les tâches contenues ou de les placer hors phase
+- [x] **Suppression tâche avec sous-tâches** — Composant réutilisable `DeleteTaskDialog` : supprimer tout ou conserver les sous-tâches (promotion en tâches autonomes), appliqué sur My Tasks, Projets et Déléguées
+- [x] **Réordonnancement sous-tâches** — Boutons haut/bas pour réordonner les sous-tâches dans la vue liste My Tasks, drag & drop dans la SubtaskModal
+- [x] **Tâches récurrentes dans l'agenda** — Expansion des occurrences récurrentes dans l'agenda (backend génère les événements virtuels dans la plage demandée, indicateur ↻, double-clic ouvre la tâche parente)
+- [x] **Notes simplifiées** — Suppression du sélecteur projet sur les notes ; une note est soit autonome, soit liée en lecture seule à une tâche/sous-tâche (créée depuis celle-ci)
+- [x] **Renommage navigation** — "Collaboration > Collaboration" renommé en "Mes équipes", "Dashboard équipe" renommé en "Tableau de bord"
 
 ## Intégrations & Connecteurs
 

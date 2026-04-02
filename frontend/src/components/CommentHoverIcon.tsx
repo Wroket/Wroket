@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
 import { getComments } from "@/lib/api";
 import type { Comment } from "@/lib/api";
-import type { TranslationKey } from "@/lib/i18n";
 
 interface CommentHoverIconProps {
   todoId: string;
@@ -76,14 +75,16 @@ export default function CommentHoverIcon({
       <div
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onFocus={handleMouseEnter}
+        onBlur={handleMouseLeave}
       >
         <button
           ref={iconRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onClick?.(); }}
           className={buttonClass ?? defaultBtnCls}
-          aria-label={t("comments.title" as TranslationKey)}
-          title={t("comments.title" as TranslationKey)}
+          aria-label={t("comments.title")}
+          title={t("comments.title")}
         >
           <svg className={iconSize} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
@@ -109,14 +110,14 @@ export default function CommentHoverIcon({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-2 border-b border-zinc-100 dark:border-slate-700 flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("comments.title" as TranslationKey)}</span>
+            <span className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("comments.title")}</span>
             <span className="text-[10px] text-zinc-400 dark:text-slate-500">{comments.length || commentCount}</span>
           </div>
           <div className="overflow-y-auto max-h-48 p-2 space-y-2">
             {!commentsLoaded ? (
               <p className="text-xs text-zinc-400 dark:text-slate-500 text-center py-3">{t("loading")}</p>
             ) : comments.length === 0 ? (
-              <p className="text-xs text-zinc-400 dark:text-slate-500 text-center py-3">{t("comments.empty" as TranslationKey)}</p>
+              <p className="text-xs text-zinc-400 dark:text-slate-500 text-center py-3">{t("comments.empty")}</p>
             ) : (
               comments.map((c) => (
                 <div key={c.id} className="text-xs">

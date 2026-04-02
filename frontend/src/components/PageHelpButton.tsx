@@ -34,11 +34,14 @@ export default function PageHelpButton({ items, title }: PageHelpButtonProps) {
       if (btnRef.current?.contains(target) || popRef.current?.contains(target)) return;
       setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", handler);
+    document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", updatePos, true);
     window.addEventListener("resize", updatePos);
     return () => {
       document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", updatePos, true);
       window.removeEventListener("resize", updatePos);
     };
@@ -50,6 +53,7 @@ export default function PageHelpButton({ items, title }: PageHelpButtonProps) {
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-colors ${
           open
             ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"

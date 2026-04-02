@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -8,35 +9,40 @@ import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, createTodo, lookupUser } from "@/lib/api";
-import type { Note, Project } from "@/lib/api";
-import type { TranslationKey } from "@/lib/i18n";
+import { getProjects, getTodos, createTodo, lookupUser } from "@/lib/api";
+import type { Note, Project, Todo } from "@/lib/api";
 
-export default function NotesPage() {
+function NotesPageInner() {
   const { t } = useLocale();
+  const searchParams = useSearchParams();
   const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin } = useOfflineNotes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    getProjects().then(setProjects).catch(() => {});
+    getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
+    getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
 
   const filtered = search
-    ? notes.filter((n) =>
-        n.title.toLowerCase().includes(search.toLowerCase()) ||
-        n.content.toLowerCase().includes(search.toLowerCase())
-      )
+    ? notes.filter((n) => {
+        const q = search.toLowerCase();
+        return n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q) ||
+          (n.tags ?? []).some((tag) => tag.toLowerCase().includes(q));
+      })
     : notes;
 
-  const handleNew = useCallback(async () => {
-    const id = await addNote();
+  const handleNew = useCallback(() => {
+    const id = addNote();
     setSelectedId(id);
     setMobileShowEditor(true);
     setTimeout(() => titleRef.current?.focus(), 50);
@@ -70,10 +76,16 @@ export default function NotesPage() {
   }, [deleteConfirm, removeNote, selectedId, notes]);
 
   useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (idParam && notes.some((n) => n.id === idParam)) {
+      setSelectedId(idParam);
+      setMobileShowEditor(true);
+      return;
+    }
     if (notes.length > 0 && !selectedId) {
       setSelectedId(notes[0].id);
     }
-  }, [notes, selectedId]);
+  }, [notes, selectedId, searchParams]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -87,6 +99,20 @@ export default function NotesPage() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [handleNew]);
+
+  const handleAddTag = useCallback((tag: string) => {
+    if (!selectedId || !tag.trim()) return;
+    const current = selected?.tags ?? [];
+    if (current.length >= 10 || current.includes(tag.trim())) return;
+    saveNote(selectedId, { tags: [...current, tag.trim()] });
+    setTagInput("");
+  }, [selectedId, selected, saveNote]);
+
+  const handleRemoveTag = useCallback((tag: string) => {
+    if (!selectedId) return;
+    const current = selected?.tags ?? [];
+    saveNote(selectedId, { tags: current.filter((t) => t !== tag) });
+  }, [selectedId, selected, saveNote]);
 
   const handleSlashCreateTask = useCallback(async (payload: SlashTaskPayload) => {
     let assignedToUid: string | undefined;
@@ -115,25 +141,25 @@ export default function NotesPage() {
           <div className="p-3 border-b border-zinc-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
               <h1 className="text-lg font-bold text-zinc-900 dark:text-slate-100">
-                {t("notes.title" as TranslationKey)}
+                {t("notes.title")}
               </h1>
               <div className="flex items-center gap-1.5 relative">
                 <PageHelpButton
-                  title={t("notes.title" as TranslationKey)}
+                  title={t("notes.title")}
                   items={[
-                    { text: t("help.notes.slash" as TranslationKey) },
-                    { text: t("help.notes.folders" as TranslationKey) },
-                    { text: t("help.notes.tags" as TranslationKey) },
-                    { text: t("help.notes.export" as TranslationKey) },
-                    { text: t("help.notes.sharing" as TranslationKey) },
-                    { text: t("help.notes.offline" as TranslationKey) },
+                    { text: t("help.notes.slash") },
+                    { text: t("help.notes.folders") },
+                    { text: t("help.notes.tags") },
+                    { text: t("help.notes.export") },
+                    { text: t("help.notes.sharing") },
+                    { text: t("help.notes.offline") },
                   ]}
                 />
                 <button
                   type="button"
                   onClick={handleNew}
-                  className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 transition-colors"
-                  title={t("notes.new" as TranslationKey)}
+                  className="rounded-lg bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white p-1.5 transition-colors"
+                  title={t("notes.new")}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -143,7 +169,7 @@ export default function NotesPage() {
             </div>
             <input
               type="text"
-              placeholder={t("notes.search" as TranslationKey)}
+              placeholder={t("notes.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs text-zinc-900 dark:text-slate-100 placeholder-zinc-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-400"
@@ -158,8 +184,8 @@ export default function NotesPage() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("notes.empty" as TranslationKey)}</p>
-                <p className="text-xs text-zinc-400 dark:text-slate-500 mt-1">{t("notes.emptyHint" as TranslationKey)}</p>
+                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("notes.empty")}</p>
+                <p className="text-xs text-zinc-400 dark:text-slate-500 mt-1">{t("notes.emptyHint")}</p>
               </div>
             ) : (
               <div className="py-1">
@@ -177,12 +203,20 @@ export default function NotesPage() {
                     <div className="flex items-center gap-1.5">
                       {note.pinned && <span className="text-amber-500 text-[10px]">📌</span>}
                       <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate flex-1">
-                        {note.title || t("notes.untitled" as TranslationKey)}
+                        {note.title || t("notes.untitled")}
                       </p>
                     </div>
                     <p className="text-[11px] text-zinc-400 dark:text-slate-500 truncate mt-0.5 leading-relaxed">
                       {note.content.slice(0, 80) || "..."}
                     </p>
+                    {(note.tags?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-0.5 mt-1">
+                        {note.tags!.slice(0, 3).map((tag) => (
+                          <span key={tag} className="inline-block bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[9px] px-1 py-0.5 rounded">{tag}</span>
+                        ))}
+                        {note.tags!.length > 3 && <span className="text-[9px] text-zinc-400 dark:text-slate-500">+{note.tags!.length - 3}</span>}
+                      </div>
+                    )}
                     <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-1">
                       {formatDate(note.updatedAt)}
                     </p>
@@ -197,10 +231,10 @@ export default function NotesPage() {
             <span className={`w-2 h-2 rounded-full ${online ? "bg-green-500" : "bg-amber-500"}`} />
             <span className="text-zinc-500 dark:text-slate-400">
               {syncing
-                ? t("notes.saving" as TranslationKey)
+                ? t("notes.saving")
                 : online
-                  ? t("notes.synced" as TranslationKey)
-                  : t("notes.offline" as TranslationKey)}
+                  ? t("notes.synced")
+                  : t("notes.offline")}
             </span>
             <span className="ml-auto text-zinc-400 dark:text-slate-500">{notes.length} notes</span>
           </div>
@@ -226,7 +260,7 @@ export default function NotesPage() {
                   type="text"
                   value={selected.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder={t("notes.untitled" as TranslationKey)}
+                  placeholder={t("notes.untitled")}
                   className="flex-1 text-lg font-semibold text-zinc-900 dark:text-slate-100 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600"
                 />
                 <button
@@ -237,7 +271,7 @@ export default function NotesPage() {
                       ? "text-amber-500 bg-amber-50 dark:bg-amber-900/20"
                       : "text-zinc-400 dark:text-slate-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
                   }`}
-                  title={selected.pinned ? t("notes.unpin" as TranslationKey) : t("notes.pin" as TranslationKey)}
+                  title={selected.pinned ? t("notes.unpin") : t("notes.pin")}
                 >
                   <svg className="w-4 h-4" fill={selected.pinned ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -246,10 +280,10 @@ export default function NotesPage() {
                 {deleteConfirm === selected.id ? (
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={handleDelete} className="rounded bg-red-500 text-white text-xs px-2 py-1 font-medium hover:bg-red-600">
-                      {t("notes.delete" as TranslationKey)}
+                      {t("notes.delete")}
                     </button>
                     <button type="button" onClick={() => setDeleteConfirm(null)} className="text-xs text-zinc-500 dark:text-slate-400 px-2 py-1 hover:underline">
-                      {t("edit.cancel" as TranslationKey)}
+                      {t("edit.cancel")}
                     </button>
                   </div>
                 ) : (
@@ -257,7 +291,7 @@ export default function NotesPage() {
                     type="button"
                     onClick={() => setDeleteConfirm(selected.id)}
                     className="p-1.5 rounded text-zinc-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title={t("notes.delete" as TranslationKey)}
+                    title={t("notes.delete")}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -266,13 +300,54 @@ export default function NotesPage() {
                 )}
               </div>
 
+              {/* Metadata panel: tags, project, task */}
+              <div className="px-4 py-2 border-b border-zinc-100 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-800/30 space-y-2 shrink-0">
+                {/* Tags */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <svg className="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  {(selected.tags ?? []).map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
+                      {tag}
+                      <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
+                      if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
+                        handleRemoveTag(selected.tags![selected.tags!.length - 1]);
+                      }
+                    }}
+                    placeholder={t("notes.addTag")}
+                    className="flex-1 min-w-[80px] bg-transparent text-[11px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
+                  />
+                </div>
+                {selected.todoId && (() => {
+                  const linkedTask = todos.find((td) => td.id === selected.todoId);
+                  return linkedTask ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-slate-400">
+                      <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                      </svg>
+                      <span className="truncate">{linkedTask.title}</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
               {/* Content area */}
               <div className="flex-1 overflow-y-auto relative">
                 <textarea
                   ref={contentRef}
                   value={selected.content}
                   onChange={(e) => handleContentChange(e.target.value)}
-                  placeholder={t("notes.contentPlaceholder" as TranslationKey)}
+                  placeholder={t("notes.contentPlaceholder")}
                   className="w-full h-full resize-none px-6 py-4 text-sm text-zinc-800 dark:text-slate-200 bg-white dark:bg-slate-900 border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 leading-relaxed font-mono"
                   spellCheck
                 />
@@ -287,7 +362,7 @@ export default function NotesPage() {
 
               {/* Footer */}
               <div className="px-4 py-1.5 border-t border-zinc-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-zinc-400 dark:text-slate-500 bg-white dark:bg-slate-900 shrink-0">
-                <span>{t("notes.lastModified" as TranslationKey)} {formatDate(selected.updatedAt)}</span>
+                <span>{t("notes.lastModified")} {formatDate(selected.updatedAt)}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-zinc-300 dark:text-slate-600">
                     <kbd className="font-mono bg-zinc-100 dark:bg-slate-700 px-1 rounded text-[9px]">/</kbd> commandes
@@ -302,13 +377,13 @@ export default function NotesPage() {
                 <svg className="w-16 h-16 mx-auto text-zinc-200 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                <p className="text-sm text-zinc-400 dark:text-slate-500 mt-3">{t("notes.emptyHint" as TranslationKey)}</p>
+                <p className="text-sm text-zinc-400 dark:text-slate-500 mt-3">{t("notes.emptyHint")}</p>
                 <button
                   type="button"
                   onClick={handleNew}
-                  className="mt-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition-colors"
+                  className="mt-4 rounded-lg bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-4 py-2 text-sm font-medium transition-colors"
                 >
-                  {t("notes.new" as TranslationKey)}
+                  {t("notes.new")}
                 </button>
               </div>
             </div>
@@ -316,5 +391,13 @@ export default function NotesPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+export default function NotesPage() {
+  return (
+    <Suspense>
+      <NotesPageInner />
+    </Suspense>
   );
 }

@@ -6,7 +6,7 @@ import { Locale, initLocale, setLocale as setGlobalLocale, t as globalT, Transla
 interface LocaleContextValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey | (string & {})) => string;
 }
 
 const LocaleContext = createContext<LocaleContextValue>({
@@ -32,7 +32,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const translate = useCallback((key: TranslationKey) => globalT(key), [locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  const translate = useCallback((key: TranslationKey | (string & {})) => globalT(key), [locale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <LocaleContext.Provider value={{ locale, setLocale: changeLocale, t: translate }}>

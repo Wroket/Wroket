@@ -69,7 +69,7 @@ const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
   },
   {
     key: "integrations",
-    tKey: "settings.integrations" as TranslationKey,
+    tKey: "settings.integrations",
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -121,10 +121,10 @@ function SettingsContent() {
             <PageHelpButton
               title={t("settings.title")}
               items={[
-                { text: t("help.settings.lang" as TranslationKey) },
-                { text: t("help.settings.hours" as TranslationKey) },
-                { text: t("help.settings.teams" as TranslationKey) },
-                { text: t("help.settings.activity" as TranslationKey) },
+                { text: t("help.settings.lang") },
+                { text: t("help.settings.hours") },
+                { text: t("help.settings.teams") },
+                { text: t("help.settings.activity") },
               ]}
             />
           </div>
@@ -490,12 +490,12 @@ function TasksSection() {
 }
 
 const ALL_EVENTS: { key: WebhookEvent; tKey: TranslationKey }[] = [
-  { key: "task_assigned", tKey: "settings.eventTaskAssigned" as TranslationKey },
-  { key: "task_completed", tKey: "settings.eventTaskCompleted" as TranslationKey },
-  { key: "task_declined", tKey: "settings.eventTaskDeclined" as TranslationKey },
-  { key: "task_accepted", tKey: "settings.eventTaskAccepted" as TranslationKey },
-  { key: "team_invite", tKey: "settings.eventTeamInvite" as TranslationKey },
-  { key: "deadline_approaching", tKey: "settings.eventDeadline" as TranslationKey },
+  { key: "task_assigned", tKey: "settings.eventTaskAssigned" },
+  { key: "task_completed", tKey: "settings.eventTaskCompleted" },
+  { key: "task_declined", tKey: "settings.eventTaskDeclined" },
+  { key: "task_accepted", tKey: "settings.eventTaskAccepted" },
+  { key: "team_invite", tKey: "settings.eventTeamInvite" },
+  { key: "deadline_approaching", tKey: "settings.eventDeadline" },
 ];
 
 const PLATFORMS: { key: WebhookPlatform; label: string }[] = [
@@ -622,8 +622,8 @@ function IntegrationsSection() {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle" as TranslationKey)}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.integrationsDesc" as TranslationKey)}</p>
+      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
+      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.integrationsDesc")}</p>
 
       {loading ? (
         <div className="flex justify-center py-8">
@@ -633,7 +633,7 @@ function IntegrationsSection() {
         <>
           {/* Existing webhooks */}
           {webhooks.length === 0 && !showForm && (
-            <p className="text-sm text-zinc-400 dark:text-slate-500 italic py-4">{t("settings.webhookNone" as TranslationKey)}</p>
+            <p className="text-sm text-zinc-400 dark:text-slate-500 italic py-4">{t("settings.webhookNone")}</p>
           )}
 
           {webhooks.length > 0 && (
@@ -655,7 +655,7 @@ function IntegrationsSection() {
                           : "bg-zinc-100 text-zinc-400 dark:bg-slate-800 dark:text-slate-500"
                       }`}
                     >
-                      {wh.enabled ? t("settings.webhookEnabled" as TranslationKey) : t("settings.webhookDisabled" as TranslationKey)}
+                      {wh.enabled ? t("settings.webhookEnabled") : t("settings.webhookDisabled")}
                     </button>
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
@@ -664,7 +664,7 @@ function IntegrationsSection() {
                         disabled={testing === wh.id}
                         className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
                       >
-                        {testing === wh.id ? "…" : t("settings.webhookTest" as TranslationKey)}
+                        {testing === wh.id ? "…" : t("settings.webhookTest")}
                       </button>
                       <button
                         type="button"
@@ -698,7 +698,7 @@ function IntegrationsSection() {
                   </div>
                   {testResult?.id === wh.id && (
                     <p className={`text-xs mt-2 font-medium ${testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                      {testResult.ok ? t("settings.webhookTestOk" as TranslationKey) : t("settings.webhookTestFail" as TranslationKey)}
+                      {testResult.ok ? t("settings.webhookTestOk") : t("settings.webhookTestFail")}
                     </p>
                   )}
                 </div>
@@ -711,11 +711,11 @@ function IntegrationsSection() {
             <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookLabel" as TranslationKey)}</label>
-                  <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("settings.webhookLabelPlaceholder" as TranslationKey)} className={inputCls} />
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookLabel")}</label>
+                  <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("settings.webhookLabelPlaceholder")} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookPlatform" as TranslationKey)}</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookPlatform")}</label>
                   <select
                     value={platform}
                     onChange={(e) => setPlatform(e.target.value as WebhookPlatform)}
@@ -728,11 +728,11 @@ function IntegrationsSection() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookUrl" as TranslationKey)}</label>
-                <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.webhookUrlPlaceholder" as TranslationKey)} className={inputCls} />
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookUrl")}</label>
+                <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.webhookUrlPlaceholder")} className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">{t("settings.webhookEvents" as TranslationKey)}</label>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">{t("settings.webhookEvents")}</label>
                 <div className="flex flex-wrap gap-2">
                   {ALL_EVENTS.map((ev) => {
                     const active = events.includes(ev.key);
@@ -780,7 +780,7 @@ function IntegrationsSection() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              {t("settings.webhookAdd" as TranslationKey)}
+              {t("settings.webhookAdd")}
             </button>
           )}
         </>
@@ -803,7 +803,7 @@ function ChangePasswordForm() {
 
   const handleSubmit = async () => {
     setError(null);
-    if (next !== confirm) { setError(t("settings.passwordMismatch" as TranslationKey)); return; }
+    if (next !== confirm) { setError(t("settings.passwordMismatch")); return; }
     setSaving(true);
     try {
       await changePasswordApi(current, next);
@@ -818,9 +818,9 @@ function ChangePasswordForm() {
   if (!open) {
     return (
       <div>
-        <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.password" as TranslationKey)}</label>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.password")}</label>
         <button type="button" onClick={() => setOpen(true)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-          {t("settings.changePassword" as TranslationKey)}
+          {t("settings.changePassword")}
         </button>
       </div>
     );
@@ -828,20 +828,20 @@ function ChangePasswordForm() {
 
   return (
     <div className="space-y-3 p-4 bg-zinc-50 dark:bg-slate-800/50 rounded-md border border-zinc-200 dark:border-slate-700">
-      <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100">{t("settings.passwordTitle" as TranslationKey)}</h4>
+      <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100">{t("settings.passwordTitle")}</h4>
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.passwordChanged" as TranslationKey)}</p>}
-      <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder={t("settings.currentPassword" as TranslationKey)} className={inputCls} />
-      <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={t("settings.newPassword" as TranslationKey)} className={inputCls} />
-      <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("settings.confirmPassword" as TranslationKey)} className={inputCls} />
+      {success && <p className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.passwordChanged")}</p>}
+      <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder={t("settings.currentPassword")} className={inputCls} />
+      <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={t("settings.newPassword")} className={inputCls} />
+      <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("settings.confirmPassword")} className={inputCls} />
       <div className="flex gap-2">
         <button type="button" onClick={handleSubmit} disabled={saving || !current || !next || !confirm}
           className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
-          {t("settings.passwordChange" as TranslationKey)}
+          {t("settings.passwordChange")}
         </button>
         <button type="button" onClick={() => { setOpen(false); setError(null); }}
           className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-          {t("cancel" as TranslationKey)}
+          {t("cancel")}
         </button>
       </div>
     </div>
@@ -914,7 +914,7 @@ function HistorySection() {
           </div>
           {entries.length < total && (
             <button type="button" onClick={() => load(entries.length)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-              {t("settings.loadMore" as TranslationKey)} ({entries.length}/{total})
+              {t("settings.loadMore")} ({entries.length}/{total})
             </button>
           )}
         </>
@@ -970,7 +970,7 @@ function AdminSection() {
         <p className="text-xs text-zinc-500 dark:text-slate-400 mb-3">{t("settings.dataExportDesc")}</p>
         <button type="button" onClick={handleExport} disabled={exporting}
           className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
-          {exporting ? "..." : t("settings.exportBtn" as TranslationKey)}
+          {exporting ? "..." : t("settings.exportBtn")}
         </button>
       </div>
 
@@ -984,8 +984,8 @@ function AdminSection() {
           </button>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-red-600 dark:text-red-400 font-medium">{t("settings.deleteConfirmTitle" as TranslationKey)}</p>
-            <p className="text-xs text-red-600/70 dark:text-red-400/70">{t("settings.deleteConfirmDesc" as TranslationKey)}</p>
+            <p className="text-xs text-red-600 dark:text-red-400 font-medium">{t("settings.deleteConfirmTitle")}</p>
+            <p className="text-xs text-red-600/70 dark:text-red-400/70">{t("settings.deleteConfirmDesc")}</p>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <input
               type="text"
@@ -997,11 +997,11 @@ function AdminSection() {
             <div className="flex gap-2">
               <button type="button" onClick={handleDelete} disabled={deleting || deleteConfirm !== confirmWord}
                 className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 transition-colors">
-                {deleting ? t("settings.deleting" as TranslationKey) : t("settings.deleteAccount")}
+                {deleting ? t("settings.deleting") : t("settings.deleteAccount")}
               </button>
               <button type="button" onClick={() => { setShowDelete(false); setDeleteConfirm(""); setError(null); }}
                 className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-                {t("cancel" as TranslationKey)}
+                {t("cancel")}
               </button>
             </div>
           </div>

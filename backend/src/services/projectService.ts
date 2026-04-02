@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
-import { getTeam, canManageProjects } from "./teamService";
+import { getTeam, canManageProjects, canEditContent, getTeamRole } from "./teamService";
 
 export type ProjectStatus = "active" | "archived";
 
@@ -91,20 +91,33 @@ function persist(): void {
 })();
 
 /**
- * Returns true if the user can VIEW the project (any team role).
+ * Returns true if the user can VIEW the project (any team role — user, super-user, admin).
  */
 export function canAccessProject(uid: string, userEmail: string, project: Project): boolean {
   if (project.ownerUid === uid) return true;
   if (project.teamId) {
     const team = getTeam(project.teamId);
-    if (team && team.members.some((m) => m.email === userEmail)) return true;
+    if (team && getTeamRole(team, uid, userEmail)) return true;
   }
   return false;
 }
 
 /**
- * Returns true if the user can EDIT the project (owner or admin in team).
- * Members (read-only) cannot edit.
+ * Returns true if the user can EDIT project content (tasks, phases, sub-projects).
+ * Requires owner, admin or super-user in team.
+ */
+export function canEditProjectContent(uid: string, userEmail: string, project: Project): boolean {
+  if (project.ownerUid === uid) return true;
+  if (project.teamId) {
+    const team = getTeam(project.teamId);
+    if (team && canEditContent(team, uid, userEmail)) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true if the user can EDIT the project itself (name, settings, etc.).
+ * Requires owner or admin in team.
  */
 export function canEditProject(uid: string, userEmail: string, project: Project): boolean {
   if (project.ownerUid === uid) return true;
@@ -165,6 +178,9 @@ export function createProject(uid: string, userEmail: string, input: CreateProje
   if (input.parentProjectId) {
     const parent = projectsById.get(input.parentProjectId);
     if (!parent) throw new NotFoundError("Projet parent introuvable");
+    if (parent.parentProjectId) {
+      throw new ForbiddenError("Impossible de créer un sous-projet dans un sous-projet (1 niveau max)");
+    }
     if (!canAccessProject(uid, userEmail, parent)) {
       throw new ForbiddenError("Accès au projet parent refusé");
     }
@@ -200,9 +216,30 @@ export function updateProject(uid: string, userEmail: string, id: string, input:
 
   if (input.name !== undefined) project.name = input.name.trim();
   if (input.description !== undefined) project.description = input.description.trim();
-  if (input.teamId !== undefined) project.teamId = input.teamId;
+  if (input.teamId !== undefined) {
+    if (input.teamId) {
+      const targetTeam = getTeam(input.teamId);
+      if (!targetTeam) throw new NotFoundError("Équipe introuvable");
+      if (!canManageProjects(targetTeam, uid, userEmail)) {
+        throw new ForbiddenError("Vous devez être admin de l'équipe cible");
+      }
+    }
+    project.teamId = input.teamId;
+  }
   if (input.status !== undefined) project.status = input.status;
-  if (input.parentProjectId !== undefined) project.parentProjectId = input.parentProjectId;
+  if (input.parentProjectId !== undefined) {
+    if (input.parentProjectId) {
+      const targetParent = projectsById.get(input.parentProjectId);
+      if (!targetParent) throw new NotFoundError("Projet parent introuvable");
+      if (targetParent.parentProjectId) {
+        throw new ForbiddenError("Impossible d'imbriquer sous un sous-projet (1 niveau max)");
+      }
+      if (!canAccessProject(uid, userEmail, targetParent)) {
+        throw new ForbiddenError("Accès au projet parent refusé");
+      }
+    }
+    project.parentProjectId = input.parentProjectId;
+  }
   if (input.tags !== undefined) project.tags = input.tags.map((t) => t.trim()).filter(Boolean);
   project.updatedAt = new Date().toISOString();
 

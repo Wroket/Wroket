@@ -1,0 +1,272 @@
+import {
+  API_BASE_URL, parseJsonOrThrow, extractApiMessage,
+  type ScheduledSlot, type ActivityLogEntry,
+} from "./core";
+
+export type Priority = "low" | "medium" | "high";
+export type Effort = "light" | "medium" | "heavy";
+export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
+export type AssignmentStatus = "pending" | "accepted" | "declined";
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+
+export interface Recurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  nextDueDate?: string;
+  endDate?: string;
+}
+
+export interface Todo {
+  id: string;
+  userId: string;
+  parentId: string | null;
+  projectId: string | null;
+  phaseId: string | null;
+  assignedTo: string | null;
+  assignmentStatus: AssignmentStatus | null;
+  title: string;
+  priority: Priority;
+  effort: Effort;
+  estimatedMinutes: number | null;
+  startDate: string | null;
+  deadline: string | null;
+  tags: string[];
+  scheduledSlot: ScheduledSlot | null;
+  recurrence: Recurrence | null;
+  sortOrder?: number | null;
+  status: TodoStatus;
+  statusChangedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTodoPayload {
+  title: string;
+  priority: Priority;
+  effort?: Effort;
+  estimatedMinutes?: number | null;
+  startDate?: string | null;
+  deadline?: string | null;
+  tags?: string[];
+  parentId?: string | null;
+  projectId?: string | null;
+  phaseId?: string | null;
+  assignedTo?: string | null;
+  recurrence?: Recurrence | null;
+}
+
+export interface UpdateTodoPayload {
+  title?: string;
+  priority?: Priority;
+  effort?: Effort;
+  estimatedMinutes?: number | null;
+  startDate?: string | null;
+  deadline?: string | null;
+  tags?: string[];
+  status?: TodoStatus;
+  parentId?: string | null;
+  projectId?: string | null;
+  phaseId?: string | null;
+  assignedTo?: string | null;
+  assignmentStatus?: AssignmentStatus | null;
+  recurrence?: Recurrence | null;
+  sortOrder?: number | null;
+}
+
+export async function getTodos(): Promise<Todo[]> {
+  const res = await fetch(`${API_BASE_URL}/todos`, { method: "GET", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les tâches");
+  return (await res.json()) as Todo[];
+}
+
+export async function getAssignedTodos(): Promise<Todo[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/assigned`, { method: "GET", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les tâches assignées");
+  return (await res.json()) as Todo[];
+}
+
+export async function getArchivedTodos(): Promise<Todo[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/archived`, { method: "GET", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les tâches archivées");
+  return (await res.json()) as Todo[];
+}
+
+export async function createTodo(payload: CreateTodoPayload): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/todos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de créer la tâche"));
+  }
+  return (await res.json()) as Todo;
+}
+
+export async function updateTodo(id: string, payload: UpdateTodoPayload): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/todos/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de modifier la tâche"));
+  }
+  return (await res.json()) as Todo;
+}
+
+export async function deleteTodo(id: string): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/todos/${id}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de supprimer la tâche");
+  return (await res.json()) as Todo;
+}
+
+export async function reorderTodos(todoIds: string[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/todos/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ todoIds }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur de réordonnancement");
+}
+
+export async function exportTasksCsv(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/todos/export-csv`, { credentials: "include" });
+  if (!res.ok) throw new Error("Export failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "wroket-tasks.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function getTaskActivity(todoId: string): Promise<ActivityLogEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/activity`, { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+// ── Comments ──
+
+export interface Comment {
+  id: string;
+  todoId: string;
+  userId: string;
+  userEmail: string;
+  text: string;
+  createdAt: string;
+  editedAt?: string;
+  reactions?: Record<string, string[]>;
+}
+
+export async function getComments(todoId: string): Promise<Comment[]> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les commentaires");
+  return res.json();
+}
+
+export async function getCommentCounts(): Promise<Record<string, number>> {
+  const res = await fetch(`${API_BASE_URL}/todos/comment-counts`, { credentials: "include" });
+  if (!res.ok) return {};
+  return res.json();
+}
+
+export async function postCommentApi(todoId: string, text: string): Promise<Comment> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible d'ajouter le commentaire");
+  return res.json();
+}
+
+export async function editCommentApi(todoId: string, commentId: string, text: string): Promise<Comment> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de modifier le commentaire");
+  return res.json();
+}
+
+export async function deleteCommentApi(todoId: string, commentId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de supprimer le commentaire");
+}
+
+export async function toggleReactionApi(todoId: string, commentId: string, emoji: string): Promise<Comment> {
+  const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}/reactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ emoji }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de réagir");
+  return res.json();
+}
+
+// ── Attachments ──
+
+export interface Attachment {
+  id: string;
+  todoId: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
+export async function uploadAttachment(todoId: string, file: File): Promise<Attachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(extractApiMessage(data, "Erreur d'upload"));
+  }
+  return res.json();
+}
+
+export async function getAttachments(todoId: string): Promise<Attachment[]> {
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}`, { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function downloadAttachment(todoId: string, attachmentId: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}/${attachmentId}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de télécharger");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function deleteAttachmentApi(todoId: string, attachmentId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attachments/${todoId}/${attachmentId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de supprimer");
+}

@@ -6,6 +6,8 @@ import {
 } from "@dnd-kit/core";
 import {
   useSortable,
+  SortableContext,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -69,6 +71,50 @@ export function SortableProjectCard({ id, isNesting, children }: SortableProject
         </button>
       </div>
       {children}
+    </div>
+  );
+}
+
+/* ─── Sortable Board Phase Container ─── */
+
+export function SortablePhaseContainer({ id, items, children }: { id: string; items: string[]; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <SortableContext id={id} items={items} strategy={verticalListSortingStrategy}>
+      <div ref={setNodeRef} className={`space-y-1.5 min-h-[24px] rounded transition-colors ${isOver ? "bg-blue-50/40 dark:bg-blue-950/20" : ""}`}>
+        {children}
+      </div>
+    </SortableContext>
+  );
+}
+
+export function SortableBoardTaskRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, data: { type: "task" } });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-0.5">
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-0.5"
+        {...attributes}
+        {...listeners}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+        </svg>
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }

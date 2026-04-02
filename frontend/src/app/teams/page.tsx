@@ -17,8 +17,8 @@ import {
   Collaborator,
   ReceivedInvitation,
   Team,
+  TeamMemberRole,
 } from "@/lib/api";
-import type { TranslationKey } from "@/lib/i18n";
 
 interface NewTeamMember {
   email: string;
@@ -46,9 +46,10 @@ export default function TeamsPage() {
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [myUid, setMyUid] = useState<string | null>(null);
+  const [myEmail, setMyEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    getMe().then((me) => setMyUid(me.uid)).catch(() => {});
+    getMe().then((me) => { setMyUid(me.uid); setMyEmail(me.email); }).catch(() => {});
   }, []);
 
   const refreshData = useCallback(async () => {
@@ -222,7 +223,7 @@ export default function TeamsPage() {
                       <p className="text-xs text-zinc-400 dark:text-slate-500">
                         {totalCollabCount === 0
                           ? t("teams.collaboratorsEmpty")
-                          : `${activeCollabs.length} ${t("teams.activeCollabs" as TranslationKey).toLowerCase()}`}
+                          : `${activeCollabs.length} ${t("teams.activeCollabs").toLowerCase()}`}
                       </p>
                     </div>
                   </div>
@@ -230,17 +231,17 @@ export default function TeamsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {activeCollabs.length > 0 && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          {activeCollabs.length} {t("teams.activeCollabs" as TranslationKey).toLowerCase()}
+                          {activeCollabs.length} {t("teams.activeCollabs").toLowerCase()}
                         </span>
                       )}
                       {pendingSent.length > 0 && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                          {pendingSent.length} {t("teams.pendingInvite" as TranslationKey).toLowerCase()}
+                          {pendingSent.length} {t("teams.pendingInvite").toLowerCase()}
                         </span>
                       )}
                       {receivedInvites.length > 0 && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                          {receivedInvites.length} {t("teams.receivedInvites" as TranslationKey).toLowerCase()}
+                          {receivedInvites.length} {t("teams.receivedInvites").toLowerCase()}
                         </span>
                       )}
                     </div>
@@ -369,7 +370,7 @@ export default function TeamsPage() {
                     <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
-                    {t("teams.receivedInvites" as TranslationKey)}
+                    {t("teams.receivedInvites")}
                     <span className="text-[10px] font-bold text-white bg-blue-500 rounded-full w-4 h-4 flex items-center justify-center">
                       {receivedInvites.length}
                     </span>
@@ -382,7 +383,7 @@ export default function TeamsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate">{inv.fromEmail}</p>
-                          <p className="text-[10px] text-blue-600 dark:text-blue-400">{t("teams.receivedInviteDesc" as TranslationKey)}</p>
+                          <p className="text-[10px] text-blue-600 dark:text-blue-400">{t("teams.receivedInviteDesc")}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button
@@ -396,7 +397,7 @@ export default function TeamsPage() {
                             }}
                             className="rounded px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                           >
-                            {t("notif.accept" as TranslationKey)}
+                            {t("notif.accept")}
                           </button>
                           <button
                             type="button"
@@ -409,7 +410,7 @@ export default function TeamsPage() {
                             }}
                             className="rounded px-3 py-1.5 text-xs font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                           >
-                            {t("notif.decline" as TranslationKey)}
+                            {t("notif.decline")}
                           </button>
                         </div>
                       </li>
@@ -425,7 +426,7 @@ export default function TeamsPage() {
                     <svg className="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
-                    {t("teams.sentInvites" as TranslationKey)}
+                    {t("teams.sentInvites")}
                     <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 rounded-full w-4 h-4 flex items-center justify-center">
                       {pendingSent.length}
                     </span>
@@ -440,7 +441,7 @@ export default function TeamsPage() {
                           <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate">{collab.email}</p>
                         </div>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                          {t("teams.pendingInvite" as TranslationKey)}
+                          {t("teams.pendingInvite")}
                         </span>
                         <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -452,7 +453,7 @@ export default function TeamsPage() {
                                 setCollaborators((prev) => prev.map((c) => c.email === collab.email ? re : c));
                               } catch { /* ignore */ }
                             }}
-                            title={t("teams.resendInvite" as TranslationKey)}
+                            title={t("teams.resendInvite")}
                             className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -467,7 +468,7 @@ export default function TeamsPage() {
                                 setCollaborators((prev) => prev.filter((c) => c.email !== collab.email));
                               } catch { /* ignore */ }
                             }}
-                            title={t("teams.removeCollab" as TranslationKey)}
+                            title={t("teams.removeCollab")}
                             className="rounded p-1.5 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -488,7 +489,7 @@ export default function TeamsPage() {
                     <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {t("teams.activeCollabs" as TranslationKey)}
+                    {t("teams.activeCollabs")}
                     <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 rounded-full w-4 h-4 flex items-center justify-center">
                       {activeCollabs.length}
                     </span>
@@ -520,7 +521,7 @@ export default function TeamsPage() {
                                 setCollaborators((prev) => prev.filter((c) => c.email !== collab.email));
                               } catch { /* ignore */ }
                             }}
-                            title={t("teams.removeCollab" as TranslationKey)}
+                            title={t("teams.removeCollab")}
                             className="rounded p-1.5 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -623,6 +624,15 @@ export default function TeamsPage() {
                       </button>
                       {isExpanded && (() => {
                         const isOwner = myUid === team.ownerUid;
+                        const myMember = team.members.find((m) => m.email === myEmail);
+                        const isAdmin = isOwner || myMember?.role === "admin";
+
+                        const ROLE_STYLE: Record<TeamMemberRole, { label: string; cls: string }> = {
+                          admin:        { label: t("teams.admin"),     cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+                          "super-user": { label: t("teams.superUser"), cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+                          user:         { label: t("teams.user"),      cls: "bg-zinc-100 text-zinc-500 dark:bg-slate-800 dark:text-slate-400" },
+                        };
+
                         return (
                           <div className="px-5 pb-4 space-y-1.5 border-t border-zinc-100 dark:border-slate-800 pt-3">
                             {/* Owner row */}
@@ -638,12 +648,7 @@ export default function TeamsPage() {
 
                             {/* Members */}
                             {team.members.map((member) => {
-                              const roleLabel = member.role === "admin"
-                                ? t("teams.admin")
-                                : t("teams.member");
-                              const roleBg = member.role === "admin"
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                : "bg-zinc-100 text-zinc-500 dark:bg-slate-800 dark:text-slate-400";
+                              const style = ROLE_STYLE[member.role] ?? ROLE_STYLE.user;
 
                               return (
                                 <div key={member.email} className="flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-3 py-2 text-sm">
@@ -652,11 +657,11 @@ export default function TeamsPage() {
                                   </div>
                                   <span className="flex-1 truncate text-zinc-700 dark:text-slate-300">{member.email}</span>
 
-                                  {isOwner ? (
+                                  {isAdmin ? (
                                     <select
                                       value={member.role}
                                       onChange={async (e) => {
-                                        const newRole = e.target.value as "admin" | "member";
+                                        const newRole = e.target.value as TeamMemberRole;
                                         try {
                                           const updated = await updateMemberRoleApi(team.id, member.email, newRole);
                                           setTeams((prev) => prev.map((t2) => t2.id === team.id ? updated : t2));
@@ -667,11 +672,12 @@ export default function TeamsPage() {
                                       className="text-[11px] font-medium rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-500 cursor-pointer"
                                     >
                                       <option value="admin">{t("teams.admin")}</option>
-                                      <option value="member">{t("teams.member")} ({t("teams.readOnly")})</option>
+                                      <option value="super-user">{t("teams.superUser")}</option>
+                                      <option value="user">{t("teams.user")} ({t("teams.readOnly")})</option>
                                     </select>
                                   ) : (
-                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${roleBg}`}>
-                                      {roleLabel}
+                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${style.cls}`}>
+                                      {style.label}
                                     </span>
                                   )}
                                 </div>

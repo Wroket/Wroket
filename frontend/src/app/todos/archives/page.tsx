@@ -11,7 +11,6 @@ import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
-import type { TranslationKey } from "@/lib/i18n";
 
 const STATUS_STYLES: Record<string, { tKey: string; cls: string }> = {
   completed: { tKey: "archives.completedOn", cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
@@ -33,7 +32,7 @@ export default function ArchivesPage() {
   useEffect(() => {
     getArchivedTodos()
       .then(setTodos)
-      .catch(() => toast.error("Erreur de chargement"))
+      .catch(() => toast.error(t("toast.loadError")))
       .finally(() => setLoading(false));
   }, [toast]);
 
@@ -69,7 +68,7 @@ export default function ArchivesPage() {
       setTodos((prev) => prev.filter((td) => td.id !== updated.id));
       toast.success(`"${todo.title}" restaurée`);
     } catch {
-      toast.error("Erreur lors de la restauration");
+      toast.error(t("toast.restoreError"));
     }
   };
 
@@ -91,8 +90,8 @@ export default function ArchivesPage() {
     <AppShell>
       <div className="max-w-[1200px] space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.tasks" as TranslationKey)}</h1>
-          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.subtitle" as TranslationKey)}</p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.tasks")}</h1>
+          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.subtitle")}</p>
         </div>
 
         {/* Filter tabs */}
@@ -107,7 +106,7 @@ export default function ArchivesPage() {
                   : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"
               }`}
             >
-              {key === "all" ? t("scope.all" as TranslationKey) : t(`filter.${key}` as TranslationKey)}
+              {key === "all" ? t("scope.all") : t(`filter.${key}`)}
               <span className="ml-1.5 text-[10px] font-semibold opacity-70">
                 {counts[key]}
               </span>
@@ -121,15 +120,15 @@ export default function ArchivesPage() {
             <svg className="w-10 h-10 mx-auto text-zinc-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
             </svg>
-            <p className="text-sm text-zinc-400 dark:text-slate-500 italic">{t("archives.empty" as TranslationKey)}</p>
+            <p className="text-sm text-zinc-400 dark:text-slate-500 italic">{t("archives.empty")}</p>
           </div>
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 dark:border-slate-800 text-xs text-zinc-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="text-left px-4 py-3 font-medium">{t("todos.title" as TranslationKey)}</th>
-                  <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">{t("todos.priority" as TranslationKey)}</th>
+                  <th className="text-left px-4 py-3 font-medium">{t("todos.title")}</th>
+                  <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">{t("todos.priority")}</th>
                   <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Status</th>
                   <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Date</th>
                   <th className="text-right px-4 py-3 font-medium w-24"></th>
@@ -156,14 +155,14 @@ export default function ArchivesPage() {
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">
                         <div className="flex items-center gap-1">
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}` as TranslationKey)}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
                           {dl && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusInfo.cls}`}>
-                          {t(statusInfo.tKey as TranslationKey)}
+                          {t(statusInfo.tKey)}
                         </span>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell">
@@ -175,7 +174,7 @@ export default function ArchivesPage() {
                           onClick={() => handleRestore(todo)}
                           className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                         >
-                          {t("archives.restore" as TranslationKey)}
+                          {t("archives.restore")}
                         </button>
                       </td>
                     </tr>

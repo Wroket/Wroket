@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useLocale } from "@/lib/LocaleContext";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -23,12 +24,15 @@ export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   variant = "danger",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { t } = useLocale();
+  const resolvedConfirmLabel = confirmLabel ?? t("confirm");
+  const resolvedCancelLabel = cancelLabel ?? t("cancel");
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -91,7 +95,7 @@ export default function ConfirmDialog({
             className="px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600
               text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </button>
           <button
             type="button"
@@ -99,7 +103,7 @@ export default function ConfirmDialog({
             className={`px-4 py-2 text-sm rounded-md text-white transition-colors
               focus:outline-none focus:ring-2 focus:ring-offset-2 ${VARIANT_BUTTON[variant]}`}
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </button>
         </div>
       </div>

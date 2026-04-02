@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { LocaleProvider } from "@/lib/LocaleContext";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/components/AuthContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,7 +19,6 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
 };
 
@@ -34,14 +34,16 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <LocaleProvider>
           <ToastProvider>
             <AuthProvider>
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </AuthProvider>
           </ToastProvider>
         </LocaleProvider>

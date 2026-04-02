@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
+import AppShell from "@/components/AppShell";
 import { uploadCsvPreview, confirmCsvImport, getTeams } from "@/lib/api";
 import type { ImportPreview, Team } from "@/lib/api";
-import type { TranslationKey } from "@/lib/i18n";
 
 const CSV_TEMPLATE = `phase,task_title,priority,effort,deadline,start_date,assignee_email,tags
 Conception,Design wireframes,high,medium,2026-05-01,2026-04-15,,design,ui
@@ -67,7 +67,7 @@ export default function ImportPage() {
     setImporting(true);
     try {
       const result = await confirmCsvImport(file, projectName.trim(), teamId);
-      toast.success(`${t("import.success" as TranslationKey)} — ${result.taskCount} ${t("import.tasks" as TranslationKey)}`);
+      toast.success(`${t("import.success")} — ${result.taskCount} ${t("import.tasks")}`);
       router.push("/projects");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
@@ -88,17 +88,18 @@ export default function ImportPage() {
   const inputClass = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <AppShell>
+    <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-slate-100">
-          {t("import.title" as TranslationKey)}
+          {t("import.title")}
         </h1>
         <button
           type="button"
           onClick={() => router.push("/projects")}
           className="text-sm text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200"
         >
-          {t("import.back" as TranslationKey)}
+          {t("import.back")}
         </button>
       </div>
 
@@ -106,7 +107,7 @@ export default function ImportPage() {
         {/* Project name */}
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-            {t("import.projectName" as TranslationKey)}
+            {t("import.projectName")}
           </label>
           <input
             type="text"
@@ -120,14 +121,14 @@ export default function ImportPage() {
         {/* Team selector */}
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-            {t("import.team" as TranslationKey)}
+            {t("import.team")}
           </label>
           <select
             value={teamId ?? ""}
             onChange={(e) => setTeamId(e.target.value || null)}
             className={inputClass}
           >
-            <option value="">{t("import.noTeam" as TranslationKey)}</option>
+            <option value="">{t("import.noTeam")}</option>
             {teams.map((team) => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
@@ -137,7 +138,7 @@ export default function ImportPage() {
         {/* File input */}
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-            {t("import.selectFile" as TranslationKey)}
+            {t("import.selectFile")}
           </label>
           <div className="flex gap-2">
             <input
@@ -152,7 +153,7 @@ export default function ImportPage() {
               onClick={handleDownloadTemplate}
               className="whitespace-nowrap rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
             >
-              {t("import.downloadTemplate" as TranslationKey)}
+              {t("import.downloadTemplate")}
             </button>
           </div>
         </div>
@@ -164,7 +165,7 @@ export default function ImportPage() {
           disabled={loading || !file || !projectName.trim()}
           className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
         >
-          {loading ? "..." : t("import.preview" as TranslationKey)}
+          {loading ? "..." : t("import.preview")}
         </button>
       </div>
 
@@ -174,7 +175,7 @@ export default function ImportPage() {
           {/* Phases */}
           <div>
             <h3 className="text-sm font-medium text-zinc-700 dark:text-slate-300 mb-2">
-              {t("import.phases" as TranslationKey)} ({preview.phases.length})
+              {t("import.phases")} ({preview.phases.length})
             </h3>
             <div className="flex flex-wrap gap-2">
               {preview.phases.map((p) => (
@@ -189,12 +190,12 @@ export default function ImportPage() {
           {preview.errors.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">
-                {t("import.errors" as TranslationKey)} ({preview.errors.length})
+                {t("import.errors")} ({preview.errors.length})
               </h3>
               <div className="space-y-1">
                 {preview.errors.map((err, i) => (
                   <div key={i} className="text-xs bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded px-3 py-1.5">
-                    {t("import.row" as TranslationKey)} {err.row} — <span className="font-medium">{err.field}</span>: {err.message}
+                    {t("import.row")} {err.row} — <span className="font-medium">{err.field}</span>: {err.message}
                   </div>
                 ))}
               </div>
@@ -245,11 +246,12 @@ export default function ImportPage() {
               disabled={importing}
               className="rounded bg-emerald-600 dark:bg-emerald-700 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-60 transition-colors"
             >
-              {importing ? "..." : `${t("import.confirm" as TranslationKey)} (${preview.tasks.length} ${t("import.tasks" as TranslationKey)})`}
+              {importing ? "..." : `${t("import.confirm")} (${preview.tasks.length} ${t("import.tasks")})`}
             </button>
           )}
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

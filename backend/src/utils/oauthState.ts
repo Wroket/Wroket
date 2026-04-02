@@ -1,63 +1,48 @@
 import crypto from "crypto";
 
 /**
- * Secure OAuth state token management.
+ * Stateless OAuth state token using HMAC.
  *
- * WHY: The original code used the user's raw UID as the `state` parameter in
- * the Google Calendar OAuth flow. Since the callback endpoint is
- * unauthenticated, an attacker could forge:
- *
- *   GET /calendar/google/callback?code=ATTACKER_CODE&state=VICTIM_UID
- *
- * This would bind the attacker's Google Calendar tokens to the victim's
- * account, letting the attacker read/write events on the victim's calendar.
- *
- * FIX: Generate a cryptographically random token, store it in an in-memory
- * map alongside the user's UID, and validate it on callback. Tokens expire
- * after 10 minutes and are single-use.
+ * Works across multiple Cloud Run instances because nothing is stored in memory.
+ * The state token is: base64url( JSON({uid, exp}) ) + "." + HMAC_signature
  */
 
-interface PendingOAuth {
-  uid: string;
-  createdAt: number;
+const SECRET = process.env.OAUTH_STATE_SECRET || crypto.randomBytes(32).toString("hex");
+const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function hmac(data: string): string {
+  return crypto.createHmac("sha256", SECRET).update(data).digest("base64url");
 }
 
-const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const pendingTokens = new Map<string, PendingOAuth>();
-
 /**
- * Create a random state token and associate it with the user's UID.
- * Returns the token to embed in the OAuth consent URL.
+ * Create a signed state token embedding the user's UID and expiration.
  */
 export function createOAuthState(uid: string): string {
-  const token = crypto.randomBytes(32).toString("hex");
-  pendingTokens.set(token, { uid, createdAt: Date.now() });
-  return token;
+  const payload = JSON.stringify({ uid, exp: Date.now() + TOKEN_TTL_MS });
+  const b64 = Buffer.from(payload).toString("base64url");
+  return `${b64}.${hmac(b64)}`;
 }
 
 /**
- * Validate and consume the state token. Returns the UID if valid, null if
- * the token is unknown, expired, or already consumed.
+ * Validate the state token. Returns the UID if valid, null otherwise.
  */
 export function consumeOAuthState(token: string): string | null {
-  const entry = pendingTokens.get(token);
-  if (!entry) return null;
+  const dotIdx = token.indexOf(".");
+  if (dotIdx < 0) return null;
 
-  // Always delete — single-use regardless of validity
-  pendingTokens.delete(token);
+  const b64 = token.slice(0, dotIdx);
+  const sig = token.slice(dotIdx + 1);
 
-  if (Date.now() - entry.createdAt > TOKEN_TTL_MS) {
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(hmac(b64)))) {
     return null;
   }
 
-  return entry.uid;
-}
-
-// Periodic cleanup of expired tokens to avoid unbounded growth if users
-// start the flow but never complete it.
-setInterval(() => {
-  const cutoff = Date.now() - TOKEN_TTL_MS;
-  for (const [token, entry] of pendingTokens) {
-    if (entry.createdAt < cutoff) pendingTokens.delete(token);
+  try {
+    const { uid, exp } = JSON.parse(Buffer.from(b64, "base64url").toString());
+    if (typeof uid !== "string" || typeof exp !== "number") return null;
+    if (Date.now() > exp) return null;
+    return uid;
+  } catch {
+    return null;
   }
-}, 5 * 60 * 1000).unref();
+}

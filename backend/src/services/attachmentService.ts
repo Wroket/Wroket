@@ -11,7 +11,7 @@ const MAX_ATTACHMENTS_PER_TASK = 5;
 const MAX_FILENAME_LENGTH = 255;
 
 const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+  "image/jpeg", "image/png", "image/gif", "image/webp",
   "application/pdf",
   "text/plain", "text/csv",
   "application/msword",

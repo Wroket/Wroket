@@ -54,10 +54,13 @@ function FlipCard({ icon, titleKey, descKey, preview, t }: {
 
   return (
     <div
-      className="h-[220px] cursor-pointer"
+      tabIndex={0}
+      className="h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 rounded-2xl"
       style={{ perspective: "1000px" }}
       onMouseEnter={() => setFlipped(true)}
       onMouseLeave={() => setFlipped(false)}
+      onFocus={() => setFlipped(true)}
+      onBlur={() => setFlipped(false)}
     >
       <div
         style={{
@@ -292,7 +295,7 @@ export default function LandingPage() {
             <button
               onClick={toggleDark}
               className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-              aria-label="Toggle dark mode"
+              aria-label={dark ? t("a11y.toggleDarkMode") : t("a11y.toggleLightMode")}
             >
               {dark ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

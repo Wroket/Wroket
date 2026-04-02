@@ -153,9 +153,14 @@ export default function EisenhowerRadar({ todos, subtaskCounts = {}, meUid, user
                 }}
                 onMouseEnter={() => setHoveredId(todo.id)}
                 onMouseLeave={() => setHoveredId(null)}
+                onFocus={() => setHoveredId(todo.id)}
+                onBlur={() => setHoveredId(null)}
               >
                 <div
-                  className={`rounded-full border-2 border-white shadow-md cursor-pointer transition-transform ${DOT_COLORS[q]} ${
+                  tabIndex={0}
+                  role="button"
+                  aria-label={todo.title}
+                  className={`rounded-full border-2 border-white shadow-md cursor-pointer transition-transform focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 ${DOT_COLORS[q]} ${
                     isHovered ? "scale-150 ring-2 ring-offset-1 ring-zinc-400" : "hover:scale-125"
                   }`}
                   style={{ width: dotSize, height: dotSize }}
@@ -201,7 +206,7 @@ function Tooltip({
 
   return (
     <div
-      className="absolute z-50 bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none"
+      className="absolute z-50 bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none radar-tooltip"
       style={{ ...verticalStyle, ...horizontalStyle }}
     >
       <p className="font-semibold text-sm mb-1.5">{todo.title}</p>
@@ -228,8 +233,8 @@ function Tooltip({
           borderLeft: "6px solid transparent",
           borderRight: "6px solid transparent",
           ...(showBelow
-            ? { borderBottom: "6px solid rgb(24 24 27)" }
-            : { borderTop: "6px solid rgb(24 24 27)" }),
+            ? { borderBottom: "6px solid rgb(51 65 85)" }
+            : { borderTop: "6px solid rgb(51 65 85)" }),
         }}
       />
     </div>

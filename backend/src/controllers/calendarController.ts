@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
-import { updateTodo, listTodos } from "../services/todoService";
+import { updateTodo, listTodos, type RecurrenceFrequency } from "../services/todoService";
 import {
   findUserByUid,
   DEFAULT_WORKING_HOURS,
@@ -26,6 +26,15 @@ import {
   deleteGoogleCalendarEvent,
 } from "../services/googleCalendarService";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
+
+/** Advance a Date in-place by the recurrence step, preserving time-of-day. */
+function advanceDate(d: Date, freq: RecurrenceFrequency, interval: number): void {
+  switch (freq) {
+    case "daily":   d.setDate(d.getDate() + interval); break;
+    case "weekly":  d.setDate(d.getDate() + 7 * interval); break;
+    case "monthly": d.setMonth(d.getMonth() + interval); break;
+  }
+}
 
 export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId;
@@ -158,19 +167,72 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   if (rangeMs > 90 * 24 * 60 * 60 * 1000) throw new ValidationError("Date range too large (max 90 days)");
 
   const todos = listTodos(uid);
-  const wroketEvents = todos
-    .filter((t) => t.scheduledSlot && t.status === "active")
-    .map((t) => ({
+
+  type WroketEvent = {
+    id: string;
+    summary: string;
+    start: string;
+    end: string;
+    allDay: boolean;
+    source: "wroket";
+    priority: string;
+    effort: string;
+    deadline: string | null;
+    recurring?: boolean;
+  };
+
+  const wroketEvents: WroketEvent[] = [];
+
+  for (const t of todos) {
+    if (t.status !== "active" || !t.scheduledSlot) continue;
+
+    wroketEvents.push({
       id: t.id,
       summary: t.title,
-      start: t.scheduledSlot!.start,
-      end: t.scheduledSlot!.end,
+      start: t.scheduledSlot.start,
+      end: t.scheduledSlot.end,
       allDay: false,
-      source: "wroket" as const,
+      source: "wroket",
       priority: t.priority,
       effort: t.effort,
       deadline: t.deadline,
-    }));
+    });
+
+    if (t.recurrence) {
+      const slotStart = new Date(t.scheduledSlot.start);
+      const slotEnd = new Date(t.scheduledSlot.end);
+      const durationMs = slotEnd.getTime() - slotStart.getTime();
+      const { frequency, interval, endDate } = t.recurrence;
+      const recEnd = endDate ? new Date(endDate) : null;
+
+      const MAX_OCCURRENCES = 200;
+      const cursor = new Date(slotStart);
+
+      for (let i = 0; i < MAX_OCCURRENCES; i++) {
+        advanceDate(cursor, frequency, interval);
+
+        if (recEnd && cursor > recEnd) break;
+        if (cursor > endDateParsed) break;
+        if (cursor < startDate) continue;
+
+        const occStartISO = cursor.toISOString();
+        const occEndISO = new Date(cursor.getTime() + durationMs).toISOString();
+
+        wroketEvents.push({
+          id: `${t.id}_rec_${occStartISO}`,
+          summary: t.title,
+          start: occStartISO,
+          end: occEndISO,
+          allDay: false,
+          source: "wroket",
+          priority: t.priority,
+          effort: t.effort,
+          deadline: t.deadline,
+          recurring: true,
+        });
+      }
+    }
+  }
 
   const accounts = getGoogleAccounts(uid);
 

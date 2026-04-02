@@ -11,7 +11,6 @@ import {
   ActivityLogEntry, SessionInfo, IntegrationOverview, CompletionRate,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
-import type { TranslationKey } from "@/lib/i18n";
 
 function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
@@ -161,7 +160,7 @@ export default function AdminPage() {
                   : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200"
               }`}
             >
-              {t(`admin.tabs.${tb}` as TranslationKey)}
+              {t(`admin.tabs.${tb}`)}
             </button>
           ))}
         </div>
@@ -186,18 +185,18 @@ export default function AdminPage() {
                 <StatCard label={t("admin.tasksActive")} value={stats.tasks.active} />
                 <StatCard label={t("admin.tasksCompleted")} value={stats.tasks.completed} />
                 <StatCard label={t("admin.tasksCancelled")} value={stats.tasks.cancelled} />
-                <StatCard label={t("admin.tasksScheduled" as TranslationKey)} value={stats.tasks.scheduled} />
+                <StatCard label={t("admin.tasksScheduled")} value={stats.tasks.scheduled} />
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <StatCard label={t("admin.projects")} value={stats.projects.total} sub={`${stats.projects.active} ${t("admin.projectsActive").toLowerCase()}`} />
               <StatCard label={t("admin.teams")} value={stats.teams} />
               <StatCard label={t("admin.invites")} value={stats.invitesSent} />
-              <StatCard label={t("admin.notes" as TranslationKey)} value={stats.notes} />
-              <StatCard label={t("admin.comments" as TranslationKey)} value={stats.comments} />
+              <StatCard label={t("admin.notes")} value={stats.notes} />
+              <StatCard label={t("admin.comments")} value={stats.comments} />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <StatCard label={t("admin.uptime" as TranslationKey)} value={formatUptime(stats.uptime)} />
+              <StatCard label={t("admin.uptime")} value={formatUptime(stats.uptime)} />
             </div>
 
             {/* Invite log */}
@@ -240,10 +239,10 @@ export default function AdminPage() {
                   <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.name")}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.verified")}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.taskCount")}</th>
-                  <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.notes" as TranslationKey)}</th>
-                  <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.completionRate" as TranslationKey)}</th>
+                  <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.notes")}</th>
+                  <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.completionRate")}</th>
                   <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.joined")}</th>
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.lastLogin" as TranslationKey)}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.lastLogin")}</th>
                   <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">RGPD</th>
                 </tr>
               </thead>
@@ -266,7 +265,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button type="button" onClick={() => handleExportUser(u.uid)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline" title={t("admin.rgpd.export" as TranslationKey)}>
+                          <button type="button" onClick={() => handleExportUser(u.uid)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline" title={t("admin.rgpd.export")}>
                             Export
                           </button>
                           {deleteConfirmUid === u.uid ? (
@@ -275,7 +274,7 @@ export default function AdminPage() {
                               <button type="button" onClick={() => setDeleteConfirmUid(null)} className="text-xs text-zinc-500">Non</button>
                             </div>
                           ) : (
-                            <button type="button" onClick={() => setDeleteConfirmUid(u.uid)} className="text-xs text-red-500 hover:underline" title={t("admin.rgpd.delete" as TranslationKey)}>
+                            <button type="button" onClick={() => setDeleteConfirmUid(u.uid)} className="text-xs text-red-500 hover:underline" title={t("admin.rgpd.delete")}>
                               Suppr.
                             </button>
                           )}
@@ -293,15 +292,15 @@ export default function AdminPage() {
         {tab === "activity" && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
             <div className="px-4 py-2 text-xs text-zinc-400 dark:text-slate-500 border-b border-zinc-200 dark:border-slate-700">
-              {activityTotal} {t("admin.activity.action" as TranslationKey).toLowerCase()}(s)
+              {activityTotal} {t("admin.activity.action").toLowerCase()}(s)
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.date" as TranslationKey)}</th>
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.user" as TranslationKey)}</th>
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.action" as TranslationKey)}</th>
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.entity" as TranslationKey)}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.date")}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.user")}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.action")}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.activity.entity")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -323,7 +322,7 @@ export default function AdminPage() {
                   </tr>
                 ))}
                 {activity.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.activity.empty" as TranslationKey)}</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.activity.empty")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -336,7 +335,7 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.sessions.email" as TranslationKey)}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.sessions.email")}</th>
                   <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">Expire</th>
                 </tr>
               </thead>
@@ -348,7 +347,7 @@ export default function AdminPage() {
                   </tr>
                 ))}
                 {sessions.length === 0 && (
-                  <tr><td colSpan={2} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.sessions.empty" as TranslationKey)}</td></tr>
+                  <tr><td colSpan={2} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.sessions.empty")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -359,8 +358,8 @@ export default function AdminPage() {
         {tab === "integrations" && integrations && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <StatCard label={t("admin.integrations.webhooks" as TranslationKey)} value={integrations.webhooks.total} sub={`${integrations.webhooks.active} actifs`} />
-              <StatCard label={t("admin.integrations.google" as TranslationKey)} value={integrations.googleCalendarConnected} />
+              <StatCard label={t("admin.integrations.webhooks")} value={integrations.webhooks.total} sub={`${integrations.webhooks.active} actifs`} />
+              <StatCard label={t("admin.integrations.google")} value={integrations.googleCalendarConnected} />
             </div>
             {Object.keys(integrations.webhooks.byPlatform).length > 0 && (
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4">
@@ -381,14 +380,14 @@ export default function AdminPage() {
         {tab === "rgpd" && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.rgpd.registry" as TranslationKey)}</h2>
+              <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.rgpd.registry")}</h2>
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.rgpd.registryData" as TranslationKey)}</th>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.rgpd.registryPurpose" as TranslationKey)}</th>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.rgpd.registryRetention" as TranslationKey)}</th>
+                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.rgpd.registryData")}</th>
+                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.rgpd.registryPurpose")}</th>
+                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.rgpd.registryRetention")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -405,7 +404,7 @@ export default function AdminPage() {
             </div>
 
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
-              <p className="font-medium mb-1">{t("admin.rgpd.title" as TranslationKey)}</p>
+              <p className="font-medium mb-1">{t("admin.rgpd.title")}</p>
               <ul className="list-disc list-inside text-xs space-y-1">
                 <li>Export des données : onglet Utilisateurs &rarr; bouton &quot;Export&quot;</li>
                 <li>Suppression de compte : onglet Utilisateurs &rarr; bouton &quot;Suppr.&quot; (anonymise les commentaires et l&apos;activité)</li>

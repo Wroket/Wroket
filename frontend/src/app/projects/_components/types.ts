@@ -21,10 +21,10 @@ export function formatMins(m: number): string {
 
 export function getHealthConfig(t: (key: TranslationKey) => string): Record<ProjectHealth, { label: string; color: string; bg: string; ring: string }> {
   return {
-    done: { label: t("projects.healthDone" as TranslationKey), color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30", ring: "bg-emerald-500" },
-    overdue: { label: t("projects.healthOverdue" as TranslationKey), color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/30", ring: "bg-red-500" },
-    "at-risk": { label: t("projects.healthAtRisk" as TranslationKey), color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/30", ring: "bg-amber-500" },
-    "on-track": { label: t("projects.healthOnTrack" as TranslationKey), color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", ring: "bg-blue-500" },
+    done: { label: t("projects.healthDone"), color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30", ring: "bg-emerald-500" },
+    overdue: { label: t("projects.healthOverdue"), color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/30", ring: "bg-red-500" },
+    "at-risk": { label: t("projects.healthAtRisk"), color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/30", ring: "bg-amber-500" },
+    "on-track": { label: t("projects.healthOnTrack"), color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", ring: "bg-blue-500" },
     empty: { label: "", color: "", bg: "", ring: "" },
   };
 }

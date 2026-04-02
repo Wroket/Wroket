@@ -1,0 +1,229 @@
+import {
+  API_BASE_URL, parseJsonOrThrow, extractApiMessage, getBrowserTimezone,
+  type AuthMeResponse, type WorkingHours, type ActivityLogEntry,
+} from "./core";
+
+interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export async function login(payload: LoginPayload): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, timezone: getBrowserTimezone() }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Identifiants invalides"));
+  }
+}
+
+export async function register(
+  payload: LoginPayload,
+): Promise<{ needsVerification?: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, timezone: getBrowserTimezone() }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de s'enregistrer"));
+  }
+  const body = await res.json();
+  return body as { needsVerification?: boolean };
+}
+
+export async function verifyEmailApi(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur de vérification"));
+  }
+}
+
+export async function resendVerificationApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors du renvoi"));
+  }
+}
+
+export async function forgotPasswordApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+}
+
+export async function resetPasswordApi(token: string, password: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de la réinitialisation"));
+  }
+}
+
+export async function getGoogleSsoUrl(loginHint?: string): Promise<string> {
+  const params = loginHint ? `?login_hint=${encodeURIComponent(loginHint)}` : "";
+  const res = await fetch(`${API_BASE_URL}/auth/google/url${params}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur d'authentification Google");
+  const data = (await res.json()) as { url: string };
+  return data.url;
+}
+
+export async function shareInviteApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/share-invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de l'envoi"));
+  }
+}
+
+export async function getMe(): Promise<AuthMeResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Non authentifié");
+  return (await res.json()) as AuthMeResponse;
+}
+
+export async function updateProfile(payload: {
+  firstName?: string;
+  lastName?: string;
+  effortMinutes?: { light: number; medium: number; heavy: number };
+  workingHours?: WorkingHours;
+}): Promise<AuthMeResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de mettre à jour le profil"));
+  }
+  return (await res.json()) as AuthMeResponse;
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur lors de la déconnexion");
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Erreur lors du changement de mot de passe");
+  }
+}
+
+export async function getMyExport(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${API_BASE_URL}/auth/my-export`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger l'export");
+  return res.json();
+}
+
+export async function deleteMyAccount(confirmation: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/my-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Erreur lors de la suppression");
+  }
+}
+
+export async function getMyActivity(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<{ entries: ActivityLogEntry[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.offset) qs.set("offset", String(params.offset));
+  const res = await fetch(`${API_BASE_URL}/auth/my-activity?${qs.toString()}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger l'historique");
+  return res.json();
+}
+
+export interface SearchResult {
+  type: "todo" | "project" | "note";
+  id: string;
+  title: string;
+  snippet?: string;
+  status?: string;
+}
+
+export async function globalSearch(query: string): Promise<SearchResult[]> {
+  if (query.length < 2) return [];
+  const res = await fetch(`${API_BASE_URL}/auth/search?q=${encodeURIComponent(query)}`, { credentials: "include" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function lookupUser(email: string): Promise<AuthMeResponse | null> {
+  const res = await fetch(`${API_BASE_URL}/auth/lookup?email=${encodeURIComponent(email)}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Erreur lors de la recherche utilisateur");
+  return (await res.json()) as AuthMeResponse;
+}
+
+export async function lookupUserByUid(uid: string): Promise<AuthMeResponse | null> {
+  const res = await fetch(`${API_BASE_URL}/auth/lookup-uid?uid=${encodeURIComponent(uid)}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Erreur lors de la recherche utilisateur");
+  return (await res.json()) as AuthMeResponse;
+}

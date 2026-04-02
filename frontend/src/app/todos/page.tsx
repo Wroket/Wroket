@@ -1,27 +1,12 @@
 "use client";
 
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useRouter } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
@@ -32,6 +17,7 @@ import TodoCard from "@/components/TodoCard";
 import { useToast } from "@/components/Toast";
 import {
   createTodo,
+  createNoteApi,
   deleteTodo,
   getTodos,
   getAssignedTodos,
@@ -50,7 +36,6 @@ import {
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
-import type { TranslationKey } from "@/lib/i18n";
 import { useLocale } from "@/lib/LocaleContext";
 import {
   QUADRANT_CONFIG,
@@ -63,70 +48,15 @@ import {
 } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 
-const FILTER_BUTTONS: {
-  key: FilterKey;
-  label: string;
-  tKey: TranslationKey;
-  icon: string;
-  activeClass: string;
-}[] = [
-  { key: "do-first", label: "Faire", tKey: "filter.doFirst" as const, icon: "🔥", activeClass: "bg-red-600 text-white border-red-600" },
-  { key: "schedule", label: "Planifier", tKey: "filter.schedule" as const, icon: "📅", activeClass: "bg-blue-600 text-white border-blue-600" },
-  { key: "delegate", label: "Expédier", tKey: "filter.delegate" as const, icon: "⚡", activeClass: "bg-amber-500 text-white border-amber-500" },
-  { key: "eliminate", label: "Différer", tKey: "filter.eliminate" as const, icon: "⏸️", activeClass: "bg-zinc-400 text-white border-zinc-400" },
-  { key: "completed", label: "Accomplies", tKey: "filter.completed" as const, icon: "✅", activeClass: "bg-green-600 text-white border-green-600" },
-  { key: "cancelled", label: "Annulées", tKey: "filter.cancelled" as const, icon: "🚫", activeClass: "bg-zinc-600 text-white border-zinc-600" },
-  { key: "deleted", label: "Supprimées", tKey: "filter.deleted" as const, icon: "🗑️", activeClass: "bg-zinc-800 text-white border-zinc-800" },
-];
-
-const QUADRANT_BADGES: Record<Quadrant, { label: string; tKey: TranslationKey; cls: string }> = {
-  "do-first": { label: "🔥 Faire", tKey: "badge.doFirst" as const, cls: "bg-red-500 text-white dark:bg-red-600" },
-  schedule: { label: "📅 Planifier", tKey: "badge.schedule" as const, cls: "bg-blue-500 text-white dark:bg-blue-600" },
-  delegate: { label: "⚡ Expédier", tKey: "badge.delegate" as const, cls: "bg-amber-500 text-white dark:bg-amber-600" },
-  eliminate: { label: "⏸️ Différer", tKey: "badge.eliminate" as const, cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
-};
-
-function SubtaskBadge({ count }: { count: number }) {
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${SUBTASK_BADGE_CLS}`}>
-      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
-      </svg>
-      {count}
-    </span>
-  );
-}
-
-const QUADRANT_RANK: Record<Quadrant, number> = {
-  "do-first": 1, schedule: 2, delegate: 3, eliminate: 4,
-};
-const PRIORITY_RANK: Record<Priority, number> = {
-  high: 1, medium: 2, low: 3,
-};
-
-function sortTodos(todos: Todo[], column: SortColumn, direction: SortDirection): Todo[] {
-  const sorted = [...todos];
-  const dir = direction === "asc" ? 1 : -1;
-  sorted.sort((a, b) => {
-    switch (column) {
-      case "classification":
-        return (QUADRANT_RANK[classify(a)] - QUADRANT_RANK[classify(b)]) * dir;
-      case "priority":
-        return (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]) * dir;
-      case "deadline": {
-        const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-        const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        if (da === db) return 0;
-        return (da - db) * dir;
-      }
-    }
-  });
-  return sorted;
-}
+import { FILTER_BUTTONS, QUADRANT_BADGES, QUADRANT_RANK, PRIORITY_RANK, sortTodos } from "./_components/sortUtils";
+import SubtaskBadge from "./_components/SubtaskBadge";
+import TaskList from "./_components/TaskList";
+import QuadrantCell from "./_components/QuadrantCell";
 
 export default function TodosPage() {
   const { t } = useLocale();
   const { user } = useAuth();
+  const router = useRouter();
   const meUid = user?.uid ?? null;
   const { resolveUser, displayName: userDisplayName, cache: userCache } = useUserLookup();
   const { toast } = useToast();
@@ -156,6 +86,26 @@ export default function TodosPage() {
     setMyTodos(updater);
     setAssignedTodos(updater);
   };
+
+  const sortedProjectOptions = useMemo(() => {
+    const roots = projects.filter((p) => !p.parentProjectId);
+    const childrenMap = new Map<string, Project[]>();
+    for (const p of projects) {
+      if (p.parentProjectId) {
+        const list = childrenMap.get(p.parentProjectId) ?? [];
+        list.push(p);
+        childrenMap.set(p.parentProjectId, list);
+      }
+    }
+    const result: { id: string; label: string }[] = [];
+    for (const root of roots) {
+      result.push({ id: root.id, label: root.name });
+      for (const child of childrenMap.get(root.id) ?? []) {
+        result.push({ id: child.id, label: `↳ ${child.name}` });
+      }
+    }
+    return result;
+  }, [projects]);
 
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
@@ -235,7 +185,7 @@ export default function TodosPage() {
       });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setEditingTodo(null);
-      toast.success("Tâche mise à jour");
+      toast.success(t("toast.taskUpdated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
     } finally {
@@ -322,19 +272,19 @@ export default function TodosPage() {
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setLastAction({ todoId: todo.id, previousStatus });
     } catch {
-      toast.error("Erreur lors de la mise à jour");
+      toast.error(t("toast.updateError"));
     }
   }, [toast]);
 
   const requestDelete = (todo: Todo) => {
     if (todo.status === "deleted") {
-      performDelete(todo);
+      executeDelete(todo, "promote");
     } else {
       setConfirmDelete(todo);
     }
   };
 
-  const performDelete = async (todo: Todo) => {
+  const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
     setConfirmDelete(null);
     try {
       const previousStatus = todo.status;
@@ -343,12 +293,28 @@ export default function TodosPage() {
         setTodos((prev) => prev.map((t) => (t.id === restored.id ? restored : t)));
         setLastAction({ todoId: todo.id, previousStatus });
       } else {
+        const subs = getSubtasks(todo.id);
+        if (subs.length > 0) {
+          if (mode === "promote") {
+            const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+            setTodos((prev) => prev.map((t) => {
+              const p = promoted.find((u) => u.id === t.id);
+              return p ?? t;
+            }));
+          } else {
+            const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+            setTodos((prev) => prev.map((t) => {
+              const d = deleted.find((u) => u.id === t.id);
+              return d ?? t;
+            }));
+          }
+        }
         const updated = await deleteTodo(todo.id);
         setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         setLastAction({ todoId: todo.id, previousStatus });
       }
     } catch {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("toast.deleteError"));
     }
   };
 
@@ -357,7 +323,7 @@ export default function TodosPage() {
       const updated = await updateTodo(todo.id, { assignmentStatus: "declined" });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch {
-      toast.error("Erreur lors du refus");
+      toast.error(t("toast.declineError"));
     }
   }, [toast]);
 
@@ -366,7 +332,7 @@ export default function TodosPage() {
       const updated = await updateTodo(todo.id, { assignmentStatus: "accepted" });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch {
-      toast.error("Erreur lors de l'acceptation");
+      toast.error(t("toast.acceptError"));
     }
   }, [toast]);
 
@@ -378,7 +344,7 @@ export default function TodosPage() {
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setLastAction(null);
     } catch {
-      toast.error("Erreur lors de l'annulation");
+      toast.error(t("toast.cancelError"));
     } finally {
       setUndoing(false);
     }
@@ -462,12 +428,52 @@ export default function TodosPage() {
     try {
       await reorderTodosApi(orderedIds);
     } catch {
-      toast.error("Erreur lors du réordonnancement");
+      toast.error(t("toast.reorderError"));
     }
   }, [toast]);
 
+  const handleCreateNote = useCallback(async (todo: Todo) => {
+    try {
+      const note = await createNoteApi({
+        title: todo.title,
+        content: "",
+        todoId: todo.id,
+        projectId: todo.projectId ?? undefined,
+      });
+      toast.success(t("notes.noteCreated"));
+      router.push(`/notes?id=${note.id}`);
+    } catch {
+      toast.error(t("toast.noteCreateError"));
+    }
+  }, [toast, t, router]);
+
   const openSubtaskModal = (todo: Todo) => {
     setSubtaskParent(todo);
+  };
+
+  const handlePromoteSubtask = async (sub: Todo) => {
+    try {
+      const updated = await updateTodo(sub.id, { parentId: null });
+      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch {
+      toast.error(t("toast.genericError"));
+    }
+  };
+
+  const handleReorderSubtasks = async (orderedIds: string[]) => {
+    setTodos((prev) => {
+      const updated = [...prev];
+      orderedIds.forEach((id, idx) => {
+        const i = updated.findIndex((t) => t.id === id);
+        if (i !== -1) updated[i] = { ...updated[i], sortOrder: idx };
+      });
+      return updated;
+    });
+    try {
+      await reorderTodosApi(orderedIds);
+    } catch {
+      toast.error(t("toast.reorderError"));
+    }
   };
 
   const hasAdvancedFilters = filterProject !== null || filterAssignee !== null || filterDeadline !== "all" || filterTag !== null;
@@ -534,6 +540,9 @@ export default function TodosPage() {
         counts[td.parentId] = (counts[td.parentId] ?? 0) + 1;
         (byParent[td.parentId] ??= []).push(td);
       }
+    }
+    for (const key of Object.keys(byParent)) {
+      byParent[key].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
     }
     return { subtaskCounts: counts, subtasksByParent: byParent };
   }, [todos]);
@@ -744,15 +753,15 @@ export default function TodosPage() {
                   </span>
                 )}
               </div>
-              {projects.length > 0 && (
+              {sortedProjectOptions.length > 0 && (
                 <select
                   value={selectedProjectId ?? ""}
                   onChange={(e) => setSelectedProjectId(e.target.value || null)}
                   className="shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[42px]"
                 >
-                  <option value="">{t("projects.noProject" as TranslationKey)}</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                  <option value="">{t("projects.noProject")}</option>
+                  {sortedProjectOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
                   ))}
                 </select>
               )}
@@ -849,8 +858,8 @@ export default function TodosPage() {
                   >
                     <option value="">{t("filter.allProjects")}</option>
                     <option value="__none__">{t("filter.noProject")}</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                    {sortedProjectOptions.map((o) => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
                     ))}
                   </select>
                 </div>
@@ -893,13 +902,13 @@ export default function TodosPage() {
                   if (allTags.length === 0) return null;
                   return (
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("tags.filter" as TranslationKey)}</span>
+                      <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("tags.filter")}</span>
                       <select
                         value={filterTag ?? ""}
                         onChange={(e) => setFilterTag(e.target.value || null)}
                         className="rounded border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-xs px-2 py-1.5 pr-6 focus:outline-none focus:ring-1 focus:ring-indigo-400"
                       >
-                        <option value="">{t("tags.allTags" as TranslationKey)}</option>
+                        <option value="">{t("tags.allTags")}</option>
                         {allTags.map((tag) => (
                           <option key={tag} value={tag}>{tag}</option>
                         ))}
@@ -935,13 +944,13 @@ export default function TodosPage() {
               <PageHelpButton
                 title={t("todos.listTitle")}
                 items={[
-                  { text: t("help.todos.views" as TranslationKey) },
-                  { text: t("help.todos.dnd" as TranslationKey) },
-                  { text: t("help.todos.edit" as TranslationKey) },
-                  { text: t("help.todos.recurrence" as TranslationKey) },
-                  { text: t("help.todos.attachments" as TranslationKey) },
-                  { text: t("help.todos.comments" as TranslationKey) },
-                  { text: t("help.todos.export" as TranslationKey) },
+                  { text: t("help.todos.views") },
+                  { text: t("help.todos.dnd") },
+                  { text: t("help.todos.edit") },
+                  { text: t("help.todos.recurrence") },
+                  { text: t("help.todos.attachments") },
+                  { text: t("help.todos.comments") },
+                  { text: t("help.todos.export") },
                 ]}
               />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
@@ -956,7 +965,7 @@ export default function TodosPage() {
                         : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
                     } ${s !== "all" ? "border-l border-zinc-200 dark:border-slate-600" : ""}`}
                   >
-                    {t(`scope.${s}` as TranslationKey)}
+                    {t(`scope.${s}`)}
                   </button>
                 ))}
               </div>
@@ -1061,6 +1070,8 @@ export default function TodosPage() {
               onAccept={handleAccept}
               projects={projects}
               onScheduleUpdate={handleScheduleUpdate}
+              onCreateNote={handleCreateNote}
+              onReorderSubtasks={handleReorderSubtasks}
               justCreatedId={justCreatedId}
               commentCounts={commentCounts}
               onReorder={handleReorder}
@@ -1227,7 +1238,7 @@ export default function TodosPage() {
                                 )}
                                 {todo.assignmentStatus === "declined" && (
                                   <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
-                                    {t("assign.declined" as TranslationKey)}
+                                    {t("assign.declined")}
                                   </span>
                                 )}
                                 {(todo.tags ?? []).map((tag) => (
@@ -1237,7 +1248,7 @@ export default function TodosPage() {
                                 ))}
                                 {todo.assignmentStatus === "accepted" && (
                                   <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                    {t("assign.accepted" as TranslationKey)}
+                                    {t("assign.accepted")}
                                   </span>
                                 )}
                               </div>
@@ -1291,8 +1302,8 @@ export default function TodosPage() {
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDecline(todo); }}
                                     className="p-0.5 text-orange-300 dark:text-orange-700 hover:text-orange-600 dark:hover:text-orange-400 cursor-pointer"
-                                    aria-label={t("assign.decline" as TranslationKey)}
-                                    title={t("assign.decline" as TranslationKey)}
+                                    aria-label={t("assign.decline")}
+                                    title={t("assign.decline")}
                                   >
                                     <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1304,8 +1315,8 @@ export default function TodosPage() {
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleAccept(todo); }}
                                     className="p-0.5 text-emerald-300 dark:text-emerald-700 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
-                                    aria-label={t("assign.accept" as TranslationKey)}
-                                    title={t("assign.accept" as TranslationKey)}
+                                    aria-label={t("assign.accept")}
+                                    title={t("assign.accept")}
                                   >
                                     <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1376,663 +1387,19 @@ export default function TodosPage() {
         existingSubtasks={subtaskParent ? getSubtasks(subtaskParent.id) : []}
         onCompleteSubtask={(sub) => handleStatusChange(sub, sub.status === "completed" ? "active" : "completed")}
         onDeleteSubtask={(sub) => requestDelete(sub)}
+        onPromoteSubtask={handlePromoteSubtask}
+        onReorderSubtasks={handleReorderSubtasks}
       />
 
-      <ConfirmDialog
+      <DeleteTaskDialog
         open={!!confirmDelete}
-        title="Supprimer la tâche"
-        message={confirmDelete ? `Êtes-vous sûr de vouloir supprimer « ${confirmDelete.title} » ?` : ""}
-        confirmLabel="Supprimer"
-        cancelLabel="Annuler"
-        variant="danger"
-        onConfirm={() => confirmDelete && performDelete(confirmDelete)}
+        taskTitle={confirmDelete?.title ?? ""}
+        subtaskCount={confirmDelete ? getSubtasks(confirmDelete.id).length : 0}
         onCancel={() => setConfirmDelete(null)}
+        onDeleteAndPromote={() => confirmDelete && executeDelete(confirmDelete, "promote")}
+        onDeleteAll={() => confirmDelete && executeDelete(confirmDelete, "deleteAll")}
       />
     </AppShell>
-  );
-}
-
-/* ── Sort Arrow ── */
-function SortArrow({ col, activeCol, dir }: { col: SortColumn; activeCol: SortColumn; dir: SortDirection }) {
-  const active = col === activeCol;
-  return (
-    <span className="inline-flex flex-col ml-1 leading-none">
-      <svg className={`w-3 h-3 ${active && dir === "asc" ? "text-zinc-900" : "text-zinc-300"}`} viewBox="0 0 12 12" fill="currentColor">
-        <path d="M6 2L10 7H2L6 2Z" />
-      </svg>
-      <svg className={`w-3 h-3 -mt-1 ${active && dir === "desc" ? "text-zinc-900" : "text-zinc-300"}`} viewBox="0 0 12 12" fill="currentColor">
-        <path d="M6 10L2 5H10L6 10Z" />
-      </svg>
-    </span>
-  );
-}
-
-/* ── Sortable table row ── */
-function SortableTaskRow({
-  todo,
-  isArchived,
-  meUid,
-  userDisplayName,
-  onComplete,
-  onCancel,
-  onDelete,
-  onEdit,
-  onSubtask,
-  onDecline,
-  onAccept,
-  onScheduleUpdate,
-  justCreatedId,
-  commentCounts,
-  projects,
-  subtasksOf,
-  expanded,
-  toggleExpand,
-}: {
-  todo: Todo;
-  isArchived: boolean;
-  meUid: string | null;
-  userDisplayName: (uid: string) => string;
-  onComplete: (t: Todo) => void;
-  onCancel: (t: Todo) => void;
-  onDelete: (t: Todo) => void;
-  onEdit: (t: Todo) => void;
-  onSubtask: (t: Todo) => void;
-  onDecline: (t: Todo) => void;
-  onAccept: (t: Todo) => void;
-  onScheduleUpdate?: (todo: Todo) => void;
-  justCreatedId?: string | null;
-  commentCounts: Record<string, number>;
-  projects: Project[];
-  subtasksOf: (id: string) => Todo[];
-  expanded: Set<string>;
-  toggleExpand: (id: string) => void;
-}) {
-  const { t } = useLocale();
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: todo.id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    position: "relative",
-    zIndex: isDragging ? 50 : undefined,
-  };
-
-  const badge = PRIORITY_BADGES[todo.priority];
-  const qBadge = QUADRANT_BADGES[classify(todo)];
-  const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
-  const subs = subtasksOf(todo.id);
-
-  return (
-    <>
-      <tr
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        onDoubleClick={(e) => { e.preventDefault(); onEdit(todo); }}
-        className={`border-b border-zinc-100 dark:border-slate-800 last:border-b-0 group hover:bg-zinc-50/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none ${
-          isArchived ? "opacity-50" : ""
-        }`}
-      >
-        {/* Drag handle */}
-        <td className="w-8 px-1 py-3 text-center">
-          <button
-            type="button"
-            {...listeners}
-            className="inline-flex items-center justify-center w-6 h-6 rounded text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 cursor-grab active:cursor-grabbing transition-colors"
-            aria-label="Réordonner"
-            title="Glisser pour réordonner"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-              <circle cx="5" cy="3" r="1.2" /><circle cx="11" cy="3" r="1.2" />
-              <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
-              <circle cx="5" cy="13" r="1.2" /><circle cx="11" cy="13" r="1.2" />
-            </svg>
-          </button>
-        </td>
-        {/* Actions */}
-        <td className="px-4 py-3">
-          {isArchived ? (
-            <button
-              onClick={() => onComplete(todo)}
-              title="Remettre en tâche active"
-              className="inline-flex items-center gap-1 rounded border border-green-300 dark:border-green-700 px-2 py-1 text-[11px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
-            >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
-              </svg>
-              {t("todos.reactivate")}
-            </button>
-          ) : (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => onComplete(todo)}
-                title="Accomplir"
-                className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-green-500 hover:text-green-500"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
-              {!todo.parentId && (
-                <button
-                  onClick={() => onSubtask(todo)}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500"
-                  title={t("subtask.add")}
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              )}
-              {!todo.parentId && onScheduleUpdate && (
-                <SlotPicker
-                  todoId={todo.id}
-                  scheduledSlot={todo.scheduledSlot}
-                  onBooked={onScheduleUpdate}
-                  onCleared={onScheduleUpdate}
-                  autoOpen={todo.id === justCreatedId}
-                />
-              )}
-              <button
-                onClick={() => onCancel(todo)}
-                title="Annuler"
-                className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-              </button>
-              {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && (
-                <button
-                  onClick={() => onDecline(todo)}
-                  title={t("assign.decline" as TranslationKey)}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-orange-300 dark:border-orange-700 text-orange-400 hover:border-orange-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-              {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (todo.assignmentStatus === "declined" || todo.assignmentStatus === "pending") && (
-                <button
-                  onClick={() => onAccept(todo)}
-                  title={t("assign.accept" as TranslationKey)}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-emerald-300 dark:border-emerald-700 text-emerald-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-              )}
-              <CommentHoverIcon
-                todoId={todo.id}
-                commentCount={commentCounts[todo.id] ?? 0}
-                onClick={() => onEdit(todo)}
-                buttonClass="relative w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"
-                iconSize="w-3 h-3"
-              />
-              <button
-                onClick={() => onDelete(todo)}
-                title="Supprimer"
-                className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </td>
-        {/* Title */}
-        <td className="px-4 py-3">
-          <span className={`font-medium ${
-            todo.status === "completed" ? "line-through text-zinc-400" :
-            todo.status === "cancelled" ? "line-through text-zinc-400 italic" :
-            todo.status === "deleted" ? "line-through text-zinc-300 dark:text-slate-600" :
-            "text-zinc-900 dark:text-slate-100"
-          }`}>
-            {todo.title}
-          </span>
-          {todo.projectId && (() => {
-            const proj = projects.find((p) => p.id === todo.projectId);
-            return proj ? (
-              <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-                {proj.name}
-              </span>
-            ) : null;
-          })()}
-          {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (
-            <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" title={`${t("assign.assignedBy" as TranslationKey)} ${userDisplayName(todo.userId)}`}>
-              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              {userDisplayName(todo.userId)}
-            </span>
-          )}
-          {todo.assignedTo && meUid && todo.assignedTo !== meUid && (
-            <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" title={`${t("assign.assignedTo" as TranslationKey)} ${userDisplayName(todo.assignedTo)}`}>
-              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              → {userDisplayName(todo.assignedTo)}
-            </span>
-          )}
-          {todo.assignmentStatus === "declined" && (
-            <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
-              {t("assign.declined" as TranslationKey)}
-            </span>
-          )}
-          {todo.assignmentStatus === "accepted" && (
-            <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-              {t("assign.accepted" as TranslationKey)}
-            </span>
-          )}
-          {todo.scheduledSlot && (
-            <span className="ml-1.5"><ScheduledSlotBadge slot={todo.scheduledSlot} /></span>
-          )}
-          {subs.length > 0 && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); toggleExpand(todo.id); }}
-              className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors hover:bg-emerald-700 ${SUBTASK_BADGE_CLS}`}
-            >
-              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
-              </svg>
-              {subs.length} {expanded.has(todo.id) ? "▴" : "▾"}
-            </button>
-          )}
-        </td>
-        {/* Priority */}
-        <td className="px-4 py-3">
-          <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${badge.cls}`}>
-            {t(badge.tKey)}
-          </span>
-        </td>
-        {/* Effort */}
-        <td className="px-4 py-3">
-          <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
-            {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
-          </span>
-          {(() => {
-            const mins = todo.estimatedMinutes;
-            if (mins == null) return null;
-            return (
-              <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                {mins}{t("todos.estimatedMinutes")}
-              </span>
-            );
-          })()}
-        </td>
-        {/* Deadline */}
-        <td className="px-4 py-3">
-          {dl ? (
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>
-          ) : (
-            <span className="text-xs text-zinc-300">—</span>
-          )}
-        </td>
-        {/* Classification */}
-        <td className="px-4 py-3">
-          <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded ${qBadge.cls}`}>
-            {t(qBadge.tKey)}
-          </span>
-        </td>
-      </tr>
-      {expanded.has(todo.id) && subs.map((sub) => {
-        const subBadge = PRIORITY_BADGES[sub.priority];
-        const subDl = sub.deadline ? deadlineLabel(sub.deadline, t) : null;
-        return (
-          <tr
-            key={sub.id}
-            className="border-b border-zinc-100 dark:border-slate-800 last:border-b-0 bg-zinc-50/40 dark:bg-slate-800/30"
-          >
-            <td />
-            <td className="px-4 py-2 pl-8">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => onComplete(sub)}
-                  className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
-                    sub.status === "completed"
-                      ? "bg-green-500 border-green-500 text-white"
-                      : "border-zinc-300 dark:border-slate-500 text-zinc-400 hover:border-green-500 hover:text-green-500"
-                  } transition-colors`}
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => onCancel(sub)}
-                  title={t("todos.undo")}
-                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => onDelete(sub)}
-                  className="w-5 h-5 rounded flex items-center justify-center border border-transparent text-zinc-300 hover:text-red-500"
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </td>
-            <td className="px-4 py-2">
-              <span className="text-zinc-400 mr-1.5">↳</span>
-              <span className={`text-sm ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>
-                {sub.title}
-              </span>
-            </td>
-            <td className="px-4 py-2">
-              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${subBadge.cls}`}>{t(subBadge.tKey)}</span>
-            </td>
-            <td className="px-4 py-2">
-              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${EFFORT_BADGES[sub.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[sub.effort ?? "medium"].tKey)}</span>
-            </td>
-            <td className="px-4 py-2">
-              {subDl ? <span className={`text-xs font-semibold px-2 py-0.5 rounded ${subDl.cls}`}>{subDl.text}</span> : <span className="text-xs text-zinc-300">—</span>}
-            </td>
-            <td className="px-4 py-2" />
-          </tr>
-        );
-      })}
-    </>
-  );
-}
-
-/* ── Task List (sortable table) ── */
-function TaskList({
-  todos,
-  allTodos,
-  sortCol,
-  sortDir,
-  meUid,
-  userDisplayName,
-  onSort,
-  onComplete,
-  onCancel,
-  onDelete,
-  onEdit,
-  onSubtask,
-  onDecline,
-  onAccept,
-  projects = [],
-  onScheduleUpdate,
-  justCreatedId,
-  commentCounts = {},
-  onReorder,
-}: {
-  todos: Todo[];
-  allTodos: Todo[];
-  sortCol: SortColumn;
-  sortDir: SortDirection;
-  meUid: string | null;
-  userDisplayName: (uid: string) => string;
-  onSort: (col: SortColumn) => void;
-  onComplete: (t: Todo) => void;
-  onCancel: (t: Todo) => void;
-  onDelete: (t: Todo) => void;
-  onEdit: (t: Todo) => void;
-  onSubtask: (t: Todo) => void;
-  onDecline: (t: Todo) => void;
-  onAccept: (t: Todo) => void;
-  projects?: Project[];
-  onScheduleUpdate?: (todo: Todo) => void;
-  justCreatedId?: string | null;
-  commentCounts?: Record<string, number>;
-  onReorder?: (orderedIds: string[]) => void;
-}) {
-  const { t } = useLocale();
-  const sorted = useMemo(() => sortTodos(todos, sortCol, sortDir), [todos, sortCol, sortDir]);
-
-  const [displayOrder, setDisplayOrder] = useState<Todo[]>(sorted);
-  useEffect(() => { setDisplayOrder(sorted); }, [sorted]);
-
-  const childrenByParent = useMemo(() => {
-    const map: Record<string, Todo[]> = {};
-    for (const td of allTodos) {
-      if (td.parentId) (map[td.parentId] ??= []).push(td);
-    }
-    return map;
-  }, [allTodos]);
-  const subtasksOf = (id: string) => childrenByParent[id] ?? [];
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-  const thBtn = "flex items-center gap-0.5 cursor-pointer select-none hover:text-zinc-900 transition-colors";
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setDisplayOrder((prev) => {
-      const oldIdx = prev.findIndex((t) => t.id === active.id);
-      const newIdx = prev.findIndex((t) => t.id === (over.id as string));
-      if (oldIdx === -1 || newIdx === -1) return prev;
-      const next = arrayMove(prev, oldIdx, newIdx);
-      onReorder?.(next.map((t) => t.id));
-      return next;
-    });
-  }, [onReorder]);
-
-  const sortableIds = useMemo(() => displayOrder.map((t) => t.id), [displayOrder]);
-
-  return (
-    <div>
-      <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-            <table className="w-full text-sm min-w-[700px]">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/80">
-                  <th className="w-8 px-1 py-3" />
-                  <th className="w-20 px-4 py-3 text-left font-semibold text-zinc-600 dark:text-slate-400 text-xs">{t("table.actions")}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400">{t("table.title")}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-28">
-                    <button type="button" className={thBtn} onClick={() => onSort("priority")}>
-                      {t("table.priority")} <SortArrow col="priority" activeCol={sortCol} dir={sortDir} />
-                    </button>
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-32">
-                    {t("table.effort")}
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-36">
-                    <button type="button" className={thBtn} onClick={() => onSort("deadline")}>
-                      {t("table.deadline")} <SortArrow col="deadline" activeCol={sortCol} dir={sortDir} />
-                    </button>
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-36">
-                    <button type="button" className={thBtn} onClick={() => onSort("classification")}>
-                      {t("table.classification")} <SortArrow col="classification" activeCol={sortCol} dir={sortDir} />
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayOrder.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-10 text-zinc-400 italic">
-                      {t("matrix.empty")}
-                    </td>
-                  </tr>
-                ) : (
-                  displayOrder.map((todo) => (
-                    <SortableTaskRow
-                      key={todo.id}
-                      todo={todo}
-                      isArchived={todo.status !== "active"}
-                      meUid={meUid}
-                      userDisplayName={userDisplayName}
-                      onComplete={onComplete}
-                      onCancel={onCancel}
-                      onDelete={onDelete}
-                      onEdit={onEdit}
-                      onSubtask={onSubtask}
-                      onDecline={onDecline}
-                      onAccept={onAccept}
-                      onScheduleUpdate={onScheduleUpdate}
-                      justCreatedId={justCreatedId}
-                      commentCounts={commentCounts}
-                      projects={projects}
-                      subtasksOf={subtasksOf}
-                      expanded={expanded}
-                      toggleExpand={toggleExpand}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </SortableContext>
-        </DndContext>
-      </div>
-    </div>
-  );
-}
-
-/* ── Quadrant Cell ── */
-function QuadrantCell({
-  quadrant,
-  todos,
-  allTodos = [],
-  onComplete,
-  onDelete,
-  onDecline,
-  onAccept,
-  onEdit,
-  onScheduleUpdate,
-  subtaskCounts = {},
-  commentCounts: ccounts = {},
-  meUid,
-  userDisplayName,
-}: {
-  quadrant: Quadrant;
-  todos: Todo[];
-  allTodos?: Todo[];
-  onComplete: (t: Todo) => void;
-  onDelete: (t: Todo) => void;
-  onDecline?: (t: Todo) => void;
-  onAccept?: (t: Todo) => void;
-  onEdit?: (t: Todo) => void;
-  onScheduleUpdate?: (t: Todo) => void;
-  subtaskCounts?: Record<string, number>;
-  commentCounts?: Record<string, number>;
-  meUid?: string | null;
-  userDisplayName?: (uid: string) => string;
-}) {
-  const { t } = useLocale();
-  const cfg = QUADRANT_CONFIG[quadrant];
-  const [showAll, setShowAll] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const LIMIT = 5;
-  const visible = showAll ? todos : todos.slice(0, LIMIT);
-  const hasMore = todos.length > LIMIT;
-
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const childrenMap = useMemo(() => {
-    const map: Record<string, Todo[]> = {};
-    for (const td of allTodos) {
-      if (td.parentId) (map[td.parentId] ??= []).push(td);
-    }
-    return map;
-  }, [allTodos]);
-  const subtasksOf = (id: string) => childrenMap[id] ?? [];
-
-  return (
-    <div className={`${cfg.cellBg} flex flex-col min-h-[220px] h-full`}>
-      <div className={`${cfg.headerBg} px-4 py-2 flex items-center justify-between`}>
-        <div className="flex items-center gap-2">
-          <span>{cfg.icon}</span>
-          <span className={`text-xs font-bold ${cfg.headerText} tracking-wide uppercase`}>
-            {t(cfg.tKey)}
-          </span>
-        </div>
-        {todos.length > 0 && (
-          <span className={`${cfg.headerText} text-[10px] font-bold bg-white/20 rounded-full w-5 h-5 flex items-center justify-center`}>
-            {todos.length}
-          </span>
-        )}
-      </div>
-      <div className="p-3 flex-1">
-        {todos.length === 0 ? (
-          <div className="h-full flex items-center justify-center min-h-[140px]">
-            <p className="text-xs text-zinc-400 italic">{t("matrix.empty")}</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visible.map((todo) => {
-              const sc = subtaskCounts[todo.id] ?? 0;
-              const subs = expanded.has(todo.id) ? subtasksOf(todo.id) : [];
-              return (
-                <div key={todo.id}>
-                  <TodoCard todo={todo} onComplete={onComplete} onDelete={onDelete} onDecline={onDecline} onAccept={onAccept} onEdit={onEdit} onScheduleUpdate={onScheduleUpdate} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} meUid={meUid} userDisplayName={userDisplayName} commentCount={ccounts[todo.id] ?? 0} />
-                  {subs.length > 0 && (
-                    <div className="ml-5 mt-1 space-y-1">
-                      {subs.map((sub) => (
-                        <div key={sub.id} className="flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-2 py-1.5 text-xs">
-                          <button
-                            onClick={() => onComplete(sub)}
-                            className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
-                              sub.status === "completed"
-                                ? "bg-green-500 border-green-500 text-white"
-                                : "border-zinc-300 dark:border-slate-500 text-zinc-400 hover:border-green-500 hover:text-green-500"
-                            } transition-colors`}
-                          >
-                            <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          </button>
-                          <span className="text-zinc-400 text-[10px]">↳</span>
-                          <span className={`flex-1 truncate ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>{sub.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {hasMore && (
-              <button
-                type="button"
-                onClick={() => setShowAll(!showAll)}
-                className="w-full text-center text-[11px] font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-slate-300 py-1 transition-colors"
-              >
-                {showAll ? t("matrix.showLess") : `${t("matrix.showMore")} (${todos.length - LIMIT})`}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 

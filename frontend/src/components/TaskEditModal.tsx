@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators } from "@/lib/api";
 import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency, Project } from "@/lib/api";
-import type { TranslationKey } from "@/lib/i18n";
 
 export interface TaskEditModalProps {
   todo: Todo | null;
@@ -59,6 +59,28 @@ export default function TaskEditModal({
   projects = [],
 }: TaskEditModalProps) {
   const { t } = useLocale();
+  const trapRef = useFocusTrap(!!todo);
+
+  const sortedProjectOptions = useMemo(() => {
+    const roots = projects.filter((p) => !p.parentProjectId);
+    const childrenMap = new Map<string, Project[]>();
+    for (const p of projects) {
+      if (p.parentProjectId) {
+        const list = childrenMap.get(p.parentProjectId) ?? [];
+        list.push(p);
+        childrenMap.set(p.parentProjectId, list);
+      }
+    }
+    const result: { id: string; label: string }[] = [];
+    for (const root of roots) {
+      result.push({ id: root.id, label: root.name });
+      for (const child of childrenMap.get(root.id) ?? []) {
+        result.push({ id: child.id, label: `↳ ${child.name}` });
+      }
+    }
+    return result;
+  }, [projects]);
+
   const [tagInput, setTagInput] = useState("");
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
@@ -189,6 +211,7 @@ export default function TaskEditModal({
       onClick={onClose}
     >
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-edit-modal-title"
@@ -270,19 +293,19 @@ export default function TaskEditModal({
               />
             </div>
           </div>
-          {projects.length > 0 && (
+          {sortedProjectOptions.length > 0 && (
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-              {t("projects.project" as TranslationKey)}
+              {t("projects.project")}
             </label>
             <select
               value={form.projectId ?? ""}
               onChange={(e) => onFormChange({ projectId: e.target.value || null })}
               className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
             >
-              <option value="">{t("projects.noProject" as TranslationKey)}</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+              <option value="">{t("projects.noProject")}</option>
+              {sortedProjectOptions.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
               ))}
             </select>
           </div>
@@ -333,14 +356,14 @@ export default function TaskEditModal({
                 className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500"
               />
               <span className="text-xs font-medium text-zinc-700 dark:text-slate-300">
-                🔄 {t("edit.recurrenceEnabled" as TranslationKey)}
+                🔄 {t("edit.recurrenceEnabled")}
               </span>
             </label>
             {form.recurrence && (
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrence" as TranslationKey)}
+                    {t("edit.recurrence")}
                   </label>
                   <select
                     value={form.recurrence.frequency}
@@ -349,14 +372,14 @@ export default function TaskEditModal({
                     }
                     className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
                   >
-                    <option value="daily">{t("edit.recurrenceDaily" as TranslationKey)}</option>
-                    <option value="weekly">{t("edit.recurrenceWeekly" as TranslationKey)}</option>
-                    <option value="monthly">{t("edit.recurrenceMonthly" as TranslationKey)}</option>
+                    <option value="daily">{t("edit.recurrenceDaily")}</option>
+                    <option value="weekly">{t("edit.recurrenceWeekly")}</option>
+                    <option value="monthly">{t("edit.recurrenceMonthly")}</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrenceInterval" as TranslationKey)}
+                    {t("edit.recurrenceInterval")}
                   </label>
                   <input
                     type="number"
@@ -371,7 +394,7 @@ export default function TaskEditModal({
                 </div>
                 <div>
                   <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrenceEnd" as TranslationKey)}
+                    {t("edit.recurrenceEnd")}
                   </label>
                   <input
                     type="date"
@@ -438,7 +461,7 @@ export default function TaskEditModal({
         {/* Tags */}
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
-            {t("tags.label" as TranslationKey)}
+            {t("tags.label")}
           </label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.tags.map((tag) => (
@@ -451,7 +474,7 @@ export default function TaskEditModal({
           <div className="flex gap-1.5">
             <input
               type="text"
-              placeholder={t("tags.add" as TranslationKey)}
+              placeholder={t("tags.add")}
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }}
@@ -465,11 +488,11 @@ export default function TaskEditModal({
         {/* Comments */}
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
           <h4 className="text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">
-            {t("comments.title" as TranslationKey)} ({comments.length})
+            {t("comments.title")} ({comments.length})
           </h4>
           <div className="max-h-48 overflow-y-auto space-y-2 mb-2">
             {comments.length === 0 ? (
-              <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("comments.empty" as TranslationKey)}</p>
+              <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("comments.empty")}</p>
             ) : <>
             {comments.length > 3 && !showAllComments && (
               <button
@@ -477,7 +500,7 @@ export default function TaskEditModal({
                 onClick={() => setShowAllComments(true)}
                 className="w-full text-center text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium py-1 transition-colors"
               >
-                {t("comments.showOlder" as TranslationKey)} ({comments.length - 3})
+                {t("comments.showOlder")} ({comments.length - 3})
               </button>
             )}
             {(showAllComments ? comments : comments.slice(-3)).map((c) => (
@@ -485,7 +508,7 @@ export default function TaskEditModal({
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium text-zinc-700 dark:text-slate-300">{c.userEmail}</span>
-                    {c.editedAt && <span className="text-[10px] text-zinc-400 dark:text-slate-500 italic">{t("comments.edited" as TranslationKey)}</span>}
+                    {c.editedAt && <span className="text-[10px] text-zinc-400 dark:text-slate-500 italic">{t("comments.edited")}</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-zinc-400 dark:text-slate-500">
@@ -493,7 +516,7 @@ export default function TaskEditModal({
                     </span>
                     {currentUserUid === c.userId && (
                       <>
-                        <button type="button" onClick={() => { setEditingCommentId(c.id); setEditingText(c.text); }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" title={t("comments.edit" as TranslationKey)}>
+                        <button type="button" onClick={() => { setEditingCommentId(c.id); setEditingText(c.text); }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" title={t("comments.edit")}>
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </button>
                         <button type="button" onClick={() => handleDeleteComment(c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -521,7 +544,7 @@ export default function TaskEditModal({
                     </button>
                   ))}
                   <div className="relative">
-                    <button type="button" onClick={() => setReactionPickerCommentId(reactionPickerCommentId === c.id ? null : c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none" title={t("comments.addReaction" as TranslationKey)}>+</button>
+                    <button type="button" onClick={() => setReactionPickerCommentId(reactionPickerCommentId === c.id ? null : c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none" title={t("comments.addReaction")}>+</button>
                     {reactionPickerCommentId === c.id && (
                       <div className="absolute bottom-full left-0 mb-1 flex gap-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-zinc-200 dark:border-slate-700 p-1.5 z-10">
                         {REACTION_EMOJIS.map((emoji) => (
@@ -540,7 +563,7 @@ export default function TaskEditModal({
               <input
                 ref={commentInputRef}
                 type="text"
-                placeholder={t("comments.placeholder" as TranslationKey)}
+                placeholder={t("comments.placeholder")}
                 value={commentText}
                 onChange={(e) => handleCommentChange(e.target.value)}
                 onKeyDown={(e) => {
@@ -574,7 +597,7 @@ export default function TaskEditModal({
               )}
             </div>
             <button type="button" onClick={handlePostComment} disabled={commentLoading || !commentText.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100 disabled:opacity-40">
-              {t("comments.send" as TranslationKey)}
+              {t("comments.send")}
             </button>
           </div>
         </div>

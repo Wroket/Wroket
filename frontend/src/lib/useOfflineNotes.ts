@@ -162,15 +162,18 @@ export function useOfflineNotes() {
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
-  const addNote = useCallback(async (title?: string) => {
+  const addNote = useCallback((title?: string, opts?: { todoId?: string; projectId?: string }) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const noteTitle = title ?? "";
     const note: Note = {
       id,
       userId: "",
-      title: title || "Sans titre",
+      title: noteTitle,
       content: "",
       pinned: false,
+      todoId: opts?.todoId,
+      projectId: opts?.projectId,
       createdAt: now,
       updatedAt: now,
     };
@@ -179,13 +182,8 @@ export function useOfflineNotes() {
     writeLocal([note, ...readLocal()]);
 
     if (online) {
-      try {
-        const created = await createNoteApi({ title: note.title, content: "", id });
-        setNotes((prev) => sortNotes(prev.map((n) => (n.id === id ? created : n))));
-        writeLocal(readLocal().map((n) => (n.id === id ? created : n)));
-      } catch {
-        markDirty([id]);
-      }
+      createNoteApi({ title: noteTitle || "Sans titre", content: "", id, todoId: opts?.todoId, projectId: opts?.projectId })
+        .catch(() => markDirty([id]));
     } else {
       markDirty([id]);
     }
@@ -193,7 +191,7 @@ export function useOfflineNotes() {
     return id;
   }, [online]);
 
-  const saveNote = useCallback((id: string, updates: { title?: string; content?: string; pinned?: boolean }) => {
+  const saveNote = useCallback((id: string, updates: { title?: string; content?: string; pinned?: boolean; tags?: string[]; todoId?: string | null; projectId?: string | null }) => {
     const now = new Date().toISOString();
 
     setNotes((prev) => sortNotes(prev.map((n) =>

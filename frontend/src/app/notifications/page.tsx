@@ -97,15 +97,15 @@ export default function NotificationsPage() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const emptyMessage = (): string => {
-    if (filter === "unread") return t("notif.noUnread" as TranslationKey);
-    if (filter === "read") return t("notif.noRead" as TranslationKey);
-    return t("notif.noNotifications" as TranslationKey);
+    if (filter === "unread") return t("notif.noUnread");
+    if (filter === "read") return t("notif.noRead");
+    return t("notif.noNotifications");
   };
 
   const tabs: { key: FilterTab; tKey: TranslationKey; count?: number }[] = [
-    { key: "all", tKey: "notif.all" as TranslationKey, count: notifications.length },
-    { key: "unread", tKey: "notif.unread" as TranslationKey, count: unreadCount },
-    { key: "read", tKey: "notif.read" as TranslationKey, count: notifications.length - unreadCount },
+    { key: "all", tKey: "notif.all", count: notifications.length },
+    { key: "unread", tKey: "notif.unread", count: unreadCount },
+    { key: "read", tKey: "notif.read", count: notifications.length - unreadCount },
   ];
 
   return (
@@ -113,7 +113,7 @@ export default function NotificationsPage() {
       <div className="max-w-3xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
-            {t("notif.pageTitle" as TranslationKey)}
+            {t("notif.pageTitle")}
           </h1>
           {unreadCount > 0 && (
             <button
@@ -212,7 +212,7 @@ export default function NotificationsPage() {
                           }}
                           className="rounded px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                         >
-                          {t("notif.accept" as TranslationKey)}
+                          {t("notif.accept")}
                         </button>
                         <button
                           type="button"
@@ -225,12 +225,12 @@ export default function NotificationsPage() {
                           }}
                           className="rounded px-3 py-1.5 text-xs font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                         >
-                          {t("notif.decline" as TranslationKey)}
+                          {t("notif.decline")}
                         </button>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {!notif.read && notif.type !== "team_invite" && (
                       <button
                         type="button"
