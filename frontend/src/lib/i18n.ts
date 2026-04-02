@@ -89,6 +89,9 @@ const translations = {
   "verify.goToLogin": { fr: "Se connecter", en: "Sign in" },
 
   // ── Forgot / Reset password ──
+  "login.confirmPassword": { fr: "Confirmer le mot de passe", en: "Confirm password" },
+  "login.passwordMismatch": { fr: "Les mots de passe ne correspondent pas.", en: "Passwords do not match." },
+  "login.passwordTooShort": { fr: "Le mot de passe doit contenir au moins 8 caractères.", en: "Password must be at least 8 characters." },
   "login.forgotPassword": { fr: "Mot de passe oublié ?", en: "Forgot password?" },
   "login.googleSso": { fr: "Se connecter avec Google", en: "Sign in with Google" },
   "login.googleSsoError": { fr: "Échec de la connexion Google", en: "Google sign-in failed" },

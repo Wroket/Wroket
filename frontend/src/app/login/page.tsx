@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -72,6 +73,14 @@ export default function LoginPage() {
       if (mode === "login") {
         await login({ email, password });
       } else {
+        if (password.length < 8) {
+          setError(t("login.passwordTooShort"));
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError(t("login.passwordMismatch"));
+          return;
+        }
         await register({ email, password });
         setNeedsVerification(true);
         setSuccess(t("login.verifyEmailSent"));
@@ -137,6 +146,7 @@ export default function LoginPage() {
                 setMode("login");
                 setError(null);
                 setSuccess(null);
+                setConfirmPassword("");
               }}
               className={`flex-1 rounded-lg border py-2 text-sm font-medium ${
                 mode === "login"
@@ -152,6 +162,7 @@ export default function LoginPage() {
                 setMode("register");
                 setError(null);
                 setSuccess(null);
+                setConfirmPassword("");
               }}
               className={`flex-1 rounded-lg border py-2 text-sm font-medium ${
                 mode === "register"
@@ -218,11 +229,42 @@ export default function LoginPage() {
               type="password"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               required
+              minLength={mode === "register" ? 8 : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 shadow-sm focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
             />
+            {mode === "register" && password.length > 0 && password.length < 8 && (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t("login.passwordTooShort")}</p>
+            )}
           </div>
+
+          {mode === "register" && (
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-zinc-700 dark:text-slate-300"
+              >
+                {t("login.confirmPassword")}
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 shadow-sm focus:outline-none focus:ring-1 ${
+                  confirmPassword && password !== confirmPassword
+                    ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                    : "border-zinc-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                }`}
+              />
+              {confirmPassword && password !== confirmPassword && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t("login.passwordMismatch")}</p>
+              )}
+            </div>
+          )}
 
           {success && (
             <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">

@@ -20,6 +20,7 @@ import {
   createNoteApi,
   deleteTodo,
   getTodos,
+  getArchivedTodos,
   getAssignedTodos,
   getProjects,
   getCommentCounts,
@@ -205,14 +206,15 @@ export default function TodosPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [mine, assigned, projs, ccounts] = await Promise.all([
+        const [mine, archived, assigned, projs, ccounts] = await Promise.all([
           getTodos(),
+          getArchivedTodos(),
           getAssignedTodos(),
           getProjects(),
           getCommentCounts(),
         ]);
         if (!cancelled) {
-          setMyTodos(mine);
+          setMyTodos([...mine, ...archived]);
           setAssignedTodos(assigned);
           setProjects(projs.filter((p) => p.status === "active"));
           setCommentCounts(ccounts);
@@ -631,7 +633,7 @@ export default function TodosPage() {
         {/* ── Create form ── */}
         <form
           onSubmit={handleCreate}
-          className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-5"
+          className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-3 sm:p-5"
         >
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -641,25 +643,25 @@ export default function TodosPage() {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="flex-1 min-w-0 rounded border border-zinc-300 dark:border-slate-600 px-4 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+                className="flex-1 min-w-0 rounded border border-zinc-300 dark:border-slate-600 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[38px] sm:h-[42px]"
               />
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded bg-slate-700 dark:bg-slate-600 px-6 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 whitespace-nowrap transition-colors h-[42px] shrink-0"
+                className="rounded bg-slate-700 dark:bg-slate-600 px-6 py-2 sm:py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 whitespace-nowrap transition-colors h-[38px] sm:h-[42px] shrink-0"
               >
                 {submitting ? t("todos.adding") : t("todos.add")}
               </button>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-              <div className="relative shrink-0">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
+              <div className="relative">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpenDropdown(openDropdown === "priority" ? null : "priority");
                   }}
-                  className={`rounded border px-3 py-2.5 text-sm font-medium transition-colors h-[42px] min-w-[100px] text-center ${
+                  className={`w-full sm:w-auto rounded border px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors h-[38px] sm:h-[42px] sm:min-w-[100px] text-center ${
                     priorityTouched
                       ? `${PRIORITY_BADGES[priority].cls} border-transparent`
                       : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
@@ -688,14 +690,14 @@ export default function TodosPage() {
                   </div>
                 )}
               </div>
-              <div className="relative shrink-0">
+              <div className="relative">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpenDropdown(openDropdown === "effort" ? null : "effort");
                   }}
-                  className={`rounded border px-3 py-2.5 text-sm font-medium transition-colors h-[42px] min-w-[100px] text-center ${
+                  className={`w-full sm:w-auto rounded border px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors h-[38px] sm:h-[42px] sm:min-w-[100px] text-center ${
                     effortTouched
                       ? `${EFFORT_BADGES[effort].cls} border-transparent`
                       : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
@@ -729,15 +731,27 @@ export default function TodosPage() {
                 value={deadline}
                 min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[42px]"
+                className="col-span-1 sm:shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[38px] sm:h-[42px]"
               />
-              <div className="relative flex-1 min-w-0">
+              {sortedProjectOptions.length > 0 && (
+                <select
+                  value={selectedProjectId ?? ""}
+                  onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                  className="col-span-1 sm:shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[38px] sm:h-[42px]"
+                >
+                  <option value="">{t("projects.noProject")}</option>
+                  {sortedProjectOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+              <div className="relative col-span-2 sm:flex-1 sm:min-w-[200px]">
                 <input
                   type="email"
                   placeholder={t("assign.placeholder")}
                   value={assignEmail}
                   onChange={(e) => handleAssignLookup(e.target.value)}
-                  className={`w-full rounded border px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 h-[42px] ${
+                  className={`w-full rounded border px-3 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 h-[38px] sm:h-[42px] ${
                     assignedUser
                       ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
                       : assignError
@@ -753,18 +767,6 @@ export default function TodosPage() {
                   </span>
                 )}
               </div>
-              {sortedProjectOptions.length > 0 && (
-                <select
-                  value={selectedProjectId ?? ""}
-                  onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                  className="shrink-0 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[42px]"
-                >
-                  <option value="">{t("projects.noProject")}</option>
-                  {sortedProjectOptions.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </select>
-              )}
             </div>
           </div>
           {formError && (

@@ -203,7 +203,7 @@ export default function TeamsPage() {
                 {/* Collaborators summary card */}
                 <div
                   onClick={() => setActiveSection("collaborators")}
-                  className="relative bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 cursor-pointer hover:shadow-md dark:hover:border-slate-500 transition-all group"
+                  className="relative bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 cursor-pointer hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200 group"
                 >
                   {receivedInvites.length > 0 && (
                     <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold shadow">
@@ -254,7 +254,7 @@ export default function TeamsPage() {
                 {/* Teams summary card */}
                 <div
                   onClick={() => setActiveSection("teams")}
-                  className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 cursor-pointer hover:shadow-md dark:hover:border-slate-500 transition-all group"
+                  className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 cursor-pointer hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200 group"
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-11 h-11 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">

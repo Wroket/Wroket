@@ -5,7 +5,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
-import { getTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
+import { getTodos, getArchivedTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { useLocale } from "@/lib/LocaleContext";
@@ -29,9 +29,13 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [list, notifs] = await Promise.all([getTodos(), getNotifications()]);
+        const [activeTodos, archived, notifs] = await Promise.all([
+          getTodos(),
+          getArchivedTodos(),
+          getNotifications(),
+        ]);
         if (!cancelled) {
-          setTodos(list);
+          setTodos([...activeTodos, ...archived]);
           setRecentNotifs(notifs.slice(0, 5));
         }
       } catch {
@@ -66,30 +70,30 @@ export default function DashboardPage() {
 
   const recentlyCompleted = useMemo(
     () => [...completed]
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .sort((a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime())
       .slice(0, 5),
     [completed],
   );
 
-  const completionRate = useMemo(
-    () => (todos.length > 0 ? Math.round((completed.length / todos.length) * 100) : 0),
-    [todos.length, completed.length],
-  );
+  const completionRate = useMemo(() => {
+    const relevant = active.length + completed.length;
+    return relevant > 0 ? Math.round((completed.length / relevant) * 100) : 0;
+  }, [active.length, completed.length]);
 
   const { completedThisWeek, completedOnTime, completedLate } = useMemo(() => {
     const startOfWeek = new Date();
     startOfWeek.setHours(0, 0, 0, 0);
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1);
     const thisWeek = completed.filter(
-      (td) => new Date(td.updatedAt).getTime() >= startOfWeek.getTime(),
+      (td) => new Date(td.statusChangedAt).getTime() >= startOfWeek.getTime(),
     );
     const onTime = thisWeek.filter((td) => {
       if (!td.deadline) return true;
-      return new Date(td.updatedAt) <= new Date(td.deadline + "T23:59:59");
+      return new Date(td.statusChangedAt) <= new Date(td.deadline + "T23:59:59");
     });
     const late = thisWeek.filter((td) => {
       if (!td.deadline) return false;
-      return new Date(td.updatedAt) > new Date(td.deadline + "T23:59:59");
+      return new Date(td.statusChangedAt) > new Date(td.deadline + "T23:59:59");
     });
     return { completedThisWeek: thisWeek, completedOnTime: onTime, completedLate: late };
   }, [completed]);
