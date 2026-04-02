@@ -185,7 +185,7 @@ export default function TodosPage() {
   const [undoing, setUndoing] = useState(false);
   const [mainView, setMainView] = useState<"list" | "cards" | "radar">("list");
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -208,6 +208,7 @@ export default function TodosPage() {
       estimatedMinutes: todo.estimatedMinutes ?? null,
       tags: todo.tags ?? [],
       recurrence: todo.recurrence ?? null,
+      projectId: todo.projectId ?? null,
     });
     setEditAssignEmail("");
     setEditAssignedUser(null);
@@ -230,6 +231,7 @@ export default function TodosPage() {
         estimatedMinutes: editForm.estimatedMinutes,
         tags: editForm.tags,
         recurrence: editForm.recurrence,
+        projectId: editForm.projectId,
       });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setEditingTodo(null);
@@ -1363,6 +1365,7 @@ export default function TodosPage() {
         subtaskCount={editingTodo ? getSubtasks(editingTodo.id).length : 0}
         effortDefaults={user?.effortMinutes}
         currentUserUid={user?.uid}
+        projects={projects}
       />
 
       <SubtaskModal

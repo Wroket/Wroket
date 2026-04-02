@@ -92,15 +92,28 @@
 
 ## Nouvellement implémenté
 
-- [x] **Recherche globale** — Barre de recherche dans le header (debounced 300ms), recherche textuelle dans tâches (titre + tags), projets (nom + description), notes (titre + contenu), résultats groupés par type
+- [x] **Recherche globale** — Barre de recherche dans le header (debounced 300ms), recherche textuelle dans tâches (titre + tags), projets (nom + description + tags), notes (titre + contenu), résultats groupés par type
 - [x] **Tâches récurrentes** — Récurrence quotidienne/hebdomadaire/mensuelle avec intervalle configurable, date de fin optionnelle, clonage automatique à la complétion avec deadline recalculée, badge 🔄 sur les tâches récurrentes
 - [x] **Pièces jointes** — Upload de fichiers sur les tâches (max 5 Mo, max 5 par tâche), stockage local (UPLOAD_DIR), téléchargement, suppression, API REST avec multer
-- [x] **Drag & drop** — Réordonnancement des tâches en vue liste avec @dnd-kit, drag handle (⋮⋮), persistance de l'ordre via `sortOrder`, endpoint batch `PUT /todos/reorder`
+- [x] **Drag & drop tâches** — Réordonnancement des tâches en vue liste avec @dnd-kit, drag handle (⋮⋮), persistance de l'ordre via `sortOrder`, endpoint batch `PUT /todos/reorder`
 - [x] **Export CSV** — Export de toutes les tâches au format CSV (id, titre, statut, priorité, effort, deadline, tags, projet, date)
 - [x] **Audit log par tâche** — Historique des actions par tâche (GET /:id/activity), filtrage par entityId+entityType, limité à 50 entrées
 - [x] **Notes — dossiers / tags** — Champs `folder` et `tags` sur les notes, acceptés en création et mise à jour
 - [x] **Notes — export Markdown** — Export de toutes les notes en un seul fichier Markdown avec métadonnées (dossier, tags), route GET /notes/export
 - [x] **Notes partagées** — Partage de notes avec une équipe via `shared` + `teamId`, endpoint GET /notes/shared pour lister les notes partagées par les membres des équipes de l'utilisateur
+- [x] **Sous-projets** — Arborescence hiérarchique : créer des sous-projets dans un projet (`parentProjectId`), affichage en arbre dans la vue card, promotion en projet racine
+- [x] **Tags projets** — Tags personnalisés sur les projets et sous-projets (ajout libre, badges, recherche globale incluse)
+- [x] **Assignation tâche → projet (post-création)** — Attribuer une tâche à un projet même si le projet a été créé après la tâche, via dropdown dans la modale d'édition
+- [x] **Temps attribué par phase/projet** — Calcul et affichage du temps total attribué pour chaque phase et pour le projet, visible dans la vue détaillée et les cards
+- [x] **Vue card projets** — Affichage des projets en grille de cards (au lieu de liste), avec sous-projets imbriqués et indicateurs visuels
+- [x] **Drag & drop projets** — Réorganisation des projets par drag & drop (@dnd-kit), persistance via `sortOrder`, endpoint `PUT /projects/reorder`
+- [x] **Drag & drop imbrication** — Glisser un projet sur un autre pour en faire un sous-projet (timer 800ms), protection contre l'imbrication de projets ayant déjà des enfants
+- [x] **Drag & drop dés-imbrication** — Extraire un sous-projet en le glissant vers la zone racine pour le promouvoir en projet indépendant
+- [x] **Indicateurs de progression** — Health badges sur les cards projets (En cours / Attention / En retard / Terminé) calculés à partir des deadlines et du statut des tâches, barre de progression visuelle
+- [x] **Undo projets** — Bouton "Annuler" avec timer 10s pour annuler la dernière action (archiver, imbriquer, dés-imbriquer, réorganiser)
+- [x] **Agenda — vues jour/semaine/mois** — Toggle entre les vues jour, semaine et mois avec navigation adaptée et affichage des événements
+- [x] **Agenda — création rapide** — Double-clic sur un créneau horaire pour créer une tâche rapidement (pré-rempli avec date/heure)
+- [x] **Refactoring page projets** — Découpage de `projects/page.tsx` (2400 → 104 lignes) en 5 sous-composants (`ProjectDetailView`, `ProjectListView`, `GanttChart`, `DndWrappers`, `types`) pour stabiliser Turbopack et éliminer les fuites mémoire
 
 ## Intégrations & Connecteurs
 
@@ -162,6 +175,8 @@
 - [x] **Reorder sécurisé** — Batch unique persist (1 seul `scheduleSave`), cap 200 items, vérification propriété (`isOwner`)
 - [x] **Attachments sécurisés** — MIME allowlist (images, PDF, docs, CSV, ZIP, JSON), `resolveAndGuard` anti path-traversal, `sanitizeFilename`, Content-Disposition RFC 5987, `X-Content-Type-Options: nosniff`
 - [x] **Hardening sécurité (v4)** — Préservation refresh_token Google lors de re-auth, suppression fuite body Google dans erreurs, validation dates ISO (format + start<end + range max 90j), fan-out Google Calendar plafonné (20 requêtes parallèles max), max 5 comptes Google par user, calendarId length-bound (200), clearSlot/disconnectGoogle 404 si introuvable, protection open redirect auth URL Google, handleTest try/catch, correction bug logique deleteMyAccount
+- [x] **Hardening sécurité (v5)** — `trust proxy` pour détection IP derrière Cloud Run, limite longueur mot de passe (MAX_PASSWORD_BYTES 1024, anti CPU DoS), `crypto.timingSafeEqual` avec length guard dans `changePassword`, centralisation logique `cookieSecure` (NODE_ENV + FRONTEND_URL), suppression `req.query.token` dans `verifyEmail` (token body only), validation inputs projets (types, valeurs vides, statut), CORS `callback(null, false)` au lieu d'erreur
+- [x] **Optimisation performance** — Compression Gzip/Brotli (`compression` middleware), fix N+1 queries team membership (`teamMembershipCache` dans `listProjects`), batch `Promise.all` pour suppression de phase, memoisation `ProjectListView` (`useMemo` sur projets actifs/archivés/enfants/health)
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
 - [ ] **2FA** — Authentification à deux facteurs (TOTP)
 

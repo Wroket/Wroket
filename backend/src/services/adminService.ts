@@ -142,12 +142,11 @@ export function getAdminUsers(): UserSummary[] {
 
   // Determine last login from active sessions
   const sessionStore = (store.sessions ?? {}) as Record<string, Record<string, unknown>>;
+  const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const lastLoginMap = new Map<string, number>();
   for (const session of Object.values(sessionStore)) {
     const suid = session.uid as string;
-    const created = session.createdAt ? new Date(session.createdAt as string).getTime() : 0;
-    const expiresAt = (session.expiresAt as number) ?? 0;
-    const loginTs = created || (expiresAt - 30 * 24 * 60 * 60 * 1000);
+    const loginTs = (session.createdAt as number) || ((session.expiresAt as number ?? 0) - SESSION_TTL_MS);
     const prev = lastLoginMap.get(suid) ?? 0;
     if (loginTs > prev) lastLoginMap.set(suid, loginTs);
   }

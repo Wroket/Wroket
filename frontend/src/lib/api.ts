@@ -950,6 +950,9 @@ export interface Project {
   description: string;
   ownerUid: string;
   teamId: string | null;
+  parentProjectId: string | null;
+  tags: string[];
+  sortOrder: number;
   status: ProjectStatus;
   phases: ProjectPhase[];
   createdAt: string;
@@ -960,13 +963,16 @@ export interface CreateProjectPayload {
   name: string;
   description?: string;
   teamId?: string | null;
+  parentProjectId?: string | null;
 }
 
 export interface UpdateProjectPayload {
   name?: string;
   description?: string;
   teamId?: string | null;
+  parentProjectId?: string | null;
   status?: ProjectStatus;
+  tags?: string[];
 }
 
 export async function getProjects(): Promise<Project[]> {
@@ -1018,6 +1024,16 @@ export async function deleteProjectApi(id: string): Promise<void> {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erreur lors de la suppression du projet");
+}
+
+export async function reorderProjects(projectIds: string[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/projects/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectIds }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur de réordonnancement");
 }
 
 export async function getProjectTodos(projectId: string): Promise<Todo[]> {

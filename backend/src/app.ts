@@ -1,3 +1,4 @@
+import compression from "compression";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -22,7 +23,9 @@ dotenv.config();
 
 const app = express();
 
+app.set("trust proxy", 1);
 app.use(helmet());
+app.use(compression());
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://localhost:3002")
   .split(/[,;]/)
@@ -33,10 +36,9 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Origin not allowed by CORS"));
+        return callback(null, true);
       }
+      return callback(null, false);
     },
     credentials: true,
   })

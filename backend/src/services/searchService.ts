@@ -38,7 +38,12 @@ export function search(uid: string, query: string, userEmail: string): SearchRes
     if (results.length >= MAX_RESULTS) break;
     const name = proj.name ?? "";
     const desc = proj.description ?? "";
-    if (name.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) {
+    const projTags = proj.tags ?? [];
+    if (
+      name.toLowerCase().includes(q) ||
+      desc.toLowerCase().includes(q) ||
+      projTags.some((t: string) => t.toLowerCase().includes(q))
+    ) {
       results.push({ type: "project", id: proj.id, title: name, status: proj.status, snippet: desc.substring(0, 100) });
     }
   }

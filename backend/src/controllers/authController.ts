@@ -25,6 +25,11 @@ import { ValidationError } from "../utils/errors";
 import { getStore, scheduleSave } from "../persistence";
 import { parseCookies } from "../utils/parseCookies";
 
+const isProd = process.env.NODE_ENV === "production";
+const cookieSecure =
+  process.env.COOKIE_SECURE === "true" ||
+  (isProd && (process.env.FRONTEND_URL?.startsWith("https://") ?? false));
+
 const MAX_INVITE_LOG = 10_000;
 
 function logInvite(fromEmail: string, fromName: string, toEmail: string): void {
@@ -54,10 +59,7 @@ export async function register(req: Request, res: Response) {
 }
 
 export async function verifyEmail(req: Request, res: Response) {
-  // FIX: Accept token from POST body instead of GET query string.
-  // A GET endpoint that mutates state is vulnerable to CSRF via
-  // SameSite=Lax cookies (top-level navigations send cookies).
-  const token = req.body?.token ?? req.query.token;
+  const token = req.body?.token;
   if (typeof token !== "string") {
     throw new ValidationError("Token requis");
   }
@@ -108,7 +110,6 @@ export async function resetPassword(req: Request, res: Response) {
 export async function googleSsoUrl(req: Request, res: Response) {
   const loginHint = typeof req.query.login_hint === "string" ? req.query.login_hint : undefined;
   const { url, state } = getGoogleSsoAuthUrl(loginHint);
-  const cookieSecure = process.env.COOKIE_SECURE === "true";
   res.cookie("oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
@@ -146,7 +147,6 @@ export async function googleSsoCallback(req: Request, res: Response) {
       timezone,
     });
 
-    const cookieSecure = process.env.COOKIE_SECURE === "true";
     res.cookie(COOKIE_NAME, result.sessionToken, {
       httpOnly: true,
       sameSite: "lax",
@@ -170,7 +170,6 @@ export async function login(req: Request, res: Response) {
 
   const result = loginService({ email, password, timezone: typeof timezone === "string" ? timezone : undefined });
 
-  const cookieSecure = process.env.COOKIE_SECURE === "true";
   res.cookie(COOKIE_NAME, result.sessionToken, {
     httpOnly: true,
     sameSite: "lax",

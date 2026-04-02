@@ -7,6 +7,7 @@ import {
   createProject,
   updateProject,
   deleteProject,
+  reorderProjects,
   addPhase,
   updatePhase,
   deletePhase,
@@ -18,7 +19,7 @@ import {
   UpdatePhaseInput,
 } from "../services/projectService";
 import { listTodos } from "../services/todoService";
-import { NotFoundError, ForbiddenError } from "../utils/errors";
+import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
@@ -39,10 +40,15 @@ export async function get(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
+  const { name, description, teamId, parentProjectId } = req.body ?? {};
+  if (typeof name !== "string" || !name.trim()) {
+    throw new ValidationError("Le nom du projet est requis");
+  }
   const input: CreateProjectInput = {
-    name: req.body.name,
-    description: req.body.description,
-    teamId: req.body.teamId,
+    name,
+    description: typeof description === "string" ? description : undefined,
+    teamId: typeof teamId === "string" ? teamId : undefined,
+    parentProjectId: typeof parentProjectId === "string" ? parentProjectId : undefined,
   };
   const project = createProject(req.user!.uid, req.user!.email, input);
   logActivity(req.user!.uid, req.user!.email, "create", "project", project.id, { name: project.name });
@@ -51,11 +57,32 @@ export async function create(req: AuthenticatedRequest, res: Response) {
 
 export async function update(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
+  const body = req.body ?? {};
   const input: UpdateProjectInput = {};
-  if (req.body.name !== undefined) input.name = req.body.name;
-  if (req.body.description !== undefined) input.description = req.body.description;
-  if (req.body.teamId !== undefined) input.teamId = req.body.teamId;
-  if (req.body.status !== undefined) input.status = req.body.status;
+  if (body.name !== undefined) {
+    if (typeof body.name !== "string") throw new ValidationError("name doit être une chaîne");
+    input.name = body.name;
+  }
+  if (body.description !== undefined) {
+    if (typeof body.description !== "string") throw new ValidationError("description doit être une chaîne");
+    input.description = body.description;
+  }
+  if (body.teamId !== undefined) input.teamId = typeof body.teamId === "string" ? body.teamId : null;
+  if (body.status !== undefined) {
+    if (body.status !== "active" && body.status !== "archived") {
+      throw new ValidationError("status invalide (active | archived)");
+    }
+    input.status = body.status;
+  }
+  if (body.parentProjectId !== undefined) {
+    input.parentProjectId = typeof body.parentProjectId === "string" ? body.parentProjectId : null;
+  }
+  if (body.tags !== undefined) {
+    if (!Array.isArray(body.tags) || !body.tags.every((t: unknown) => typeof t === "string")) {
+      throw new ValidationError("tags doit être un tableau de chaînes");
+    }
+    input.tags = body.tags;
+  }
   const project = updateProject(req.user!.uid, req.user!.email, id, input);
   logActivity(req.user!.uid, req.user!.email, "update", "project", project.id, { name: project.name });
   res.status(200).json(project);
@@ -82,6 +109,16 @@ export async function getTodos(req: AuthenticatedRequest, res: Response) {
   const directIds = new Set(directTodos.map((t) => t.id));
   const subtasks = allTodos.filter((t) => t.parentId && directIds.has(t.parentId) && !directIds.has(t.id));
   res.status(200).json([...directTodos, ...subtasks]);
+}
+
+export async function reorder(req: AuthenticatedRequest, res: Response) {
+  const { projectIds } = req.body as { projectIds?: string[] };
+  if (!Array.isArray(projectIds)) {
+    res.status(400).json({ error: "projectIds requis" });
+    return;
+  }
+  const updated = reorderProjects(req.user!.uid, req.user!.email, projectIds);
+  res.status(200).json({ message: "OK", updated });
 }
 
 // ── Phases ──

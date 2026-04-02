@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators } from "@/lib/api";
-import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency } from "@/lib/api";
+import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency, Project } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 
 export interface TaskEditModalProps {
@@ -18,6 +18,7 @@ export interface TaskEditModalProps {
     estimatedMinutes: number | null;
     tags: string[];
     recurrence: Recurrence | null;
+    projectId: string | null;
   };
   onFormChange: (updates: Partial<TaskEditModalProps["form"]>) => void;
   onSave: () => void;
@@ -34,6 +35,7 @@ export interface TaskEditModalProps {
   subtaskCount?: number;
   effortDefaults?: { light: number; medium: number; heavy: number };
   currentUserUid?: string;
+  projects?: Project[];
 }
 
 export default function TaskEditModal({
@@ -54,6 +56,7 @@ export default function TaskEditModal({
   subtaskCount = 0,
   effortDefaults,
   currentUserUid,
+  projects = [],
 }: TaskEditModalProps) {
   const { t } = useLocale();
   const [tagInput, setTagInput] = useState("");
@@ -267,6 +270,23 @@ export default function TaskEditModal({
               />
             </div>
           </div>
+          {projects.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
+              {t("projects.project" as TranslationKey)}
+            </label>
+            <select
+              value={form.projectId ?? ""}
+              onChange={(e) => onFormChange({ projectId: e.target.value || null })}
+              className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+            >
+              <option value="">{t("projects.noProject" as TranslationKey)}</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
               {t("todos.estimatedTime")}

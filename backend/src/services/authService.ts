@@ -91,6 +91,7 @@ interface StoredUser {
 interface StoredSession {
   uid: string;
   expiresAt: number;
+  createdAt: number;
 }
 
 const usersByUid = new Map<string, StoredUser>();
@@ -195,6 +196,17 @@ function uidFromEmail(email: string): string {
   return crypto.createHash("sha256").update(normalizeEmail(email)).digest("hex");
 }
 
+const MAX_PASSWORD_BYTES = 1024;
+
+function validatePasswordLength(password: string): void {
+  if (password.length < 8) {
+    throw new ValidationError("Mot de passe trop court (min 8 caractères)");
+  }
+  if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
+    throw new ValidationError("Mot de passe trop long");
+  }
+}
+
 function pbkdf2Hash(password: string, saltB64: string): string {
   const salt = Buffer.from(saltB64, "base64");
   return crypto
@@ -219,9 +231,7 @@ export function register(input: RegisterInput): AuthUser & { verifyToken: string
   if (!email || !email.includes("@")) {
     throw new ValidationError("Email invalide");
   }
-  if (input.password.length < 8) {
-    throw new ValidationError("Mot de passe trop court (min 8 caractères)");
-  }
+  validatePasswordLength(input.password);
 
   const uid = uidFromEmail(email);
   const existing = usersByUid.get(uid);
@@ -314,9 +324,7 @@ export function requestPasswordReset(email: string): { resetToken: string; email
  */
 export function resetPassword(token: string, newPassword: string): void {
   if (!token) throw new ValidationError("Token requis");
-  if (newPassword.length < 8) {
-    throw new ValidationError("Mot de passe trop court (min 8 caractères)");
-  }
+  validatePasswordLength(newPassword);
 
   for (const user of usersByUid.values()) {
     if (user.resetToken === token) {
@@ -349,6 +357,10 @@ export interface LoginInput {
 }
 
 export function login(input: LoginInput): AuthUser & { sessionToken: string } {
+  if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES) {
+    throw new AppError(401, "Identifiants invalides");
+  }
+
   const email = normalizeEmail(input.email);
   const uid = uidFromEmail(email);
   const user = usersByUid.get(uid);
@@ -383,8 +395,9 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
   }
 
   const sessionToken = crypto.randomBytes(32).toString("hex");
-  const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessionsByToken.set(sessionToken, { uid, expiresAt });
+  const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
+  sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
   persistSessions();
 
   return { ...toAuthUser(user), sessionToken };
@@ -543,8 +556,9 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
   }
 
   const sessionToken = crypto.randomBytes(32).toString("hex");
-  const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessionsByToken.set(sessionToken, { uid, expiresAt });
+  const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
+  sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
   persistSessions();
 
   return { ...toAuthUser(user), sessionToken };
@@ -559,13 +573,13 @@ export function changePassword(uid: string, currentPassword: string, newPassword
   }
 
   const currentHash = pbkdf2Hash(currentPassword, user.passwordSaltB64);
-  if (!crypto.timingSafeEqual(Buffer.from(currentHash, "base64"), Buffer.from(user.passwordHashB64, "base64"))) {
+  const a = Buffer.from(currentHash, "base64");
+  const b = Buffer.from(user.passwordHashB64, "base64");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     throw new AppError(401, "Mot de passe actuel incorrect");
   }
 
-  if (newPassword.length < 8) {
-    throw new ValidationError("Nouveau mot de passe trop court (min 8 caractères)");
-  }
+  validatePasswordLength(newPassword);
 
   const saltB64 = crypto.randomBytes(16).toString("base64");
   user.passwordSaltB64 = saltB64;

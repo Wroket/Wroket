@@ -23,6 +23,9 @@ export interface Project {
   description: string;
   ownerUid: string;
   teamId: string | null;
+  parentProjectId: string | null;
+  tags: string[];
+  sortOrder: number;
   status: ProjectStatus;
   phases: ProjectPhase[];
   createdAt: string;
@@ -33,13 +36,16 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   teamId?: string | null;
+  parentProjectId?: string | null;
 }
 
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
   teamId?: string | null;
+  parentProjectId?: string | null;
   status?: ProjectStatus;
+  tags?: string[];
 }
 
 export interface CreatePhaseInput {
@@ -75,6 +81,9 @@ function persist(): void {
     for (const [id, raw] of Object.entries(store.projects)) {
       const project = raw as Project;
       if (!project.phases) project.phases = [];
+      if (project.parentProjectId === undefined) project.parentProjectId = null;
+      if (!project.tags) project.tags = [];
+      if (project.sortOrder === undefined) project.sortOrder = 0;
       projectsById.set(id, project);
     }
     console.log("[projects] %d projet(s) chargé(s)", projectsById.size);
@@ -110,22 +119,30 @@ export function canEditProject(uid: string, userEmail: string, project: Project)
  * Returns projects the user can access:
  * - projects they own
  * - projects linked to a team they belong to
+ * Team lookups are cached per call to avoid N+1.
  */
 export function listProjects(uid: string, userEmail: string): Project[] {
+  const teamMembershipCache = new Map<string, boolean>();
+  const isTeamMember = (teamId: string): boolean => {
+    const cached = teamMembershipCache.get(teamId);
+    if (cached !== undefined) return cached;
+    const team = getTeam(teamId);
+    const result = !!team && team.members.some((m) => m.email === userEmail);
+    teamMembershipCache.set(teamId, result);
+    return result;
+  };
+
   const results: Project[] = [];
   for (const p of projectsById.values()) {
     if (p.ownerUid === uid) {
       results.push(p);
       continue;
     }
-    if (p.teamId) {
-      const team = getTeam(p.teamId);
-      if (team && team.members.some((m) => m.email === userEmail)) {
-        results.push(p);
-      }
+    if (p.teamId && isTeamMember(p.teamId)) {
+      results.push(p);
     }
   }
-  return results.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return results.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export function getProjectById(id: string): Project | null {
@@ -145,6 +162,14 @@ export function createProject(uid: string, userEmail: string, input: CreateProje
     }
   }
 
+  if (input.parentProjectId) {
+    const parent = projectsById.get(input.parentProjectId);
+    if (!parent) throw new NotFoundError("Projet parent introuvable");
+    if (!canAccessProject(uid, userEmail, parent)) {
+      throw new ForbiddenError("Accès au projet parent refusé");
+    }
+  }
+
   const now = new Date().toISOString();
   const project: Project = {
     id: crypto.randomUUID(),
@@ -152,6 +177,9 @@ export function createProject(uid: string, userEmail: string, input: CreateProje
     description: (input.description ?? "").trim(),
     ownerUid: uid,
     teamId: input.teamId ?? null,
+    parentProjectId: input.parentProjectId ?? null,
+    tags: [],
+    sortOrder: 0,
     status: "active",
     phases: [],
     createdAt: now,
@@ -174,6 +202,8 @@ export function updateProject(uid: string, userEmail: string, id: string, input:
   if (input.description !== undefined) project.description = input.description.trim();
   if (input.teamId !== undefined) project.teamId = input.teamId;
   if (input.status !== undefined) project.status = input.status;
+  if (input.parentProjectId !== undefined) project.parentProjectId = input.parentProjectId;
+  if (input.tags !== undefined) project.tags = input.tags.map((t) => t.trim()).filter(Boolean);
   project.updatedAt = new Date().toISOString();
 
   persist();
@@ -186,6 +216,24 @@ export function deleteProject(uid: string, id: string): void {
   if (project.ownerUid !== uid) throw new ForbiddenError("Seul le propriétaire peut supprimer un projet");
   projectsById.delete(id);
   persist();
+}
+
+/**
+ * Batch-reorder projects by setting sortOrder based on array position.
+ */
+export function reorderProjects(uid: string, userEmail: string, projectIds: string[]): number {
+  let updated = 0;
+  for (let i = 0; i < projectIds.length; i++) {
+    const p = projectsById.get(projectIds[i]);
+    if (!p) continue;
+    if (!canAccessProject(uid, userEmail, p)) continue;
+    if (p.sortOrder !== i) {
+      p.sortOrder = i;
+      updated++;
+    }
+  }
+  if (updated > 0) persist();
+  return updated;
 }
 
 // ── Phase CRUD ──
