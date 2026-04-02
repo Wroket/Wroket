@@ -456,7 +456,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-slate-400">
             <span className="font-semibold text-zinc-700 dark:text-slate-300">Wroket</span>
-            <span>&copy; {new Date().getFullYear()}</span>
+            <span suppressHydrationWarning>&copy; {new Date().getFullYear()}</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-zinc-500 dark:text-slate-400">
             <a href="mailto:support@wroket.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">

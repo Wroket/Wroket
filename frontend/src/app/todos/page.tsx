@@ -449,6 +449,17 @@ export default function TodosPage() {
     }, 100);
   };
 
+  const editMemberSuggestions = useMemo(() => {
+    const projectId = editingTodo?.projectId ?? editForm.projectId;
+    const project = projectId ? projects.find((p) => p.id === projectId) : null;
+    const teamId = project?.teamId ?? null;
+    const team = teamId ? teams.find((tm) => tm.id === teamId) : null;
+
+    return team
+      ? team.members.map((m) => m.email)
+      : collaborators.map((c) => c.email);
+  }, [editingTodo?.projectId, editForm.projectId, projects, teams, collaborators]);
+
   const handleEditAssignLookup = (email: string) => {
     setEditAssignEmail(email);
     setEditAssignError(null);
@@ -1340,6 +1351,7 @@ export default function TodosPage() {
                                   <SlotPicker
                                     todoId={todo.id}
                                     scheduledSlot={todo.scheduledSlot}
+                                    suggestedSlot={todo.suggestedSlot}
                                     onBooked={handleScheduleUpdate}
                                     onCleared={handleScheduleUpdate}
                                     autoOpen={todo.id === justCreatedId}
@@ -1447,6 +1459,20 @@ export default function TodosPage() {
         effortDefaults={user?.effortMinutes}
         currentUserUid={user?.uid}
         projects={projects}
+        memberSuggestions={editMemberSuggestions}
+        isTaskOwner={!editingTodo || editingTodo.userId === user?.uid}
+        onAcceptDecline={editingTodo ? (status) => {
+          if (status === "accepted") handleAccept(editingTodo);
+          else handleDecline(editingTodo);
+          setEditingTodo(null);
+        } : undefined}
+        onSuggestedSlotChange={editingTodo && editingTodo.userId === user?.uid && editingTodo.assignedTo ? async (slot) => {
+          try {
+            const updated = await updateTodo(editingTodo.id, { suggestedSlot: slot });
+            setTodos((prev) => prev.map((t) => t.id === updated.id ? updated : t));
+            setEditingTodo(updated);
+          } catch { /* handled by API layer */ }
+        } : undefined}
       />
 
       <SubtaskModal

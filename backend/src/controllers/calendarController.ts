@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
-import { updateTodo, listTodos, type RecurrenceFrequency } from "../services/todoService";
+import { updateTodo, listTodos, findTodoForUser, listAssignedToMe, type RecurrenceFrequency } from "../services/todoService";
 import {
   findUserByUid,
   DEFAULT_WORKING_HOURS,
@@ -37,12 +37,12 @@ function advanceDate(d: Date, freq: RecurrenceFrequency, interval: number): void
 }
 
 export async function getSlots(req: AuthenticatedRequest, res: Response) {
-  const todoId = req.params.todoId;
+  const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
 
-  const todos = listTodos(uid);
-  const todo = todos.find((t) => t.id === todoId);
-  if (!todo) throw new NotFoundError("Tâche introuvable");
+  const found = findTodoForUser(uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
 
   const user = findUserByUid(uid);
   const workingHours = user?.workingHours ?? DEFAULT_WORKING_HOURS;
@@ -58,7 +58,7 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
     deadline: todo.deadline,
     startDate: todo.startDate,
   });
-  res.status(200).json({ slots, duration, durationSource, effort });
+  res.status(200).json({ slots, duration, durationSource, effort, suggestedSlot: todo.suggestedSlot ?? null });
 }
 
 export async function bookSlot(req: AuthenticatedRequest, res: Response) {
@@ -72,9 +72,9 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) throw new ValidationError("Invalid date format");
   if (startDate >= endDate) throw new ValidationError("start must be before end");
 
-  const todos = listTodos(uid);
-  const todo = todos.find((t) => t.id === todoId);
-  if (!todo) throw new NotFoundError("Tâche introuvable");
+  const found = findTodoForUser(uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
 
   let calendarEventId: string | null = null;
   const tokens = getGoogleCalendarTokens(uid);
@@ -95,9 +95,9 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
 
-  const todos = listTodos(uid);
-  const todo = todos.find((t) => t.id === todoId);
-  if (!todo) throw new NotFoundError("Tâche introuvable");
+  const found = findTodoForUser(uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
 
   if (todo.scheduledSlot?.calendarEventId) {
     await deleteGoogleCalendarEvent(uid, todo.scheduledSlot.calendarEventId);
@@ -166,7 +166,9 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   const rangeMs = endDateParsed.getTime() - startDate.getTime();
   if (rangeMs > 90 * 24 * 60 * 60 * 1000) throw new ValidationError("Date range too large (max 90 days)");
 
-  const todos = listTodos(uid);
+  const ownedTodos = listTodos(uid);
+  const assignedTodos = listAssignedToMe(uid);
+  const seenIds = new Set<string>();
 
   type WroketEvent = {
     id: string;
@@ -179,12 +181,16 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
     effort: string;
     deadline: string | null;
     recurring?: boolean;
+    delegated?: boolean;
   };
 
   const wroketEvents: WroketEvent[] = [];
 
-  for (const t of todos) {
+  const allTodos = [...ownedTodos, ...assignedTodos];
+  for (const t of allTodos) {
     if (t.status !== "active" || !t.scheduledSlot) continue;
+    if (seenIds.has(t.id)) continue;
+    seenIds.add(t.id);
 
     wroketEvents.push({
       id: t.id,
@@ -196,6 +202,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       priority: t.priority,
       effort: t.effort,
       deadline: t.deadline,
+      delegated: t.userId !== uid,
     });
 
     if (t.recurrence) {
@@ -268,7 +275,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   }
 
   const wroketGoogleIds = new Set(
-    todos
+    allTodos
       .filter((t) => t.scheduledSlot?.calendarEventId)
       .map((t) => t.scheduledSlot!.calendarEventId!),
   );

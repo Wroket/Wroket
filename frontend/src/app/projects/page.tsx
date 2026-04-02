@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
+import { useToast } from "@/components/Toast";
 import {
   getProjects,
   getTeams,
@@ -21,6 +23,9 @@ import ProjectListView from "./_components/ProjectListView";
 export default function ProjectsPage() {
   const { t, locale } = useLocale();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -32,16 +37,40 @@ export default function ProjectsPage() {
 
   const [allProjectTodos, setAllProjectTodos] = useState<Todo[]>([]);
 
+  const selectProject = useCallback((project: Project | null) => {
+    setSelectedProject(project);
+    const params = new URLSearchParams(searchParams.toString());
+    if (project) {
+      params.set("project", project.id);
+    } else {
+      params.delete("project");
+    }
+    router.replace(`/projects?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
   const loadProjects = useCallback(async () => {
     try {
       const [p, te] = await Promise.all([getProjects(), getTeams()]);
       setProjects(p);
       setTeams(te);
-    } catch { /* auth handled by AuthContext */ }
-    finally { setLoading(false); }
-  }, []);
+      return p;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("toast.loadError"));
+      return [] as Project[];
+    } finally {
+      setLoading(false);
+    }
+  }, [toast, t]);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => {
+    loadProjects().then((loadedProjects) => {
+      const projectId = searchParams.get("project");
+      if (projectId && !selectedProject) {
+        const found = loadedProjects.find((p: Project) => p.id === projectId);
+        if (found) handleSelectProject(found);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     getTodos()
@@ -50,14 +79,18 @@ export default function ProjectsPage() {
   }, []);
 
   const handleSelectProject = async (project: Project) => {
-    setSelectedProject(project);
+    selectProject(project);
     setLoadingTodos(true);
     try {
       const [freshProj, todos] = await Promise.all([fetchProject(project.id), getProjectTodos(project.id)]);
       setSelectedProject(freshProj);
       setProjectTodos(todos);
-    } catch { setProjectTodos([]); }
-    finally { setLoadingTodos(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("toast.loadError"));
+      setProjectTodos([]);
+    } finally {
+      setLoadingTodos(false);
+    }
   };
 
   if (loading) {
@@ -74,7 +107,7 @@ export default function ProjectsPage() {
     return (
       <ProjectDetailView
         selectedProject={selectedProject}
-        setSelectedProject={setSelectedProject}
+        setSelectedProject={selectProject}
         projects={projects}
         setProjects={setProjects}
         projectTodos={projectTodos}

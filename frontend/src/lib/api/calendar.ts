@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./core";
-import type { SlotProposal, GoogleCalendarEntry } from "./core";
+import type { SlotProposal, SuggestedSlot, GoogleCalendarEntry } from "./core";
 import type { Todo } from "./todos";
 
 export interface CalendarEvent {
@@ -13,6 +13,7 @@ export interface CalendarEvent {
   effort?: string;
   deadline?: string | null;
   recurring?: boolean;
+  delegated?: boolean;
   calendarId?: string;
   calendarColor?: string;
   accountEmail?: string;
@@ -28,6 +29,7 @@ export async function getTaskSlots(todoId: string): Promise<{
   duration: number;
   durationSource: "task" | "settings";
   effort: string;
+  suggestedSlot: SuggestedSlot | null;
 }> {
   const res = await fetch(`${API_BASE_URL}/calendar/slots/${todoId}`, { credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger les créneaux");

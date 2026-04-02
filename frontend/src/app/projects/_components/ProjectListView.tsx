@@ -50,7 +50,7 @@ interface ProjectListViewProps {
   user: { uid: string; effortMinutes?: { light: number; medium: number; heavy: number } } | null;
   t: (key: TranslationKey) => string;
   locale: string;
-  loadProjects: () => Promise<void>;
+  loadProjects: () => Promise<unknown>;
   onSelectProject: (project: Project) => void;
 }
 
@@ -633,7 +633,7 @@ export default function ProjectListView({
 
         {/* Create project modal */}
         {showCreate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (createName.trim() || createDesc.trim()) { if (!window.confirm(t("projects.discardChanges"))) return; } setShowCreate(false); setCreateName(""); setCreateDesc(""); setCreateTeamId(null); }}>
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.create")}</h3>
               <div className="space-y-3">

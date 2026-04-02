@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -39,6 +39,8 @@ import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 
+import PageHelpButton from "@/components/PageHelpButton";
+
 import GanttChart from "./GanttChart";
 import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
 import { formatMins, TEMPLATE_PHASES } from "./types";
@@ -55,7 +57,7 @@ interface ProjectDetailViewProps {
   user: { uid: string; effortMinutes?: { light: number; medium: number; heavy: number } } | null;
   t: (key: TranslationKey) => string;
   locale: string;
-  loadProjects: () => Promise<void>;
+  loadProjects: () => Promise<unknown>;
   teams: Team[];
 }
 
@@ -76,6 +78,15 @@ export default function ProjectDetailView({
   const { toast } = useToast();
   const { resolveUser, displayName, cache } = useUserLookup();
   const meUid = user?.uid ?? null;
+
+  useEffect(() => {
+    const uids = new Set<string>();
+    for (const td of projectTodos) {
+      if (td.assignedTo && !cache[td.assignedTo]) uids.add(td.assignedTo);
+      if (td.userId && td.userId !== meUid && !cache[td.userId]) uids.add(td.userId);
+    }
+    uids.forEach((uid) => resolveUser(uid));
+  }, [projectTodos, meUid, cache, resolveUser]);
 
   const [detailTab, setDetailTab] = useState<DetailTab>("board");
   const [editing, setEditing] = useState(false);
@@ -99,6 +110,12 @@ export default function ProjectDetailView({
   const [newTaskEffort, setNewTaskEffort] = useState<Effort>("medium");
   const [newTaskStartDate, setNewTaskStartDate] = useState("");
   const [newTaskDeadline, setNewTaskDeadline] = useState("");
+  const [newTaskAssignEmail, setNewTaskAssignEmail] = useState("");
+  const [newTaskAssignedUser, setNewTaskAssignedUser] = useState<AuthMeResponse | null>(null);
+  const [newTaskAssignError, setNewTaskAssignError] = useState<string | null>(null);
+  const [showNewTaskSuggestions, setShowNewTaskSuggestions] = useState(false);
+  const newTaskAssignRef = useRef<HTMLDivElement>(null);
+  const newTaskAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [allTodos, setAllTodos] = useState<Todo[]>([]);
   const [showLinkTask, setShowLinkTask] = useState(false);
@@ -173,6 +190,14 @@ export default function ProjectDetailView({
     return { byPhase: map, total };
   }, [projectTodos, effortDefaults]);
 
+  const completionStats = useMemo(() => {
+    const parents = projectTodos.filter((td) => !td.parentId);
+    const total = parents.length;
+    const done = parents.filter((td) => td.status !== "active").length;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, pct };
+  }, [projectTodos]);
+
   const draggedTodo = useMemo(
     () => (draggedTodoId ? projectTodos.find((t) => t.id === draggedTodoId) ?? null : null),
     [draggedTodoId, projectTodos],
@@ -222,6 +247,7 @@ export default function ProjectDetailView({
       setSelectedProject(updated);
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       setEditing(false);
+      toast.success(t("toast.taskUpdated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
@@ -251,6 +277,7 @@ export default function ProjectDetailView({
       setNewPhaseStart("");
       setNewPhaseEnd("");
       setShowAddPhase(false);
+      toast.success(t("toast.taskUpdated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
@@ -485,6 +512,63 @@ export default function ProjectDetailView({
     }
   };
 
+  const projectTeamMembers = useMemo(() => {
+    const teamId = selectedProject.teamId;
+    if (!teamId) return [];
+    const team = teams.find((tm) => tm.id === teamId);
+    return team?.members.map((m) => m.email) ?? [];
+  }, [selectedProject.teamId, teams]);
+
+  const newTaskAssignSuggestions = useMemo(() => {
+    if (projectTeamMembers.length === 0) return [];
+    if (!newTaskAssignEmail) return projectTeamMembers;
+    const q = newTaskAssignEmail.toLowerCase();
+    return projectTeamMembers.filter((e) => e.toLowerCase().includes(q));
+  }, [newTaskAssignEmail, projectTeamMembers]);
+
+  const handleNewTaskAssignInput = (email: string) => {
+    setNewTaskAssignEmail(email);
+    setNewTaskAssignError(null);
+    setShowNewTaskSuggestions(true);
+    clearTimeout(newTaskAssignTimer.current);
+    if (!email.includes("@") || email.length < 5) {
+      setNewTaskAssignedUser(null);
+      return;
+    }
+    newTaskAssignTimer.current = setTimeout(async () => {
+      try {
+        const u = await lookupUser(email);
+        if (u) { setNewTaskAssignedUser(u); setNewTaskAssignError(null); }
+        else { setNewTaskAssignedUser(null); setNewTaskAssignError(t("assign.userNotFound")); }
+      } catch { setNewTaskAssignedUser(null); }
+    }, 300);
+  };
+
+  const selectNewTaskAssignSuggestion = (email: string) => {
+    setNewTaskAssignEmail(email);
+    setShowNewTaskSuggestions(false);
+    setNewTaskAssignError(null);
+    clearTimeout(newTaskAssignTimer.current);
+    newTaskAssignTimer.current = setTimeout(async () => {
+      try {
+        const u = await lookupUser(email);
+        if (u) { setNewTaskAssignedUser(u); setNewTaskAssignError(null); }
+        else { setNewTaskAssignedUser(null); setNewTaskAssignError(t("assign.userNotFound")); }
+      } catch { setNewTaskAssignedUser(null); }
+    }, 100);
+  };
+
+  useEffect(() => {
+    if (!showNewTaskSuggestions) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (newTaskAssignRef.current && !newTaskAssignRef.current.contains(e.target as Node)) {
+        setShowNewTaskSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showNewTaskSuggestions]);
+
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return;
     try {
@@ -496,6 +580,7 @@ export default function ProjectDetailView({
         deadline: newTaskDeadline || null,
         projectId: selectedProject.id,
         phaseId: addTaskPhaseId,
+        assignedTo: newTaskAssignedUser?.uid ?? null,
       });
       setProjectTodos((prev) => [...prev, todo]);
       setNewTaskTitle("");
@@ -503,8 +588,12 @@ export default function ProjectDetailView({
       setNewTaskEffort("medium");
       setNewTaskStartDate("");
       setNewTaskDeadline("");
+      setNewTaskAssignEmail("");
+      setNewTaskAssignedUser(null);
+      setNewTaskAssignError(null);
       setShowAddTask(false);
       setAddTaskPhaseId(null);
+      toast.success(t("toast.taskUpdated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
@@ -533,6 +622,16 @@ export default function ProjectDetailView({
     try {
       const updated = await updateTodo(todo.id, { status });
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  const handleAcceptDeclineTask = async (todo: Todo, assignmentStatus: "accepted" | "declined") => {
+    try {
+      const updated = await updateTodo(todo.id, { assignmentStatus });
+      setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+      if (editingTodo?.id === todo.id) setEditingTodo(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
@@ -731,8 +830,8 @@ export default function ProjectDetailView({
           <select
             value={todo.phaseId ?? ""}
             onChange={(e) => { e.stopPropagation(); handleMoveTaskToPhase(todo.id, e.target.value || null); }}
-            className="text-[10px] rounded border border-zinc-200 dark:border-slate-700 bg-transparent text-zinc-500 dark:text-slate-400 px-1 py-0.5 opacity-0 group-hover/task:opacity-100 transition-opacity cursor-pointer"
-            title="Move to phase"
+            className="text-[10px] rounded border border-zinc-200 dark:border-slate-700 bg-transparent text-zinc-500 dark:text-slate-400 px-1 py-0.5 opacity-100 md:opacity-0 md:group-hover/task:opacity-100 transition-opacity cursor-pointer"
+            title={t("phase.moveToPhase")}
             onClick={(e) => e.stopPropagation()}
           >
             <option value="">{t("phase.unassigned")}</option>
@@ -742,16 +841,28 @@ export default function ProjectDetailView({
           </select>
         )}
 
-        <div className="flex items-center gap-0.5 opacity-0 group-hover/task:opacity-100 transition-opacity shrink-0">
+        {todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "accepted" && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button type="button" onClick={(e) => { e.stopPropagation(); handleAcceptDeclineTask(todo, "accepted"); }} title={t("assign.accept")} className="text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors p-0.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </button>
+            {todo.assignmentStatus !== "declined" && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); handleAcceptDeclineTask(todo, "declined"); }} title={t("assign.decline")} className="text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors p-0.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover/task:opacity-100 transition-opacity shrink-0">
           {todo.status === "active" && (
             <button type="button" onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "cancelled"); }} title={t("filter.cancelled")} className="text-zinc-400 hover:text-amber-600 transition-colors p-0.5">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
             </button>
           )}
-          <button type="button" onClick={(e) => { e.stopPropagation(); handleUnlinkTask(todo); }} title="Unlink" className="text-zinc-400 hover:text-orange-500 transition-colors p-0.5">
+          <button type="button" onClick={(e) => { e.stopPropagation(); handleUnlinkTask(todo); }} title={t("projects.unlinkTask")} className="text-zinc-400 hover:text-orange-500 transition-colors p-0.5">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.181 8.68a4.503 4.503 0 011.903 6.405m-9.768-2.782L3.56 14.06a4.5 4.5 0 006.364 6.365l.707-.707m6.062-9.192l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-.707.707" /></svg>
           </button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTask(todo); }} title="Delete" className="text-zinc-400 hover:text-red-500 transition-colors p-0.5">
+          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTask(todo); }} title={t("projects.delete")} className="text-zinc-400 hover:text-red-500 transition-colors p-0.5">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
           </button>
         </div>
@@ -807,16 +918,35 @@ export default function ProjectDetailView({
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${selectedProject.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400"}`}>
                     {t(`projects.${selectedProject.status}`)}
                   </span>
-                  <span className="text-xs text-zinc-400 dark:text-slate-500">{orderedPhases.length} {t("projects.phases").toLowerCase()} · {projectTodos.length} {t("projects.tasks")}</span>
+                  <span className="text-xs text-zinc-400 dark:text-slate-500">{orderedPhases.length} {t("projects.phases").toLowerCase()} · {projectTodos.filter((td) => !td.parentId).length} {t("projects.tasks")}</span>
                 </div>
+                {completionStats.total > 0 && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 h-2 rounded-full bg-zinc-100 dark:bg-slate-700 overflow-hidden max-w-[200px]">
+                      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${completionStats.pct}%` }} />
+                    </div>
+                    <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400">{completionStats.pct}% ({completionStats.done}/{completionStats.total})</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <button type="button" onClick={() => setShowAddPhase(true)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors" title={t("phase.add")}>
+                  + {t("projects.phases")}
+                </button>
                 <button onClick={() => { setEditing(true); setEditName(selectedProject.name); setEditDesc(selectedProject.description); }} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
                   {t("projects.edit")}
                 </button>
                 <button onClick={() => handleArchiveRestore(selectedProject)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
                   {t((selectedProject.status === "active" ? "projects.archive" : "projects.restore"))}
                 </button>
+                <PageHelpButton
+                  title={t("projects.helpTitle")}
+                  items={[
+                    { icon: "📋", text: t("projects.helpBoard") },
+                    { icon: "📊", text: t("projects.helpKanban") },
+                    { icon: "📅", text: t("projects.helpGantt") },
+                  ]}
+                />
               </div>
             </div>
           )}
@@ -953,14 +1083,14 @@ export default function ProjectDetailView({
                             {phase.startDate && <span className="text-[10px] text-zinc-400 dark:text-slate-500">{phase.startDate}</span>}
                             {phase.startDate && phase.endDate && <span className="text-[10px] text-zinc-300 dark:text-slate-600">→</span>}
                             {phase.endDate && <span className="text-[10px] text-zinc-400 dark:text-slate-500">{phase.endDate}</span>}
-                            <span className="text-[10px] text-zinc-400 dark:text-slate-500">({phaseTasks.length} {t("phase.tasks")})</span>
+                            <span className="text-[10px] text-zinc-400 dark:text-slate-500">({parentTasks.length} {t("phase.tasks")})</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <button type="button" onClick={() => { setAddTaskPhaseId(phase.id); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1" title={t("projects.addTask")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                           </button>
-                          <button type="button" onClick={() => openLinkTask(phase.id)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-1" title="Link task">
+                          <button type="button" onClick={() => openLinkTask(phase.id)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-1" title={t("projects.linkTask")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                           </button>
                           <button type="button" onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.name); setEditPhaseStart(phase.startDate ?? ""); setEditPhaseEnd(phase.endDate ?? ""); }} className="text-zinc-400 hover:text-amber-500 transition-colors p-1" title={t("phase.edit")}>
@@ -1011,7 +1141,7 @@ export default function ProjectDetailView({
               return (
                 <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
                   <div className="px-4 py-3 border-b border-zinc-200 dark:border-slate-700 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-zinc-500 dark:text-slate-400">{t("phase.unassigned")} ({unassigned.length})</h3>
+                    <h3 className="text-sm font-semibold text-zinc-500 dark:text-slate-400">{t("phase.unassigned")} ({parentUnassigned.length})</h3>
                     <div className="flex items-center gap-1">
                       <button type="button" onClick={() => { setAddTaskPhaseId(null); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
@@ -1062,7 +1192,7 @@ export default function ProjectDetailView({
         ) : detailTab === "kanban" ? (
           <DndContext sensors={dndSensors} onDragStart={handleKanbanDragStart} onDragEnd={handleKanbanDragEnd}>
             <div className="overflow-x-auto pb-4">
-              <div className="flex gap-4" style={{ minWidth: Math.max(orderedPhases.length + 1, 3) * 290 + "px" }}>
+              <div className="flex flex-col md:flex-row gap-4 md:min-w-0" style={{ minWidth: typeof window !== "undefined" && window.innerWidth >= 768 ? Math.max(orderedPhases.length + 1, 3) * 290 + "px" : undefined }}>
                 {(() => {
                   const kanbanPhases = orderedPhases.length > 0
                     ? orderedPhases
@@ -1079,7 +1209,7 @@ export default function ProjectDetailView({
                         const other = phaseTasks.filter((td) => td.status !== "active" && td.status !== "completed");
 
                         return (
-                          <div key={phase.id} className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]">
+                          <div key={phase.id} className="flex-shrink-0 w-full md:w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col md:max-h-[calc(100vh-280px)]">
                             <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
                               <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: phase.color }} />
                               <span className="text-sm font-semibold text-zinc-700 dark:text-slate-200 truncate flex-1">{phase.name}</span>
@@ -1100,7 +1230,7 @@ export default function ProjectDetailView({
                                           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                         </button>
                                         <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 leading-snug flex-1 min-w-0">{todo.title}</p>
-                                        <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0">
+                                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover/card:opacity-100 transition-opacity shrink-0">
                                           <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("subtask.add")}>
                                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                                           </button>
@@ -1116,7 +1246,26 @@ export default function ProjectDetailView({
                                         {subs.length > 0 && <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subs.length} ↳</span>}
                                         {todo.assignedTo && todo.assignedTo !== meUid && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 truncate max-w-[100px]">← {displayName(todo.userId)}</span>}
                                         {todo.assignedTo && todo.assignedTo !== todo.userId && todo.userId === meUid && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 truncate max-w-[100px]">→ {displayName(todo.assignedTo)}</span>}
+                                        {todo.assignmentStatus && todo.assignedTo && (
+                                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                                            todo.assignmentStatus === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                              : todo.assignmentStatus === "declined" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                                          }`}>{todo.assignmentStatus === "accepted" ? t("assign.statusAccepted") : todo.assignmentStatus === "declined" ? t("assign.statusDeclined") : t("assign.statusPending")}</span>
+                                        )}
                                       </div>
+                                      {todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "accepted" && (
+                                        <div className="flex items-center gap-1 mt-1.5">
+                                          <button type="button" onClick={(e) => { e.stopPropagation(); handleAcceptDeclineTask(todo, "accepted"); }} className="flex-1 rounded border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-[9px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors">
+                                            {t("assign.accept")}
+                                          </button>
+                                          {todo.assignmentStatus !== "declined" && (
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); handleAcceptDeclineTask(todo, "declined"); }} className="flex-1 rounded border border-red-300 dark:border-red-700 px-2 py-1 text-[9px] font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors">
+                                              {t("assign.decline")}
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                       {subs.length > 0 && (
                                         <div className="mt-2 space-y-1 border-t border-zinc-100 dark:border-slate-800 pt-1.5">
                                           {subs.map((sub) => (
@@ -1176,7 +1325,7 @@ export default function ProjectDetailView({
                       })}
 
                       {orderedPhases.length > 0 && unassigned.length > 0 && (
-                        <div className="flex-shrink-0 w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-280px)]">
+                        <div className="flex-shrink-0 w-full md:w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col md:max-h-[calc(100vh-280px)]">
                           <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
                             <span className="w-3 h-3 rounded-sm shrink-0 bg-zinc-400" />
                             <span className="text-sm font-semibold text-zinc-500 dark:text-slate-400 truncate flex-1">{t("phase.unassigned")}</span>
@@ -1294,7 +1443,7 @@ export default function ProjectDetailView({
                   </div>
                   <div className="flex-1">
                     <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("todos.deadlineLabel")}</label>
-                    <input type="date" value={newTaskDeadline} min={new Date().toISOString().split("T")[0]} onChange={(e) => setNewTaskDeadline(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
+                    <input type="date" value={newTaskDeadline} onChange={(e) => setNewTaskDeadline(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
                   </div>
                 </div>
                 {orderedPhases.length > 0 && (
@@ -1304,6 +1453,52 @@ export default function ProjectDetailView({
                       <option value="">{t("phase.unassigned")}</option>
                       {orderedPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
+                  </div>
+                )}
+                {projectTeamMembers.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("assign.label")}</label>
+                    <div ref={newTaskAssignRef} className="relative">
+                      <input
+                        type="email"
+                        placeholder={t("assign.placeholder")}
+                        value={newTaskAssignEmail}
+                        onChange={(e) => handleNewTaskAssignInput(e.target.value)}
+                        onFocus={() => setShowNewTaskSuggestions(true)}
+                        autoComplete="off"
+                        className={`w-full rounded border px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 ${
+                          newTaskAssignedUser
+                            ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
+                            : newTaskAssignError
+                              ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                              : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
+                        }`}
+                      />
+                      {newTaskAssignedUser && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </span>
+                      )}
+                      {showNewTaskSuggestions && newTaskAssignSuggestions.length > 0 && !newTaskAssignedUser && (
+                        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 max-h-40 overflow-y-auto">
+                          {newTaskAssignSuggestions.slice(0, 8).map((email) => (
+                            <button
+                              key={email}
+                              type="button"
+                              onClick={() => selectNewTaskAssignSuggestion(email)}
+                              className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors truncate"
+                            >
+                              {email}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {newTaskAssignError && (
+                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">{newTaskAssignError}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1319,10 +1514,10 @@ export default function ProjectDetailView({
         {showLinkTask && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowLinkTask(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">Link a task</h3>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.linkTask")}</h3>
               <div className="overflow-y-auto flex-1 space-y-1">
                 {allTodos.length === 0 ? (
-                  <p className="text-sm text-zinc-400 italic text-center py-6">{t("projects.noTasks")}</p>
+                  <p className="text-sm text-zinc-400 italic text-center py-6">{t("projects.noTasksToLink")}</p>
                 ) : allTodos.map((todo) => (
                   <button key={todo.id} onClick={() => handleLinkExisting(todo, linkPhaseId)} className="w-full text-left px-3 py-2 rounded hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between gap-2">
                     <span className="text-sm text-zinc-900 dark:text-slate-100 truncate">{todo.title}</span>
@@ -1355,6 +1550,17 @@ export default function ProjectDetailView({
           subtaskCount={editingTodo ? getSubtasks(editingTodo.id).length : 0}
           effortDefaults={user?.effortMinutes}
           currentUserUid={user?.uid}
+          memberSuggestions={projectTeamMembers}
+          isTaskOwner={!editingTodo || editingTodo.userId === meUid}
+          onAcceptDecline={editingTodo ? (status) => handleAcceptDeclineTask(editingTodo, status) : undefined}
+          onSuggestedSlotChange={editingTodo && editingTodo.userId === meUid && editingTodo.assignedTo ? async (slot) => {
+            try {
+              const updated = await updateTodo(editingTodo.id, { suggestedSlot: slot });
+              setProjectTodos((prev) => prev.map((td) => td.id === updated.id ? updated : td));
+              setEditingTodo(updated);
+              toast.success(slot ? t("schedule.suggestSlot") : t("schedule.clearSuggestion"));
+            } catch { /* handled by API layer */ }
+          } : undefined}
         />
 
         <SubtaskModal

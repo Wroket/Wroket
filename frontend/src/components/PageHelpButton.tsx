@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
 
 export interface HelpItem {
+  icon?: string;
   text: string;
 }
 
@@ -81,7 +82,7 @@ export default function PageHelpButton({ items, title }: PageHelpButtonProps) {
           <ul className="pr-4 pl-7 py-2.5 space-y-1 list-disc list-outside">
             {items.map((item, i) => (
               <li key={i} className="text-[11px] text-zinc-600 dark:text-slate-300 leading-relaxed marker:text-zinc-400 dark:marker:text-slate-500">
-                {item.text}
+                {item.icon && <span className="mr-1">{item.icon}</span>}{item.text}
               </li>
             ))}
           </ul>

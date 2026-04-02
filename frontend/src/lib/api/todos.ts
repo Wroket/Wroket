@@ -1,6 +1,6 @@
 import {
   API_BASE_URL, parseJsonOrThrow, extractApiMessage,
-  type ScheduledSlot, type ActivityLogEntry,
+  type ScheduledSlot, type SuggestedSlot, type ActivityLogEntry,
 } from "./core";
 
 export type Priority = "low" | "medium" | "high";
@@ -32,6 +32,7 @@ export interface Todo {
   deadline: string | null;
   tags: string[];
   scheduledSlot: ScheduledSlot | null;
+  suggestedSlot: SuggestedSlot | null;
   recurrence: Recurrence | null;
   sortOrder?: number | null;
   status: TodoStatus;
@@ -69,6 +70,7 @@ export interface UpdateTodoPayload {
   phaseId?: string | null;
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
+  suggestedSlot?: SuggestedSlot | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
 }

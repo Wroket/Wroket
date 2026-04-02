@@ -7,6 +7,7 @@ import {
   bookTaskSlot,
   clearTaskSlot,
   type ScheduledSlot,
+  type SuggestedSlot,
   type SlotProposal,
   type Todo,
 } from "@/lib/api";
@@ -16,12 +17,13 @@ import { useToast } from "@/components/Toast";
 export interface SlotPickerProps {
   todoId: string;
   scheduledSlot: ScheduledSlot | null;
+  suggestedSlot?: SuggestedSlot | null;
   onBooked: (todo: Todo) => void;
   onCleared: (todo: Todo) => void;
   autoOpen?: boolean;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared, autoOpen }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -39,6 +41,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
   const [duration, setDuration] = useState(0);
   const [durationSource, setDurationSource] = useState<"task" | "settings">("settings");
   const [effort, setEffort] = useState("");
+  const [serverSuggestedSlot, setServerSuggestedSlot] = useState<SuggestedSlot | null>(suggestedSlot ?? null);
   const [booking, setBooking] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [mode, setMode] = useState<"suggested" | "manual">("suggested");
@@ -74,6 +77,7 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
       setDuration(data.duration);
       setDurationSource(data.durationSource);
       setEffort(data.effort);
+      if (data.suggestedSlot) setServerSuggestedSlot(data.suggestedSlot);
     } catch {
       setSlots([]);
     } finally {
@@ -255,16 +259,41 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
                 </button>
               </div>
             ) : loading ? (
-              <div className="flex items-center justify-center py-6">
-                <div className="flex items-center gap-2 text-zinc-400 dark:text-slate-500">
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  <span className="text-xs">{t("schedule.loading")}</span>
+              <div className="space-y-2">
+                {serverSuggestedSlot && (
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400 mb-0.5">
+                          {t("schedule.suggestedByOwner")}
+                        </p>
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                          {new Date(serverSuggestedSlot.start).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}{", "}
+                          {new Date(serverSuggestedSlot.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleBook({ start: serverSuggestedSlot.start, end: serverSuggestedSlot.end, label: "" })}
+                        disabled={booking}
+                        className="shrink-0 rounded bg-amber-600 dark:bg-amber-700 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                      >
+                        {t("schedule.select")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-center py-6">
+                  <div className="flex items-center gap-2 text-zinc-400 dark:text-slate-500">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="text-xs">{t("schedule.loading")}</span>
+                  </div>
                 </div>
               </div>
-            ) : slots.length === 0 ? (
+            ) : slots.length === 0 && !serverSuggestedSlot ? (
               <div className="py-6 text-center">
                 <p className="text-xs text-zinc-400 dark:text-slate-500 italic">
                   {t("schedule.noSlots")}
@@ -279,6 +308,29 @@ export default function SlotPicker({ todoId, scheduledSlot, onBooked, onCleared,
               </div>
             ) : (
               <div className="space-y-2">
+                {serverSuggestedSlot && (
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400 mb-0.5">
+                          {t("schedule.suggestedByOwner")}
+                        </p>
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                          {new Date(serverSuggestedSlot.start).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}{", "}
+                          {new Date(serverSuggestedSlot.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleBook({ start: serverSuggestedSlot.start, end: serverSuggestedSlot.end, label: "" })}
+                        disabled={booking}
+                        className="shrink-0 rounded bg-amber-600 dark:bg-amber-700 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                      >
+                        {t("schedule.select")}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {duration > 0 && (
                   <div className="mb-2">
                     <p className="text-[11px] text-zinc-600 dark:text-slate-300 font-medium">

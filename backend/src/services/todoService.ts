@@ -23,6 +23,11 @@ export interface Recurrence {
   endDate?: string;
 }
 
+export interface SuggestedSlot {
+  start: string;
+  end: string;
+}
+
 export interface Todo {
   id: string;
   userId: string;
@@ -40,6 +45,7 @@ export interface Todo {
   tags: string[];
   status: TodoStatus;
   scheduledSlot: ScheduledSlot | null;
+  suggestedSlot: SuggestedSlot | null;
   recurrence: Recurrence | null;
   sortOrder: number | null;
   statusChangedAt: string;
@@ -78,6 +84,7 @@ export interface UpdateTodoInput {
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
   scheduledSlot?: ScheduledSlot | null;
+  suggestedSlot?: SuggestedSlot | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
 }
@@ -166,6 +173,9 @@ function persistTodos(): void {
         }
         if ((todo as unknown as Record<string, unknown>).scheduledSlot === undefined) {
           todo.scheduledSlot = null;
+        }
+        if ((todo as unknown as Record<string, unknown>).suggestedSlot === undefined) {
+          todo.suggestedSlot = null;
         }
         if ((todo as unknown as Record<string, unknown>).recurrence === undefined) {
           todo.recurrence = null;
@@ -341,6 +351,7 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     deadline: input.deadline ?? null,
     tags: (input.tags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10),
     scheduledSlot: null,
+    suggestedSlot: null,
     recurrence: input.recurrence ?? null,
     sortOrder: typeof input.sortOrder === "number" ? input.sortOrder : null,
     status: "active",
@@ -359,7 +370,7 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
  * Finds a todo by id — first in the user's own map, then across
  * all users for tasks assigned to this user.
  */
-function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap: Map<string, Todo>; isOwner: boolean } | null {
+export function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap: Map<string, Todo>; isOwner: boolean } | null {
   const own = getUserTodos(userId);
   const ownTodo = own.get(todoId);
   if (ownTodo) return { todo: ownTodo, ownerMap: own, isOwner: true };
@@ -405,6 +416,7 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     todo.estimatedMinutes = input.estimatedMinutes;
   }
   if (input.deadline !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier l'échéance");
     if (input.deadline !== null) {
       const d = new Date(input.deadline);
       if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
@@ -459,6 +471,13 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   }
   if (input.scheduledSlot !== undefined) {
     todo.scheduledSlot = input.scheduledSlot;
+    if (input.scheduledSlot !== null) {
+      todo.suggestedSlot = null;
+    }
+  }
+  if (input.suggestedSlot !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut suggérer un créneau");
+    todo.suggestedSlot = input.suggestedSlot;
   }
   if (input.recurrence !== undefined) {
     if (input.recurrence) {
@@ -501,6 +520,7 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
         deadline: nextDeadline,
         tags: [...todo.tags],
         scheduledSlot: null,
+        suggestedSlot: null,
         recurrence: {
           ...todo.recurrence,
           nextDueDate: calculateNextDueDate(nextDeadline, frequency, interval),

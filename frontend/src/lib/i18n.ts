@@ -534,6 +534,12 @@ const translations = {
   "assign.accepted": { fr: "Acceptée", en: "Accepted" },
   "assign.pending": { fr: "En attente", en: "Pending" },
   "assign.taskCompleted": { fr: "Tâche accomplie", en: "Task completed" },
+  "assign.readOnly": { fr: "Assignée à", en: "Assigned to" },
+  "assign.ownerOnly": { fr: "Seul le propriétaire peut modifier l'assignation", en: "Only the task owner can reassign" },
+  "assign.deadlineOwnerOnly": { fr: "Échéance définie par le créateur", en: "Deadline set by the task owner" },
+  "assign.statusPending": { fr: "En attente d'acceptation", en: "Pending acceptance" },
+  "assign.statusAccepted": { fr: "Acceptée", en: "Accepted" },
+  "assign.statusDeclined": { fr: "Refusée", en: "Declined" },
 
   // ── Notifications ──
   "notif.title": { fr: "Notifications", en: "Notifications" },
@@ -594,6 +600,7 @@ const translations = {
   "task.deletePromoteSubtasks": { fr: "Conserver les sous-tâches", en: "Keep subtasks" },
   "task.deleteAll": { fr: "Tout supprimer", en: "Delete all" },
   "task.delete": { fr: "Supprimer", en: "Delete" },
+  "phase.moveToPhase": { fr: "Déplacer vers une phase", en: "Move to phase" },
   "phase.edit": { fr: "Modifier la phase", en: "Edit phase" },
   "phase.empty": { fr: "Aucune phase définie", en: "No phases defined" },
   "phase.unassigned": { fr: "Sans phase", en: "Unassigned" },
@@ -625,6 +632,17 @@ const translations = {
   "projects.tagPlaceholder": { fr: "Nouveau tag…", en: "New tag…" },
   "projects.useTemplate": { fr: "Utiliser un template de phases", en: "Use a phase template" },
   "projects.templateStandard": { fr: "Phases classiques (Cadrage, Conception, Développement, Tests, Déploiement, Clôture)", en: "Standard phases (Scoping, Design, Development, Testing, Deployment, Closure)" },
+  "projects.linkTask": { fr: "Lier une tâche", en: "Link a task" },
+  "projects.unlinkTask": { fr: "Détacher la tâche", en: "Unlink task" },
+  "projects.noTasksToLink": { fr: "Aucune tâche indépendante à lier", en: "No standalone tasks to link" },
+  "projects.completion": { fr: "Avancement", en: "Completion" },
+  "projects.helpTitle": { fr: "Vue projet", en: "Project view" },
+  "projects.helpBoard": { fr: "Le tableau liste les tâches par phase. Glissez-déposez pour réordonner.", en: "The board lists tasks by phase. Drag and drop to reorder." },
+  "projects.helpKanban": { fr: "Le kanban permet de déplacer les tâches entre phases en glissant les cartes.", en: "The kanban lets you move tasks between phases by dragging cards." },
+  "projects.helpGantt": { fr: "Le diagramme de Gantt affiche la timeline du projet.", en: "The Gantt chart displays the project timeline." },
+  "projects.discardChanges": { fr: "Abandonner les modifications ?", en: "Discard changes?" },
+  "projects.suggestSlot": { fr: "Suggérer un créneau", en: "Suggest a slot" },
+  "projects.suggestedSlot": { fr: "Créneau suggéré", en: "Suggested slot" },
 
   // ── Working Hours ──
   "settings.workingHours": { fr: "Horaires de travail", en: "Working hours" },
@@ -660,6 +678,9 @@ const translations = {
   "schedule.date": { fr: "Date", en: "Date" },
   "schedule.time": { fr: "Heure", en: "Time" },
   "schedule.book": { fr: "Réserver", en: "Book" },
+  "schedule.suggestedByOwner": { fr: "Suggéré par le créateur", en: "Suggested by owner" },
+  "schedule.suggestSlot": { fr: "Suggérer un créneau", en: "Suggest a slot" },
+  "schedule.clearSuggestion": { fr: "Retirer la suggestion", en: "Clear suggestion" },
 
   // ── Agenda ──
   "nav.agenda": { fr: "Agenda", en: "Agenda" },

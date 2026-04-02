@@ -11,6 +11,7 @@ import {
   getCalendarEvents,
   getMe,
   getTodos,
+  getAssignedTodos,
   getProjects,
   createTodo,
   updateTodo,
@@ -376,9 +377,9 @@ export default function AgendaPage() {
   const handleDoubleClickEvent = async (ev: CalendarEvent) => {
     if (ev.source !== "wroket") return;
     try {
-      const todos = await getTodos();
+      const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
       const realId = ev.recurring ? ev.id.split("_rec_")[0] : ev.id;
-      const todo = todos.find((t) => t.id === realId);
+      const todo = owned.find((t) => t.id === realId) ?? assigned.find((t) => t.id === realId);
       if (!todo) { toast.error(t("toast.taskNotFound")); return; }
       setEditingTodo(todo);
       setEditForm({
@@ -652,7 +653,7 @@ export default function AgendaPage() {
                               style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
                               onDoubleClick={() => handleDoubleClickEvent(ev)}
                             >
-                              {isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
+                              {ev.delegated ? "← " : ""}{isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
                             </div>
                           );
                         })}
@@ -729,7 +730,7 @@ export default function AgendaPage() {
                               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
                             >
                               <div className="text-xs font-semibold truncate leading-snug">
-                                {isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
+                                {ev.delegated ? "← " : ""}{isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
                               </div>
                               {pos.height >= 36 && (
                                 <div className="text-[10px] opacity-80 mt-0.5 font-medium">
@@ -814,7 +815,7 @@ export default function AgendaPage() {
                               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
                               title={ev.summary}
                             >
-                              {ev.recurring ? "↻ " : ""}{ev.summary}
+                              {ev.delegated ? "← " : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
                             </div>
                           );
                         })}

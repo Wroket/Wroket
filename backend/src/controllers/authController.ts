@@ -130,7 +130,17 @@ export async function googleSsoCallback(req: Request, res: Response) {
 
   res.clearCookie("oauth_state", { path: "/" });
 
-  if (!code || !stateParam || !storedState || stateParam !== storedState || !consumeSsoState(stateParam)) {
+  if (!code || !stateParam) {
+    res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
+    return;
+  }
+
+  if (storedState && stateParam !== storedState) {
+    res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
+    return;
+  }
+
+  if (!consumeSsoState(stateParam)) {
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
     return;
   }

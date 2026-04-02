@@ -14,6 +14,11 @@ export interface ScheduledSlot {
   calendarEventId: string | null;
 }
 
+export interface SuggestedSlot {
+  start: string;
+  end: string;
+}
+
 export interface SlotProposal {
   start: string;
   end: string;

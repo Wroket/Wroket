@@ -1,6 +1,7 @@
 export type {
   WorkingHours,
   ScheduledSlot,
+  SuggestedSlot,
   SlotProposal,
   GoogleCalendarEntry,
   GoogleAccountPublic,

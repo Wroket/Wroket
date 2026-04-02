@@ -165,6 +165,7 @@ export default function TodoCard({
             <SlotPicker
               todoId={todo.id}
               scheduledSlot={todo.scheduledSlot}
+              suggestedSlot={todo.suggestedSlot}
               onBooked={onScheduleUpdate}
               onCleared={onScheduleUpdate}
             />
