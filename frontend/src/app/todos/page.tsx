@@ -72,20 +72,36 @@ export default function TodosPage() {
   const [loading, setLoading] = useState(true);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
-  type TaskScope = "all" | "personal" | "assigned";
+  type TaskScope = "all" | "personal" | "assigned" | "delegated";
   const [scope, setScope] = useState<TaskScope>("all");
 
+  const personalTodos = useMemo(() =>
+    myTodos.filter((t) => !t.assignedTo || t.assignedTo === meUid),
+    [myTodos, meUid],
+  );
+  const delegatedTodos = useMemo(() =>
+    myTodos.filter((t) => t.assignedTo && t.assignedTo !== meUid),
+    [myTodos, meUid],
+  );
+
   const todos = useMemo(() => {
-    const personal = myTodos.filter((t) => !t.assignedTo || t.assignedTo === meUid);
-    if (scope === "personal") return personal;
+    if (scope === "personal") return personalTodos;
     if (scope === "assigned") return assignedTodos;
+    if (scope === "delegated") return delegatedTodos;
     const seen = new Set<string>();
     const all: Todo[] = [];
-    for (const t of [...personal, ...assignedTodos]) {
+    for (const t of [...personalTodos, ...assignedTodos, ...delegatedTodos]) {
       if (!seen.has(t.id)) { seen.add(t.id); all.push(t); }
     }
     return all;
-  }, [myTodos, assignedTodos, scope, meUid]);
+  }, [personalTodos, assignedTodos, delegatedTodos, scope]);
+
+  const scopeCounts = useMemo(() => ({
+    all: (() => { const s = new Set<string>(); [...personalTodos, ...assignedTodos, ...delegatedTodos].forEach((t) => s.add(t.id)); return s.size; })(),
+    personal: personalTodos.length,
+    assigned: assignedTodos.length,
+    delegated: delegatedTodos.length,
+  }), [personalTodos, assignedTodos, delegatedTodos]);
 
   const setTodos = (updater: (prev: Todo[]) => Todo[]) => {
     setMyTodos(updater);
@@ -1035,18 +1051,25 @@ export default function TodosPage() {
                 ]}
               />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
-                {(["all", "personal", "assigned"] as TaskScope[]).map((s) => (
+                {(["all", "personal", "assigned", "delegated"] as TaskScope[]).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setScope(s)}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                    className={`px-3 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
                       scope === s
                         ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                         : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
                     } ${s !== "all" ? "border-l border-zinc-200 dark:border-slate-600" : ""}`}
                   >
                     {t(`scope.${s}`)}
+                    <span className={`text-[10px] rounded-full px-1.5 py-0.5 leading-none font-bold ${
+                      scope === s
+                        ? "bg-white/20 text-white"
+                        : "bg-zinc-100 dark:bg-slate-700 text-zinc-400 dark:text-slate-500"
+                    }`}>
+                      {scopeCounts[s]}
+                    </span>
                   </button>
                 ))}
               </div>

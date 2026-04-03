@@ -132,6 +132,14 @@ const translations = {
   "dashboard.onTime": { fr: "Dans les temps", en: "On time" },
   "dashboard.late": { fr: "En retard", en: "Late" },
   "dashboard.manageTasks": { fr: "Gérer mes tâches", en: "Manage my tasks" },
+  "dashboard.assignedToMe": { fr: "Tâches qui me sont attribuées", en: "Assigned to me" },
+  "dashboard.noAssigned": { fr: "Aucune tâche attribuée", en: "No assigned tasks" },
+  "dashboard.delegatedByMe": { fr: "Tâches que j'ai déléguées", en: "Delegated by me" },
+  "dashboard.noDelegated": { fr: "Aucune tâche déléguée", en: "No delegated tasks" },
+  "dashboard.assignedCount": { fr: "Attribuées", en: "Assigned" },
+  "dashboard.delegatedCount": { fr: "Déléguées", en: "Delegated" },
+  "dashboard.from": { fr: "de", en: "from" },
+  "dashboard.to": { fr: "à", en: "to" },
 
   // ── Todos page ──
   "todos.addPlaceholder": { fr: "Ajouter une tâche…", en: "Add a task…" },
@@ -500,6 +508,7 @@ const translations = {
   "scope.all": { fr: "Toutes", en: "All" },
   "scope.personal": { fr: "Personnelles", en: "Personal" },
   "scope.assigned": { fr: "Attribuées", en: "Assigned" },
+  "scope.delegated": { fr: "Déléguées", en: "Delegated" },
   "filter.byProject": { fr: "Projet", en: "Project" },
   "filter.allProjects": { fr: "Tous les projets", en: "All projects" },
   "filter.noProject": { fr: "Sans projet", en: "No project" },

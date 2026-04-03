@@ -5,10 +5,12 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
-import { getTodos, getArchivedTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
+import { useAuth } from "@/components/AuthContext";
+import { getTodos, getArchivedTodos, getAssignedTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUserLookup } from "@/lib/userUtils";
 import type { TranslationKey } from "@/lib/i18n";
 import type { Quadrant } from "@/lib/todoConstants";
 
@@ -21,7 +23,11 @@ const QUADRANT_LABELS: Record<Quadrant, { tKey: TranslationKey; emoji: string; c
 
 export default function DashboardPage() {
   const { t, locale } = useLocale();
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const { user } = useAuth();
+  const meUid = user?.uid ?? null;
+  const { resolveUser, displayName: userDisplayName } = useUserLookup();
+  const [myTodos, setMyTodos] = useState<Todo[]>([]);
+  const [assignedTodos, setAssignedTodos] = useState<Todo[]>([]);
   const [recentNotifs, setRecentNotifs] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,14 +35,22 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [activeTodos, archived, notifs] = await Promise.all([
+        const [owned, archived, assigned, notifs] = await Promise.all([
           getTodos(),
           getArchivedTodos(),
+          getAssignedTodos(),
           getNotifications(),
         ]);
         if (!cancelled) {
-          setTodos([...activeTodos, ...archived]);
+          setMyTodos([...owned, ...archived]);
+          setAssignedTodos(assigned);
           setRecentNotifs(notifs.slice(0, 5));
+          const uids = new Set<string>();
+          [...owned, ...assigned].forEach((td) => {
+            if (td.assignedTo) uids.add(td.assignedTo);
+            if (td.userId && td.userId !== meUid) uids.add(td.userId);
+          });
+          uids.forEach((uid) => resolveUser(uid));
         }
       } catch {
         /* handled by AppShell auth redirect */
@@ -45,10 +59,15 @@ export default function DashboardPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [meUid, resolveUser]);
 
-  const active = useMemo(() => todos.filter((td) => td.status === "active" && !td.parentId), [todos]);
-  const completed = useMemo(() => todos.filter((td) => td.status === "completed" && !td.parentId), [todos]);
+  const personalTodos = useMemo(() => myTodos.filter((td) => !td.assignedTo || td.assignedTo === meUid), [myTodos, meUid]);
+  const delegatedTodos = useMemo(() => myTodos.filter((td) => td.assignedTo && td.assignedTo !== meUid), [myTodos, meUid]);
+
+  const active = useMemo(() => personalTodos.filter((td) => td.status === "active" && !td.parentId), [personalTodos]);
+  const completed = useMemo(() => personalTodos.filter((td) => td.status === "completed" && !td.parentId), [personalTodos]);
+  const activeAssigned = useMemo(() => assignedTodos.filter((td) => td.status === "active" && !td.parentId), [assignedTodos]);
+  const activeDelegated = useMemo(() => delegatedTodos.filter((td) => td.status === "active" && !td.parentId), [delegatedTodos]);
 
   const grouped = useMemo<Record<Quadrant, Todo[]>>(() => ({
     "do-first": active.filter((td) => classify(td) === "do-first"),
@@ -123,8 +142,10 @@ export default function DashboardPage() {
         ) : (
           <>
             {/* ── Stats cards ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard label={t("dashboard.activeTasks")} value={active.length} accent="bg-blue-500" />
+              <StatCard label={t("dashboard.assignedCount")} value={activeAssigned.length} accent="bg-cyan-500" />
+              <StatCard label={t("dashboard.delegatedCount")} value={activeDelegated.length} accent="bg-amber-500" />
               <StatCard label={t("dashboard.completed")} value={completed.length} accent="bg-green-500" />
               <StatCard label={t("dashboard.completionRate")} value={`${completionRate}%`} accent="bg-violet-500" />
               <StatCard label={t("dashboard.overdue")} value={overdueCount} accent="bg-red-500" />
@@ -192,6 +213,97 @@ export default function DashboardPage() {
                   <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noTask")}</p>
                 ) : (
                   <EisenhowerRadar todos={active} compact />
+                )}
+              </div>
+            </div>
+
+            {/* ── Assigned to me & Delegated by me ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                  </svg>
+                  {t("dashboard.assignedToMe")}
+                  {activeAssigned.length > 0 && (
+                    <span className="text-[10px] font-bold bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded-full">{activeAssigned.length}</span>
+                  )}
+                </h3>
+                {activeAssigned.length === 0 ? (
+                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noAssigned")}</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {activeAssigned.slice(0, 5).map((todo) => {
+                      const badge = QUADRANT_LABELS[classify(todo)];
+                      const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+                      return (
+                        <li key={todo.id} className="flex items-center gap-3">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{todo.title}</p>
+                            <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dashboard.from")} {userDisplayName(todo.userId)}</p>
+                          </div>
+                          {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
+                          {todo.assignmentStatus && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                              todo.assignmentStatus === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              : todo.assignmentStatus === "declined" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                              : "bg-zinc-100 text-zinc-500 dark:bg-slate-700 dark:text-slate-400"
+                            }`}>
+                              {t(`assign.${todo.assignmentStatus}` as TranslationKey)}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {activeAssigned.length > 5 && (
+                  <Link href="/todos" className="block text-xs text-cyan-600 dark:text-cyan-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                  </svg>
+                  {t("dashboard.delegatedByMe")}
+                  {activeDelegated.length > 0 && (
+                    <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">{activeDelegated.length}</span>
+                  )}
+                </h3>
+                {activeDelegated.length === 0 ? (
+                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noDelegated")}</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {activeDelegated.slice(0, 5).map((todo) => {
+                      const badge = QUADRANT_LABELS[classify(todo)];
+                      const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+                      return (
+                        <li key={todo.id} className="flex items-center gap-3">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{todo.title}</p>
+                            <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dashboard.to")} {userDisplayName(todo.assignedTo!)}</p>
+                          </div>
+                          {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
+                          {todo.assignmentStatus && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                              todo.assignmentStatus === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              : todo.assignmentStatus === "declined" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                              : "bg-zinc-100 text-zinc-500 dark:bg-slate-700 dark:text-slate-400"
+                            }`}>
+                              {t(`assign.${todo.assignmentStatus}` as TranslationKey)}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {activeDelegated.length > 5 && (
+                  <Link href="/todos?scope=delegated" className="block text-xs text-amber-600 dark:text-amber-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
                 )}
               </div>
             </div>
