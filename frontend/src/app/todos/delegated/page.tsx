@@ -133,7 +133,7 @@ export default function DelegatedPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] space-y-6">
+      <div className="max-w-[1200px] mx-auto space-y-6">
         <div>
           <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
             {t("todos.delegatedTitle")}

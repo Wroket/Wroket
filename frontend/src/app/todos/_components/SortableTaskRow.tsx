@@ -29,6 +29,7 @@ export interface SortableTaskRowProps {
   onAccept: (t: Todo) => void;
   onScheduleUpdate?: (todo: Todo) => void;
   onCreateNote?: (todo: Todo) => void;
+  hasLinkedNote?: boolean;
   onReorderSubtasks?: (orderedIds: string[]) => void;
   justCreatedId?: string | null;
   commentCounts: Record<string, number>;
@@ -52,6 +53,7 @@ export default function SortableTaskRow({
   onAccept,
   onScheduleUpdate,
   onCreateNote,
+  hasLinkedNote = false,
   justCreatedId,
   commentCounts,
   projects,
@@ -143,15 +145,27 @@ export default function SortableTaskRow({
                   </svg>
                 </button>
               )}
-              {!todo.parentId && onScheduleUpdate && (
-                <SlotPicker
-                  todoId={todo.id}
-                  scheduledSlot={todo.scheduledSlot}
-                  onBooked={onScheduleUpdate}
-                  onCleared={onScheduleUpdate}
-                  autoOpen={todo.id === justCreatedId}
-                />
-              )}
+              {!todo.parentId && onScheduleUpdate && (() => {
+                let dateMin: string | undefined;
+                let dateMax: string | undefined;
+                if (todo.phaseId) {
+                  for (const proj of projects) {
+                    const ph = proj.phases?.find((p) => p.id === todo.phaseId);
+                    if (ph) { dateMin = ph.startDate ?? undefined; dateMax = ph.endDate ?? undefined; break; }
+                  }
+                }
+                return (
+                  <SlotPicker
+                    todoId={todo.id}
+                    scheduledSlot={todo.scheduledSlot}
+                    onBooked={onScheduleUpdate}
+                    onCleared={onScheduleUpdate}
+                    autoOpen={todo.id === justCreatedId}
+                    dateMin={dateMin}
+                    dateMax={dateMax}
+                  />
+                );
+              })()}
               <button
                 onClick={() => onCancel(todo)}
                 title="Annuler"
@@ -193,10 +207,14 @@ export default function SortableTaskRow({
               {onCreateNote && (
                 <button
                   onClick={() => onCreateNote(todo)}
-                  title={t("notes.createFromTask")}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400"
+                  title={hasLinkedNote ? t("notes.openLinkedNote") : t("notes.createFromTask")}
+                  className={`w-6 h-6 rounded flex items-center justify-center border transition-colors ${
+                    hasLinkedNote
+                      ? "border-indigo-300 dark:border-indigo-700 text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                      : "border-transparent text-zinc-300 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400"
+                  }`}
                 >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3 h-3" fill={hasLinkedNote ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                 </button>

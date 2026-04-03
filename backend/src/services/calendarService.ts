@@ -126,14 +126,17 @@ function computeSchedulingWindow(
     return { windowStart: now, deadlineCap: null };
   }
 
-  const DAY_MS = 24 * 3600_000;
-  const cap = new Date(deadline.getTime() - DAY_MS);
-  if (cap <= now) {
-    return { windowStart: now, deadlineCap: cap > now ? cap : null };
-  }
+  const isDateOnly = typeof ctx.deadline === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ctx.deadline);
+  const cap = isDateOnly
+    ? new Date(deadline.getTime() + 23 * 3600_000 + 59 * 60_000)
+    : deadline;
 
   const startDate = ctx.startDate ? new Date(ctx.startDate) : null;
   const effectiveStart = startDate && startDate > now ? startDate : now;
+
+  if (cap <= effectiveStart) {
+    return { windowStart: effectiveStart, deadlineCap: null };
+  }
 
   const msLeft = cap.getTime() - effectiveStart.getTime();
   const ratio = DEFER_RATIO[ctx.priority ?? "medium"];
@@ -141,7 +144,7 @@ function computeSchedulingWindow(
 
   let windowStart = new Date(effectiveStart.getTime() + deferMs);
 
-  const minBufferMs = durationMinutes * 60_000 + 4 * 3600_000;
+  const minBufferMs = durationMinutes * 60_000 + 2 * 3600_000;
   const latestPossibleStart = new Date(cap.getTime() - minBufferMs);
   if (windowStart > latestPossibleStart) {
     windowStart = latestPossibleStart > effectiveStart ? latestPossibleStart : effectiveStart;

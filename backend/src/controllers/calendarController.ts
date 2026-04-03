@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
 import { updateTodo, listTodos, findTodoForUser, listAssignedToMe, type RecurrenceFrequency, type Todo } from "../services/todoService";
+import { findPhaseById } from "../services/projectService";
 import {
   findUserByUid,
   DEFAULT_WORKING_HOURS,
@@ -132,11 +133,34 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
     } catch { /* Google Calendar unavailable */ }
   }
 
-  const slots = findAvailableSlots(uid, duration, workingHours, googleBusySlots, 3, undefined, {
+  let effectiveStartDate = todo.startDate;
+  let effectiveDeadline = todo.deadline;
+  if (todo.phaseId) {
+    const phase = findPhaseById(todo.phaseId);
+    if (phase) {
+      if (phase.startDate && (!effectiveStartDate || effectiveStartDate < phase.startDate)) {
+        effectiveStartDate = phase.startDate;
+      }
+      if (phase.endDate && (!effectiveDeadline || effectiveDeadline > phase.endDate)) {
+        effectiveDeadline = phase.endDate;
+      }
+    }
+  }
+
+  if (effectiveStartDate && effectiveDeadline && effectiveStartDate > effectiveDeadline) {
+    effectiveStartDate = todo.startDate;
+    effectiveDeadline = todo.deadline;
+  }
+
+  const ctx = {
     priority: todo.priority,
-    deadline: todo.deadline,
-    startDate: todo.startDate,
-  });
+    deadline: effectiveDeadline,
+    startDate: effectiveStartDate,
+  };
+  const slots = findAvailableSlots(uid, duration, workingHours, googleBusySlots, 3, undefined, ctx);
+  if (slots.length === 0) {
+    console.log(`[getSlots] 0 slots for todo=${todoId} title="${todo.title}" duration=${duration}min ctx=`, JSON.stringify(ctx), `busySlots=${googleBusySlots.length} occupiedTasks=${listTodos(uid).filter(t => t.scheduledSlot).length}`);
+  }
   res.status(200).json({ slots, duration, durationSource, effort, suggestedSlot: todo.suggestedSlot ?? null });
 }
 

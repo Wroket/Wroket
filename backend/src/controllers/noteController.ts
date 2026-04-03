@@ -5,6 +5,7 @@ import {
   listNotes,
   listSharedNotes,
   listNotesByTodo,
+  getTodoNoteMap,
   getNote,
   createNote,
   updateNote,
@@ -31,6 +32,10 @@ export async function get(req: AuthenticatedRequest, res: Response) {
 export async function byTodo(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   res.status(200).json(listNotesByTodo(req.user!.uid, todoId));
+}
+
+export async function todoNoteMap(req: AuthenticatedRequest, res: Response) {
+  res.status(200).json(getTodoNoteMap(req.user!.uid));
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {

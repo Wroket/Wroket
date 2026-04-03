@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
+import { findPhaseById } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
@@ -262,6 +263,19 @@ export function listTodosForUsers(userIds: string[]): Todo[] {
 }
 
 /**
+ * Returns all todos (any status) belonging to a project, across all users.
+ */
+export function listProjectTodos(projectId: string): Todo[] {
+  const result: Todo[] = [];
+  todosByUser.forEach((todos) => {
+    todos.forEach((todo) => {
+      if (todo.projectId === projectId) result.push(todo);
+    });
+  });
+  return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+/**
  * Returns all tasks assigned to `userId` by other users.
  */
 export function listAssignedToMe(userId: string): Todo[] {
@@ -344,6 +358,25 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
         throw new ValidationError("La deadline d'une sous-tâche ne peut pas dépasser celle de la tâche parente");
       }
     }
+  }
+
+  if (input.phaseId) {
+    const phase = findPhaseById(input.phaseId);
+    if (phase) {
+      if (input.projectId && phase.projectId !== input.projectId) {
+        throw new ValidationError("La phase n'appartient pas au projet sélectionné");
+      }
+      if (input.startDate && phase.startDate && input.startDate < phase.startDate) {
+        throw new ValidationError(`La date de début ne peut pas être antérieure au début de la phase (${phase.startDate})`);
+      }
+      if (input.deadline && phase.endDate && input.deadline > phase.endDate) {
+        throw new ValidationError(`L'échéance ne peut pas dépasser la fin de la phase (${phase.endDate})`);
+      }
+    }
+  }
+
+  if (input.startDate && input.deadline && input.startDate > input.deadline) {
+    throw new ValidationError("La date de début ne peut pas être postérieure à l'échéance");
   }
 
   if (input.recurrence) {
@@ -464,9 +497,21 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   if (input.projectId !== undefined) {
     if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier le projet");
     todo.projectId = input.projectId;
+    if (todo.phaseId && input.phaseId === undefined) {
+      const phase = findPhaseById(todo.phaseId);
+      if (phase && phase.projectId !== todo.projectId) {
+        todo.phaseId = null;
+      }
+    }
   }
   if (input.phaseId !== undefined) {
     if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier la phase");
+    if (input.phaseId) {
+      const phase = findPhaseById(input.phaseId);
+      if (phase && phase.projectId !== (input.projectId ?? todo.projectId)) {
+        throw new ValidationError("La phase n'appartient pas au projet sélectionné");
+      }
+    }
     todo.phaseId = input.phaseId;
   }
   if (input.startDate !== undefined) {
@@ -476,6 +521,26 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     }
     todo.startDate = input.startDate;
   }
+
+  if (input.deadline !== undefined || input.startDate !== undefined || input.phaseId !== undefined) {
+    const effectivePhaseId = input.phaseId !== undefined ? input.phaseId : todo.phaseId;
+    if (effectivePhaseId) {
+      const phase = findPhaseById(effectivePhaseId);
+      if (phase) {
+        if (todo.startDate && phase.startDate && todo.startDate < phase.startDate) {
+          throw new ValidationError(`La date de début ne peut pas être antérieure au début de la phase (${phase.startDate})`);
+        }
+        if (todo.deadline && phase.endDate && todo.deadline > phase.endDate) {
+          throw new ValidationError(`L'échéance ne peut pas dépasser la fin de la phase (${phase.endDate})`);
+        }
+      }
+    }
+  }
+
+  if (todo.startDate && todo.deadline && todo.startDate > todo.deadline) {
+    throw new ValidationError("La date de début ne peut pas être postérieure à l'échéance");
+  }
+
   if (input.assignedTo !== undefined) {
     if (input.assignedTo !== todo.assignedTo) {
       todo.assignedTo = input.assignedTo;
@@ -483,6 +548,10 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     }
   }
   if (input.assignmentStatus !== undefined) {
+    const isAssignee = todo.assignedTo === userId;
+    if (!isOwner && !isAssignee) {
+      throw new ForbiddenError("Seul l'assigné ou le propriétaire peut modifier le statut d'assignation");
+    }
     todo.assignmentStatus = input.assignmentStatus;
   }
   if (input.scheduledSlot !== undefined) {

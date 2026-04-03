@@ -88,7 +88,7 @@ export default function ArchivesPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] space-y-6">
+      <div className="max-w-[1200px] mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.tasks")}</h1>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.subtitle")}</p>

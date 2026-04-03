@@ -22,9 +22,11 @@ export interface SlotPickerProps {
   onBooked: (todo: Todo) => void;
   onCleared: (todo: Todo) => void;
   autoOpen?: boolean;
+  dateMin?: string;
+  dateMax?: string;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, dateMin, dateMax }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -286,7 +288,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                     type="date"
                     value={manualDate}
                     onChange={(e) => setManualDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
+                    min={dateMin ?? new Date().toISOString().split("T")[0]}
+                    max={dateMax}
                     className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>

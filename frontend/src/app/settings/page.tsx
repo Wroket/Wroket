@@ -114,7 +114,7 @@ function SettingsContent() {
 
   return (
     <AppShell>
-      <div className="max-w-[1000px] space-y-6">
+      <div className="max-w-[1000px] mx-auto space-y-6">
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("settings.title")}</h2>

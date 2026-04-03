@@ -47,7 +47,7 @@ interface ProjectListViewProps {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   teams: Team[];
   allProjectTodos: Todo[];
-  user: { uid: string; effortMinutes?: { light: number; medium: number; heavy: number } } | null;
+  user: { uid: string; email?: string; effortMinutes?: { light: number; medium: number; heavy: number } } | null;
   t: (key: TranslationKey) => string;
   locale: string;
   loadProjects: () => Promise<unknown>;
@@ -128,6 +128,7 @@ export default function ProjectListView({
   const taskCountByProject = useMemo(() => {
     const map = new Map<string, number>();
     for (const td of allProjectTodos) {
+      if (td.status === "cancelled" || td.status === "deleted") continue;
       const pid = td.projectId!;
       map.set(pid, (map.get(pid) ?? 0) + 1);
     }
@@ -222,6 +223,34 @@ export default function ProjectListView({
     if (!teamId) return t("projects.personal");
     const team = teams.find((te) => te.id === teamId);
     return team ? team.name : teamId;
+  };
+
+  const getUserRole = (project: Project): { label: string; cls: string } => {
+    if (project.ownerUid === user?.uid) return { label: t("projects.roleOwner"), cls: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" };
+    if (!project.teamId) return { label: t("projects.roleMember"), cls: "bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400" };
+    const team = teams.find((te) => te.id === project.teamId);
+    if (!team) return { label: t("projects.roleMember"), cls: "bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400" };
+    if (team.ownerUid === user?.uid) return { label: t("projects.roleOwner"), cls: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" };
+    const member = team.members.find((m) => m.email === user?.email);
+    if (member?.role === "admin") return { label: t("projects.roleAdmin"), cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" };
+    if (member?.role === "super-user") return { label: t("projects.roleSuperUser"), cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" };
+    return { label: t("projects.roleMember"), cls: "bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400" };
+  };
+
+  const getProjectDateRange = (project: Project): { start: string | null; end: string | null } => {
+    const phases = project.phases ?? [];
+    if (phases.length === 0) return { start: null, end: null };
+    const starts = phases.map((p) => p.startDate).filter(Boolean) as string[];
+    const ends = phases.map((p) => p.endDate).filter(Boolean) as string[];
+    return {
+      start: starts.length > 0 ? starts.sort()[0] : null,
+      end: ends.length > 0 ? ends.sort().reverse()[0] : null,
+    };
+  };
+
+  const formatShortDate = (dateStr: string): string => {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short" });
   };
 
   const toggleExpand = (id: string) => setExpandedProjects((prev) => {
@@ -349,7 +378,7 @@ export default function ProjectListView({
       try {
         await updateProject(activeId, { parentProjectId: null });
         setLastAction({ type: "nest", projectId: activeId, previousParentId });
-      } catch { loadProjects(); }
+      } catch (err) { toast.error(err instanceof Error ? err.message : "Error"); loadProjects(); }
       return;
     }
 
@@ -367,7 +396,7 @@ export default function ProjectListView({
       try {
         await updateProject(activeId, { parentProjectId: overId });
         setLastAction({ type: "nest", projectId: activeId, previousParentId });
-      } catch { loadProjects(); }
+      } catch (err) { toast.error(err instanceof Error ? err.message : "Error"); loadProjects(); }
       return;
     }
 
@@ -396,7 +425,7 @@ export default function ProjectListView({
 
   return (
     <AppShell>
-      <div className="max-w-[1000px] space-y-6">
+      <div className="max-w-[1000px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -475,8 +504,30 @@ export default function ProjectListView({
                       </div>
                     </div>
                     {project.description && <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1 line-clamp-2">{project.description}</p>}
+
+                    {/* Meta: role, team, dates */}
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const role = getUserRole(project);
+                          return <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${role.cls}`}>{role.label}</span>;
+                        })()}
+                        <span className="text-[10px] text-zinc-400 dark:text-slate-500">{teamName(project.teamId)}</span>
+                      </div>
+                      {(() => {
+                        const { start, end } = getProjectDateRange(project);
+                        if (!start && !end) return null;
+                        return (
+                          <span className="text-[10px] text-zinc-400 dark:text-slate-500 flex items-center gap-0.5">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            {start ? formatShortDate(start) : "?"} — {end ? formatShortDate(end) : "?"}
+                          </span>
+                        );
+                      })()}
+                    </div>
+
                     {(project.tags?.length ?? 0) > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
+                      <div className="flex flex-wrap gap-1 mt-1.5">
                         {project.tags.map((tag) => (
                           <span key={tag} className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">{tag}</span>
                         ))}
@@ -488,39 +539,35 @@ export default function ProjectListView({
                       const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                       const health = getAggregatedHealth(project.id);
                       const hc = healthConfig[health];
+                      const totalTime = getAggregatedTime(project.id);
                       const barColor = pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-blue-500" : pct > 0 ? "bg-amber-400" : "bg-zinc-200 dark:bg-slate-700";
                       return (
-                        <>
+                        <div className="mt-3 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-zinc-500 dark:text-slate-400">
+                              {total > 0 ? `${done}/${total} ${t("projects.tasksProgress")}` : `0 ${t("projects.tasksProgress")}`}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {totalTime > 0 && (
+                                <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-0.5">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                  {formatMins(totalTime)}
+                                </span>
+                              )}
+                              {health !== "empty" && (
+                                <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${hc.bg} ${hc.color}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${hc.ring}`} />
+                                  {hc.label}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                           {total > 0 && (
-                            <div className="mt-3 space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-zinc-500 dark:text-slate-400">{done}/{total} {t("projects.tasksProgress")}</span>
-                                <div className="flex items-center gap-1.5">
-                                  {getAggregatedTime(project.id) > 0 && (
-                                    <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-0.5">
-                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                      {formatMins(getAggregatedTime(project.id))}
-                                    </span>
-                                  )}
-                                  {health !== "empty" && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${hc.bg} ${hc.color}`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${hc.ring}`} />
-                                      {hc.label}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-zinc-100 dark:bg-slate-800 overflow-hidden">
-                                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
-                              </div>
+                            <div className="w-full h-1.5 rounded-full bg-zinc-100 dark:bg-slate-800 overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
                             </div>
                           )}
-                          {total === 0 && (
-                            <div className="flex items-center gap-2 mt-3">
-                              <span className="text-[10px] font-medium text-zinc-400 dark:text-slate-500">{teamName(project.teamId)}</span>
-                            </div>
-                          )}
-                        </>
+                        </div>
                       );
                     })()}
                     {children.length > 0 && (

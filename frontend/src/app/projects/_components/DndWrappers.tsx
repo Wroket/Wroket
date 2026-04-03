@@ -8,6 +8,7 @@ import {
   useSortable,
   SortableContext,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -28,6 +29,33 @@ export function DraggableKanbanCard({ id, children }: { id: string; children: Re
     <div ref={setNodeRef} {...listeners} {...attributes} className={`touch-none ${isDragging ? "opacity-30" : ""}`}>
       {children}
     </div>
+  );
+}
+
+/* ─── Sortable Kanban Phase Column ─── */
+
+export function SortableKanbanPhaseColumn({ id, children, dragHandle }: { id: string; children: React.ReactNode; dragHandle: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, data: { type: "phase" } });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex-shrink-0 w-full md:w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col md:max-h-[calc(100vh-280px)]">
+      <div className="cursor-grab active:cursor-grabbing touch-none" {...attributes} {...listeners}>
+        {dragHandle}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function KanbanPhaseContext({ items, children }: { items: string[]; children: React.ReactNode }) {
+  return (
+    <SortableContext items={items} strategy={horizontalListSortingStrategy}>
+      {children}
+    </SortableContext>
   );
 }
 
@@ -72,6 +100,42 @@ export function SortableProjectCard({ id, isNesting, children }: SortableProject
       </div>
       {children}
     </div>
+  );
+}
+
+/* ─── Sortable Board Phase Section (reorder phases in table view) ─── */
+
+export function SortableBoardPhaseSection({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, data: { type: "phase" } });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-1"
+          {...attributes}
+          {...listeners}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+          </svg>
+        </button>
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function BoardPhaseContext({ items, children }: { items: string[]; children: React.ReactNode }) {
+  return (
+    <SortableContext items={items} strategy={verticalListSortingStrategy}>
+      {children}
+    </SortableContext>
   );
 }
 

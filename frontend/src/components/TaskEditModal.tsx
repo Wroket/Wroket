@@ -13,6 +13,7 @@ export interface TaskEditModalProps {
     title: string;
     priority: Priority;
     effort: Effort;
+    startDate: string;
     deadline: string;
     assignedTo: string | null;
     estimatedMinutes: number | null;
@@ -88,6 +89,16 @@ export default function TaskEditModal({
     }
     return result;
   }, [projects]);
+
+  const phaseDateRange = useMemo(() => {
+    if (!todo?.phaseId) return { start: null as string | null, end: null as string | null };
+    if (form.projectId !== todo.projectId) return { start: null as string | null, end: null as string | null };
+    for (const proj of projects) {
+      const phase = proj.phases?.find((p) => p.id === todo.phaseId);
+      if (phase) return { start: phase.startDate ?? null, end: phase.endDate ?? null };
+    }
+    return { start: null as string | null, end: null as string | null };
+  }, [todo?.phaseId, todo?.projectId, form.projectId, projects]);
 
   const [tagInput, setTagInput] = useState("");
   const [comments, setComments] = useState<Comment[]>([]);
@@ -283,7 +294,7 @@ export default function TaskEditModal({
               className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
             />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
                 {t("edit.priority")}
@@ -312,6 +323,22 @@ export default function TaskEditModal({
                 <option value="heavy">{t("effort.heavy")}</option>
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
+                {t("edit.startDate")}
+              </label>
+              <input
+                type="date"
+                value={form.startDate}
+                min={phaseDateRange.start ?? undefined}
+                max={form.deadline || phaseDateRange.end || undefined}
+                onChange={(e) => onFormChange({ startDate: e.target.value })}
+                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+              />
+            </div>
             <div>
               <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
                 {t("edit.deadline")}
@@ -320,7 +347,8 @@ export default function TaskEditModal({
                 <input
                   type="date"
                   value={form.deadline}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={form.startDate || phaseDateRange.start || new Date().toISOString().split("T")[0]}
+                  max={phaseDateRange.end ?? undefined}
                   onChange={(e) => onFormChange({ deadline: e.target.value })}
                   className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                 />
@@ -332,179 +360,53 @@ export default function TaskEditModal({
             </div>
           </div>
 
-          {isTaskOwner && form.assignedTo && onSuggestedSlotChange && (
-            <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-zinc-600 dark:text-slate-300">{t("schedule.suggestSlot")}</span>
-                {todo?.suggestedSlot && (
-                  <button type="button" onClick={() => { onSuggestedSlotChange(null); }} className="text-[10px] text-red-500 hover:underline">{t("schedule.clearSuggestion")}</button>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
+                {t("todos.estimatedTime")}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={480}
+                  step={5}
+                  value={form.estimatedMinutes ?? ""}
+                  placeholder={String(effortDefaults?.[form.effort] ?? "")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    onFormChange({ estimatedMinutes: v === "" ? null : Math.max(1, Math.min(480, Number(v) || 1)) });
+                  }}
+                  className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
+                />
+                <span className="text-xs text-zinc-400 dark:text-slate-500">{t("todos.estimatedMinutes")}</span>
+                {form.estimatedMinutes !== null && (
+                  <button
+                    type="button"
+                    onClick={() => onFormChange({ estimatedMinutes: null })}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {t("todos.useDefault")}
+                  </button>
                 )}
               </div>
-              {todo?.suggestedSlot && !showSuggestSlot ? (
-                <div className="flex items-center justify-between rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-2 mt-1">
-                  <div>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{t("schedule.suggestedByOwner")}</p>
-                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                      {new Date(todo.suggestedSlot.start).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}{", "}
-                      {new Date(todo.suggestedSlot.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => setShowSuggestSlot(true)} className="text-xs text-amber-700 dark:text-amber-300 hover:underline">{t("projects.edit")}</button>
-                </div>
-              ) : (
-                <div className="space-y-2 mt-1">
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={suggestDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setSuggestDate(e.target.value)}
-                      className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
-                    />
-                    <input
-                      type="time"
-                      value={suggestTime}
-                      onChange={(e) => setSuggestTime(e.target.value)}
-                      className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-[10px] text-zinc-500 dark:text-slate-400">{t("schedule.duration")}:</label>
-                    <input type="number" value={suggestDuration} min={5} max={480} step={5} onChange={(e) => setSuggestDuration(Number(e.target.value) || 30)} className="w-16 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100 text-center" />
-                    <span className="text-[10px] text-zinc-400 dark:text-slate-500">min</span>
-                    <button
-                      type="button"
-                      disabled={!suggestDate}
-                      onClick={() => {
-                        const start = new Date(`${suggestDate}T${suggestTime}`);
-                        const end = new Date(start.getTime() + suggestDuration * 60_000);
-                        onSuggestedSlotChange({ start: start.toISOString(), end: end.toISOString() });
-                        setShowSuggestSlot(false);
-                      }}
-                      className="ml-auto rounded bg-amber-600 dark:bg-amber-700 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
-                    >
-                      {t("schedule.suggestSlot")}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-
-          {sortedProjectOptions.length > 0 && (
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-              {t("projects.project")}
-            </label>
-            <select
-              value={form.projectId ?? ""}
-              onChange={(e) => onFormChange({ projectId: e.target.value || null })}
-              className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-            >
-              <option value="">{t("projects.noProject")}</option>
-              {sortedProjectOptions.map((o) => (
-                <option key={o.id} value={o.id}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          )}
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-              {t("todos.estimatedTime")}
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={1}
-                max={480}
-                step={5}
-                value={form.estimatedMinutes ?? ""}
-                placeholder={String(effortDefaults?.[form.effort] ?? "")}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  onFormChange({ estimatedMinutes: v === "" ? null : Math.max(1, Math.min(480, Number(v) || 1)) });
-                }}
-                className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
-              />
-              <span className="text-xs text-zinc-400 dark:text-slate-500">{t("todos.estimatedMinutes")}</span>
-              {form.estimatedMinutes !== null && (
-                <button
-                  type="button"
-                  onClick={() => onFormChange({ estimatedMinutes: null })}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  {t("todos.useDefault")}
-                </button>
-              )}
+            {sortedProjectOptions.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
+                {t("projects.project")}
+              </label>
+              <select
+                value={form.projectId ?? ""}
+                onChange={(e) => onFormChange({ projectId: e.target.value || null })}
+                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+              >
+                <option value="">{t("projects.noProject")}</option>
+                {sortedProjectOptions.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
             </div>
-          </div>
-          {/* Recurrence */}
-          <div className="rounded border border-zinc-200 dark:border-slate-700 p-3 space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!form.recurrence}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    onFormChange({ recurrence: { frequency: "weekly", interval: 1 } });
-                  } else {
-                    onFormChange({ recurrence: null });
-                  }
-                }}
-                className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500"
-              />
-              <span className="text-xs font-medium text-zinc-700 dark:text-slate-300">
-                🔄 {t("edit.recurrenceEnabled")}
-              </span>
-            </label>
-            {form.recurrence && (
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrence")}
-                  </label>
-                  <select
-                    value={form.recurrence.frequency}
-                    onChange={(e) =>
-                      onFormChange({ recurrence: { ...form.recurrence!, frequency: e.target.value as RecurrenceFrequency } })
-                    }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  >
-                    <option value="daily">{t("edit.recurrenceDaily")}</option>
-                    <option value="weekly">{t("edit.recurrenceWeekly")}</option>
-                    <option value="monthly">{t("edit.recurrenceMonthly")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrenceInterval")}
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
-                    value={form.recurrence.interval}
-                    onChange={(e) =>
-                      onFormChange({ recurrence: { ...form.recurrence!, interval: Math.max(1, Number(e.target.value) || 1) } })
-                    }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrenceEnd")}
-                  </label>
-                  <input
-                    type="date"
-                    value={form.recurrence.endDate ?? ""}
-                    min={new Date().toISOString().split("T")[0]}
-                    onChange={(e) =>
-                      onFormChange({ recurrence: { ...form.recurrence!, endDate: e.target.value || undefined } })
-                    }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
-                </div>
-              </div>
             )}
           </div>
 
@@ -619,6 +521,136 @@ export default function TaskEditModal({
                 ) : (
                   <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("assign.unassigned")}</p>
                 )}
+              </div>
+            )}
+          </div>
+
+          {isTaskOwner && form.assignedTo && onSuggestedSlotChange && (
+            <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-zinc-600 dark:text-slate-300">{t("schedule.suggestSlot")}</span>
+                {todo?.suggestedSlot && (
+                  <button type="button" onClick={() => { onSuggestedSlotChange(null); }} className="text-[10px] text-red-500 hover:underline">{t("schedule.clearSuggestion")}</button>
+                )}
+              </div>
+              {todo?.suggestedSlot && !showSuggestSlot ? (
+                <div className="flex items-center justify-between rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-2 mt-1">
+                  <div>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{t("schedule.suggestedByOwner")}</p>
+                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      {new Date(todo.suggestedSlot.start).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}{", "}
+                      {new Date(todo.suggestedSlot.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setShowSuggestSlot(true)} className="text-xs text-amber-700 dark:text-amber-300 hover:underline">{t("projects.edit")}</button>
+                </div>
+              ) : (
+                <div className="space-y-2 mt-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={suggestDate}
+                      min={phaseDateRange.start ?? new Date().toISOString().split("T")[0]}
+                      max={phaseDateRange.end ?? undefined}
+                      onChange={(e) => setSuggestDate(e.target.value)}
+                      className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                    />
+                    <input
+                      type="time"
+                      value={suggestTime}
+                      onChange={(e) => setSuggestTime(e.target.value)}
+                      className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-zinc-500 dark:text-slate-400">{t("schedule.duration")}:</label>
+                    <input type="number" value={suggestDuration} min={5} max={480} step={5} onChange={(e) => setSuggestDuration(Number(e.target.value) || 30)} className="w-16 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100 text-center" />
+                    <span className="text-[10px] text-zinc-400 dark:text-slate-500">min</span>
+                    <button
+                      type="button"
+                      disabled={!suggestDate}
+                      onClick={() => {
+                        const start = new Date(`${suggestDate}T${suggestTime}`);
+                        const end = new Date(start.getTime() + suggestDuration * 60_000);
+                        onSuggestedSlotChange({ start: start.toISOString(), end: end.toISOString() });
+                        setShowSuggestSlot(false);
+                      }}
+                      className="ml-auto rounded bg-amber-600 dark:bg-amber-700 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                    >
+                      {t("schedule.suggestSlot")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recurrence */}
+          <div className="rounded border border-zinc-200 dark:border-slate-700 p-3 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!form.recurrence}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    onFormChange({ recurrence: { frequency: "weekly", interval: 1 } });
+                  } else {
+                    onFormChange({ recurrence: null });
+                  }
+                }}
+                className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500"
+              />
+              <span className="text-xs font-medium text-zinc-700 dark:text-slate-300">
+                🔄 {t("edit.recurrenceEnabled")}
+              </span>
+            </label>
+            {form.recurrence && (
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                    {t("edit.recurrence")}
+                  </label>
+                  <select
+                    value={form.recurrence.frequency}
+                    onChange={(e) =>
+                      onFormChange({ recurrence: { ...form.recurrence!, frequency: e.target.value as RecurrenceFrequency } })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  >
+                    <option value="daily">{t("edit.recurrenceDaily")}</option>
+                    <option value="weekly">{t("edit.recurrenceWeekly")}</option>
+                    <option value="monthly">{t("edit.recurrenceMonthly")}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                    {t("edit.recurrenceInterval")}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={form.recurrence.interval}
+                    onChange={(e) =>
+                      onFormChange({ recurrence: { ...form.recurrence!, interval: Math.max(1, Number(e.target.value) || 1) } })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                    {t("edit.recurrenceEnd")}
+                  </label>
+                  <input
+                    type="date"
+                    value={form.recurrence.endDate ?? ""}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) =>
+                      onFormChange({ recurrence: { ...form.recurrence!, endDate: e.target.value || undefined } })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  />
+                </div>
               </div>
             )}
           </div>

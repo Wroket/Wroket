@@ -157,7 +157,7 @@ export default function TeamsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1000px] space-y-6">
+      <div className="max-w-[1000px] mx-auto space-y-6">
         {/* ═══════════════════════════════ OVERVIEW (two summary cards) ═══════════════════════════════ */}
         {!activeSection && (
           <>

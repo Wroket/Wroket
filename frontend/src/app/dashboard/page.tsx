@@ -119,7 +119,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] space-y-6">
+      <div className="max-w-[1200px] mx-auto space-y-6">
         {/* ── Title ── */}
         <div>
           <div className="flex items-center gap-3">

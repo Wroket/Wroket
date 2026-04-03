@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -14,8 +15,10 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 
 import AppShell from "@/components/AppShell";
+import CommentHoverIcon from "@/components/CommentHoverIcon";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
+import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import TaskEditModal from "@/components/TaskEditModal";
 import { useToast } from "@/components/Toast";
@@ -33,6 +36,11 @@ import {
   getProject as fetchProject,
   createProject,
   lookupUser,
+  getCollaborators,
+  getCommentCounts,
+  getTodoNoteMap,
+  createNoteApi,
+  type Collaborator,
 } from "@/lib/api";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -42,7 +50,7 @@ import { useUserLookup } from "@/lib/userUtils";
 import PageHelpButton from "@/components/PageHelpButton";
 
 import GanttChart from "./GanttChart";
-import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
+import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
 import { formatMins, TEMPLATE_PHASES } from "./types";
 import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab, Team } from "./types";
 
@@ -76,8 +84,24 @@ export default function ProjectDetailView({
   teams,
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { resolveUser, displayName, cache } = useUserLookup();
   const meUid = user?.uid ?? null;
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    getCollaborators()
+      .then((c) => setCollaborators(c.filter((co) => co.status === "active")))
+      .catch(() => {});
+    getCommentCounts()
+      .then(setCommentCounts)
+      .catch(() => {});
+    getTodoNoteMap()
+      .then(setTodoNoteIds)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const uids = new Set<string>();
@@ -88,7 +112,38 @@ export default function ProjectDetailView({
     uids.forEach((uid) => resolveUser(uid));
   }, [projectTodos, meUid, cache, resolveUser]);
 
+  useEffect(() => {
+    const id = selectedProject.id;
+    const interval = setInterval(async () => {
+      try {
+        const todos = await getProjectTodos(id);
+        setProjectTodos(todos);
+      } catch { /* silent polling failure */ }
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [selectedProject.id, setProjectTodos]);
+
+  const parentDateRange = useMemo(() => {
+    if (!selectedProject.parentProjectId) return { start: null as string | null, end: null as string | null };
+    const parent = projects.find((p) => p.id === selectedProject.parentProjectId);
+    if (!parent) return { start: null as string | null, end: null as string | null };
+    const starts = parent.phases.map((p) => p.startDate).filter(Boolean) as string[];
+    const ends = parent.phases.map((p) => p.endDate).filter(Boolean) as string[];
+    return {
+      start: starts.length ? starts.sort()[0] : null,
+      end: ends.length ? ends.sort().reverse()[0] : null,
+    };
+  }, [selectedProject.parentProjectId, projects]);
+
+  const getPhaseDateRange = useCallback((phaseId: string | null) => {
+    if (!phaseId) return { start: null as string | null, end: null as string | null };
+    const phase = selectedProject.phases.find((p) => p.id === phaseId);
+    if (!phase) return { start: null as string | null, end: null as string | null };
+    return { start: phase.startDate, end: phase.endDate };
+  }, [selectedProject.phases]);
+
   const [detailTab, setDetailTab] = useState<DetailTab>("board");
+  const [fullScreen, setFullScreen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -122,7 +177,7 @@ export default function ProjectDetailView({
   const [linkPhaseId, setLinkPhaseId] = useState<string | null>(null);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -334,10 +389,31 @@ export default function ProjectDetailView({
     setDraggedTodoId(String(event.active.id));
   }, []);
 
-  const handleKanbanDragEnd = useCallback((event: DragEndEvent) => {
+  const handleKanbanDragEnd = useCallback(async (event: DragEndEvent) => {
     setDraggedTodoId(null);
     const { active, over } = event;
     if (!over) return;
+
+    const isPhaseDrag = active.data?.current?.type === "phase";
+    if (isPhaseDrag) {
+      const activeId = String(active.id);
+      const overId = String(over.id);
+      if (activeId === overId) return;
+      const oldIdx = orderedPhases.findIndex((p) => p.id === activeId);
+      const newIdx = orderedPhases.findIndex((p) => p.id === overId);
+      if (oldIdx === -1 || newIdx === -1) return;
+      const reordered = arrayMove(orderedPhases, oldIdx, newIdx);
+      setSelectedProject({ ...selectedProject, phases: reordered.map((p, i) => ({ ...p, order: i })) });
+      try {
+        await Promise.all(reordered.map((p, i) => updatePhaseApi(selectedProject.id, p.id, { order: i })));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error");
+        const fresh = await fetchProject(selectedProject.id);
+        setSelectedProject(fresh);
+      }
+      return;
+    }
+
     const todoId = String(active.id);
     const newPhaseId = String(over.id);
     const todo = projectTodos.find((t) => t.id === todoId);
@@ -345,7 +421,7 @@ export default function ProjectDetailView({
     const currentPhaseId = todo.phaseId ?? "__none__";
     if (currentPhaseId === newPhaseId) return;
     handleMoveTaskToPhase(todoId, newPhaseId === "__none__" ? null : newPhaseId);
-  }, [projectTodos, handleMoveTaskToPhase]);
+  }, [projectTodos, handleMoveTaskToPhase, orderedPhases, selectedProject, setSelectedProject, toast]);
 
   const findPhaseForTask = useCallback((taskId: string): string => {
     for (const [phaseId, tasks] of tasksByPhase) {
@@ -366,6 +442,22 @@ export default function ProjectDetailView({
     const activeId = String(active.id);
     const overId = String(over.id);
     if (activeId === overId) return;
+
+    if (active.data?.current?.type === "phase") {
+      const oldIdx = orderedPhases.findIndex((p) => p.id === activeId);
+      const newIdx = orderedPhases.findIndex((p) => p.id === overId);
+      if (oldIdx === -1 || newIdx === -1) return;
+      const reordered = arrayMove(orderedPhases, oldIdx, newIdx);
+      setSelectedProject({ ...selectedProject, phases: reordered.map((p, i) => ({ ...p, order: i })) });
+      try {
+        await Promise.all(reordered.map((p, i) => updatePhaseApi(selectedProject.id, p.id, { order: i })));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error");
+        const fresh = await fetchProject(selectedProject.id);
+        setSelectedProject(fresh);
+      }
+      return;
+    }
 
     const sourcePhase = findPhaseForTask(activeId);
 
@@ -428,6 +520,7 @@ export default function ProjectDetailView({
       title: todo.title,
       priority: todo.priority,
       effort: todo.effort ?? "medium",
+      startDate: todo.startDate ?? "",
       deadline: todo.deadline ?? "",
       assignedTo: todo.assignedTo ?? null,
       estimatedMinutes: todo.estimatedMinutes ?? null,
@@ -451,6 +544,7 @@ export default function ProjectDetailView({
         title: editForm.title,
         priority: editForm.priority,
         effort: editForm.effort,
+        startDate: editForm.startDate || null,
         deadline: editForm.deadline || null,
         assignedTo: editForm.assignedTo,
         estimatedMinutes: editForm.estimatedMinutes,
@@ -514,10 +608,12 @@ export default function ProjectDetailView({
 
   const projectTeamMembers = useMemo(() => {
     const teamId = selectedProject.teamId;
-    if (!teamId) return [];
-    const team = teams.find((tm) => tm.id === teamId);
-    return team?.members.map((m) => m.email) ?? [];
-  }, [selectedProject.teamId, teams]);
+    if (teamId) {
+      const team = teams.find((tm) => tm.id === teamId);
+      if (team && team.members.length > 0) return team.members.map((m) => m.email);
+    }
+    return collaborators.map((c) => c.email);
+  }, [selectedProject.teamId, teams, collaborators]);
 
   const newTaskAssignSuggestions = useMemo(() => {
     if (projectTeamMembers.length === 0) return [];
@@ -626,6 +722,31 @@ export default function ProjectDetailView({
       toast.error(err instanceof Error ? err.message : "Error");
     }
   };
+
+  const handleScheduleUpdate = useCallback((updated: Todo) => {
+    setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+  }, [setProjectTodos]);
+
+  const handleNoteAction = useCallback(async (todo: Todo) => {
+    const existingNoteId = todoNoteIds[todo.id];
+    if (existingNoteId) {
+      router.push(`/notes?id=${existingNoteId}`);
+      return;
+    }
+    try {
+      const note = await createNoteApi({
+        title: todo.title,
+        content: "",
+        todoId: todo.id,
+        projectId: todo.projectId ?? undefined,
+      });
+      setTodoNoteIds((prev) => ({ ...prev, [todo.id]: note.id }));
+      toast.success(t("notes.noteCreated"));
+      router.push(`/notes?id=${note.id}`);
+    } catch {
+      toast.error(t("toast.noteCreateError") as string);
+    }
+  }, [todoNoteIds, router, toast, t]);
 
   const handleAcceptDeclineTask = async (todo: Todo, assignmentStatus: "accepted" | "declined") => {
     try {
@@ -815,6 +936,44 @@ export default function ProjectDetailView({
         {dl && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
         {todo.deadline && !dl && <span className="text-[10px] text-zinc-400 dark:text-slate-500 shrink-0">{todo.deadline}</span>}
 
+        {todo.estimatedMinutes != null && todo.estimatedMinutes > 0 && (
+          <span className="text-[10px] font-medium text-zinc-400 dark:text-slate-500 shrink-0">⏱ {formatMins(todo.estimatedMinutes)}</span>
+        )}
+
+        <CommentHoverIcon todoId={todo.id} commentCount={commentCounts[todo.id] ?? 0} />
+
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); handleNoteAction(todo); }}
+          title={todoNoteIds[todo.id] ? t("notes.openLinkedNote") : t("notes.createFromTask")}
+          className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${
+            todoNoteIds[todo.id]
+              ? "text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-700"
+              : "text-zinc-300 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400 border border-transparent"
+          }`}
+        >
+          <svg className="w-2.5 h-2.5" fill={todoNoteIds[todo.id] ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </button>
+
+        {todo.scheduledSlot && <ScheduledSlotBadge slot={todo.scheduledSlot} />}
+
+        {isParent && todo.status === "active" && (!todo.assignedTo || todo.assignedTo === meUid) && (() => {
+          const phase = todo.phaseId ? orderedPhases.find((p) => p.id === todo.phaseId) : undefined;
+          return (
+            <SlotPicker
+              todoId={todo.id}
+              scheduledSlot={todo.scheduledSlot}
+              suggestedSlot={todo.suggestedSlot}
+              onBooked={handleScheduleUpdate}
+              onCleared={handleScheduleUpdate}
+              dateMin={phase?.startDate ?? undefined}
+              dateMax={phase?.endDate ?? undefined}
+            />
+          );
+        })()}
+
         {todo.assignedTo && todo.assignedTo !== meUid && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
             ← {displayName(todo.userId)}
@@ -891,11 +1050,20 @@ export default function ProjectDetailView({
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] space-y-4">
+      <div className={`${fullScreen ? "" : "max-w-[1200px]"} mx-auto space-y-4`}>
+        <div className="flex items-center justify-between">
         <button type="button" onClick={() => setSelectedProject(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           {t("projects.backToList")}
         </button>
+        <button type="button" onClick={() => setFullScreen((f) => !f)} className="text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-slate-800" title={fullScreen ? "Normal" : "Full screen"}>
+          {fullScreen ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+          )}
+        </button>
+        </div>
 
         {/* Header */}
         <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
@@ -1053,6 +1221,7 @@ export default function ProjectDetailView({
           <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
         ) : detailTab === "board" ? (
           <DndContext sensors={dndSensors} collisionDetection={closestCorners} onDragStart={handleBoardDragStart} onDragEnd={handleBoardDragEnd}>
+          <BoardPhaseContext items={orderedPhases.map((p) => p.id)}>
           <div className="space-y-4">
             {orderedPhases.map((phase) => {
               taskCounter = 0;
@@ -1064,14 +1233,15 @@ export default function ProjectDetailView({
               const isEditing = editingPhaseId === phase.id;
 
               return (
-                <div key={phase.id} className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
+                <SortableBoardPhaseSection key={phase.id} id={phase.id}>
+                <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
                   <div className="px-4 py-3 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-3">
                     <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: phase.color }} />
                     {isEditing ? (
                       <div className="flex-1 flex items-center gap-2 flex-wrap">
                         <input value={editPhaseName} onChange={(e) => setEditPhaseName(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-sm dark:bg-slate-800 dark:text-slate-100 flex-1 min-w-[120px]" />
-                        <input type="date" value={editPhaseStart} onChange={(e) => setEditPhaseStart(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100" />
-                        <input type="date" value={editPhaseEnd} onChange={(e) => setEditPhaseEnd(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100" />
+                        <input type="date" value={editPhaseStart} onChange={(e) => setEditPhaseStart(e.target.value)} min={parentDateRange.start ?? undefined} max={parentDateRange.end ?? undefined} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100" />
+                        <input type="date" value={editPhaseEnd} onChange={(e) => setEditPhaseEnd(e.target.value)} min={parentDateRange.start ?? undefined} max={parentDateRange.end ?? undefined} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100" />
                         <button onClick={handleSavePhase} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100">{t("settings.save")}</button>
                         <button onClick={() => setEditingPhaseId(null)} className="text-xs text-zinc-400 hover:text-zinc-600">{t("projects.cancel")}</button>
                       </div>
@@ -1127,6 +1297,7 @@ export default function ProjectDetailView({
                     </SortablePhaseContainer>
                   </div>
                 </div>
+                </SortableBoardPhaseSection>
               );
             })}
 
@@ -1178,6 +1349,7 @@ export default function ProjectDetailView({
               );
             })()}
           </div>
+          </BoardPhaseContext>
           <DragOverlay>
             {boardDraggedTodo ? (
               <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 p-2.5 shadow-xl rotate-1 opacity-90 max-w-md">
@@ -1198,9 +1370,10 @@ export default function ProjectDetailView({
                     ? orderedPhases
                     : [{ id: "__none__", name: t("phase.unassigned"), color: "#94a3b8", order: 0, projectId: "", startDate: null, endDate: null, createdAt: "" } as ProjectPhase];
                   const unassigned = projectTodos.filter((td) => !td.parentId && !td.phaseId);
+                  const phaseIds = kanbanPhases.map((p) => p.id);
 
                   return (
-                    <>
+                    <KanbanPhaseContext items={phaseIds}>
                       {kanbanPhases.map((phase) => {
                         const isReal = phase.id !== "__none__";
                         const phaseTasks = isReal ? projectTodos.filter((td) => !td.parentId && td.phaseId === phase.id) : unassigned;
@@ -1208,13 +1381,34 @@ export default function ProjectDetailView({
                         const completed = phaseTasks.filter((td) => td.status === "completed");
                         const other = phaseTasks.filter((td) => td.status !== "active" && td.status !== "completed");
 
-                        return (
-                          <div key={phase.id} className="flex-shrink-0 w-full md:w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col md:max-h-[calc(100vh-280px)]">
-                            <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0">
+                        const phaseHeader = (
+                          <div className="px-3 py-2.5 border-b border-zinc-200 dark:border-slate-700 flex items-center gap-2 shrink-0 group/phase" onClick={(e) => e.stopPropagation()}>
                               <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: phase.color }} />
                               <span className="text-sm font-semibold text-zinc-700 dark:text-slate-200 truncate flex-1">{phase.name}</span>
                               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-slate-700 text-zinc-600 dark:text-slate-400">{phaseTasks.length}</span>
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover/phase:opacity-100 transition-opacity shrink-0">
+                                <button type="button" onClick={() => { setAddTaskPhaseId(isReal ? phase.id : null); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("projects.addTask")}>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                </button>
+                                <button type="button" onClick={() => openLinkTask(isReal ? phase.id : null)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-0.5" title={t("projects.linkTask")}>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                </button>
+                                {isReal && (
+                                  <>
+                                    <button type="button" onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.name); setEditPhaseStart(phase.startDate ?? ""); setEditPhaseEnd(phase.endDate ?? ""); }} className="text-zinc-400 hover:text-amber-500 transition-colors p-0.5" title={t("phase.edit")}>
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                    </button>
+                                    <button type="button" onClick={() => handleDeletePhase(phase.id)} className="text-zinc-400 hover:text-red-500 transition-colors p-0.5" title={t("phase.delete")}>
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
+                        );
+
+                        return (
+                          <SortableKanbanPhaseColumn key={phase.id} id={phase.id} dragHandle={phaseHeader}>
                             <DroppablePhaseColumn id={phase.id}>
                               {active.length === 0 && completed.length === 0 && other.length === 0 && (
                                 <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("phase.empty")}</p>
@@ -1244,6 +1438,23 @@ export default function ProjectDetailView({
                                         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
                                         {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
                                         {subs.length > 0 && <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subs.length} ↳</span>}
+                                        {todo.estimatedMinutes != null && todo.estimatedMinutes > 0 && <span className="text-[9px] font-medium text-zinc-400 dark:text-slate-500">⏱ {formatMins(todo.estimatedMinutes)}</span>}
+                                        <CommentHoverIcon todoId={todo.id} commentCount={commentCounts[todo.id] ?? 0} />
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleNoteAction(todo); }}
+                                          title={todoNoteIds[todo.id] ? t("notes.openLinkedNote") : t("notes.createFromTask")}
+                                          className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors ${
+                                            todoNoteIds[todo.id]
+                                              ? "text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-700"
+                                              : "text-zinc-300 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400 border border-transparent"
+                                          }`}
+                                        >
+                                          <svg className="w-2.5 h-2.5" fill={todoNoteIds[todo.id] ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                          </svg>
+                                        </button>
+                                        {todo.scheduledSlot && <ScheduledSlotBadge slot={todo.scheduledSlot} />}
                                         {todo.assignedTo && todo.assignedTo !== meUid && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 truncate max-w-[100px]">← {displayName(todo.userId)}</span>}
                                         {todo.assignedTo && todo.assignedTo !== todo.userId && todo.userId === meUid && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 truncate max-w-[100px]">→ {displayName(todo.assignedTo)}</span>}
                                         {todo.assignmentStatus && todo.assignedTo && (
@@ -1320,7 +1531,7 @@ export default function ProjectDetailView({
                                 </button>
                               </div>
                             )}
-                          </div>
+                          </SortableKanbanPhaseColumn>
                         );
                       })}
 
@@ -1349,7 +1560,7 @@ export default function ProjectDetailView({
                           </DroppablePhaseColumn>
                         </div>
                       )}
-                    </>
+                    </KanbanPhaseContext>
                   );
                 })()}
               </div>
@@ -1403,8 +1614,8 @@ export default function ProjectDetailView({
             <h4 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3">{t("phase.add")}</h4>
             <div className="flex flex-col sm:flex-row gap-2">
               <input value={newPhaseName} onChange={(e) => setNewPhaseName(e.target.value)} placeholder={t("phase.namePlaceholder")} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" autoFocus />
-              <input type="date" value={newPhaseStart} onChange={(e) => setNewPhaseStart(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
-              <input type="date" value={newPhaseEnd} onChange={(e) => setNewPhaseEnd(e.target.value)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
+              <input type="date" value={newPhaseStart} onChange={(e) => setNewPhaseStart(e.target.value)} min={parentDateRange.start ?? undefined} max={parentDateRange.end ?? undefined} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
+              <input type="date" value={newPhaseEnd} onChange={(e) => setNewPhaseEnd(e.target.value)} min={parentDateRange.start ?? undefined} max={parentDateRange.end ?? undefined} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
             </div>
             <div className="flex gap-2 mt-3">
               <button onClick={handleAddPhase} disabled={!newPhaseName.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
@@ -1436,16 +1647,23 @@ export default function ProjectDetailView({
                     <option value="heavy">{t("effort.heavy")}</option>
                   </select>
                 </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.startDate")}</label>
-                    <input type="date" value={newTaskStartDate} onChange={(e) => setNewTaskStartDate(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("todos.deadlineLabel")}</label>
-                    <input type="date" value={newTaskDeadline} onChange={(e) => setNewTaskDeadline(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
-                  </div>
-                </div>
+                {(() => {
+                  const phaseRange = getPhaseDateRange(addTaskPhaseId);
+                  const today = new Date().toISOString().split("T")[0];
+                  const minDate = phaseRange.start && phaseRange.start > today ? phaseRange.start : today;
+                  return (
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.startDate")}</label>
+                        <input type="date" value={newTaskStartDate} onChange={(e) => setNewTaskStartDate(e.target.value)} min={minDate} max={phaseRange.end ?? undefined} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("todos.deadlineLabel")}</label>
+                        <input type="date" value={newTaskDeadline} onChange={(e) => setNewTaskDeadline(e.target.value)} min={minDate} max={phaseRange.end ?? undefined} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100" />
+                      </div>
+                    </div>
+                  );
+                })()}
                 {orderedPhases.length > 0 && (
                   <div>
                     <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("projects.phases")}</label>
@@ -1455,8 +1673,7 @@ export default function ProjectDetailView({
                     </select>
                   </div>
                 )}
-                {projectTeamMembers.length > 0 && (
-                  <div>
+                <div>
                     <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("assign.label")}</label>
                     <div ref={newTaskAssignRef} className="relative">
                       <input
@@ -1499,8 +1716,7 @@ export default function ProjectDetailView({
                     {newTaskAssignError && (
                       <p className="mt-1 text-xs text-red-600 dark:text-red-400">{newTaskAssignError}</p>
                     )}
-                  </div>
-                )}
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>

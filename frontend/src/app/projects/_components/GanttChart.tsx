@@ -11,9 +11,8 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import { SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
-import type { ProjectPhase, Todo, TodoStatus, TranslationKey } from "./types";
+import type { ProjectPhase, Todo, TranslationKey } from "./types";
 
 function daysBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
@@ -31,19 +30,12 @@ function parseDate(s: string): Date {
 }
 
 function monthLabel(d: Date, locale: string): string {
-  return d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { month: "short", year: "2-digit" });
+  return d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { month: "short" }).toUpperCase();
 }
 
-type GanttRow = {
-  type: "phase" | "task" | "subtask";
-  id: string;
-  label: string;
-  numbering: string;
-  color: string;
-  startDay: number | null;
-  endDay: number | null;
-  status?: TodoStatus;
-};
+function yearLabel(d: Date): string {
+  return String(d.getFullYear()).slice(-2);
+}
 
 interface GanttChartProps {
   phases: ProjectPhase[];
@@ -57,18 +49,26 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
   const containerRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const parentTasks = useMemo(() => tasks.filter((t) => !t.parentId), [tasks]);
+  const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const subtasksByParent = useMemo(() => {
     const map = new Map<string, Todo[]>();
-    for (const t of tasks) {
-      if (t.parentId) {
-        const list = map.get(t.parentId) ?? [];
-        list.push(t);
-        map.set(t.parentId, list);
+    for (const td of tasks) {
+      if (td.parentId) {
+        const list = map.get(td.parentId) ?? [];
+        list.push(td);
+        map.set(td.parentId, list);
       }
     }
     return map;
   }, [tasks]);
+
+  const chronoPhases = useMemo(() => {
+    return [...phases].sort((a, b) => {
+      const aStart = a.startDate ? parseDate(a.startDate).getTime() : Infinity;
+      const bStart = b.startDate ? parseDate(b.startDate).getTime() : Infinity;
+      return aStart - bStart;
+    });
+  }, [phases]);
 
   const tasksByPhase = useMemo(() => {
     const map = new Map<string, Todo[]>();
@@ -81,10 +81,13 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
         unassigned.push(task);
       }
     }
-    for (const [, list] of map) {
-      list.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
-    }
-    unassigned.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+    const chronoSort = (a: Todo, b: Todo) => {
+      const aDate = a.startDate ?? a.deadline ?? "9999";
+      const bDate = b.startDate ?? b.deadline ?? "9999";
+      return aDate.localeCompare(bDate);
+    };
+    for (const [, list] of map) list.sort(chronoSort);
+    unassigned.sort(chronoSort);
     map.set("__none__", unassigned);
     return map;
   }, [phases, parentTasks]);
@@ -121,17 +124,20 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
       });
     }
 
-    const builtMonths: { label: string; startDay: number; span: number }[] = [];
+    const builtMonths: { label: string; year: string; leftPx: number; widthPx: number }[] = [];
     let cursor = new Date(minD);
+    const COL = 28;
     while (cursor <= maxD) {
       const mStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
       const mEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
       const effStart = mStart < minD ? minD : mStart;
       const effEnd = mEnd > maxD ? maxD : mEnd;
+      const span = daysBetween(effStart, effEnd) + 1;
       builtMonths.push({
         label: monthLabel(cursor, locale),
-        startDay: daysBetween(minD, effStart),
-        span: daysBetween(effStart, effEnd) + 1,
+        year: yearLabel(cursor),
+        leftPx: daysBetween(minD, effStart) * COL,
+        widthPx: span * COL,
       });
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
@@ -149,7 +155,7 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
 
   const findPhaseForTask = useCallback((taskId: string): string => {
     for (const [phaseId, list] of tasksByPhase) {
-      if (list.some((t) => t.id === taskId)) return phaseId;
+      if (list.some((td) => td.id === taskId)) return phaseId;
     }
     return "__none__";
   }, [tasksByPhase]);
@@ -172,18 +178,17 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
     const allPhaseIds = [...phases.map((p) => p.id), "__none__"];
     const isOverAPhase = allPhaseIds.includes(overId);
     const targetPhase = isOverAPhase ? overId : findPhaseForTask(overId);
-
     const targetTasks = tasksByPhase.get(targetPhase) ?? [];
 
     if (sourcePhase === targetPhase && !isOverAPhase) {
-      const oldIndex = targetTasks.findIndex((t) => t.id === activeId);
-      const newIndex = targetTasks.findIndex((t) => t.id === overId);
+      const oldIndex = targetTasks.findIndex((td) => td.id === activeId);
+      const newIndex = targetTasks.findIndex((td) => td.id === overId);
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
       onMoveTask(activeId, targetPhase === "__none__" ? null : targetPhase, newIndex);
     } else {
       let insertIndex = targetTasks.length;
       if (!isOverAPhase) {
-        const overIndex = targetTasks.findIndex((t) => t.id === overId);
+        const overIndex = targetTasks.findIndex((td) => td.id === overId);
         if (overIndex !== -1) insertIndex = overIndex;
       }
       onMoveTask(activeId, targetPhase === "__none__" ? null : targetPhase, insertIndex);
@@ -191,14 +196,12 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
   }, [onMoveTask, findPhaseForTask, phases, tasksByPhase]);
 
   const draggedTask = useMemo(
-    () => (draggedId ? parentTasks.find((t) => t.id === draggedId) ?? null : null),
+    () => (draggedId ? parentTasks.find((td) => td.id === draggedId) ?? null : null),
     [draggedId, parentTasks],
   );
 
   const todayOffset = daysBetween(minDate, new Date());
   const COL_W = 28;
-
-  const orderedPhases = useMemo(() => [...phases].sort((a, b) => a.order - b.order), [phases]);
 
   const hasData = parentTasks.length > 0;
 
@@ -209,6 +212,9 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
       </div>
     );
   }
+
+  const chartWidth = totalDays * COL_W;
+  const labelW = 240;
 
   const renderBar = (startDay: number | null, endDay: number | null, color: string, opacity: number, height: string, label?: string) => {
     const barStart = startDay ?? 0;
@@ -244,7 +250,7 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
 
     return (
       <div className="flex items-center border-b border-zinc-100 dark:border-slate-800" style={{ height: rowHeight }}>
-        <div className={`w-[240px] shrink-0 px-3 truncate text-xs text-zinc-600 dark:text-slate-400 ${labelPl}`}>
+        <div className={`w-[${labelW}px] shrink-0 px-3 truncate text-xs text-zinc-600 dark:text-slate-400 ${labelPl}`} style={{ width: labelW }}>
           {numbering && (
             <span className="text-[10px] font-mono font-semibold text-zinc-400 dark:text-slate-500 mr-1.5">{numbering}</span>
           )}
@@ -252,9 +258,6 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
           <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
         </div>
         <div className="flex-1 relative" style={{ height: "100%" }}>
-          {todayOffset >= 0 && todayOffset <= totalDays && (
-            <div className="absolute top-0 bottom-0 w-px bg-red-400 dark:bg-red-500 z-10" style={{ left: todayOffset * COL_W + COL_W / 2 }} />
-          )}
           {renderBar(bar.startDay, bar.endDay, color, barOpacity, barTop, !isSubtask ? task.title : undefined)}
         </div>
       </div>
@@ -267,22 +270,17 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
 
     return (
       <div key={phaseId}>
-        {/* Phase header row */}
         <div className="flex items-center border-b border-zinc-100 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-800/30" style={{ height: 36 }}>
-          <div className="w-[240px] shrink-0 px-3 truncate font-semibold text-xs text-zinc-700 dark:text-slate-300">
+          <div className="shrink-0 px-3 truncate font-semibold text-xs text-zinc-700 dark:text-slate-300" style={{ width: labelW }}>
             <span className="inline-block w-2.5 h-2.5 rounded-sm mr-2 align-middle" style={{ backgroundColor: phaseColor }} />
             {phaseName}
           </div>
           <div className="flex-1 relative" style={{ height: "100%" }}>
-            {todayOffset >= 0 && todayOffset <= totalDays && (
-              <div className="absolute top-0 bottom-0 w-px bg-red-400 dark:bg-red-500 z-10" style={{ left: todayOffset * COL_W + COL_W / 2 }} />
-            )}
             {phaseBar && renderBar(phaseBar.startDay, phaseBar.endDay, phaseColor, 0.85, "top-[8px] h-[20px]")}
           </div>
         </div>
 
-        {/* Sortable task rows */}
-        <SortablePhaseContainer id={phaseId} items={phaseTasks.map((t) => t.id)}>
+        <SortablePhaseContainer id={phaseId} items={phaseTasks.map((td) => td.id)}>
           {phaseTasks.map((task) => {
             counter++;
             const parentNum = String(counter);
@@ -302,23 +300,33 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="overflow-x-auto" ref={containerRef}>
-        <div style={{ minWidth: totalDays * COL_W + 240 }}>
-          <div className="flex border-b border-zinc-200 dark:border-slate-700">
-            <div className="w-[240px] shrink-0" />
-            <div className="flex-1 flex">
+        <div className="relative" style={{ minWidth: chartWidth + labelW }}>
+          {/* Single today line spanning entire chart */}
+          {todayOffset >= 0 && todayOffset <= totalDays && (
+            <div
+              className="absolute top-0 bottom-0 w-[2px] bg-red-400 dark:bg-red-500 z-20 pointer-events-none"
+              style={{ left: labelW + todayOffset * COL_W + COL_W / 2 }}
+            />
+          )}
+
+          {/* Month headers */}
+          <div className="flex border-b border-zinc-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
+            <div className="shrink-0" style={{ width: labelW }} />
+            <div className="flex-1 relative" style={{ height: 28 }}>
               {months.map((m, i) => (
                 <div
                   key={i}
-                  style={{ width: m.span * COL_W, marginLeft: i === 0 ? m.startDay * COL_W : 0 }}
-                  className="text-[10px] font-semibold text-zinc-500 dark:text-slate-400 px-1 py-1 border-r border-zinc-100 dark:border-slate-800 uppercase tracking-wider"
+                  className="absolute top-0 bottom-0 flex items-center text-[10px] font-semibold text-zinc-500 dark:text-slate-400 px-1 border-r border-zinc-100 dark:border-slate-800 uppercase tracking-wider overflow-hidden whitespace-nowrap"
+                  style={{ left: m.leftPx, width: m.widthPx }}
                 >
-                  {m.label}
+                  {m.widthPx > 50 ? `${m.label} ${m.year}` : m.widthPx > 30 ? m.label.slice(0, 3) : ""}
                 </div>
               ))}
             </div>
           </div>
 
-          {orderedPhases.map((phase) =>
+          {/* Phase sections sorted chronologically */}
+          {chronoPhases.map((phase) =>
             renderPhaseSection(phase.id, phase.name, phase.color, phaseBarData.get(phase.id) ?? null)
           )}
 
@@ -326,6 +334,7 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
             renderPhaseSection("__none__", t("phase.unassigned"), "#94a3b8", null)
           }
 
+          {/* Today legend */}
           <div className="flex items-center gap-1 mt-2 px-3">
             <div className="w-3 h-0.5 bg-red-400" />
             <span className="text-[10px] text-zinc-400 dark:text-slate-500">{t("gantt.today")}</span>

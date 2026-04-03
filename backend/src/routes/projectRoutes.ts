@@ -9,6 +9,7 @@ import {
   remove,
   reorder,
   getTodos,
+  getAllTodos,
   createPhase,
   patchPhase,
   removePhase,
@@ -24,6 +25,7 @@ router.post("/import/confirm", requireAuth, uploadMiddleware, confirm);
 router.get("/", requireAuth, list);
 router.post("/", requireAuth, create);
 router.put("/reorder", requireAuth, reorder);
+router.get("/all-todos", requireAuth, getAllTodos);
 router.get("/:id", requireAuth, get);
 router.put("/:id", requireAuth, update);
 router.delete("/:id", requireAuth, remove);

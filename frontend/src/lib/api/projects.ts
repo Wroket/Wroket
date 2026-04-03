@@ -80,7 +80,10 @@ export async function updateProject(id: string, payload: UpdateProjectPayload): 
     body: JSON.stringify(payload),
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Erreur lors de la mise à jour du projet");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "Erreur lors de la mise à jour du projet");
+  }
   return (await res.json()) as Project;
 }
 
@@ -103,6 +106,12 @@ export async function getProjectTodos(projectId: string): Promise<Todo[]> {
   const res = await fetch(`${API_BASE_URL}/projects/${projectId}/todos`, { method: "GET", credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger les tâches du projet");
   return (await res.json()) as Todo[];
+}
+
+export async function getAllProjectTodos(): Promise<Record<string, Todo[]>> {
+  const res = await fetch(`${API_BASE_URL}/projects/all-todos`, { method: "GET", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les tâches projets");
+  return (await res.json()) as Record<string, Todo[]>;
 }
 
 // ── Phases ──

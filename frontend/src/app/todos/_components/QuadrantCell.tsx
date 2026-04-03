@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import TodoCard from "@/components/TodoCard";
 import { useLocale } from "@/lib/LocaleContext";
 import { QUADRANT_CONFIG, type Quadrant } from "@/lib/todoConstants";
-import type { Todo } from "@/lib/api";
+import type { Todo, Project } from "@/lib/api";
 
 export interface QuadrantCellProps {
   quadrant: Quadrant;
@@ -21,6 +21,7 @@ export interface QuadrantCellProps {
   commentCounts?: Record<string, number>;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
+  projects?: Project[];
 }
 
 export default function QuadrantCell({
@@ -37,6 +38,7 @@ export default function QuadrantCell({
   commentCounts: ccounts = {},
   meUid,
   userDisplayName,
+  projects = [],
 }: QuadrantCellProps) {
   const { t } = useLocale();
   const cfg = QUADRANT_CONFIG[quadrant];
@@ -90,7 +92,7 @@ export default function QuadrantCell({
               const subs = expanded.has(todo.id) ? subtasksOf(todo.id) : [];
               return (
                 <div key={todo.id}>
-                  <TodoCard todo={todo} onComplete={onComplete} onDelete={onDelete} onDecline={onDecline} onAccept={onAccept} onEdit={onEdit} onScheduleUpdate={onScheduleUpdate} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} meUid={meUid} userDisplayName={userDisplayName} commentCount={ccounts[todo.id] ?? 0} />
+                  <TodoCard todo={todo} onComplete={onComplete} onDelete={onDelete} onDecline={onDecline} onAccept={onAccept} onEdit={onEdit} onScheduleUpdate={onScheduleUpdate} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} meUid={meUid} userDisplayName={userDisplayName} commentCount={ccounts[todo.id] ?? 0} projects={projects} />
                   {subs.length > 0 && (
                     <div className="ml-5 mt-1 space-y-1">
                       {subs.map((sub) => (

@@ -18,6 +18,7 @@ import { useToast } from "@/components/Toast";
 import {
   createTodo,
   createNoteApi,
+  getTodoNoteMap,
   deleteTodo,
   getTodos,
   getArchivedTodos,
@@ -71,6 +72,7 @@ export default function TodosPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
 
   type TaskScope = "all" | "personal" | "assigned" | "delegated";
   const [scope, setScope] = useState<TaskScope>("all");
@@ -131,6 +133,15 @@ export default function TodosPage() {
     return result;
   }, [projects]);
 
+  const getPhaseRange = useCallback((phaseId: string | null | undefined) => {
+    if (!phaseId) return { start: undefined as string | undefined, end: undefined as string | undefined };
+    for (const proj of projects) {
+      const phase = proj.phases?.find((p) => p.id === phaseId);
+      if (phase) return { start: phase.startDate ?? undefined, end: phase.endDate ?? undefined };
+    }
+    return { start: undefined as string | undefined, end: undefined as string | undefined };
+  }, [projects]);
+
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [priorityTouched, setPriorityTouched] = useState(false);
@@ -163,7 +174,7 @@ export default function TodosPage() {
   const [undoing, setUndoing] = useState(false);
   const [mainView, setMainView] = useState<"list" | "cards" | "radar">("list");
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -181,6 +192,7 @@ export default function TodosPage() {
       title: todo.title,
       priority: todo.priority,
       effort: todo.effort ?? "medium",
+      startDate: todo.startDate ?? "",
       deadline: todo.deadline ?? "",
       assignedTo: todo.assignedTo ?? null,
       estimatedMinutes: todo.estimatedMinutes ?? null,
@@ -196,6 +208,11 @@ export default function TodosPage() {
     }
   };
 
+  const closeEditModal = useCallback(() => {
+    setEditingTodo(null);
+    getCommentCounts().then(setCommentCounts).catch(() => {});
+  }, []);
+
   const saveEdit = async () => {
     if (!editingTodo) return;
     setEditSaving(true);
@@ -204,6 +221,7 @@ export default function TodosPage() {
         title: editForm.title,
         priority: editForm.priority,
         effort: editForm.effort,
+        startDate: editForm.startDate || null,
         deadline: editForm.deadline || null,
         assignedTo: editForm.assignedTo,
         estimatedMinutes: editForm.estimatedMinutes,
@@ -212,7 +230,7 @@ export default function TodosPage() {
         projectId: editForm.projectId,
       });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      setEditingTodo(null);
+      closeEditModal();
       toast.success(t("toast.taskUpdated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
@@ -244,12 +262,13 @@ export default function TodosPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [mine, archived, assigned, projs, ccounts, collabs, tms] = await Promise.all([
+        const [mine, archived, assigned, projs, ccounts, noteMap, collabs, tms] = await Promise.all([
           getTodos(),
           getArchivedTodos(),
           getAssignedTodos(),
           getProjects(),
           getCommentCounts(),
+          getTodoNoteMap().catch(() => ({} as Record<string, string>)),
           getCollaborators().catch(() => [] as Collaborator[]),
           getTeams().catch(() => [] as Team[]),
         ]);
@@ -258,6 +277,7 @@ export default function TodosPage() {
           setAssignedTodos(assigned);
           setProjects(projs.filter((p) => p.status === "active"));
           setCommentCounts(ccounts);
+          setTodoNoteIds(noteMap);
           setCollaborators(collabs.filter((c) => c.status === "active"));
           setTeams(tms);
           const uids = new Set<string>();
@@ -516,7 +536,12 @@ export default function TodosPage() {
     }
   }, [toast]);
 
-  const handleCreateNote = useCallback(async (todo: Todo) => {
+  const handleNoteAction = useCallback(async (todo: Todo) => {
+    const existingNoteId = todoNoteIds[todo.id];
+    if (existingNoteId) {
+      router.push(`/notes?id=${existingNoteId}`);
+      return;
+    }
     try {
       const note = await createNoteApi({
         title: todo.title,
@@ -524,12 +549,13 @@ export default function TodosPage() {
         todoId: todo.id,
         projectId: todo.projectId ?? undefined,
       });
+      setTodoNoteIds((prev) => ({ ...prev, [todo.id]: note.id }));
       toast.success(t("notes.noteCreated"));
       router.push(`/notes?id=${note.id}`);
     } catch {
       toast.error(t("toast.noteCreateError"));
     }
-  }, [toast, t, router]);
+  }, [toast, t, router, todoNoteIds]);
 
   const openSubtaskModal = (todo: Todo) => {
     setSubtaskParent(todo);
@@ -711,7 +737,7 @@ export default function TodosPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] space-y-6">
+      <div className="max-w-[1400px] mx-auto space-y-6">
         {/* ── Create form ── */}
         <form
           onSubmit={handleCreate}
@@ -729,7 +755,7 @@ export default function TodosPage() {
               />
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !!assignError}
                 className="rounded bg-slate-700 dark:bg-slate-600 px-6 py-2 sm:py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 whitespace-nowrap transition-colors h-[38px] sm:h-[42px] shrink-0"
               >
                 {submitting ? t("todos.adding") : t("todos.add")}
@@ -1177,7 +1203,8 @@ export default function TodosPage() {
               onAccept={handleAccept}
               projects={projects}
               onScheduleUpdate={handleScheduleUpdate}
-              onCreateNote={handleCreateNote}
+              onCreateNote={handleNoteAction}
+              todoNoteIds={todoNoteIds}
               onReorderSubtasks={handleReorderSubtasks}
               justCreatedId={justCreatedId}
               commentCounts={commentCounts}
@@ -1210,7 +1237,7 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
@@ -1256,10 +1283,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
 
@@ -1271,10 +1298,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
                 </>
@@ -1381,6 +1408,8 @@ export default function TodosPage() {
                                     onBooked={handleScheduleUpdate}
                                     onCleared={handleScheduleUpdate}
                                     autoOpen={todo.id === justCreatedId}
+                                    dateMin={getPhaseRange(todo.phaseId).start}
+                                    dateMax={getPhaseRange(todo.phaseId).end}
                                   />
                                 )}
                                 <button
@@ -1471,7 +1500,7 @@ export default function TodosPage() {
         form={editForm}
         onFormChange={(updates) => setEditForm((f) => ({ ...f, ...updates }))}
         onSave={saveEdit}
-        onClose={() => setEditingTodo(null)}
+        onClose={closeEditModal}
         saving={editSaving}
         assignEmail={editAssignEmail}
         onAssignEmailChange={handleEditAssignLookup}
@@ -1490,7 +1519,7 @@ export default function TodosPage() {
         onAcceptDecline={editingTodo ? (status) => {
           if (status === "accepted") handleAccept(editingTodo);
           else handleDecline(editingTodo);
-          setEditingTodo(null);
+          closeEditModal();
         } : undefined}
         onSuggestedSlotChange={editingTodo && editingTodo.userId === user?.uid && editingTodo.assignedTo ? async (slot) => {
           try {

@@ -19,7 +19,7 @@ import {
   CreatePhaseInput,
   UpdatePhaseInput,
 } from "../services/projectService";
-import { listTodos } from "../services/todoService";
+import { listProjectTodos } from "../services/todoService";
 import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 
@@ -105,11 +105,21 @@ export async function getTodos(req: AuthenticatedRequest, res: Response) {
     throw new ForbiddenError("Accès refusé");
   }
 
-  const allTodos = listTodos(req.user!.uid);
-  const directTodos = allTodos.filter((t) => t.projectId === project.id);
+  const allProjectTodos = listProjectTodos(project.id);
+  const directTodos = allProjectTodos.filter((t) => !t.parentId);
   const directIds = new Set(directTodos.map((t) => t.id));
-  const subtasks = allTodos.filter((t) => t.parentId && directIds.has(t.parentId) && !directIds.has(t.id));
+  const subtasks = allProjectTodos.filter((t) => t.parentId && directIds.has(t.parentId));
   res.status(200).json([...directTodos, ...subtasks]);
+}
+
+export async function getAllTodos(req: AuthenticatedRequest, res: Response) {
+  const projects = listProjects(req.user!.uid, req.user!.email);
+  const result: Record<string, unknown[]> = {};
+  for (const project of projects) {
+    const todos = listProjectTodos(project.id).filter((t) => !t.parentId);
+    if (todos.length > 0) result[project.id] = todos;
+  }
+  res.status(200).json(result);
 }
 
 export async function reorder(req: AuthenticatedRequest, res: Response) {

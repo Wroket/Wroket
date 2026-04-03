@@ -230,6 +230,14 @@ export function syncNotes(userId: string, incoming: Array<{ id: string; title: s
   return listNotes(userId);
 }
 
+export function getTodoNoteMap(userId: string): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const note of getUserNotes(userId).values()) {
+    if (note.todoId) map[note.todoId] = note.id;
+  }
+  return map;
+}
+
 export function listNotesByTodo(userId: string, todoId: string): Note[] {
   return Array.from(getUserNotes(userId).values())
     .filter((n) => n.todoId === todoId)

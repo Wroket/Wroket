@@ -8,7 +8,7 @@ import { useToast } from "@/components/Toast";
 import {
   getProjects,
   getTeams,
-  getTodos,
+  getAllProjectTodos,
   getProjectTodos,
   getProject as fetchProject,
   Project,
@@ -37,16 +37,15 @@ export default function ProjectsPage() {
 
   const [allProjectTodos, setAllProjectTodos] = useState<Todo[]>([]);
 
-  const selectProject = useCallback((project: Project | null) => {
-    setSelectedProject(project);
-    const params = new URLSearchParams(searchParams.toString());
-    if (project) {
-      params.set("project", project.id);
-    } else {
-      params.delete("project");
-    }
-    router.replace(`/projects?${params.toString()}`, { scroll: false });
-  }, [searchParams, router]);
+  const refreshAllTodos = useCallback(() => {
+    getAllProjectTodos()
+      .then((grouped) => {
+        const flat: Todo[] = [];
+        for (const todos of Object.values(grouped)) flat.push(...todos);
+        setAllProjectTodos(flat);
+      })
+      .catch(() => setAllProjectTodos([]));
+  }, []);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -62,6 +61,19 @@ export default function ProjectsPage() {
     }
   }, [toast, t]);
 
+  const selectProject = useCallback((project: Project | null) => {
+    setSelectedProject(project);
+    const params = new URLSearchParams(searchParams.toString());
+    if (project) {
+      params.set("project", project.id);
+    } else {
+      params.delete("project");
+      refreshAllTodos();
+      loadProjects();
+    }
+    router.replace(`/projects?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, refreshAllTodos, loadProjects]);
+
   useEffect(() => {
     loadProjects().then((loadedProjects) => {
       const projectId = searchParams.get("project");
@@ -73,10 +85,8 @@ export default function ProjectsPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    getTodos()
-      .then((todos) => setAllProjectTodos(todos.filter((td) => !!td.projectId && !td.parentId)))
-      .catch(() => setAllProjectTodos([]));
-  }, []);
+    refreshAllTodos();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectProject = async (project: Project) => {
     selectProject(project);

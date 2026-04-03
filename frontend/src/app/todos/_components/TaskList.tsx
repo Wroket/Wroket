@@ -43,6 +43,7 @@ export interface TaskListProps {
   projects?: Project[];
   onScheduleUpdate?: (todo: Todo) => void;
   onCreateNote?: (todo: Todo) => void;
+  todoNoteIds?: Record<string, string>;
   onReorderSubtasks?: (orderedIds: string[]) => void;
   justCreatedId?: string | null;
   commentCounts?: Record<string, number>;
@@ -67,6 +68,7 @@ export default function TaskList({
   projects = [],
   onScheduleUpdate,
   onCreateNote,
+  todoNoteIds = {},
   onReorderSubtasks,
   justCreatedId,
   commentCounts = {},
@@ -171,6 +173,7 @@ export default function TaskList({
                       onAccept={onAccept}
                       onScheduleUpdate={onScheduleUpdate}
                       onCreateNote={onCreateNote}
+                      hasLinkedNote={!!todoNoteIds[todo.id]}
                       onReorderSubtasks={onReorderSubtasks}
                       justCreatedId={justCreatedId}
                       commentCounts={commentCounts}

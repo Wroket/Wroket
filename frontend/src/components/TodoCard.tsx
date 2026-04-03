@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "@/lib/LocaleContext";
-import type { Todo } from "@/lib/api";
+import type { Todo, Project } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -27,6 +27,7 @@ interface TodoCardProps {
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   commentCount?: number;
+  projects?: Project[];
 }
 
 export default function TodoCard({
@@ -43,10 +44,20 @@ export default function TodoCard({
   meUid,
   userDisplayName,
   commentCount = 0,
+  projects = [],
 }: TodoCardProps) {
   const { t } = useLocale();
   const badge = PRIORITY_BADGES[todo.priority];
   const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+
+  let slotDateMin: string | undefined;
+  let slotDateMax: string | undefined;
+  if (todo.phaseId) {
+    for (const proj of projects) {
+      const ph = proj.phases?.find((p) => p.id === todo.phaseId);
+      if (ph) { slotDateMin = ph.startDate ?? undefined; slotDateMax = ph.endDate ?? undefined; break; }
+    }
+  }
 
   return (
     <div
@@ -168,6 +179,8 @@ export default function TodoCard({
               suggestedSlot={todo.suggestedSlot}
               onBooked={onScheduleUpdate}
               onCleared={onScheduleUpdate}
+              dateMin={slotDateMin}
+              dateMax={slotDateMax}
             />
           )}
           <CommentHoverIcon

@@ -237,6 +237,14 @@ export function updateProject(uid: string, userEmail: string, id: string, input:
       if (!canAccessProject(uid, userEmail, targetParent)) {
         throw new ForbiddenError("Accès au projet parent refusé");
       }
+      const childRange = getProjectDateRange(id);
+      const parentRange = getProjectDateRange(input.parentProjectId);
+      if (childRange.start && parentRange.start && childRange.start < parentRange.start) {
+        throw new ValidationError(`Les dates du sous-projet dépassent celles du projet parent (début parent: ${parentRange.start})`);
+      }
+      if (childRange.end && parentRange.end && childRange.end > parentRange.end) {
+        throw new ValidationError(`Les dates du sous-projet dépassent celles du projet parent (fin parent: ${parentRange.end})`);
+      }
     }
     project.parentProjectId = input.parentProjectId;
   }
@@ -275,10 +283,44 @@ export function reorderProjects(uid: string, userEmail: string, projectIds: stri
 
 // ── Phase CRUD ──
 
+export function getProjectDateRange(projectId: string): { start: string | null; end: string | null } {
+  const project = projectsById.get(projectId);
+  if (!project) return { start: null, end: null };
+  const starts = project.phases.map((p) => p.startDate).filter(Boolean) as string[];
+  const ends = project.phases.map((p) => p.endDate).filter(Boolean) as string[];
+  return {
+    start: starts.length ? starts.sort()[0] : null,
+    end: ends.length ? ends.sort().reverse()[0] : null,
+  };
+}
+
+export function findPhaseById(phaseId: string): ProjectPhase | null {
+  for (const project of projectsById.values()) {
+    const phase = project.phases.find((p) => p.id === phaseId);
+    if (phase) return phase;
+  }
+  return null;
+}
+
+function validatePhaseDatesAgainstParent(project: Project, startDate: string | null, endDate: string | null): void {
+  if (!project.parentProjectId) return;
+  const parentRange = getProjectDateRange(project.parentProjectId);
+  if (startDate && parentRange.start && startDate < parentRange.start) {
+    throw new ValidationError(`La date de début de la phase ne peut pas être antérieure au projet parent (${parentRange.start})`);
+  }
+  if (endDate && parentRange.end && endDate > parentRange.end) {
+    throw new ValidationError(`La date de fin de la phase ne peut pas dépasser celle du projet parent (${parentRange.end})`);
+  }
+}
+
 export function addPhase(projectId: string, input: CreatePhaseInput): ProjectPhase {
   const project = projectsById.get(projectId);
   if (!project) throw new NotFoundError("Projet introuvable");
   if (!input.name?.trim()) throw new ValidationError("Le nom de la phase est requis");
+
+  const startDate = input.startDate ?? null;
+  const endDate = input.endDate ?? null;
+  validatePhaseDatesAgainstParent(project, startDate, endDate);
 
   const phase: ProjectPhase = {
     id: crypto.randomUUID(),
@@ -286,8 +328,8 @@ export function addPhase(projectId: string, input: CreatePhaseInput): ProjectPha
     name: input.name.trim(),
     color: input.color ?? PHASE_COLORS[project.phases.length % PHASE_COLORS.length],
     order: project.phases.length,
-    startDate: input.startDate ?? null,
-    endDate: input.endDate ?? null,
+    startDate,
+    endDate,
     createdAt: new Date().toISOString(),
   };
   project.phases.push(phase);
@@ -301,6 +343,10 @@ export function updatePhase(projectId: string, phaseId: string, input: UpdatePha
   if (!project) throw new NotFoundError("Projet introuvable");
   const phase = project.phases.find((p) => p.id === phaseId);
   if (!phase) throw new NotFoundError("Phase introuvable");
+
+  const newStart = input.startDate !== undefined ? input.startDate : phase.startDate;
+  const newEnd = input.endDate !== undefined ? input.endDate : phase.endDate;
+  validatePhaseDatesAgainstParent(project, newStart, newEnd);
 
   if (input.name !== undefined) phase.name = input.name.trim();
   if (input.color !== undefined) phase.color = input.color;

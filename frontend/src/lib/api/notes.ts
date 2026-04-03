@@ -34,6 +34,12 @@ export async function getNotesByTodo(todoId: string): Promise<Note[]> {
   return res.json();
 }
 
+export async function getTodoNoteMap(): Promise<Record<string, string>> {
+  const res = await fetch(`${API_BASE_URL}/notes/todo-note-map`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger la carte notes-tâches");
+  return res.json();
+}
+
 export async function createNoteApi(input: {
   title?: string;
   content?: string;
