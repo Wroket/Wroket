@@ -96,12 +96,15 @@ export default function TodosPage() {
     return all;
   }, [personalTodos, assignedTodos, delegatedTodos, scope]);
 
-  const scopeCounts = useMemo(() => ({
-    all: (() => { const s = new Set<string>(); [...personalTodos, ...assignedTodos, ...delegatedTodos].forEach((t) => s.add(t.id)); return s.size; })(),
-    personal: personalTodos.length,
-    assigned: assignedTodos.length,
-    delegated: delegatedTodos.length,
-  }), [personalTodos, assignedTodos, delegatedTodos]);
+  const scopeCounts = useMemo(() => {
+    const isActive = (t: Todo) => t.status === "active" && !t.parentId;
+    const ap = personalTodos.filter(isActive);
+    const aa = assignedTodos.filter(isActive);
+    const ad = delegatedTodos.filter(isActive);
+    const allSet = new Set<string>();
+    [...ap, ...aa, ...ad].forEach((t) => allSet.add(t.id));
+    return { all: allSet.size, personal: ap.length, assigned: aa.length, delegated: ad.length };
+  }, [personalTodos, assignedTodos, delegatedTodos]);
 
   const setTodos = (updater: (prev: Todo[]) => Todo[]) => {
     setMyTodos(updater);
