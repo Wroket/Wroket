@@ -189,6 +189,27 @@
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
 - [ ] **2FA** — Authentification à deux facteurs (TOTP)
 
+## Monétisation & Plan System
+
+- [ ] **Plan system (Free / Pro / Team)** — Champ `plan` sur le modèle utilisateur, middleware de feature gating, prompts d'upgrade frontend
+  - Free : 25 tâches actives, pas d'archives (purge auto 7j), 3 notes, pas de récurrence, pas de pièces jointes, Google Calendar en lecture seule, planification manuelle uniquement
+  - Pro ($9/mois ou $89/an) : tâches illimitées, archives complètes, planification intelligente + détection de conflits, récurrence + jours ouvrés, notes et pièces jointes illimitées, Google Calendar lecture/écriture (multi-comptes), import/export CSV, webhooks
+  - Team ($12/utilisateur/mois ou $119/utilisateur/an, min 2 sièges) : tout Pro + équipes, assignation de tâches, projets/phases/Kanban/Gantt, notes partagées, dashboard équipe, rôles RBAC
+- [ ] **Stripe Checkout** — Intégration paiement : Stripe Checkout pour upgrade Pro/Team, gestion abonnements, portail client Stripe, webhooks Stripe pour provisioning automatique
+- [ ] **Page Pricing** — Page publique `/pricing` avec comparatif des plans, FAQ, CTA vers Stripe Checkout
+
+## Fonctionnalités Premium (Business tier — $20-25/utilisateur/mois)
+
+- [ ] **Time tracking** — Chronomètre intégré par tâche, temps réel vs estimé, historique des sessions de travail, rapports temps passé par projet/phase/membre
+- [ ] **Analytics & Reporting** — Dashboard analytique : burndown charts, vélocité d'équipe, taux de complétion par période, tendances de productivité, répartition temps par priorité/effort
+- [ ] **Capacity planning** — Vue charge de travail par membre sur la semaine/mois, détection de surcharge, suggestions de réaffectation, heatmap de disponibilité
+- [ ] **Automation rules** — Règles conditionnelles : "Si tâche en retard → réassigner + notifier manager", "Si deadline dans 24h et non planifiée → planifier automatiquement", triggers personnalisables
+- [ ] **Custom fields** — Champs personnalisés sur les tâches (texte, nombre, date, dropdown, checkbox), configurables par projet, filtrables et triables
+- [ ] **AI scheduling** — Planification automatique de la semaine : analyse des priorités, deadlines, effort estimé et disponibilités pour proposer un planning optimal, bouton "Planifier ma semaine"
+- [ ] **Client portal** — Vue externe en lecture seule pour les parties prenantes (clients, managers), progression projet, jalons, commentaires filtrés, lien partageable avec token
+- [ ] **API publique** — REST API documentée (OpenAPI/Swagger) avec clés API par utilisateur, rate limiting par plan, endpoints CRUD tâches/projets/notes pour intégrations tierces
+- [ ] **OKR & objectifs** — Définition d'objectifs (Objectives & Key Results) liés aux projets et tâches, suivi de progression, alignement équipe, tableau de bord OKR
+
 ## Tests & Qualité
 
 - [ ] **Tests unitaires backend** — Jest/Vitest pour services et controllers

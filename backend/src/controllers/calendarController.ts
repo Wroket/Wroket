@@ -109,7 +109,30 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const duration = hasCustomEstimate ? todo.estimatedMinutes! : effortDefaults[effort];
   const durationSource = hasCustomEstimate ? "task" as const : "settings" as const;
 
-  const slots = findAvailableSlots(uid, duration, workingHours, [], 3, undefined, {
+  const googleBusySlots: { start: Date; end: Date }[] = [];
+  const accounts = getGoogleAccounts(uid);
+  if (accounts.length > 0) {
+    const now = new Date();
+    const searchEnd = new Date(now.getTime() + 31 * 24 * 3600_000);
+    const fetches: Promise<{ start: string; end: string; allDay: boolean }[]>[] = [];
+    for (const account of accounts) {
+      for (const cal of account.calendars) {
+        if (!cal.enabled || fetches.length >= 10) continue;
+        fetches.push(listEventsForAccount(uid, account.id, cal.calendarId, now.toISOString(), searchEnd.toISOString()));
+      }
+    }
+    try {
+      const results = await Promise.all(fetches);
+      for (const events of results) {
+        for (const ev of events) {
+          if (ev.allDay) continue;
+          googleBusySlots.push({ start: new Date(ev.start), end: new Date(ev.end) });
+        }
+      }
+    } catch { /* Google Calendar unavailable */ }
+  }
+
+  const slots = findAvailableSlots(uid, duration, workingHours, googleBusySlots, 3, undefined, {
     priority: todo.priority,
     deadline: todo.deadline,
     startDate: todo.startDate,

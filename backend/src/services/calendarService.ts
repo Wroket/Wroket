@@ -229,11 +229,11 @@ export function findAvailableSlots(
   return proposals;
 }
 
-function formatSlotLabel(start: Date, end: Date, tz: string): string {
-  const dayFmt = new Intl.DateTimeFormat("fr-FR", {
+function formatSlotLabel(start: Date, end: Date, tz: string, locale = "en"): string {
+  const dayFmt = new Intl.DateTimeFormat(locale, {
     timeZone: tz, weekday: "short", day: "numeric", month: "long",
   });
-  const timeFmt = new Intl.DateTimeFormat("fr-FR", {
+  const timeFmt = new Intl.DateTimeFormat(locale, {
     timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
   return `${dayFmt.format(start)}, ${timeFmt.format(start)} – ${timeFmt.format(end)}`;
