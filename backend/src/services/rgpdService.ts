@@ -1,5 +1,6 @@
-import { getStore, scheduleSave } from "../persistence";
+import { getStore, scheduleSave, flushNow } from "../persistence";
 import { NotFoundError } from "../utils/errors";
+import { createNotification } from "./notificationService";
 
 export interface UserDataExport {
   user: Record<string, unknown>;
@@ -77,17 +78,78 @@ function sanitizeUserForExport(user: Record<string, unknown>): Record<string, un
   return clean;
 }
 
-export function deleteUserData(uid: string): void {
+export async function deleteUserData(uid: string): Promise<void> {
   const store = getStore();
 
-  // Remove user (save email before deletion for cleanup)
   const users = (store.users ?? {}) as Record<string, Record<string, unknown>>;
   if (!users[uid]) throw new NotFoundError("Utilisateur introuvable");
   const userEmail = (users[uid].email as string) ?? "";
-  delete users[uid];
-  scheduleSave("users");
+  const userName = `${users[uid].firstName ?? ""} ${users[uid].lastName ?? ""}`.trim() || userEmail;
 
-  // Remove todos
+  // --- Build email→uid lookup for notifications ---
+  const uidByEmail = new Map<string, string>();
+  for (const [id, u] of Object.entries(users)) {
+    if (id !== uid && u.email) uidByEmail.set((u.email as string).toLowerCase(), id);
+  }
+
+  // --- Collect deleted project IDs and notify team members ---
+  const projectStore = (store.projects ?? {}) as Record<string, Record<string, unknown>>;
+  const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
+  const deletedProjectIds = new Set<string>();
+
+  for (const [projId, proj] of Object.entries(projectStore)) {
+    if (proj.ownerUid !== uid) continue;
+    deletedProjectIds.add(projId);
+    const projName = (proj.name as string) || projId;
+
+    if (proj.teamId) {
+      const team = teamStore[proj.teamId as string];
+      if (team) {
+        const members = (team.members as Array<{ email: string }>) ?? [];
+        for (const m of members) {
+          const memberUid = uidByEmail.get(m.email.toLowerCase());
+          if (memberUid) {
+            createNotification(
+              memberUid,
+              "project_deleted",
+              `Project "${projName}" deleted`,
+              `${userName} deleted their account. The project "${projName}" and all its data have been removed.`,
+              { projectId: projId },
+            );
+          }
+        }
+      }
+    }
+
+    // Also collect sub-projects
+    for (const [subId, sub] of Object.entries(projectStore)) {
+      if (sub.parentProjectId === projId) deletedProjectIds.add(subId);
+    }
+  }
+
+  // Delete owned projects + their sub-projects
+  for (const projId of deletedProjectIds) {
+    delete projectStore[projId];
+  }
+  scheduleSave("projects");
+
+  // --- Clean up other users' todos linked to deleted projects ---
+  const allTodos = (store.todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
+  for (const [todoOwnerUid, userTodos] of Object.entries(allTodos)) {
+    if (todoOwnerUid === uid) continue;
+    for (const todo of Object.values(userTodos)) {
+      if (todo.projectId && deletedProjectIds.has(todo.projectId as string)) {
+        todo.projectId = null;
+        todo.phaseId = null;
+      }
+      if (todo.assignedTo === uid) {
+        todo.assignedTo = null;
+        todo.assignmentStatus = null;
+      }
+    }
+  }
+
+  // Remove deleted user's own todos
   const todoStore = (store.todos ?? {}) as Record<string, unknown>;
   delete todoStore[uid];
   scheduleSave("todos");
@@ -98,7 +160,7 @@ export function deleteUserData(uid: string): void {
     for (const c of list) {
       if (c.userId === uid) {
         c.userId = "deleted";
-        c.userEmail = "utilisateur supprimé";
+        c.userEmail = "deleted user";
       }
     }
   }
@@ -119,7 +181,7 @@ export function deleteUserData(uid: string): void {
   for (const entry of activityStore) {
     if (entry.userId === uid) {
       entry.userId = "deleted";
-      entry.userEmail = "utilisateur supprimé";
+      entry.userEmail = "deleted user";
     }
   }
   scheduleSave("activityLog");
@@ -131,20 +193,12 @@ export function deleteUserData(uid: string): void {
   }
   scheduleSave("sessions");
 
-  // Remove from webhooks
+  // Remove webhooks
   const webhookStore = (store.webhooks ?? {}) as Record<string, unknown>;
   delete webhookStore[uid];
   scheduleSave("webhooks");
 
-  // Remove owned projects
-  const projectStore = (store.projects ?? {}) as Record<string, Record<string, unknown>>;
-  for (const [id, proj] of Object.entries(projectStore)) {
-    if (proj.ownerUid === uid) delete projectStore[id];
-  }
-  scheduleSave("projects");
-
   // Remove from teams (memberships) and delete owned teams
-  const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
   for (const [id, team] of Object.entries(teamStore)) {
     if (team.ownerUid === uid) {
       delete teamStore[id];
@@ -166,15 +220,10 @@ export function deleteUserData(uid: string): void {
   }
   scheduleSave("collaborators");
 
-  // Clean up assigned tasks from other users
-  const allTodos = (store.todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
-  for (const userTodos of Object.values(allTodos)) {
-    for (const todo of Object.values(userTodos)) {
-      if (todo.assignedTo === uid) {
-        todo.assignedTo = null;
-        todo.assignmentStatus = null;
-      }
-    }
-  }
-  scheduleSave("todos");
+  // Remove user record last (after all lookups are done)
+  delete users[uid];
+  scheduleSave("users");
+
+  // Force immediate persistence so data is gone before the response
+  await flushNow();
 }

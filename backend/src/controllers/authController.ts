@@ -336,10 +336,11 @@ export async function myDeleteAccount(req: Request, res: Response) {
   const user = (req as AuthenticatedRequest).user;
   if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
   const { confirmation } = req.body as Record<string, unknown>;
-  if (confirmation !== "SUPPRIMER") {
-    throw new ValidationError("Tapez SUPPRIMER pour confirmer");
+  const accepted = ["SUPPRIMER", "DELETE"];
+  if (typeof confirmation !== "string" || !accepted.includes(confirmation.toUpperCase())) {
+    throw new ValidationError("Type SUPPRIMER or DELETE to confirm");
   }
-  deleteUserData(user.uid);
+  await deleteUserData(user.uid);
   res.clearCookie(COOKIE_NAME, { path: "/" });
   res.status(200).json({ message: "Compte supprimé" });
 }

@@ -54,7 +54,7 @@ export async function adminUserExport(req: AuthenticatedRequest, res: Response) 
 
 export async function adminUserDelete(req: AuthenticatedRequest, res: Response) {
   const uid = req.params.uid as string;
-  deleteUserData(uid);
+  await deleteUserData(uid);
   res.status(204).end();
 }
 
