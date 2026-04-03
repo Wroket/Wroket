@@ -75,7 +75,7 @@ export default function AgendaPage() {
   const quickAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as Recurrence | null, projectId: null as string | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -386,6 +386,7 @@ export default function AgendaPage() {
         title: todo.title,
         priority: todo.priority,
         effort: todo.effort ?? "medium",
+        startDate: todo.startDate ?? "",
         deadline: todo.deadline ?? "",
         assignedTo: todo.assignedTo ?? null,
         estimatedMinutes: todo.estimatedMinutes ?? null,
@@ -412,6 +413,7 @@ export default function AgendaPage() {
         title: editForm.title,
         priority: editForm.priority,
         effort: editForm.effort,
+        startDate: editForm.startDate || null,
         deadline: editForm.deadline || null,
         assignedTo: editForm.assignedTo,
         estimatedMinutes: editForm.estimatedMinutes,
