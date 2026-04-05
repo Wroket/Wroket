@@ -13,6 +13,8 @@ import {
   getTeams,
   createTeam,
   updateMemberRoleApi,
+  removeTeamMemberApi,
+  deleteTeamApi,
   getMe,
   Collaborator,
   ReceivedInvitation,
@@ -45,6 +47,7 @@ export default function TeamsPage() {
   const [newTeamEmail, setNewTeamEmail] = useState("");
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
+  const [deleteConfirmTeamId, setDeleteConfirmTeamId] = useState<string | null>(null);
   const [myUid, setMyUid] = useState<string | null>(null);
   const [myEmail, setMyEmail] = useState<string | null>(null);
 
@@ -651,30 +654,50 @@ export default function TeamsPage() {
                               const style = ROLE_STYLE[member.role] ?? ROLE_STYLE.user;
 
                               return (
-                                <div key={member.email} className="flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-3 py-2 text-sm">
+                                <div key={member.email} className="group/member flex items-center gap-2 rounded bg-zinc-50/60 dark:bg-slate-800/40 px-3 py-2 text-sm">
                                   <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-zinc-500 dark:text-slate-400 uppercase">
                                     {member.email[0]}
                                   </div>
                                   <span className="flex-1 truncate text-zinc-700 dark:text-slate-300">{member.email}</span>
 
                                   {isAdmin ? (
-                                    <select
-                                      value={member.role}
-                                      onChange={async (e) => {
-                                        const newRole = e.target.value as TeamMemberRole;
-                                        try {
-                                          const updated = await updateMemberRoleApi(team.id, member.email, newRole);
-                                          setTeams((prev) => prev.map((t2) => t2.id === team.id ? updated : t2));
-                                        } catch (err) {
-                                          alert(err instanceof Error ? err.message : "Erreur");
-                                        }
-                                      }}
-                                      className="text-[11px] font-medium rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-500 cursor-pointer"
-                                    >
-                                      <option value="admin">{t("teams.admin")}</option>
-                                      <option value="super-user">{t("teams.superUser")}</option>
-                                      <option value="user">{t("teams.user")} ({t("teams.readOnly")})</option>
-                                    </select>
+                                    <>
+                                      <select
+                                        value={member.role}
+                                        onChange={async (e) => {
+                                          const newRole = e.target.value as TeamMemberRole;
+                                          try {
+                                            const updated = await updateMemberRoleApi(team.id, member.email, newRole);
+                                            setTeams((prev) => prev.map((t2) => t2.id === team.id ? updated : t2));
+                                          } catch (err) {
+                                            alert(err instanceof Error ? err.message : "Erreur");
+                                          }
+                                        }}
+                                        className="text-[11px] font-medium rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-500 cursor-pointer"
+                                      >
+                                        <option value="admin">{t("teams.admin")}</option>
+                                        <option value="super-user">{t("teams.superUser")}</option>
+                                        <option value="user">{t("teams.user")} ({t("teams.readOnly")})</option>
+                                      </select>
+                                      <button
+                                        type="button"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          try {
+                                            const updated = await removeTeamMemberApi(team.id, member.email);
+                                            setTeams((prev) => prev.map((t2) => t2.id === team.id ? updated : t2));
+                                          } catch (err) {
+                                            alert(err instanceof Error ? err.message : "Erreur");
+                                          }
+                                        }}
+                                        title={t("teams.removeMember")}
+                                        className="opacity-0 group-hover/member:opacity-100 rounded p-1 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-all"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                      </button>
+                                    </>
                                   ) : (
                                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${style.cls}`}>
                                       {style.label}
@@ -683,6 +706,51 @@ export default function TeamsPage() {
                                 </div>
                               );
                             })}
+
+                            {/* Delete team (owner only) */}
+                            {isOwner && (
+                              <div className="pt-2 border-t border-zinc-100 dark:border-slate-800 mt-2">
+                                {deleteConfirmTeamId === team.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-red-600 dark:text-red-400 font-medium">{t("teams.deleteTeamConfirm")}</span>
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                          await deleteTeamApi(team.id);
+                                          setTeams((prev) => prev.filter((t2) => t2.id !== team.id));
+                                          setDeleteConfirmTeamId(null);
+                                        } catch (err) {
+                                          alert(err instanceof Error ? err.message : "Erreur");
+                                        }
+                                      }}
+                                      className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400"
+                                    >
+                                      {t("teams.deleteTeamYes")}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setDeleteConfirmTeamId(null); }}
+                                      className="text-xs text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200"
+                                    >
+                                      {t("cancel")}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmTeamId(team.id); }}
+                                    className="inline-flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    {t("teams.deleteTeam")}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}

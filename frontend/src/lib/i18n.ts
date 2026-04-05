@@ -403,6 +403,10 @@ const translations = {
   "teams.changeRole": { fr: "Changer le rôle", en: "Change role" },
   "teams.roleUpdated": { fr: "Rôle mis à jour", en: "Role updated" },
   "teams.readOnly": { fr: "Lecture seule", en: "Read-only" },
+  "teams.removeMember": { fr: "Retirer ce membre", en: "Remove member" },
+  "teams.deleteTeam": { fr: "Supprimer l'équipe", en: "Delete team" },
+  "teams.deleteTeamConfirm": { fr: "Supprimer cette équipe ?", en: "Delete this team?" },
+  "teams.deleteTeamYes": { fr: "Oui, supprimer", en: "Yes, delete" },
 
   // ── Notes ──
   "nav.notes": { fr: "Bloc-notes", en: "Notes" },
