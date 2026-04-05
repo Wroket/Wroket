@@ -61,12 +61,14 @@ export async function adminUserDelete(req: AuthenticatedRequest, res: Response) 
 export async function adminCompletionRates(_req: AuthenticatedRequest, res: Response) {
   const users = getAdminUsers();
   const todoStore = (getStore().todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
+  const EXCLUDED = new Set(["cancelled", "deleted"]);
 
   const rates = users.map((u) => {
     const userTodos = todoStore[u.uid] ?? {};
     let total = 0;
     let completed = 0;
     for (const todo of Object.values(userTodos)) {
+      if (EXCLUDED.has(todo.status as string)) continue;
       total++;
       if (todo.status === "completed") completed++;
     }

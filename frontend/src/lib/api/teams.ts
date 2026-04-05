@@ -161,6 +161,26 @@ export async function deleteTeamApi(teamId: string): Promise<void> {
   if (!res.ok) throw new Error("Impossible de supprimer l'équipe");
 }
 
+export async function getOwnedTeams(): Promise<Team[]> {
+  const res = await fetch(`${API_BASE_URL}/teams/owned`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les équipes");
+  return (await res.json()) as Team[];
+}
+
+export async function transferTeamOwnership(teamId: string, newOwnerEmail: string): Promise<Team> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/transfer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newOwnerEmail }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors du transfert"));
+  }
+  return (await res.json()) as Team;
+}
+
 // ── Notifications ──
 
 export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today" | "comment_mention";

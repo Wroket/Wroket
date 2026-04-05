@@ -80,6 +80,8 @@ export {
   updateMemberRoleApi,
   getTeamDashboard,
   deleteTeamApi,
+  getOwnedTeams,
+  transferTeamOwnership,
   getNotifications,
   getUnreadCount,
   markNotificationRead,

@@ -9,6 +9,8 @@ import {
   acceptCollaboration,
   declineCollaboration,
   listUserTeams,
+  listOwnedTeams,
+  transferTeamOwnership,
   createTeam,
   addTeamMember,
   removeTeamMember,
@@ -250,6 +252,35 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   }
 
   res.status(200).json({ team, stats, todos, memberMap });
+}
+
+export async function getOwnedTeams(req: AuthenticatedRequest, res: Response) {
+  const teams = listOwnedTeams(req.user!.uid);
+  res.status(200).json(teams);
+}
+
+export async function postTransferOwnership(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const { newOwnerEmail } = req.body as { newOwnerEmail?: string };
+  if (!newOwnerEmail || typeof newOwnerEmail !== "string") {
+    throw new ValidationError("Email du nouveau propriétaire requis");
+  }
+  const team = transferTeamOwnership(teamId, req.user!.uid, newOwnerEmail);
+
+  try {
+    const targetUser = findUserByEmail(newOwnerEmail);
+    if (targetUser) {
+      createNotification(
+        targetUser.uid,
+        "team_invite",
+        "Team ownership transferred",
+        `You are now the owner of the team "${team.name}"`,
+        { teamId: team.id, teamName: team.name },
+      );
+    }
+  } catch { /* ignore */ }
+
+  res.status(200).json(team);
 }
 
 export async function postDeleteTeam(req: AuthenticatedRequest, res: Response) {

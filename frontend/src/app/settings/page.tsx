@@ -15,11 +15,14 @@ import {
   saveWebhook,
   deleteWebhookApi,
   testWebhookApi,
+  getOwnedTeams,
+  transferTeamOwnership,
   type WorkingHours,
   type WebhookConfig,
   type WebhookEvent,
   type WebhookPlatform,
   type ActivityLogEntry,
+  type Team,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
@@ -961,6 +964,11 @@ function AdminSection() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [ownedTeams, setOwnedTeams] = useState<Team[]>([]);
+  const [transferStep, setTransferStep] = useState(false);
+  const [transferChoices, setTransferChoices] = useState<Record<string, string>>({});
+  const [transferring, setTransferring] = useState(false);
+
   const confirmWord = locale === "fr" ? "SUPPRIMER" : "DELETE";
 
   const handleExport = async () => {
@@ -979,6 +987,44 @@ function AdminSection() {
     } finally { setExporting(false); }
   };
 
+  const handleStartDelete = async () => {
+    setError(null);
+    try {
+      const teams = await getOwnedTeams();
+      const teamsWithMembers = teams.filter((t) => t.members.length > 0);
+      setOwnedTeams(teamsWithMembers);
+      if (teamsWithMembers.length > 0) {
+        const initial: Record<string, string> = {};
+        for (const team of teamsWithMembers) {
+          initial[team.id] = team.members[0]?.email ?? "";
+        }
+        setTransferChoices(initial);
+        setTransferStep(true);
+      } else {
+        setShowDelete(true);
+      }
+    } catch {
+      setShowDelete(true);
+    }
+  };
+
+  const handleTransfer = async () => {
+    setError(null);
+    setTransferring(true);
+    try {
+      for (const team of ownedTeams) {
+        const newOwner = transferChoices[team.id];
+        if (newOwner) {
+          await transferTeamOwnership(team.id, newOwner);
+        }
+      }
+      setTransferStep(false);
+      setShowDelete(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally { setTransferring(false); }
+  };
+
   const handleDelete = async () => {
     setError(null);
     setDeleting(true);
@@ -989,6 +1035,8 @@ function AdminSection() {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally { setDeleting(false); }
   };
+
+  const allTransfersSelected = ownedTeams.every((team) => transferChoices[team.id]);
 
   return (
     <div className="space-y-6">
@@ -1007,12 +1055,46 @@ function AdminSection() {
       <div className="bg-red-50 dark:bg-red-950/30 rounded-md border border-red-200 dark:border-red-800 p-4">
         <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">{t("settings.dangerZone")}</h4>
         <p className="text-xs text-red-600/70 dark:text-red-400/70 mb-3">{t("settings.dangerDesc")}</p>
-        {!showDelete ? (
-          <button type="button" onClick={() => setShowDelete(true)}
+
+        {transferStep && (
+          <div className="space-y-4 mb-4 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800 p-4">
+            <h5 className="text-sm font-medium text-amber-700 dark:text-amber-400">{t("settings.teamTransferTitle")}</h5>
+            <p className="text-xs text-amber-600/70 dark:text-amber-400/70">{t("settings.teamTransferDesc")}</p>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            {ownedTeams.map((team) => (
+              <div key={team.id} className="flex items-center gap-3">
+                <span className="text-sm font-medium text-zinc-800 dark:text-slate-200 min-w-[120px]">{team.name}</span>
+                <select
+                  value={transferChoices[team.id] ?? ""}
+                  onChange={(e) => setTransferChoices((prev) => ({ ...prev, [team.id]: e.target.value }))}
+                  className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-zinc-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="">{t("settings.teamTransferSelect")}</option>
+                  {team.members.map((m) => (
+                    <option key={m.email} value={m.email}>{m.email}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <button type="button" onClick={handleTransfer} disabled={transferring || !allTransfersSelected}
+                className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60 transition-colors">
+                {transferring ? t("settings.teamTransferring") : t("settings.teamTransferConfirm")}
+              </button>
+              <button type="button" onClick={() => { setTransferStep(false); setError(null); }}
+                className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
+                {t("cancel")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!showDelete && !transferStep ? (
+          <button type="button" onClick={handleStartDelete}
             className="rounded border border-red-300 dark:border-red-700 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors">
             {t("settings.deleteAccount")}
           </button>
-        ) : (
+        ) : showDelete ? (
           <div className="space-y-3">
             <p className="text-xs text-red-600 dark:text-red-400 font-medium">{t("settings.deleteConfirmTitle")}</p>
             <p className="text-xs text-red-600/70 dark:text-red-400/70">{t("settings.deleteConfirmDesc")}</p>
@@ -1035,7 +1117,7 @@ function AdminSection() {
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

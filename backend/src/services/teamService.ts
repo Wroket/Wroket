@@ -71,6 +71,20 @@ function persistTeams(): void {
       console.log("[teams] %d membre(s) migrés de 'member' vers 'user'", migrated);
       persistTeams();
     }
+
+    // Cleanup orphan teams whose owner no longer exists
+    const users = (store.users ?? {}) as Record<string, unknown>;
+    let orphanCount = 0;
+    for (const [id, team] of teamsById.entries()) {
+      if (!users[team.ownerUid]) {
+        teamsById.delete(id);
+        orphanCount++;
+      }
+    }
+    if (orphanCount > 0) {
+      console.log("[teams] %d orphan team(s) deleted (owner no longer exists)", orphanCount);
+      persistTeams();
+    }
   }
 })();
 
@@ -307,6 +321,38 @@ export function removeTeamMember(
   team.members.splice(idx, 1);
   persistTeams();
   return team;
+}
+
+export function listOwnedTeams(uid: string): Team[] {
+  const result: Team[] = [];
+  teamsById.forEach((team) => {
+    if (team.ownerUid === uid) result.push(team);
+  });
+  return result;
+}
+
+export function transferTeamOwnership(teamId: string, currentOwnerUid: string, newOwnerEmail: string): Team {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (team.ownerUid !== currentOwnerUid) throw new ForbiddenError("Seul le propriétaire peut transférer");
+
+  const normalised = newOwnerEmail.trim().toLowerCase();
+  const member = team.members.find((m) => m.email === normalised);
+  if (!member) throw new ValidationError("Le nouveau propriétaire doit être membre de l'équipe");
+
+  team.members = team.members.filter((m) => m.email !== normalised);
+  team.ownerUid = findUidByEmail(normalised);
+  persistTeams();
+  return team;
+}
+
+function findUidByEmail(email: string): string {
+  const store = getStore();
+  const users = (store.users ?? {}) as Record<string, Record<string, unknown>>;
+  for (const [uid, u] of Object.entries(users)) {
+    if ((u.email as string)?.toLowerCase() === email) return uid;
+  }
+  throw new NotFoundError("Utilisateur introuvable pour cet email");
 }
 
 /** Only owner or admin can delete the team. */

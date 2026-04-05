@@ -68,8 +68,8 @@ export default function AdminPage() {
     if (tab === "activity" && activity.length === 0) loadActivity();
     if (tab === "sessions" && sessions.length === 0) loadSessions();
     if (tab === "integrations" && !integrations) loadIntegrations();
-    if (tab === "users" && completionRates.length === 0) loadCompletionRates();
-  }, [tab, activity.length, sessions.length, integrations, completionRates.length, loadActivity, loadSessions, loadIntegrations, loadCompletionRates]);
+    if (tab === "users") loadCompletionRates();
+  }, [tab, activity.length, sessions.length, integrations, loadActivity, loadSessions, loadIntegrations, loadCompletionRates]);
 
   const handleExportUser = async (uid: string) => {
     try {
