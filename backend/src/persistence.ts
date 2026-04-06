@@ -6,8 +6,30 @@ type Firestore = import("@google-cloud/firestore").Firestore;
 const USE_LOCAL = process.env.USE_LOCAL_STORE === "true";
 const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
 
+/** Number of Firestore documents used to store todos (`store/todos_0` … `todos_{N-1}`). */
+export const TODO_SHARD_COUNT = 128;
+
+/**
+ * Stable shard for a user id (FNV-1a 32-bit). Must stay fixed after data exists in prod.
+ */
+export function todoShardIndex(userId: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < userId.length; i++) {
+    h ^= userId.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h % TODO_SHARD_COUNT;
+}
+
+export function todoShardDocId(shardIndex: number): string {
+  if (shardIndex < 0 || shardIndex >= TODO_SHARD_COUNT) {
+    throw new RangeError(`todoShardDocId: index ${shardIndex} out of range`);
+  }
+  return `todos_${shardIndex}`;
+}
+
 const DOMAINS = [
-  "users", "todos", "notifications", "collaborators",
+  "users", "notifications", "collaborators",
   "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "activityLog", "attachments",
 ] as const;
 
@@ -33,6 +55,7 @@ let cachedStore: StoreData = {};
 let db: Firestore | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const dirtyDomains = new Set<Domain>();
+const dirtyTodoShards = new Set<number>();
 
 function loadFromDisk(): StoreData {
   try {
@@ -54,38 +77,144 @@ function saveToDisk(): void {
   }
 }
 
+type TodoBlob = Record<string, Record<string, unknown>>;
+
+function mergeTodoUserMaps(target: TodoBlob, chunk: unknown): void {
+  if (!chunk || typeof chunk !== "object") return;
+  for (const [userId, todos] of Object.entries(chunk as TodoBlob)) {
+    target[userId] = todos;
+  }
+}
+
+/** True if any shard document has at least one user bucket with data. */
+function shardsHaveAnyUserData(shardSnaps: Array<{ exists: boolean; data: () => FirebaseFirestore.DocumentData | undefined }>): boolean {
+  for (const snap of shardSnaps) {
+    if (!snap.exists) continue;
+    const raw = snap.data()?.data;
+    if (raw && typeof raw === "object" && Object.keys(raw as object).length > 0) return true;
+  }
+  return false;
+}
+
+function buildTodoShardFromMerged(merged: TodoBlob, shardIndex: number): TodoBlob {
+  const out: TodoBlob = {};
+  for (const userId of Object.keys(merged)) {
+    if (todoShardIndex(userId) !== shardIndex) continue;
+    out[userId] = merged[userId]!;
+  }
+  return out;
+}
+
 async function loadFromFirestore(): Promise<StoreData> {
   if (!db) return {};
   const store: StoreData = {};
-  const snapshots = await Promise.all(
+
+  const baseSnaps = await Promise.all(
     DOMAINS.map((d) => db!.collection("store").doc(d).get())
   );
   for (let i = 0; i < DOMAINS.length; i++) {
-    const snap = snapshots[i];
+    const snap = baseSnaps[i];
     if (snap.exists) {
       (store as Record<string, unknown>)[DOMAINS[i]] = snap.data()!.data;
     }
   }
+
+  const shardRefs = Array.from({ length: TODO_SHARD_COUNT }, (_, i) =>
+    db!.collection("store").doc(todoShardDocId(i)).get()
+  );
+  const legacyRef = db.collection("store").doc("todos").get();
+  const shardSnaps = await Promise.all(shardRefs);
+  const legacySnap = await legacyRef;
+
+  const mergedTodos: TodoBlob = {};
+  for (const snap of shardSnaps) {
+    if (snap.exists) mergeTodoUserMaps(mergedTodos, snap.data()?.data);
+  }
+
+  const legacyHadUsers =
+    legacySnap.exists &&
+    legacySnap.data()?.data &&
+    typeof legacySnap.data()!.data === "object" &&
+    Object.keys(legacySnap.data()!.data as object).length > 0;
+
+  if (legacyHadUsers) {
+    const legacyData = legacySnap.data()!.data as TodoBlob;
+    for (const [userId, todos] of Object.entries(legacyData)) {
+      if (mergedTodos[userId] === undefined) {
+        mergedTodos[userId] = todos;
+      }
+    }
+  }
+
+  if (Object.keys(mergedTodos).length > 0) {
+    store.todos = mergedTodos;
+  }
+
+  const shardsFilled = shardsHaveAnyUserData(shardSnaps);
+  if (legacyHadUsers && !shardsFilled) {
+    for (let i = 0; i < TODO_SHARD_COUNT; i++) dirtyTodoShards.add(i);
+    console.log(
+      "[persistence] Legacy store/todos only — marking all %d todo shard(s) dirty for first flush to Firestore",
+      TODO_SHARD_COUNT
+    );
+  }
+
   return store;
 }
 
+const FIRESTORE_BATCH_LIMIT = 450;
+
 async function saveToFirestore(): Promise<void> {
-  if (!db || dirtyDomains.size === 0) return;
-  const batch = db.batch();
-  const saving = new Set(dirtyDomains);
-  for (const domain of saving) {
-    const ref = db.collection("store").doc(domain);
+  if (!db || (dirtyDomains.size === 0 && dirtyTodoShards.size === 0)) return;
+
+  const ops: Array<{ ref: FirebaseFirestore.DocumentReference; payload: unknown }> = [];
+
+  for (const domain of dirtyDomains) {
     const data = (cachedStore as Record<string, unknown>)[domain];
     if (data !== undefined) {
-      batch.set(ref, { data });
+      ops.push({ ref: db.collection("store").doc(domain), payload: { data } });
     }
   }
+
+  const mergedTodos = (cachedStore.todos ?? {}) as TodoBlob;
+  for (const shardIndex of dirtyTodoShards) {
+    const blob = buildTodoShardFromMerged(mergedTodos, shardIndex);
+    ops.push({
+      ref: db.collection("store").doc(todoShardDocId(shardIndex)),
+      payload: { data: blob },
+    });
+  }
+
+  const savingDomains = new Set(dirtyDomains);
+  const savingShards = new Set(dirtyTodoShards);
+
   try {
-    await batch.commit();
-    for (const d of saving) dirtyDomains.delete(d);
+    for (let i = 0; i < ops.length; i += FIRESTORE_BATCH_LIMIT) {
+      const chunk = ops.slice(i, i + FIRESTORE_BATCH_LIMIT);
+      const batch = db.batch();
+      for (const { ref, payload } of chunk) {
+        batch.set(ref, payload as FirebaseFirestore.DocumentData);
+      }
+      await batch.commit();
+    }
+    for (const d of savingDomains) dirtyDomains.delete(d);
+    for (const s of savingShards) dirtyTodoShards.delete(s);
   } catch (err) {
     console.error("[persistence] Firestore batch save failed: %s", err);
   }
+}
+
+function armDebounce(): void {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    if (USE_LOCAL) {
+      saveToDisk();
+      dirtyDomains.clear();
+      dirtyTodoShards.clear();
+    } else {
+      saveToFirestore().catch((err) => console.error("[persistence] Async save error: %s", err));
+    }
+  }, 500);
 }
 
 /**
@@ -128,17 +257,23 @@ export function scheduleSave(domain?: Domain): void {
       }
     });
   }
+  armDebounce();
+}
 
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    if (USE_LOCAL) {
-      saveToDisk();
-    } else {
-      saveToFirestore().catch((err) =>
-        console.error("[persistence] Async save error: %s", err)
-      );
+/**
+ * Marks todo shard document(s) dirty. Uses merged `cachedStore.todos` at flush time.
+ * Pass `"all"` after cross-user mutations (e.g. phase cleanup, GDPR) or when unsure.
+ */
+export function scheduleTodoShardPersist(shardSpec: "all" | number | number[]): void {
+  if (shardSpec === "all") {
+    for (let i = 0; i < TODO_SHARD_COUNT; i++) dirtyTodoShards.add(i);
+  } else {
+    const arr = Array.isArray(shardSpec) ? shardSpec : [shardSpec];
+    for (const i of arr) {
+      if (i >= 0 && i < TODO_SHARD_COUNT) dirtyTodoShards.add(i);
     }
-  }, 500);
+  }
+  armDebounce();
 }
 
 /**
@@ -157,8 +292,9 @@ export async function flushNow(): Promise<void> {
   }
   if (USE_LOCAL) {
     saveToDisk();
+    dirtyDomains.clear();
+    dirtyTodoShards.clear();
   } else {
     await saveToFirestore();
   }
 }
-

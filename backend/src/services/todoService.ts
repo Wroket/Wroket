@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-import { getStore, scheduleSave } from "../persistence";
+import { getStore, scheduleTodoShardPersist, todoShardIndex } from "../persistence";
 import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
@@ -162,7 +162,11 @@ const todosByUser = new Map<string, Map<string, Todo>>();
 /** Reverse index: todoId → ownerUserId for O(1) cross-user lookup */
 const ownerIndex = new Map<string, string>();
 
-function persistTodos(): void {
+/**
+ * @param ownerUidsForShards Firestore todo owner user ids whose shard doc must be rewritten.
+ *   Omit or pass none to mark all shards (cross-user updates: phase cleanup, tombstone purge).
+ */
+function persistTodos(...ownerUidsForShards: string[]): void {
   const obj: Record<string, Record<string, Todo>> = {};
   todosByUser.forEach((todos, userId) => {
     obj[userId] = {};
@@ -170,7 +174,12 @@ function persistTodos(): void {
   });
   const store = getStore();
   store.todos = obj;
-  scheduleSave("todos");
+  if (ownerUidsForShards.length === 0) {
+    scheduleTodoShardPersist("all");
+  } else {
+    const shardIndices = [...new Set(ownerUidsForShards.map((uid) => todoShardIndex(uid)))];
+    scheduleTodoShardPersist(shardIndices);
+  }
 }
 
 (function hydrateTodos() {
@@ -395,7 +404,7 @@ export function batchReorder(userId: string, todoIds: string[]): number {
       updated++;
     }
   }
-  if (updated > 0) persistTodos();
+  if (updated > 0) persistTodos(userId);
   return updated;
 }
 
@@ -507,7 +516,7 @@ export function createTodo(userId: string, userEmail: string, input: CreateTodoI
 
   getUserTodos(userId).set(todo.id, todo);
   ownerIndex.set(todo.id, userId);
-  persistTodos();
+  persistTodos(userId);
   return todo;
 }
 
@@ -682,7 +691,7 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
 
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
-  persistTodos();
+  persistTodos(todo.userId);
 
   if (
     input.status === "completed" &&
@@ -727,7 +736,7 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
       };
       ownerTodos.set(clone.id, clone);
       ownerIndex.set(clone.id, todo.userId);
-      persistTodos();
+      persistTodos(todo.userId);
     }
   }
 
@@ -764,6 +773,6 @@ export function deleteTodo(userId: string, todoId: string): Todo {
   todo.statusChangedAt = now;
   todo.updatedAt = now;
   todos.set(todoId, todo);
-  persistTodos();
+  persistTodos(userId);
   return todo;
 }

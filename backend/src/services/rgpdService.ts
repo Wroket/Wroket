@@ -1,4 +1,4 @@
-import { getStore, scheduleSave, flushNow } from "../persistence";
+import { getStore, scheduleSave, scheduleTodoShardPersist, flushNow } from "../persistence";
 import { NotFoundError } from "../utils/errors";
 import { createNotification } from "./notificationService";
 
@@ -152,7 +152,7 @@ export async function deleteUserData(uid: string): Promise<void> {
   // Remove deleted user's own todos
   const todoStore = (store.todos ?? {}) as Record<string, unknown>;
   delete todoStore[uid];
-  scheduleSave("todos");
+  scheduleTodoShardPersist("all");
 
   // Anonymize comments
   const commentStore = (store.comments ?? {}) as Record<string, Array<Record<string, unknown>>>;
