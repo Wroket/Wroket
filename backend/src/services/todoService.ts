@@ -276,6 +276,26 @@ export function listProjectTodos(projectId: string): Todo[] {
 }
 
 /**
+ * Clears phaseId on todos that still reference a removed phase (any owner).
+ * Keeps data consistent if a phase was deleted without the client-side move step.
+ */
+export function clearProjectPhaseReferences(projectId: string, phaseId: string): number {
+  let updated = 0;
+  const now = new Date().toISOString();
+  todosByUser.forEach((todos) => {
+    todos.forEach((todo) => {
+      if (todo.projectId === projectId && todo.phaseId === phaseId) {
+        todo.phaseId = null;
+        todo.updatedAt = now;
+        updated++;
+      }
+    });
+  });
+  if (updated > 0) persistTodos();
+  return updated;
+}
+
+/**
  * Returns all tasks assigned to `userId` by other users.
  */
 export function listAssignedToMe(userId: string): Todo[] {

@@ -19,7 +19,7 @@ import {
   CreatePhaseInput,
   UpdatePhaseInput,
 } from "../services/projectService";
-import { listProjectTodos } from "../services/todoService";
+import { listProjectTodos, clearProjectPhaseReferences } from "../services/todoService";
 import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 
@@ -181,5 +181,6 @@ export async function removePhase(req: AuthenticatedRequest, res: Response) {
 
   const phaseId = req.params.phaseId as string;
   deletePhase(projectId, phaseId);
+  clearProjectPhaseReferences(projectId, phaseId);
   res.status(204).end();
 }

@@ -1369,7 +1369,10 @@ export default function ProjectDetailView({
                   const kanbanPhases = orderedPhases.length > 0
                     ? orderedPhases
                     : [{ id: "__none__", name: t("phase.unassigned"), color: "#94a3b8", order: 0, projectId: "", startDate: null, endDate: null, createdAt: "" } as ProjectPhase];
-                  const unassigned = projectTodos.filter((td) => !td.parentId && !td.phaseId);
+                  const validKanbanPhaseIds = new Set(orderedPhases.map((p) => p.id));
+                  const unassigned = projectTodos.filter(
+                    (td) => !td.parentId && (!td.phaseId || !validKanbanPhaseIds.has(td.phaseId))
+                  );
                   const phaseIds = kanbanPhases.map((p) => p.id);
 
                   return (
