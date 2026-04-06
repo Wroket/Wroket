@@ -14,7 +14,7 @@ const MAX_RESULTS = 50;
 
 /**
  * Full-text search across todos, projects and notes visible to the user.
- * Projects are filtered through listProjects (ownership + team membership).
+ * Projects are filtered through listProjects (personal owner or team project ACL / governance).
  */
 export function search(uid: string, query: string, userEmail: string): SearchResult[] {
   if (!query || query.length < 2) return [];

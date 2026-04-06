@@ -4,6 +4,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import {
   list,
   get,
+  getAccess,
+  putAccess,
   create,
   update,
   remove,
@@ -26,6 +28,8 @@ router.get("/", requireAuth, list);
 router.post("/", requireAuth, create);
 router.put("/reorder", requireAuth, reorder);
 router.get("/all-todos", requireAuth, getAllTodos);
+router.get("/:id/access", requireAuth, getAccess);
+router.put("/:id/access", requireAuth, putAccess);
 router.get("/:id", requireAuth, get);
 router.put("/:id", requireAuth, update);
 router.delete("/:id", requireAuth, remove);

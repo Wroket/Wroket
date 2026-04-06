@@ -34,7 +34,7 @@ export function useUserLookup() {
 
   const displayName = useCallback((uid: string): string => {
     const u = cacheRef.current[uid];
-    if (!u) return uid?.slice(0, 8) + "\u2026";
+    if (!u) return "\u2026";
     if (u.firstName || u.lastName)
       return [u.firstName, u.lastName].filter(Boolean).join(" ");
     return u.email;

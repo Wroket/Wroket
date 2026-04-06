@@ -14,17 +14,22 @@ import {
   canAccessProject,
   canEditProject,
   canEditProjectContent,
+  canManageProjectAccess,
+  setProjectAccessForUser,
+  getTeamRosterEmails,
   CreateProjectInput,
   UpdateProjectInput,
   CreatePhaseInput,
   UpdatePhaseInput,
+  type ProjectAccessEntry,
 } from "../services/projectService";
 import { listProjectTodos, clearProjectPhaseReferences } from "../services/todoService";
+import { getTeam } from "../services/teamService";
 import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
-  const projects = listProjects(req.user!.uid, req.user!.email);
+  const projects = listProjects(req.user!.uid, req.user!.email ?? "");
   res.status(200).json(projects);
 }
 
@@ -33,10 +38,48 @@ export async function get(req: AuthenticatedRequest, res: Response) {
   const project = getProjectById(id);
   if (!project) throw new NotFoundError("Projet introuvable");
 
-  if (!canAccessProject(req.user!.uid, req.user!.email, project)) {
+  if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
     throw new ForbiddenError("Accès refusé");
   }
 
+  res.status(200).json(project);
+}
+
+export async function getAccess(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const project = getProjectById(id);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
+    throw new ForbiddenError("Accès refusé");
+  }
+  if (!project.teamId) {
+    res.status(200).json({
+      teamId: null,
+      roster: [] as string[],
+      access: [] as ProjectAccessEntry[],
+      canManage: false,
+    });
+    return;
+  }
+  const team = getTeam(project.teamId);
+  const roster = team ? getTeamRosterEmails(team) : [];
+  res.status(200).json({
+    teamId: project.teamId,
+    roster,
+    access: project.projectAccess ?? [],
+    canManage: canManageProjectAccess(req.user!.uid, req.user!.email ?? "", project),
+  });
+}
+
+export async function putAccess(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const body = req.body as { access?: unknown };
+  if (!Array.isArray(body.access)) {
+    throw new ValidationError("access doit être un tableau { email, role }");
+  }
+  const access = body.access as ProjectAccessEntry[];
+  const project = setProjectAccessForUser(req.user!.uid, req.user!.email ?? "", id, access);
+  logActivity(req.user!.uid, req.user!.email ?? "", "update", "project", project.id, { projectAccess: true });
   res.status(200).json(project);
 }
 

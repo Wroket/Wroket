@@ -103,6 +103,8 @@ export type {
 export {
   getProjects,
   getProject,
+  getProjectAccess,
+  putProjectAccess,
   createProject,
   updateProject,
   deleteProjectApi,
@@ -119,6 +121,9 @@ export type {
   ProjectStatus,
   ProjectPhase,
   Project,
+  ProjectAccessRole,
+  ProjectAccessEntry,
+  ProjectAccessInfo,
   CreateProjectPayload,
   UpdateProjectPayload,
   CreatePhasePayload,

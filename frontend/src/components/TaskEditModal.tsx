@@ -44,6 +44,8 @@ export interface TaskEditModalProps {
   onSuggestedSlotChange?: (slot: SuggestedSlot | null) => void;
   /** When set, add/remove tag calls the API immediately (optimistic UI, revert on error). */
   onPersistTags?: (tags: string[]) => Promise<void>;
+  /** After comments are added or removed (e.g. refresh global comment counts in list views). */
+  onTodoCommentsChanged?: (todoId: string) => void;
 }
 
 export default function TaskEditModal({
@@ -69,6 +71,7 @@ export default function TaskEditModal({
   onAcceptDecline,
   onSuggestedSlotChange,
   onPersistTags,
+  onTodoCommentsChanged,
 }: TaskEditModalProps) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -224,6 +227,7 @@ export default function TaskEditModal({
       setCommentText("");
       setMentionQuery(null);
       setMentionResults([]);
+      onTodoCommentsChanged?.(todo.id);
     } catch { /* ignore */ }
     setCommentLoading(false);
   };
@@ -233,6 +237,7 @@ export default function TaskEditModal({
     try {
       await deleteCommentApi(todo.id, commentId);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
+      onTodoCommentsChanged?.(todo.id);
     } catch { /* ignore */ }
   };
 

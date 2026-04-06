@@ -534,11 +534,15 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
 
-  // FIX: Only the task owner can change the assignee. Previously an
-  // assignee could call updateTodo with { assignedTo: "someone_else" }
-  // and steal/re-route the task away from the owner's control.
+  // Only the owner may *change* assignee. Assignees often save the full form with
+  // the same assignedTo — that must not be rejected (comments, title, etc.).
   if (input.assignedTo !== undefined && !isOwner) {
-    throw new ForbiddenError("Seul le propriétaire de la tâche peut modifier l'assignation");
+    const next = input.assignedTo;
+    const cur = todo.assignedTo ?? null;
+    const unchanged = (next === null && cur === null) || next === cur;
+    if (!unchanged) {
+      throw new ForbiddenError("Seul le propriétaire de la tâche peut modifier l'assignation");
+    }
   }
 
   if (input.title !== undefined) {

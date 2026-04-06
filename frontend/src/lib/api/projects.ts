@@ -16,12 +16,20 @@ export interface ProjectPhase {
   createdAt: string;
 }
 
+export type ProjectAccessRole = "viewer" | "editor" | "admin";
+
+export interface ProjectAccessEntry {
+  email: string;
+  role: ProjectAccessRole;
+}
+
 export interface Project {
   id: string;
   name: string;
   description: string;
   ownerUid: string;
   teamId: string | null;
+  projectAccess?: ProjectAccessEntry[];
   parentProjectId: string | null;
   tags: string[];
   sortOrder: number;
@@ -29,6 +37,13 @@ export interface Project {
   phases: ProjectPhase[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectAccessInfo {
+  teamId: string | null;
+  roster: string[];
+  access: ProjectAccessEntry[];
+  canManage: boolean;
 }
 
 export interface CreateProjectPayload {
@@ -56,6 +71,26 @@ export async function getProjects(): Promise<Project[]> {
 export async function getProject(id: string): Promise<Project> {
   const res = await fetch(`${API_BASE_URL}/projects/${id}`, { method: "GET", credentials: "include" });
   if (!res.ok) throw new Error("Projet introuvable");
+  return (await res.json()) as Project;
+}
+
+export async function getProjectAccess(projectId: string): Promise<ProjectAccessInfo> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/access`, { method: "GET", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les accès du projet");
+  return (await res.json()) as ProjectAccessInfo;
+}
+
+export async function putProjectAccess(projectId: string, access: ProjectAccessEntry[]): Promise<Project> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/access`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ access }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
   return (await res.json()) as Project;
 }
 

@@ -35,6 +35,8 @@ import {
   updatePhaseApi,
   deletePhaseApi,
   getProject as fetchProject,
+  getProjectAccess,
+  putProjectAccess,
   createProject,
   lookupUser,
   getCollaborators,
@@ -42,6 +44,8 @@ import {
   getTodoNoteMap,
   createNoteApi,
   type Collaborator,
+  type ProjectAccessEntry,
+  type ProjectAccessInfo,
 } from "@/lib/api";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -124,6 +128,37 @@ export default function ProjectDetailView({
     return () => clearInterval(interval);
   }, [selectedProject.id, setProjectTodos]);
 
+  useEffect(() => {
+    if (!selectedProject.teamId) {
+      setAccessPanel(null);
+      setRoleDraft({});
+      return;
+    }
+    let cancelled = false;
+    setAccessLoading(true);
+    getProjectAccess(selectedProject.id)
+      .then((info) => {
+        if (cancelled) return;
+        setAccessPanel(info);
+        const draft: Record<string, string> = {};
+        for (const email of info.roster) {
+          const row = info.access.find((a) => a.email === email);
+          draft[email] = row?.role ?? "";
+        }
+        setRoleDraft(draft);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccessPanel(null);
+          setRoleDraft({});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAccessLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedProject.id, selectedProject.teamId]);
+
   const parentDateRange = useMemo(() => {
     if (!selectedProject.parentProjectId) return { start: null as string | null, end: null as string | null };
     const parent = projects.find((p) => p.id === selectedProject.parentProjectId);
@@ -191,6 +226,11 @@ export default function ProjectDetailView({
   const [subName, setSubName] = useState("");
   const [creatingSub, setCreatingSub] = useState(false);
   const [newTag, setNewTag] = useState("");
+
+  const [accessPanel, setAccessPanel] = useState<ProjectAccessInfo | null>(null);
+  const [roleDraft, setRoleDraft] = useState<Record<string, string>>({});
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
 
   const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
   const [boardDraggedId, setBoardDraggedId] = useState<string | null>(null);
@@ -798,6 +838,40 @@ export default function ProjectDetailView({
     }
   };
 
+  const handleSaveProjectAccess = async () => {
+    if (!accessPanel?.canManage || !selectedProject.teamId) return;
+    const next: ProjectAccessEntry[] = [];
+    for (const email of accessPanel.roster) {
+      const r = roleDraft[email];
+      if (r === "viewer" || r === "editor" || r === "admin") {
+        next.push({ email, role: r });
+      }
+    }
+    if (!next.some((e) => e.role === "admin")) {
+      toast.error(t("projects.accessAtLeastOneAdmin"));
+      return;
+    }
+    setAccessSaving(true);
+    try {
+      const updated = await putProjectAccess(selectedProject.id, next);
+      setSelectedProject(updated);
+      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      const info = await getProjectAccess(selectedProject.id);
+      setAccessPanel(info);
+      const draft: Record<string, string> = {};
+      for (const em of info.roster) {
+        const row = info.access.find((a) => a.email === em);
+        draft[em] = row?.role ?? "";
+      }
+      setRoleDraft(draft);
+      toast.success(t("projects.accessSaved"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      setAccessSaving(false);
+    }
+  };
+
   const handleAddTag = async () => {
     if (!newTag.trim()) return;
     const tag = newTag.trim();
@@ -1138,6 +1212,47 @@ export default function ProjectDetailView({
                   </button>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {selectedProject.teamId && accessPanel && (
+          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
+            <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-1">{t("projects.projectAccess")}</h4>
+            <p className="text-[11px] text-zinc-400 dark:text-slate-500 mb-3">{t("projects.projectAccessDesc")}</p>
+            {accessLoading ? (
+              <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
+            ) : (
+              <>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {accessPanel.roster.map((email) => (
+                    <div key={email} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <span className="text-sm text-zinc-800 dark:text-slate-200 flex-1 min-w-[140px] truncate" title={email}>{email}</span>
+                      <select
+                        value={roleDraft[email] ?? ""}
+                        disabled={!accessPanel.canManage}
+                        onChange={(e) => setRoleDraft((d) => ({ ...d, [email]: e.target.value }))}
+                        className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs dark:bg-slate-800 dark:text-slate-100 disabled:opacity-60 min-w-[140px]"
+                      >
+                        <option value="">{t("projects.accessRoleNone")}</option>
+                        <option value="viewer">{t("projects.accessRoleViewer")}</option>
+                        <option value="editor">{t("projects.accessRoleEditor")}</option>
+                        <option value="admin">{t("projects.accessRoleAdmin")}</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                {accessPanel.canManage && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveProjectAccess()}
+                    disabled={accessSaving}
+                    className="mt-3 rounded bg-slate-700 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
+                  >
+                    {accessSaving ? "…" : t("projects.saveAccess")}
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1726,6 +1841,9 @@ export default function ProjectDetailView({
             } catch { /* handled by API layer */ }
           } : undefined}
           onPersistTags={persistTaskTags}
+          onTodoCommentsChanged={() => {
+            getCommentCounts().then(setCommentCounts).catch(() => {});
+          }}
         />
 
         <SubtaskModal

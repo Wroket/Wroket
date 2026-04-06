@@ -1482,6 +1482,9 @@ export default function TodosPage() {
           } catch { /* handled by API layer */ }
         } : undefined}
         onPersistTags={persistEditTags}
+        onTodoCommentsChanged={() => {
+          getCommentCounts().then(setCommentCounts).catch(() => {});
+        }}
       />
 
       <SubtaskModal

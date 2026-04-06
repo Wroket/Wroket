@@ -5,6 +5,7 @@ const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
+/** Shown in the From header (with display name "Wroket"). Prefer EMAIL_FROM in prod so SMTP_USER (auth account) is not exposed. */
 const FROM_ADDRESS = process.env.EMAIL_FROM || SMTP_USER || "noreply@wroket.com";
 
 let transporter: nodemailer.Transporter | null = null;
