@@ -68,8 +68,10 @@ export type {
 
 export {
   getCollaborators,
+  getEmailSuggestions,
   getReceivedInvitations,
   inviteCollaborator,
+  resendCollaboratorInvite,
   removeCollaborator,
   acceptCollaboration,
   declineCollaboration,

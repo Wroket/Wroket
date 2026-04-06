@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useToast } from "@/components/Toast";
 import {
   getCalendarEvents,
@@ -432,6 +433,16 @@ export default function AgendaPage() {
       setEditSaving(false);
     }
   };
+
+  const persistEditTags = useCallback(async (tags: string[]) => {
+    if (!editingTodo) return;
+    const updated = await updateTodo(editingTodo.id, { tags });
+    setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
+    setEditingTodo(updated);
+    const data = await getCalendarEvents(dateRange.start, dateRange.end);
+    setWroketEvents(data.wroketEvents);
+    setGoogleEvents(data.googleEvents);
+  }, [editingTodo, dateRange]);
 
   const handleEditAssignLookup = (email: string) => {
     setEditAssignEmail(email);
@@ -919,27 +930,28 @@ export default function AgendaPage() {
                     ))}
                   </select>
                 )}
-                <div className="relative">
-                  <input
-                    type="email"
-                    placeholder={t("assign.placeholder")}
+                <div>
+                  <ContactEmailSuggestInput
                     value={quickCreateAssignEmail}
-                    onChange={(e) => handleQuickAssignLookup(e.target.value)}
-                    className={`w-full rounded border px-3 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 ${
+                    onChange={handleQuickAssignLookup}
+                    placeholder={t("assign.placeholder")}
+                    inputClassName={`w-full rounded border px-3 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 ${
                       quickCreateAssignedUser
                         ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
                         : quickCreateAssignError
                           ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
                           : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
                     }`}
+                    rightAdornment={
+                      quickCreateAssignedUser ? (
+                        <span className="text-green-500">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </span>
+                      ) : undefined
+                    }
                   />
-                  {quickCreateAssignedUser && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </span>
-                  )}
                   {quickCreateAssignError && (
                     <p className="text-xs text-red-500 mt-0.5">{quickCreateAssignError}</p>
                   )}
@@ -969,6 +981,7 @@ export default function AgendaPage() {
           userDisplayName={displayName}
           effortDefaults={user?.effortMinutes}
           currentUserUid={user?.uid}
+          onPersistTags={persistEditTags}
         />
       </div>
     </AppShell>

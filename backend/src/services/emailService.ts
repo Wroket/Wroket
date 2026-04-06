@@ -156,6 +156,66 @@ export async function sendInviteEmail(
 }
 
 /**
+ * Collaboration invite: tells the invitee to open Wroket (Teams page) to accept.
+ * Best-effort: logs on failure; SMTP must be configured for real delivery.
+ */
+export async function sendCollaborationInviteEmail(
+  toEmail: string,
+  inviterEmail: string,
+  inviterDisplayName: string,
+  locale: "fr" | "en" = "fr",
+): Promise<void> {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const teamsUrl = `${frontendUrl}/teams`;
+  const safeName = escapeHtml(inviterDisplayName);
+  const safeInviterEmail = escapeHtml(inviterEmail);
+
+  const subject =
+    locale === "fr"
+      ? `${safeName} vous invite à collaborer sur Wroket`
+      : `${safeName} invited you to collaborate on Wroket`;
+
+  const html =
+    locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Invitation à collaborer</h2>
+        <p><strong>${safeName}</strong> (<span style="color:#64748b">${safeInviterEmail}</span>) vous a invité à collaborer sur Wroket.</p>
+        <p>Connectez-vous et ouvrez la page <strong>Équipes</strong> pour accepter ou refuser l'invitation.</p>
+        <a href="${teamsUrl}" style="display:inline-block;padding:12px 24px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0">Ouvrir Wroket — Équipes</a>
+        <p style="font-size:13px;color:#64748b">Ou copiez ce lien : ${teamsUrl}</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Collaboration invite</h2>
+        <p><strong>${safeName}</strong> (<span style="color:#64748b">${safeInviterEmail}</span>) invited you to collaborate on Wroket.</p>
+        <p>Sign in and open the <strong>Teams</strong> page to accept or decline.</p>
+        <a href="${teamsUrl}" style="display:inline-block;padding:12px 24px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0">Open Wroket — Teams</a>
+        <p style="font-size:13px;color:#64748b">Or copy this link: ${teamsUrl}</p>
+        ${emailFooter()}
+      </div>`;
+
+  const t = getTransporter();
+
+  try {
+    const info = await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: toEmail,
+      subject,
+      html,
+    });
+    if (SMTP_USER) {
+      console.log("[email] Collaboration invite sent to %s (messageId: %s)", toEmail, info.messageId);
+    } else {
+      console.log("[email] (dry-run) Collaboration invite queued for %s", toEmail);
+    }
+  } catch (err) {
+    console.error("[email] Failed to send collaboration invite to %s: %s", toEmail, err);
+  }
+}
+
+/**
  * Sends a password reset link.
  */
 export async function sendPasswordResetEmail(

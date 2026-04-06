@@ -11,6 +11,7 @@ import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import TodoCard from "@/components/TodoCard";
@@ -58,6 +59,29 @@ import { FILTER_BUTTONS, QUADRANT_BADGES, QUADRANT_RANK, PRIORITY_RANK, sortTodo
 import SubtaskBadge from "./_components/SubtaskBadge";
 import TaskList from "./_components/TaskList";
 import QuadrantCell from "./_components/QuadrantCell";
+
+function replaceTodoInArray(list: Todo[], updated: Todo): Todo[] {
+  const i = list.findIndex((t) => t.id === updated.id);
+  if (i === -1) return list;
+  const next = [...list];
+  next[i] = updated;
+  return next;
+}
+
+function mergeTodosIntoArray(list: Todo[], updates: Todo[]): Todo[] {
+  if (updates.length === 0) return list;
+  const byId = new Map(updates.map((u) => [u.id, u] as const));
+  return list.map((t) => byId.get(t.id) ?? t);
+}
+
+function applySortOrderPatchToList(list: Todo[], orderedIds: string[]): Todo[] {
+  const updated = [...list];
+  orderedIds.forEach((id, idx) => {
+    const i = updated.findIndex((t) => t.id === id);
+    if (i !== -1) updated[i] = { ...updated[i], sortOrder: idx };
+  });
+  return updated;
+}
 
 export default function TodosPage() {
   const { t } = useLocale();
@@ -108,10 +132,15 @@ export default function TodosPage() {
     return { all: allSet.size, personal: ap.length, assigned: aa.length, delegated: ad.length };
   }, [personalTodos, assignedTodos, delegatedTodos]);
 
-  const setTodos = (updater: (prev: Todo[]) => Todo[]) => {
-    setMyTodos(updater);
-    setAssignedTodos(updater);
-  };
+  const replaceTodoInLists = useCallback((updated: Todo) => {
+    setMyTodos((prev) => replaceTodoInArray(prev, updated));
+    setAssignedTodos((prev) => replaceTodoInArray(prev, updated));
+  }, []);
+
+  const mergeTodosIntoLists = useCallback((updates: Todo[]) => {
+    setMyTodos((prev) => mergeTodosIntoArray(prev, updates));
+    setAssignedTodos((prev) => mergeTodosIntoArray(prev, updates));
+  }, []);
 
   const sortedProjectOptions = useMemo(() => {
     const roots = projects.filter((p) => !p.parentProjectId);
@@ -152,11 +181,9 @@ export default function TodosPage() {
   const [assignEmail, setAssignEmail] = useState("");
   const [assignedUser, setAssignedUser] = useState<AuthMeResponse | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
-  const [showAssignSuggestions, setShowAssignSuggestions] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const assignWrapperRef = useRef<HTMLDivElement>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
@@ -229,7 +256,7 @@ export default function TodosPage() {
         recurrence: editForm.recurrence,
         projectId: editForm.projectId,
       });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      replaceTodoInLists(updated);
       closeEditModal();
       toast.success(t("toast.taskUpdated"));
     } catch (err) {
@@ -239,23 +266,20 @@ export default function TodosPage() {
     }
   };
 
+  const persistEditTags = useCallback(async (tags: string[]) => {
+    if (!editingTodo) return;
+    const updated = await updateTodo(editingTodo.id, { tags });
+    setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
+    setEditingTodo(updated);
+    replaceTodoInLists(updated);
+  }, [editingTodo, replaceTodoInLists]);
+
   useEffect(() => {
     if (!openDropdown) return;
     const close = () => setOpenDropdown(null);
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [openDropdown]);
-
-  useEffect(() => {
-    if (!showAssignSuggestions) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (assignWrapperRef.current && !assignWrapperRef.current.contains(e.target as Node)) {
-        setShowAssignSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showAssignSuggestions]);
 
   useEffect(() => {
     if (!meUid) return;
@@ -281,7 +305,7 @@ export default function TodosPage() {
           setCollaborators(collabs.filter((c) => c.status === "active"));
           setTeams(tms);
           const uids = new Set<string>();
-          [...mine, ...assigned].forEach((todo) => {
+          [...mine, ...assigned, ...archived].forEach((todo) => {
             if (todo.assignedTo) uids.add(todo.assignedTo);
             if (todo.userId && todo.userId !== meUid) uids.add(todo.userId);
           });
@@ -333,12 +357,12 @@ export default function TodosPage() {
     try {
       const previousStatus = todo.status;
       const updated = await updateTodo(todo.id, { status: newStatus });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      replaceTodoInLists(updated);
       setLastAction({ todoId: todo.id, previousStatus });
     } catch {
       toast.error(t("toast.updateError"));
     }
-  }, [toast]);
+  }, [toast, replaceTodoInLists, t]);
 
   const requestDelete = (todo: Todo) => {
     if (todo.status === "deleted") {
@@ -354,27 +378,21 @@ export default function TodosPage() {
       const previousStatus = todo.status;
       if (todo.status === "deleted") {
         const restored = await updateTodo(todo.id, { status: "active" });
-        setTodos((prev) => prev.map((t) => (t.id === restored.id ? restored : t)));
+        replaceTodoInLists(restored);
         setLastAction({ todoId: todo.id, previousStatus });
       } else {
         const subs = getSubtasks(todo.id);
         if (subs.length > 0) {
           if (mode === "promote") {
             const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-            setTodos((prev) => prev.map((t) => {
-              const p = promoted.find((u) => u.id === t.id);
-              return p ?? t;
-            }));
+            mergeTodosIntoLists(promoted);
           } else {
             const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
-            setTodos((prev) => prev.map((t) => {
-              const d = deleted.find((u) => u.id === t.id);
-              return d ?? t;
-            }));
+            mergeTodosIntoLists(deleted);
           }
         }
         const updated = await deleteTodo(todo.id);
-        setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+        replaceTodoInLists(updated);
         setLastAction({ todoId: todo.id, previousStatus });
       }
     } catch {
@@ -385,27 +403,27 @@ export default function TodosPage() {
   const handleDecline = useCallback(async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { assignmentStatus: "declined" });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      replaceTodoInLists(updated);
     } catch {
       toast.error(t("toast.declineError"));
     }
-  }, [toast]);
+  }, [toast, replaceTodoInLists, t]);
 
   const handleAccept = useCallback(async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { assignmentStatus: "accepted" });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      replaceTodoInLists(updated);
     } catch {
       toast.error(t("toast.acceptError"));
     }
-  }, [toast]);
+  }, [toast, replaceTodoInLists, t]);
 
   const handleUndo = async () => {
     if (!lastAction || undoing) return;
     setUndoing(true);
     try {
       const updated = await updateTodo(lastAction.todoId, { status: lastAction.previousStatus });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      replaceTodoInLists(updated);
       setLastAction(null);
     } catch {
       toast.error(t("toast.cancelError"));
@@ -435,24 +453,9 @@ export default function TodosPage() {
     }
   };
 
-  const assignSuggestions = useMemo(() => {
-    const selectedProject = projects.find((p) => p.id === selectedProjectId);
-    const teamId = selectedProject?.teamId ?? null;
-    const team = teamId ? teams.find((tm) => tm.id === teamId) : null;
-
-    const emails: string[] = team
-      ? team.members.map((m) => m.email)
-      : collaborators.map((c) => c.email);
-
-    if (!assignEmail || assignEmail.length < 1) return emails;
-    const q = assignEmail.toLowerCase();
-    return emails.filter((e) => e.toLowerCase().includes(q));
-  }, [assignEmail, selectedProjectId, projects, teams, collaborators]);
-
   const handleAssignLookup = (email: string) => {
     setAssignEmail(email);
     setAssignError(null);
-    setShowAssignSuggestions(true);
     clearTimeout(assignLookupTimer.current);
     if (!email.includes("@") || email.length < 5) {
       setAssignedUser(null);
@@ -473,31 +476,6 @@ export default function TodosPage() {
       }
     }, 300);
   };
-
-  const selectSuggestion = (email: string) => {
-    setAssignEmail(email);
-    setShowAssignSuggestions(false);
-    setAssignError(null);
-    clearTimeout(assignLookupTimer.current);
-    assignLookupTimer.current = setTimeout(async () => {
-      try {
-        const u = await lookupUser(email);
-        if (u) { setAssignedUser(u); setAssignError(null); }
-        else { setAssignedUser(null); setAssignError(t("assign.userNotFound")); }
-      } catch { setAssignedUser(null); }
-    }, 100);
-  };
-
-  const editMemberSuggestions = useMemo(() => {
-    const projectId = editingTodo?.projectId ?? editForm.projectId;
-    const project = projectId ? projects.find((p) => p.id === projectId) : null;
-    const teamId = project?.teamId ?? null;
-    const team = teamId ? teams.find((tm) => tm.id === teamId) : null;
-
-    return team
-      ? team.members.map((m) => m.email)
-      : collaborators.map((c) => c.email);
-  }, [editingTodo?.projectId, editForm.projectId, projects, teams, collaborators]);
 
   const handleEditAssignLookup = (email: string) => {
     setEditAssignEmail(email);
@@ -525,8 +503,8 @@ export default function TodosPage() {
   };
 
   const handleScheduleUpdate = useCallback((updated: Todo) => {
-    setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  }, []);
+    replaceTodoInLists(updated);
+  }, [replaceTodoInLists]);
 
   const handleReorder = useCallback(async (orderedIds: string[]) => {
     try {
@@ -564,21 +542,15 @@ export default function TodosPage() {
   const handlePromoteSubtask = async (sub: Todo) => {
     try {
       const updated = await updateTodo(sub.id, { parentId: null });
-      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      replaceTodoInLists(updated);
     } catch {
       toast.error(t("toast.genericError"));
     }
   };
 
   const handleReorderSubtasks = async (orderedIds: string[]) => {
-    setTodos((prev) => {
-      const updated = [...prev];
-      orderedIds.forEach((id, idx) => {
-        const i = updated.findIndex((t) => t.id === id);
-        if (i !== -1) updated[i] = { ...updated[i], sortOrder: idx };
-      });
-      return updated;
-    });
+    setMyTodos((prev) => applySortOrderPatchToList(prev, orderedIds));
+    setAssignedTodos((prev) => applySortOrderPatchToList(prev, orderedIds));
     try {
       await reorderTodosApi(orderedIds);
     } catch {
@@ -853,44 +825,26 @@ export default function TodosPage() {
                   ))}
                 </select>
               )}
-              <div ref={assignWrapperRef} className="relative col-span-2 sm:flex-1 sm:min-w-[200px]">
-                <input
-                  type="email"
-                  placeholder={t("assign.placeholder")}
-                  value={assignEmail}
-                  onChange={(e) => handleAssignLookup(e.target.value)}
-                  onFocus={() => setShowAssignSuggestions(true)}
-                  autoComplete="off"
-                  className={`w-full rounded border px-3 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 h-[38px] sm:h-[42px] ${
-                    assignedUser
-                      ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
-                      : assignError
-                        ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
-                        : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
-                  }`}
-                />
-                {assignedUser && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <ContactEmailSuggestInput
+                className="col-span-2 sm:flex-1 sm:min-w-[200px]"
+                value={assignEmail}
+                onChange={handleAssignLookup}
+                placeholder={t("assign.placeholder")}
+                inputClassName={`w-full rounded border px-3 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 h-[38px] sm:h-[42px] ${
+                  assignedUser
+                    ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
+                    : assignError
+                      ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                      : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
+                }`}
+                rightAdornment={
+                  assignedUser ? (
+                    <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                  </span>
-                )}
-                {showAssignSuggestions && assignSuggestions.length > 0 && !assignedUser && (
-                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 max-h-40 overflow-y-auto">
-                    {assignSuggestions.slice(0, 8).map((email) => (
-                      <button
-                        key={email}
-                        type="button"
-                        onClick={() => selectSuggestion(email)}
-                        className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors truncate"
-                      >
-                        {email}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                  ) : undefined
+                }
+              />
             </div>
           </div>
           {formError && (
@@ -1514,7 +1468,6 @@ export default function TodosPage() {
         effortDefaults={user?.effortMinutes}
         currentUserUid={user?.uid}
         projects={projects}
-        memberSuggestions={editMemberSuggestions}
         isTaskOwner={!editingTodo || editingTodo.userId === user?.uid}
         onAcceptDecline={editingTodo ? (status) => {
           if (status === "accepted") handleAccept(editingTodo);
@@ -1524,10 +1477,11 @@ export default function TodosPage() {
         onSuggestedSlotChange={editingTodo && editingTodo.userId === user?.uid && editingTodo.assignedTo ? async (slot) => {
           try {
             const updated = await updateTodo(editingTodo.id, { suggestedSlot: slot });
-            setTodos((prev) => prev.map((t) => t.id === updated.id ? updated : t));
+            replaceTodoInLists(updated);
             setEditingTodo(updated);
           } catch { /* handled by API layer */ }
         } : undefined}
+        onPersistTags={persistEditTags}
       />
 
       <SubtaskModal

@@ -18,17 +18,61 @@ import {
   updateMemberRole,
   getTeam,
   getTeamRole,
+  findCollaborator,
+  listKnownContactEmails,
+  filterContactEmailsByQuery,
 } from "../services/teamService";
 import { listTodosForUsers } from "../services/todoService";
 import { createNotification } from "../services/notificationService";
-import { findUserByEmail, findUserByUid } from "../services/authService";
-import { ValidationError } from "../utils/errors";
+import { findUserByEmail, findUserByUid, type AuthUser } from "../services/authService";
+import { sendCollaborationInviteEmail } from "../services/emailService";
+import { NotFoundError, ValidationError } from "../utils/errors";
+
+/**
+ * In-app notification (if the invitee has an account) + collaboration email (best-effort).
+ */
+async function deliverCollaborationInvite(inviter: AuthUser, inviteeEmailNormalised: string): Promise<void> {
+  const inviterEmail = inviter.email;
+  const fromName = [inviter.firstName, inviter.lastName].filter(Boolean).join(" ") || inviterEmail;
+  try {
+    const targetUser = findUserByEmail(inviteeEmailNormalised);
+    if (targetUser) {
+      createNotification(
+        targetUser.uid,
+        "team_invite",
+        "Invitation",
+        `${inviterEmail} vous a invité à collaborer`,
+        { inviterEmail },
+      );
+    }
+  } catch (err) {
+    console.warn("[team] collaboration in-app notification failed:", err);
+  }
+  await sendCollaborationInviteEmail(inviteeEmailNormalised, inviterEmail, fromName);
+}
 
 // ── Collaborators ──
 
 export async function getCollaborators(req: AuthenticatedRequest, res: Response) {
   const list = listCollaborators(req.user!.uid);
   res.status(200).json(list);
+}
+
+/** Autocomplete emails (collaborators + team members) from the 3rd character. */
+export async function getEmailSuggestions(req: AuthenticatedRequest, res: Response) {
+  const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+  const q = rawQ.trim();
+  if (q.length < 3) {
+    res.status(200).json({ emails: [] });
+    return;
+  }
+  if (q.length > 200) {
+    throw new ValidationError("Requête trop longue");
+  }
+  const user = req.user!;
+  const pool = listKnownContactEmails(user.uid, user.email);
+  const emails = filterContactEmailsByQuery(pool, q, 3, 40);
+  res.status(200).json({ emails });
 }
 
 export async function getReceivedInvitations(req: AuthenticatedRequest, res: Response) {
@@ -44,22 +88,33 @@ export async function inviteCollaborator(req: AuthenticatedRequest, res: Respons
 
   const collab = addCollaborator(req.user!.uid, email);
 
-  try {
-    const targetUser = findUserByEmail(email);
-    if (targetUser) {
-      createNotification(
-        targetUser.uid,
-        "team_invite",
-        "Invitation",
-        `${req.user!.email} vous a invité à collaborer`,
-        { inviterEmail: req.user!.email }
-      );
+  if (collab.status === "pending") {
+    try {
+      await deliverCollaborationInvite(req.user!, collab.email);
+    } catch (err) {
+      console.warn("[team.inviteCollaborator] deliver failed:", err);
     }
-  } catch (err) {
-    console.warn("[team.inviteCollaborator] notification failed:", err);
   }
 
   res.status(201).json(collab);
+}
+
+/** Re-send notification + email for an existing pending collaboration invite. */
+export async function postResendCollaborationInvite(req: AuthenticatedRequest, res: Response) {
+  const { email } = req.body as { email?: string };
+  if (!email || typeof email !== "string") {
+    throw new ValidationError("Email requis");
+  }
+  const normalised = email.trim().toLowerCase();
+  const entry = findCollaborator(req.user!.uid, normalised);
+  if (!entry) {
+    throw new NotFoundError("Invitation introuvable");
+  }
+  if (entry.status !== "pending") {
+    throw new ValidationError("Seules les invitations en attente peuvent être renvoyées");
+  }
+  await deliverCollaborationInvite(req.user!, entry.email);
+  res.status(200).json({ ok: true });
 }
 
 export async function deleteCollaborator(req: AuthenticatedRequest, res: Response) {

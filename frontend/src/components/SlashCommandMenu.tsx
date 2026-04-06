@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 
 import type { Project, Priority } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 
 /* ─── Types ─── */
 
@@ -338,10 +339,13 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
                 {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             )}
-            <input type="email" placeholder={t("slash.task.assignPlaceholder")} value={taskAssign}
-              onChange={(e) => setTaskAssign(e.target.value)}
+            <ContactEmailSuggestInput
+              value={taskAssign}
+              onChange={setTaskAssign}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateTask(); } }}
-              className={inputCls} />
+              placeholder={t("slash.task.assignPlaceholder")}
+              inputClassName={inputCls}
+            />
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={handleCreateTask} disabled={!taskTitle.trim() || taskCreating} className={btnPrimaryCls}>
                 {taskCreating ? t("slash.task.creating") : t("slash.task.create")}
@@ -358,10 +362,14 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
               <span className="text-sm">👤</span>
               <p className="text-xs font-semibold text-zinc-700 dark:text-slate-200">{t("slash.assign.title")}</p>
             </div>
-            <input autoFocus type="email" placeholder={t("slash.assign.placeholder")} value={assignEmail}
-              onChange={(e) => setAssignEmail(e.target.value)}
+            <ContactEmailSuggestInput
+              autoFocus
+              value={assignEmail}
+              onChange={setAssignEmail}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAssign(); } }}
-              className={inputCls} />
+              placeholder={t("slash.assign.placeholder")}
+              inputClassName={inputCls}
+            />
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={handleAssign} disabled={!assignEmail.trim()} className={btnPrimaryCls}>{t("slash.insert")}</button>
               <button type="button" onClick={closeMenu} className={btnSecondaryCls}>{t("slash.cancel")}</button>

@@ -13,9 +13,11 @@ import {
   declineCollaboration,
   shareInviteApi,
   globalSearch,
+  getEmailSuggestions,
   AppNotification,
   SearchResult,
 } from "@/lib/api";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 import TutorialModal, { useTutorial } from "@/components/TutorialModal";
@@ -60,6 +62,20 @@ const TEAMS_NAV = {
   ],
 };
 
+const ARCHIVE_NAV = {
+  tKey: "nav.archive",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+    </svg>
+  ),
+  children: [
+    { tKey: "nav.archiveTasks", href: "/archive/tasks" },
+    { tKey: "nav.archiveProjects", href: "/archive/projects" },
+    { tKey: "nav.archiveTeams", href: "/archive/teams" },
+  ],
+};
+
 const TASKS_NAV = {
   tKey: "nav.tasks",
   icon: (
@@ -70,7 +86,6 @@ const TASKS_NAV = {
   children: [
     { tKey: "nav.myTasks", href: "/todos" },
     { tKey: "nav.delegated", href: "/todos/delegated" },
-    { tKey: "nav.archives", href: "/todos/archives" },
   ],
 };
 
@@ -171,6 +186,7 @@ export default function AppShell({ children }: AppShellProps) {
   const [tasksOpen, setTasksOpen] = useState(false);
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const helpMenuRef = useRef<HTMLDivElement>(null);
@@ -200,6 +216,7 @@ export default function AppShell({ children }: AppShellProps) {
     if (pathname.startsWith("/todos")) setTasksOpen(true);
     if (pathname.startsWith("/agenda")) setAgendaOpen(true);
     if (pathname.startsWith("/teams")) setTeamsOpen(true);
+    if (pathname.startsWith("/archive")) setArchiveOpen(true);
     setMobileMenuOpen(false);
   }, [pathname]);
 
@@ -279,6 +296,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchContactEmails, setSearchContactEmails] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -304,17 +322,44 @@ export default function AppShell({ children }: AppShellProps) {
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    if (value.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    if (value.length < 2) {
+      setSearchResults([]);
+      setSearchContactEmails([]);
+      setSearchOpen(false);
+      return;
+    }
     setSearchLoading(true);
     searchDebounceRef.current = setTimeout(async () => {
       try {
-        const results = await globalSearch(value);
+        const q = value.trim();
+        const [results, contacts] = await Promise.all([
+          globalSearch(value),
+          q.length >= 3 ? getEmailSuggestions(q) : Promise.resolve([] as string[]),
+        ]);
         setSearchResults(results);
+        setSearchContactEmails(contacts);
         setSearchOpen(true);
-      } catch { setSearchResults([]); toast.error(t("toast.loadError")); }
-      finally { setSearchLoading(false); }
+      } catch {
+        setSearchResults([]);
+        setSearchContactEmails([]);
+        toast.error(t("toast.loadError"));
+      } finally {
+        setSearchLoading(false);
+      }
     }, 300);
   }, [t, toast]);
+
+  const copyContactEmail = useCallback(
+    async (email: string) => {
+      try {
+        await navigator.clipboard.writeText(email);
+        toast.success(t("search.contactCopied"));
+      } catch {
+        toast.error(t("toast.genericError"));
+      }
+    },
+    [t, toast],
+  );
 
   const handleSearchResultClick = useCallback((result: SearchResult) => {
     setSearchOpen(false);
@@ -420,7 +465,7 @@ export default function AppShell({ children }: AppShellProps) {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+                  onFocus={() => { if (searchResults.length > 0 || searchContactEmails.length > 0) setSearchOpen(true); }}
                   placeholder={t("search.placeholder")}
                   className="w-48 lg:w-64 rounded-lg border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800 pl-8 pr-3 py-1.5 text-sm text-zinc-900 dark:text-slate-100 placeholder:text-zinc-400 dark:placeholder:text-slate-500 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 transition-colors"
                 />
@@ -430,10 +475,28 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
               {searchOpen && (
                 <div className="absolute left-0 top-full mt-1.5 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50">
-                  {searchResults.length === 0 && searchQuery.length >= 2 ? (
+                  {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.length >= 2 ? (
                     <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
                   ) : (
                     <>
+                      {searchContactEmails.length > 0 && searchQuery.trim().length >= 3 && (
+                        <div>
+                          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
+                            {t("search.contacts")}
+                          </div>
+                          {searchContactEmails.map((email) => (
+                            <button
+                              key={email}
+                              type="button"
+                              onClick={() => void copyContactEmail(email)}
+                              className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors border-b border-zinc-50 dark:border-slate-800/50"
+                            >
+                              <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{email}</p>
+                              <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{t("search.contactCopyHint")}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {(["todo", "project", "note"] as const).map((type) => {
                         const group = searchResults.filter((r) => r.type === type);
                         if (group.length === 0) return null;
@@ -560,7 +623,15 @@ export default function AppShell({ children }: AppShellProps) {
                                   onClick={async () => {
                                     await handleMarkRead(notif.id);
                                     setNotifOpen(false);
-                                    if (notif.type === "task_assigned") window.location.href = "/todos";
+                                    if (
+                                      notif.type === "task_assigned" ||
+                                      notif.type === "task_completed" ||
+                                      notif.type === "task_cancelled" ||
+                                      notif.type === "task_declined" ||
+                                      notif.type === "task_accepted"
+                                    ) {
+                                      window.location.href = "/todos";
+                                    }
                                   }}
                                   className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline mt-1"
                                 >
@@ -626,7 +697,7 @@ export default function AppShell({ children }: AppShellProps) {
                   </button>
                   <hr className="border-zinc-100 dark:border-slate-700/50 my-1" />
                   <a
-                    href="mailto:support@wroket.com"
+                    href="mailto:team@wroket.com"
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -634,7 +705,7 @@ export default function AppShell({ children }: AppShellProps) {
                     </svg>
                     <div className="text-left">
                       <p className="font-medium">{t("help.contact")}</p>
-                      <p className="text-[11px] text-zinc-400 dark:text-slate-500">support@wroket.com</p>
+                      <p className="text-[11px] text-zinc-400 dark:text-slate-500">team@wroket.com</p>
                     </div>
                   </a>
                 </div>
@@ -787,6 +858,41 @@ export default function AppShell({ children }: AppShellProps) {
             )}
           </div>
           <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} onClick={closeMobileMenu} />
+          <div>
+            <button
+              type="button"
+              onClick={() => setArchiveOpen((v) => !v)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                pathname.startsWith("/archive")
+                  ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                  : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+              }`}
+            >
+              {ARCHIVE_NAV.icon}
+              <span className="flex-1 text-left">{t(ARCHIVE_NAV.tKey)}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform ${archiveOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            {archiveOpen && (
+              <div className="ml-7 mt-0.5 space-y-0.5">
+                {ARCHIVE_NAV.children.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    onClick={closeMobileMenu}
+                    className={`block px-3 py-2 rounded text-sm transition-colors ${
+                      pathname === child.href
+                        ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                        : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {t(child.tKey)}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           <hr className="border-zinc-200 dark:border-slate-700 my-2" />
           <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
           {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
@@ -909,6 +1015,40 @@ export default function AppShell({ children }: AppShellProps) {
               )}
             </div>
             <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} />
+            <div>
+              <button
+                type="button"
+                onClick={() => setArchiveOpen((v) => !v)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                  pathname.startsWith("/archive")
+                    ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+                    : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+                }`}
+              >
+                {ARCHIVE_NAV.icon}
+                <span className="flex-1 text-left">{t(ARCHIVE_NAV.tKey)}</span>
+                <svg className={`w-3.5 h-3.5 transition-transform ${archiveOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              {archiveOpen && (
+                <div className="ml-7 mt-0.5 space-y-0.5">
+                  {ARCHIVE_NAV.children.map((child) => (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      className={`block px-3 py-2 rounded text-sm transition-colors ${
+                        pathname === child.href
+                          ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
+                          : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      {t(child.tKey)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
             <hr className="border-zinc-200 dark:border-slate-700 my-2" />
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
             {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
@@ -930,7 +1070,7 @@ export default function AppShell({ children }: AppShellProps) {
           <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-200 dark:border-slate-700">
             <button
               type="button"
-              onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); setSearchResults([]); }}
+              onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); setSearchResults([]); setSearchContactEmails([]); }}
               className="rounded p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800"
               aria-label={t("edit.cancel")}
             >
@@ -953,32 +1093,52 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {searchResults.length === 0 && searchQuery.length >= 2 ? (
+            {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.length >= 2 ? (
               <p className="px-4 py-8 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
             ) : (
-              (["todo", "project", "note"] as const).map((type) => {
-                const group = searchResults.filter((r) => r.type === type);
-                if (group.length === 0) return null;
-                const labelKey = type === "todo" ? "search.todos" : type === "project" ? "search.projects" : "search.notes";
-                return (
-                  <div key={type}>
+              <>
+                {searchContactEmails.length > 0 && searchQuery.trim().length >= 3 && (
+                  <div>
                     <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
-                      {t(labelKey)}
+                      {t("search.contacts")}
                     </div>
-                    {group.map((result) => (
+                    {searchContactEmails.map((email) => (
                       <button
-                        key={`${result.type}-${result.id}`}
+                        key={email}
                         type="button"
-                        onClick={() => handleSearchResultClick(result)}
+                        onClick={() => void copyContactEmail(email)}
                         className="w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-slate-800 border-b border-zinc-50 dark:border-slate-800/50"
                       >
-                        <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
-                        {result.snippet && <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>}
+                        <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{email}</p>
+                        <p className="text-xs text-zinc-400 dark:text-slate-500 mt-0.5">{t("search.contactCopyHint")}</p>
                       </button>
                     ))}
                   </div>
-                );
-              })
+                )}
+                {(["todo", "project", "note"] as const).map((type) => {
+                  const group = searchResults.filter((r) => r.type === type);
+                  if (group.length === 0) return null;
+                  const labelKey = type === "todo" ? "search.todos" : type === "project" ? "search.projects" : "search.notes";
+                  return (
+                    <div key={type}>
+                      <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
+                        {t(labelKey)}
+                      </div>
+                      {group.map((result) => (
+                        <button
+                          key={`${result.type}-${result.id}`}
+                          type="button"
+                          onClick={() => handleSearchResultClick(result)}
+                          className="w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-slate-800 border-b border-zinc-50 dark:border-slate-800/50"
+                        >
+                          <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
+                          {result.snippet && <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
@@ -989,14 +1149,13 @@ export default function AppShell({ children }: AppShellProps) {
           <div role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
             <h3 id="share-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("app.share")}</h3>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mb-4">{t("app.share.placeholder")}</p>
-            <input
-              type="email"
+            <ContactEmailSuggestInput
               autoFocus
               value={shareEmail}
-              onChange={(e) => setShareEmail(e.target.value)}
+              onChange={setShareEmail}
               onKeyDown={(e) => { if (e.key === "Enter") handleShareInvite(); }}
               placeholder="email@exemple.com"
-              className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              inputClassName="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
             />
             {shareResult === "success" && (
               <p className="mt-3 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">{t("app.share.success")}</p>

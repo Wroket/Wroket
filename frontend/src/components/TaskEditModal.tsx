@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators, updateTodo } from "@/lib/api";
+import { useToast } from "@/components/Toast";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
+import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators } from "@/lib/api";
 import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency, Project, SuggestedSlot } from "@/lib/api";
 
 export interface TaskEditModalProps {
@@ -37,10 +39,11 @@ export interface TaskEditModalProps {
   effortDefaults?: { light: number; medium: number; heavy: number };
   currentUserUid?: string;
   projects?: Project[];
-  memberSuggestions?: string[];
   isTaskOwner?: boolean;
   onAcceptDecline?: (status: "accepted" | "declined") => void;
   onSuggestedSlotChange?: (slot: SuggestedSlot | null) => void;
+  /** When set, add/remove tag calls the API immediately (optimistic UI, revert on error). */
+  onPersistTags?: (tags: string[]) => Promise<void>;
 }
 
 export default function TaskEditModal({
@@ -62,12 +65,13 @@ export default function TaskEditModal({
   effortDefaults,
   currentUserUid,
   projects = [],
-  memberSuggestions = [],
   isTaskOwner = true,
   onAcceptDecline,
   onSuggestedSlotChange,
+  onPersistTags,
 }: TaskEditModalProps) {
   const { t } = useLocale();
+  const { toast } = useToast();
   const trapRef = useFocusTrap(!!todo);
 
   const sortedProjectOptions = useMemo(() => {
@@ -101,6 +105,7 @@ export default function TaskEditModal({
   }, [todo?.phaseId, todo?.projectId, form.projectId, projects]);
 
   const [tagInput, setTagInput] = useState("");
+  const [tagsSaving, setTagsSaving] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
@@ -114,30 +119,10 @@ export default function TaskEditModal({
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [showAllComments, setShowAllComments] = useState(false);
-  const [showAssignSuggestions, setShowAssignSuggestions] = useState(false);
-  const assignWrapperRef = useRef<HTMLDivElement>(null);
   const [showSuggestSlot, setShowSuggestSlot] = useState(false);
   const [suggestDate, setSuggestDate] = useState("");
   const [suggestTime, setSuggestTime] = useState("09:00");
   const [suggestDuration, setSuggestDuration] = useState(30);
-
-  const filteredSuggestions = useMemo(() => {
-    if (memberSuggestions.length === 0) return [];
-    if (!assignEmail) return memberSuggestions;
-    const q = assignEmail.toLowerCase();
-    return memberSuggestions.filter((e) => e.toLowerCase().includes(q));
-  }, [assignEmail, memberSuggestions]);
-
-  useEffect(() => {
-    if (!showAssignSuggestions) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (assignWrapperRef.current && !assignWrapperRef.current.contains(e.target as Node)) {
-        setShowAssignSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showAssignSuggestions]);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
@@ -164,15 +149,39 @@ export default function TaskEditModal({
 
   if (!todo) return null;
 
-  const handleAddTag = () => {
+  const handleAddTag = async () => {
     const tag = tagInput.trim().toLowerCase();
     if (!tag || form.tags.includes(tag)) { setTagInput(""); return; }
-    onFormChange({ tags: [...form.tags, tag] });
+    const prevTags = form.tags;
+    const nextTags = [...prevTags, tag];
+    onFormChange({ tags: nextTags });
     setTagInput("");
+    if (!onPersistTags) return;
+    setTagsSaving(true);
+    try {
+      await onPersistTags(nextTags);
+    } catch {
+      onFormChange({ tags: prevTags });
+      toast.error(t("toast.updateError"));
+    } finally {
+      setTagsSaving(false);
+    }
   };
 
-  const handleRemoveTag = (tag: string) => {
-    onFormChange({ tags: form.tags.filter((t2) => t2 !== tag) });
+  const handleRemoveTag = async (tag: string) => {
+    const prevTags = form.tags;
+    const nextTags = form.tags.filter((t2) => t2 !== tag);
+    onFormChange({ tags: nextTags });
+    if (!onPersistTags) return;
+    setTagsSaving(true);
+    try {
+      await onPersistTags(nextTags);
+    } catch {
+      onFormChange({ tags: prevTags });
+      toast.error(t("toast.updateError"));
+    } finally {
+      setTagsSaving(false);
+    }
   };
 
   const handleCommentChange = (val: string) => {
@@ -415,21 +424,27 @@ export default function TaskEditModal({
               {t("assign.label")}
             </label>
             {isTaskOwner ? (
-              <div ref={assignWrapperRef} className="relative">
-                <input
-                  type="email"
-                  placeholder={t("assign.placeholder")}
+              <div>
+                <ContactEmailSuggestInput
                   value={assignEmail}
-                  onChange={(e) => { onAssignEmailChange(e.target.value); setShowAssignSuggestions(true); }}
-                  onFocus={() => setShowAssignSuggestions(true)}
-                  autoComplete="off"
-                  className={`w-full rounded border px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 ${
+                  onChange={onAssignEmailChange}
+                  placeholder={t("assign.placeholder")}
+                  inputClassName={`w-full rounded border px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 ${
                     assignedUser
                       ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
                       : assignError
                         ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
                         : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
                   }`}
+                  rightAdornment={
+                    assignedUser ? (
+                      <span className="text-green-500">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                    ) : undefined
+                  }
                 />
                 {form.assignedTo && !assignEmail && (
                   <div className="flex items-center gap-2 mt-1">
@@ -443,30 +458,6 @@ export default function TaskEditModal({
                     >
                       ✕
                     </button>
-                  </div>
-                )}
-                {assignedUser && (
-                  <span className="absolute right-2 top-2.5 text-green-500">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </span>
-                )}
-                {showAssignSuggestions && filteredSuggestions.length > 0 && !assignedUser && (
-                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 max-h-40 overflow-y-auto">
-                    {filteredSuggestions.slice(0, 8).map((email) => (
-                      <button
-                        key={email}
-                        type="button"
-                        onClick={() => {
-                          onAssignEmailChange(email);
-                          setShowAssignSuggestions(false);
-                        }}
-                        className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors truncate"
-                      >
-                        {email}
-                      </button>
-                    ))}
                   </div>
                 )}
                 {assignError && (
@@ -667,7 +658,7 @@ export default function TaskEditModal({
             {form.tags.map((tag) => (
               <span key={tag} className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                 {tag}
-                <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500">×</button>
+                <button type="button" onClick={() => void handleRemoveTag(tag)} disabled={tagsSaving} className="hover:text-red-500 disabled:opacity-40">×</button>
               </span>
             ))}
           </div>
@@ -676,11 +667,12 @@ export default function TaskEditModal({
               type="text"
               placeholder={t("tags.add")}
               value={tagInput}
+              disabled={tagsSaving}
               onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }}
-              className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleAddTag(); } }}
+              className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
             />
-            <button type="button" onClick={handleAddTag} disabled={!tagInput.trim()} className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
+            <button type="button" onClick={() => void handleAddTag()} disabled={!tagInput.trim() || tagsSaving} className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
           </div>
         </div>
         </>}

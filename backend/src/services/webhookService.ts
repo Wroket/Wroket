@@ -8,6 +8,7 @@ import { ValidationError } from "../utils/errors";
 export type WebhookEvent =
   | "task_assigned"
   | "task_completed"
+  | "task_cancelled"
   | "task_declined"
   | "task_accepted"
   | "team_invite"
@@ -28,6 +29,7 @@ export interface WebhookConfig {
 const VALID_EVENTS: WebhookEvent[] = [
   "task_assigned",
   "task_completed",
+  "task_cancelled",
   "task_declined",
   "task_accepted",
   "team_invite",
@@ -127,6 +129,7 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
   const color = {
     task_assigned: "#3B82F6",
     task_completed: "#10B981",
+    task_cancelled: "#78716C",
     task_declined: "#EF4444",
     task_accepted: "#10B981",
     team_invite: "#8B5CF6",
@@ -136,6 +139,7 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
   const emoji = {
     task_assigned: "📋",
     task_completed: "✅",
+    task_cancelled: "🚫",
     task_declined: "❌",
     task_accepted: "🤝",
     team_invite: "👥",

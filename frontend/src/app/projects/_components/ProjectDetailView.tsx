@@ -20,6 +20,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
 import { useToast } from "@/components/Toast";
 import {
@@ -168,8 +169,6 @@ export default function ProjectDetailView({
   const [newTaskAssignEmail, setNewTaskAssignEmail] = useState("");
   const [newTaskAssignedUser, setNewTaskAssignedUser] = useState<AuthMeResponse | null>(null);
   const [newTaskAssignError, setNewTaskAssignError] = useState<string | null>(null);
-  const [showNewTaskSuggestions, setShowNewTaskSuggestions] = useState(false);
-  const newTaskAssignRef = useRef<HTMLDivElement>(null);
   const newTaskAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [allTodos, setAllTodos] = useState<Todo[]>([]);
@@ -561,6 +560,14 @@ export default function ProjectDetailView({
     }
   };
 
+  const persistTaskTags = async (tags: string[]) => {
+    if (!editingTodo) return;
+    const updated = await updateTodo(editingTodo.id, { tags });
+    setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
+    setEditingTodo(updated);
+    setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+  };
+
   const handleEditAssignLookup = async (email: string) => {
     setEditAssignEmail(email);
     setEditAssignError(null);
@@ -606,26 +613,9 @@ export default function ProjectDetailView({
     }
   };
 
-  const projectTeamMembers = useMemo(() => {
-    const teamId = selectedProject.teamId;
-    if (teamId) {
-      const team = teams.find((tm) => tm.id === teamId);
-      if (team && team.members.length > 0) return team.members.map((m) => m.email);
-    }
-    return collaborators.map((c) => c.email);
-  }, [selectedProject.teamId, teams, collaborators]);
-
-  const newTaskAssignSuggestions = useMemo(() => {
-    if (projectTeamMembers.length === 0) return [];
-    if (!newTaskAssignEmail) return projectTeamMembers;
-    const q = newTaskAssignEmail.toLowerCase();
-    return projectTeamMembers.filter((e) => e.toLowerCase().includes(q));
-  }, [newTaskAssignEmail, projectTeamMembers]);
-
   const handleNewTaskAssignInput = (email: string) => {
     setNewTaskAssignEmail(email);
     setNewTaskAssignError(null);
-    setShowNewTaskSuggestions(true);
     clearTimeout(newTaskAssignTimer.current);
     if (!email.includes("@") || email.length < 5) {
       setNewTaskAssignedUser(null);
@@ -639,31 +629,6 @@ export default function ProjectDetailView({
       } catch { setNewTaskAssignedUser(null); }
     }, 300);
   };
-
-  const selectNewTaskAssignSuggestion = (email: string) => {
-    setNewTaskAssignEmail(email);
-    setShowNewTaskSuggestions(false);
-    setNewTaskAssignError(null);
-    clearTimeout(newTaskAssignTimer.current);
-    newTaskAssignTimer.current = setTimeout(async () => {
-      try {
-        const u = await lookupUser(email);
-        if (u) { setNewTaskAssignedUser(u); setNewTaskAssignError(null); }
-        else { setNewTaskAssignedUser(null); setNewTaskAssignError(t("assign.userNotFound")); }
-      } catch { setNewTaskAssignedUser(null); }
-    }, 100);
-  };
-
-  useEffect(() => {
-    if (!showNewTaskSuggestions) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (newTaskAssignRef.current && !newTaskAssignRef.current.contains(e.target as Node)) {
-        setShowNewTaskSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showNewTaskSuggestions]);
 
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return;
@@ -1678,44 +1643,25 @@ export default function ProjectDetailView({
                 )}
                 <div>
                     <label className="block text-[10px] font-medium text-zinc-400 dark:text-slate-500 mb-1">{t("assign.label")}</label>
-                    <div ref={newTaskAssignRef} className="relative">
-                      <input
-                        type="email"
-                        placeholder={t("assign.placeholder")}
-                        value={newTaskAssignEmail}
-                        onChange={(e) => handleNewTaskAssignInput(e.target.value)}
-                        onFocus={() => setShowNewTaskSuggestions(true)}
-                        autoComplete="off"
-                        className={`w-full rounded border px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 ${
-                          newTaskAssignedUser
-                            ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
-                            : newTaskAssignError
-                              ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
-                              : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
-                        }`}
-                      />
-                      {newTaskAssignedUser && (
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <ContactEmailSuggestInput
+                      value={newTaskAssignEmail}
+                      onChange={handleNewTaskAssignInput}
+                      placeholder={t("assign.placeholder")}
+                      inputClassName={`w-full rounded border px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 ${
+                        newTaskAssignedUser
+                          ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
+                          : newTaskAssignError
+                            ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
+                            : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
+                      }`}
+                      rightAdornment={
+                        newTaskAssignedUser ? (
+                          <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
-                        </span>
-                      )}
-                      {showNewTaskSuggestions && newTaskAssignSuggestions.length > 0 && !newTaskAssignedUser && (
-                        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 max-h-40 overflow-y-auto">
-                          {newTaskAssignSuggestions.slice(0, 8).map((email) => (
-                            <button
-                              key={email}
-                              type="button"
-                              onClick={() => selectNewTaskAssignSuggestion(email)}
-                              className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors truncate"
-                            >
-                              {email}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                        ) : undefined
+                      }
+                    />
                     {newTaskAssignError && (
                       <p className="mt-1 text-xs text-red-600 dark:text-red-400">{newTaskAssignError}</p>
                     )}
@@ -1769,7 +1715,6 @@ export default function ProjectDetailView({
           subtaskCount={editingTodo ? getSubtasks(editingTodo.id).length : 0}
           effortDefaults={user?.effortMinutes}
           currentUserUid={user?.uid}
-          memberSuggestions={projectTeamMembers}
           isTaskOwner={!editingTodo || editingTodo.userId === meUid}
           onAcceptDecline={editingTodo ? (status) => handleAcceptDeclineTask(editingTodo, status) : undefined}
           onSuggestedSlotChange={editingTodo && editingTodo.userId === meUid && editingTodo.assignedTo ? async (slot) => {
@@ -1780,6 +1725,7 @@ export default function ProjectDetailView({
               toast.success(slot ? t("schedule.suggestSlot") : t("schedule.clearSuggestion"));
             } catch { /* handled by API layer */ }
           } : undefined}
+          onPersistTags={persistTaskTags}
         />
 
         <SubtaskModal

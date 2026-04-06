@@ -175,7 +175,6 @@ export default function ProjectListView({
   }, [allProjectTodos]);
 
   const activeProjects = useMemo(() => projects.filter((p) => p.status === "active" && !p.parentProjectId), [projects]);
-  const archivedProjects = useMemo(() => projects.filter((p) => p.status === "archived" && !p.parentProjectId), [projects]);
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Project[]>();
     for (const p of projects) {
@@ -658,25 +657,6 @@ export default function ProjectListView({
             })()}
           </DragOverlay>
           </DndContext>
-        )}
-
-        {archivedProjects.length > 0 && (
-          <div>
-            <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-400 dark:text-slate-500 mb-3">{t("projects.archived")}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {archivedProjects.map((project) => (
-                <div key={project.id} onClick={() => onSelectProject(project)} className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 cursor-pointer hover:shadow-md transition-all opacity-60">
-                  <div className="flex items-start justify-between">
-                    <h3 className="font-semibold text-zinc-900 dark:text-slate-100">{project.name}</h3>
-                    <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-blue-500 transition-colors" title={t("projects.restore")}>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-zinc-400 mt-1">{teamName(project.teamId)}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         )}
 
         {/* Create project modal */}

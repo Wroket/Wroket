@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
-import { findPhaseById } from "./projectService";
+import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
@@ -95,6 +95,19 @@ const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
 const VALID_EFFORTS: Effort[] = ["light", "medium", "heavy"];
 const VALID_STATUSES: TodoStatus[] = ["active", "completed", "cancelled", "deleted"];
 const VALID_FREQUENCIES: RecurrenceFrequency[] = ["daily", "weekly", "monthly"];
+
+function normalizeUserEmail(userEmail: string): string {
+  return userEmail.trim().toLowerCase();
+}
+
+/** User may add or link tasks in this project (owner or team role with content edit). */
+function assertProjectEditableForTodo(userId: string, userEmail: string, projectId: string): void {
+  const p = getProjectById(projectId);
+  if (!p) throw new NotFoundError("Projet introuvable");
+  if (!canEditProjectContent(userId, normalizeUserEmail(userEmail), p)) {
+    throw new ForbiddenError("Vous ne pouvez pas ajouter ou déplacer de tâche dans ce projet");
+  }
+}
 
 function validateRecurrence(rec: Recurrence): void {
   if (!VALID_FREQUENCIES.includes(rec.frequency)) {
@@ -226,9 +239,22 @@ export function isArchived(todo: Todo): boolean {
   return todo.status !== "active";
 }
 
-export function listArchivedTodos(userId: string): Todo[] {
+/**
+ * Archived todos for the signed-in user only (their datastore).
+ * Personal tasks (no project) are always included. Tasks linked to a project are included
+ * only if the user can still access that project (same rule as elsewhere — no exposure
+ * of project-linked items after losing team/project access).
+ */
+export function listArchivedTodos(userId: string, userEmail: string): Todo[] {
+  const email = userEmail.trim().toLowerCase();
   return listAllTodos(userId)
     .filter(isArchived)
+    .filter((t) => {
+      if (!t.projectId) return true;
+      const p = getProjectById(t.projectId);
+      if (!p) return false;
+      return canAccessProject(userId, email, p);
+    })
     .sort((a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime());
 }
 
@@ -312,6 +338,31 @@ export function listAssignedToMe(userId: string): Todo[] {
 }
 
 /**
+ * Archived tasks where the signed-in user is assignee but the todo lives in another user's store.
+ * Same visibility rules as {@link listArchivedTodos}: personal (no project) always; project-linked only if
+ * the user can still access the project.
+ */
+export function listArchivedTodosAssignedToMe(userId: string, userEmail: string): Todo[] {
+  const email = userEmail.trim().toLowerCase();
+  const result: Todo[] = [];
+  todosByUser.forEach((todos, ownerUid) => {
+    if (ownerUid === userId) return;
+    todos.forEach((todo) => {
+      if (todo.assignedTo !== userId) return;
+      if (!isArchived(todo)) return;
+      if (todo.projectId) {
+        const p = getProjectById(todo.projectId);
+        if (!p || !canAccessProject(userId, email, p)) return;
+      }
+      result.push(todo);
+    });
+  });
+  return result.sort(
+    (a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime()
+  );
+}
+
+/**
  * Check whether `userId` can access (read/comment on) a todo.
  *
  * WHY: The original code had no access check on the comment endpoints.
@@ -348,7 +399,7 @@ export function batchReorder(userId: string, todoIds: string[]): number {
   return updated;
 }
 
-export function createTodo(userId: string, input: CreateTodoInput): Todo {
+export function createTodo(userId: string, userEmail: string, input: CreateTodoInput): Todo {
   if (!input.title || input.title.trim().length === 0) {
     throw new ValidationError("Le titre est requis");
   }
@@ -369,9 +420,11 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     if (d < today) throw new ValidationError("L'échéance ne peut pas être antérieure à aujourd'hui");
   }
 
+  let parentTodo: Todo | null = null;
   if (input.parentId) {
-    const parentTodo = getUserTodos(userId).get(input.parentId);
-    if (!parentTodo) throw new NotFoundError("Tâche parente introuvable");
+    const parentFound = findTodoForUser(userId, input.parentId);
+    if (!parentFound) throw new NotFoundError("Tâche parente introuvable");
+    parentTodo = parentFound.todo;
     if (parentTodo.parentId) throw new ValidationError("Une sous-tâche ne peut pas avoir de sous-tâche");
     if (input.deadline && parentTodo.deadline) {
       if (new Date(input.deadline) > new Date(parentTodo.deadline)) {
@@ -380,19 +433,42 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     }
   }
 
-  if (input.phaseId) {
-    const phase = findPhaseById(input.phaseId);
-    if (phase) {
-      if (input.projectId && phase.projectId !== input.projectId) {
-        throw new ValidationError("La phase n'appartient pas au projet sélectionné");
-      }
-      if (input.startDate && phase.startDate && input.startDate < phase.startDate) {
-        throw new ValidationError(`La date de début ne peut pas être antérieure au début de la phase (${phase.startDate})`);
-      }
-      if (input.deadline && phase.endDate && input.deadline > phase.endDate) {
-        throw new ValidationError(`L'échéance ne peut pas dépasser la fin de la phase (${phase.endDate})`);
-      }
+  let resolvedProjectId = input.projectId ?? null;
+  let resolvedPhaseId = input.phaseId ?? null;
+  if (parentTodo) {
+    if (resolvedProjectId === null && parentTodo.projectId) {
+      resolvedProjectId = parentTodo.projectId;
     }
+    if (resolvedPhaseId === null && parentTodo.phaseId) {
+      resolvedPhaseId = parentTodo.phaseId;
+    }
+    if (input.projectId != null && parentTodo.projectId && input.projectId !== parentTodo.projectId) {
+      throw new ValidationError("La sous-tâche doit appartenir au même projet que la tâche parente");
+    }
+    if (input.phaseId != null && parentTodo.phaseId && input.phaseId !== parentTodo.phaseId) {
+      throw new ValidationError("La sous-tâche doit être dans la même phase que la tâche parente");
+    }
+  }
+
+  if (resolvedPhaseId) {
+    const phase = findPhaseById(resolvedPhaseId);
+    if (!phase) throw new NotFoundError("Phase introuvable");
+    if (resolvedProjectId && phase.projectId !== resolvedProjectId) {
+      throw new ValidationError("La phase n'appartient pas au projet sélectionné");
+    }
+    if (!resolvedProjectId) {
+      resolvedProjectId = phase.projectId;
+    }
+    if (input.startDate && phase.startDate && input.startDate < phase.startDate) {
+      throw new ValidationError(`La date de début ne peut pas être antérieure au début de la phase (${phase.startDate})`);
+    }
+    if (input.deadline && phase.endDate && input.deadline > phase.endDate) {
+      throw new ValidationError(`L'échéance ne peut pas dépasser la fin de la phase (${phase.endDate})`);
+    }
+  }
+
+  if (resolvedProjectId) {
+    assertProjectEditableForTodo(userId, userEmail, resolvedProjectId);
   }
 
   if (input.startDate && input.deadline && input.startDate > input.deadline) {
@@ -408,8 +484,8 @@ export function createTodo(userId: string, input: CreateTodoInput): Todo {
     id: crypto.randomUUID(),
     userId,
     parentId: input.parentId ?? null,
-    projectId: input.projectId ?? null,
-    phaseId: input.phaseId ?? null,
+    projectId: resolvedProjectId,
+    phaseId: resolvedPhaseId,
     assignedTo: input.assignedTo ?? null,
     assignmentStatus: input.assignedTo ? "pending" : null,
     title: input.title.trim(),
@@ -453,7 +529,7 @@ export function findTodoForUser(userId: string, todoId: string): { todo: Todo; o
   return null;
 }
 
-export function updateTodo(userId: string, todoId: string, input: UpdateTodoInput): Todo {
+export function updateTodo(userId: string, userEmail: string, todoId: string, input: UpdateTodoInput): Todo {
   const found = findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
@@ -516,6 +592,9 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
   }
   if (input.projectId !== undefined) {
     if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier le projet");
+    if (input.projectId !== null) {
+      assertProjectEditableForTodo(userId, userEmail, input.projectId);
+    }
     todo.projectId = input.projectId;
     if (todo.phaseId && input.phaseId === undefined) {
       const phase = findPhaseById(todo.phaseId);
@@ -528,9 +607,12 @@ export function updateTodo(userId: string, todoId: string, input: UpdateTodoInpu
     if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier la phase");
     if (input.phaseId) {
       const phase = findPhaseById(input.phaseId);
-      if (phase && phase.projectId !== (input.projectId ?? todo.projectId)) {
+      if (!phase) throw new NotFoundError("Phase introuvable");
+      const effectiveProjectId = input.projectId !== undefined ? input.projectId : todo.projectId;
+      if (phase.projectId !== effectiveProjectId) {
         throw new ValidationError("La phase n'appartient pas au projet sélectionné");
       }
+      assertProjectEditableForTodo(userId, userEmail, phase.projectId);
     }
     todo.phaseId = input.phaseId;
   }

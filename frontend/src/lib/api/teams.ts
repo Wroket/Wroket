@@ -33,6 +33,19 @@ export async function getCollaborators(): Promise<Collaborator[]> {
   return (await res.json()) as Collaborator[];
 }
 
+/** Emails of collaborators + team members; server returns [] until query has at least 3 characters. */
+export async function getEmailSuggestions(query: string): Promise<string[]> {
+  const q = query.trim();
+  if (q.length < 3) return [];
+  const res = await fetch(
+    `${API_BASE_URL}/teams/email-suggestions?q=${encodeURIComponent(q)}`,
+    { method: "GET", credentials: "include" },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { emails?: string[] };
+  return Array.isArray(body.emails) ? body.emails : [];
+}
+
 export async function getReceivedInvitations(): Promise<ReceivedInvitation[]> {
   const res = await fetch(`${API_BASE_URL}/teams/collaborators/received`, { method: "GET", credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger les invitations reçues");
@@ -51,6 +64,20 @@ export async function inviteCollaborator(email: string): Promise<Collaborator> {
     throw new Error(extractApiMessage(body, "Erreur"));
   }
   return (await res.json()) as Collaborator;
+}
+
+/** Re-sends in-app notification (if applicable) and collaboration invite email for a pending invite. */
+export async function resendCollaboratorInvite(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/teams/collaborators/resend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de renvoyer l'invitation"));
+  }
 }
 
 export async function removeCollaborator(email: string): Promise<void> {
@@ -183,7 +210,16 @@ export async function transferTeamOwnership(teamId: string, newOwnerEmail: strin
 
 // ── Notifications ──
 
-export type NotificationType = "task_assigned" | "task_completed" | "task_declined" | "task_accepted" | "team_invite" | "deadline_approaching" | "deadline_today" | "comment_mention";
+export type NotificationType =
+  | "task_assigned"
+  | "task_completed"
+  | "task_cancelled"
+  | "task_declined"
+  | "task_accepted"
+  | "team_invite"
+  | "deadline_approaching"
+  | "deadline_today"
+  | "comment_mention";
 
 export interface AppNotification {
   id: string;

@@ -103,6 +103,12 @@ export function listCollaborators(uid: string): Collaborator[] {
   return getUserCollaborators(uid);
 }
 
+/** Returns the collaborator row for `email` on `uid`'s list, if any. */
+export function findCollaborator(uid: string, email: string): Collaborator | undefined {
+  const normalised = email.trim().toLowerCase();
+  return getUserCollaborators(uid).find((c) => c.email === normalised);
+}
+
 export interface ReceivedInvitation {
   fromEmail: string;
 }
@@ -252,6 +258,43 @@ export function listUserTeams(uid: string, userEmail: string): Team[] {
   return result.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+}
+
+/**
+ * All distinct emails the user may want to pick for assignment / invites:
+ * collaborators + team owners + team members (teams the user belongs to).
+ * Excludes the user's own email.
+ */
+export function listKnownContactEmails(uid: string, userEmail: string): string[] {
+  const me = userEmail.trim().toLowerCase();
+  const set = new Set<string>();
+
+  for (const c of listCollaborators(uid)) {
+    if (c.email) set.add(c.email);
+  }
+
+  for (const team of listUserTeams(uid, me)) {
+    const owner = findUserByUid(team.ownerUid);
+    if (owner?.email) set.add(owner.email.trim().toLowerCase());
+    for (const m of team.members) {
+      if (m.email) set.add(m.email);
+    }
+  }
+
+  set.delete(me);
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+/** Substring match on precomputed pool (min query length enforced by caller). */
+export function filterContactEmailsByQuery(
+  candidates: string[],
+  queryRaw: string,
+  minLen: number,
+  maxResults: number,
+): string[] {
+  const q = queryRaw.trim().toLowerCase();
+  if (q.length < minLen) return [];
+  return candidates.filter((e) => e.includes(q)).slice(0, maxResults);
 }
 
 export function getTeam(teamId: string): Team | null {

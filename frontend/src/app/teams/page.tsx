@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
+import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useLocale } from "@/lib/LocaleContext";
+import { useToast } from "@/components/Toast";
 import {
   getCollaborators,
   getReceivedInvitations,
   inviteCollaborator,
+  resendCollaboratorInvite,
   removeCollaborator,
   acceptCollaboration,
   declineCollaboration,
@@ -31,6 +34,7 @@ type Section = "collaborators" | "teams";
 
 export default function TeamsPage() {
   const { t } = useLocale();
+  const { toast } = useToast();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [receivedInvites, setReceivedInvites] = useState<ReceivedInvitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -344,14 +348,14 @@ export default function TeamsPage() {
                   {t("teams.inviteDesc")}
                 </p>
                 <div className="flex gap-2">
-                  <input
-                    type="email"
-                    placeholder={t("teams.emailPlaceholder")}
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleInvite(); }}
+                  <ContactEmailSuggestInput
+                    className="flex-1 min-w-0"
                     autoFocus
-                    className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+                    value={inviteEmail}
+                    onChange={setInviteEmail}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleInvite(); }}
+                    placeholder={t("teams.emailPlaceholder")}
+                    inputClassName="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                   />
                   <button
                     type="button"
@@ -451,10 +455,11 @@ export default function TeamsPage() {
                             type="button"
                             onClick={async () => {
                               try {
-                                await removeCollaborator(collab.email);
-                                const re = await inviteCollaborator(collab.email);
-                                setCollaborators((prev) => prev.map((c) => c.email === collab.email ? re : c));
-                              } catch { /* ignore */ }
+                                await resendCollaboratorInvite(collab.email);
+                                toast.success(t("teams.inviteResent"));
+                              } catch (err) {
+                                toast.error(err instanceof Error ? err.message : t("teams.resendFailed"));
+                              }
                             }}
                             title={t("teams.resendInvite")}
                             className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
@@ -831,13 +836,13 @@ export default function TeamsPage() {
                   {t("teams.orInviteByEmail")}
                 </p>
                 <div className="flex gap-2">
-                  <input
-                    type="email"
-                    placeholder={t("teams.emailPlaceholder")}
+                  <ContactEmailSuggestInput
+                    className="flex-1 min-w-0"
                     value={newTeamEmail}
-                    onChange={(e) => setNewTeamEmail(e.target.value)}
+                    onChange={setNewTeamEmail}
                     onKeyDown={(e) => { if (e.key === "Enter") addEmailToTeam(); }}
-                    className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+                    placeholder={t("teams.emailPlaceholder")}
+                    inputClassName="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
                   />
                   <button
                     type="button"

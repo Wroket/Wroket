@@ -207,7 +207,7 @@ export function executeImport(
   // Create tasks
   let count = 0;
   for (const task of tasks) {
-    createTodo(uid, {
+    createTodo(uid, userEmail, {
       title: task.title,
       priority: task.priority,
       effort: task.effort,

@@ -19,6 +19,7 @@ type FilterTab = "all" | "unread" | "read";
 const NOTIF_ICON: Record<string, { icon: string; bg: string }> = {
   task_assigned: { icon: "📋", bg: "bg-blue-100 dark:bg-blue-900/30" },
   task_completed: { icon: "✅", bg: "bg-green-100 dark:bg-green-900/30" },
+  task_cancelled: { icon: "🚫", bg: "bg-zinc-200 dark:bg-slate-700/50" },
   task_declined: { icon: "❌", bg: "bg-orange-100 dark:bg-orange-900/30" },
   task_accepted: { icon: "✔️", bg: "bg-emerald-50 dark:bg-emerald-800/50" },
   team_invite: { icon: "👥", bg: "bg-violet-100 dark:bg-violet-900/30" },
@@ -48,7 +49,13 @@ function formatDate(iso: string, locale: string): string {
 }
 
 function notifHref(notif: AppNotification): string {
-  if (notif.type === "task_assigned" || notif.type === "task_completed" || notif.type === "task_declined" || notif.type === "task_accepted") {
+  if (
+    notif.type === "task_assigned" ||
+    notif.type === "task_completed" ||
+    notif.type === "task_cancelled" ||
+    notif.type === "task_declined" ||
+    notif.type === "task_accepted"
+  ) {
     return "/todos";
   }
   if (notif.type === "team_invite") return "/teams";

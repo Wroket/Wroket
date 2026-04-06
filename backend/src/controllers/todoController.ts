@@ -7,6 +7,7 @@ import {
   listTodos,
   listAssignedToMe,
   listArchivedTodos,
+  listArchivedTodosAssignedToMe,
   updateTodo,
   findTodoForUser,
   canAccessTodo,
@@ -35,8 +36,17 @@ export async function assigned(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function archived(req: AuthenticatedRequest, res: Response) {
-  const todos = listArchivedTodos(req.user!.uid);
-  res.status(200).json(todos);
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  const own = listArchivedTodos(uid, email);
+  const asAssignee = listArchivedTodosAssignedToMe(uid, email);
+  const byId = new Map<string, (typeof own)[number]>();
+  for (const t of own) byId.set(t.id, t);
+  for (const t of asAssignee) byId.set(t.id, t);
+  const merged = Array.from(byId.values()).sort(
+    (a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime()
+  );
+  res.status(200).json(merged);
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
@@ -45,7 +55,20 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError("Titre et priorité requis");
   }
 
-  const todo = createTodo(req.user!.uid, { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags });
+  const todo = createTodo(req.user!.uid, req.user!.email ?? "", {
+    title,
+    priority,
+    effort,
+    estimatedMinutes,
+    startDate,
+    deadline,
+    parentId,
+    projectId,
+    phaseId,
+    assignedTo,
+    recurrence,
+    tags,
+  });
   logActivity(req.user!.uid, req.user!.email, "create", "todo", todo.id, { title: todo.title });
 
   try {
@@ -70,7 +93,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   const input = req.body as UpdateTodoInput;
   const prevFound = findTodoForUser(req.user!.uid, id);
   const previousTodo = prevFound?.todo ? { ...prevFound.todo } : null;
-  const todo = updateTodo(req.user!.uid, id, input);
+  const todo = updateTodo(req.user!.uid, req.user!.email ?? "", id, input);
 
   if (
     input.status &&
@@ -84,7 +107,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
           console.warn("[todo.update] Google Calendar event cleanup failed:", err);
         });
       }
-      updateTodo(req.user!.uid, id, { scheduledSlot: null });
+      updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
       todo.scheduledSlot = null;
     }
   }
@@ -156,8 +179,23 @@ export async function update(req: AuthenticatedRequest, res: Response) {
       createNotification(
         todo.userId,
         "task_completed",
-        "Tâche accomplie",
-        `${req.user!.email} a terminé la tâche "${todo.title}"`,
+        "Tâche archivée par l'assigné",
+        `${req.user!.email} a archivé la tâche « ${todo.title} » (terminée)`,
+        { todoId: todo.id, assigneeEmail: req.user!.email }
+      );
+    }
+
+    if (
+      input.status === "cancelled" &&
+      todo.assignedTo &&
+      todo.assignedTo === req.user!.uid &&
+      todo.userId !== req.user!.uid
+    ) {
+      createNotification(
+        todo.userId,
+        "task_cancelled",
+        "Tâche annulée par l'assigné",
+        `${req.user!.email} a annulé la tâche « ${todo.title} »`,
         { todoId: todo.id, assigneeEmail: req.user!.email }
       );
     }

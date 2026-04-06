@@ -3,6 +3,7 @@ import { API_BASE_URL } from "./core";
 export type WebhookEvent =
   | "task_assigned"
   | "task_completed"
+  | "task_cancelled"
   | "task_declined"
   | "task_accepted"
   | "team_invite"

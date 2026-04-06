@@ -525,6 +525,7 @@ function TasksSection() {
 const ALL_EVENTS: { key: WebhookEvent; tKey: TranslationKey }[] = [
   { key: "task_assigned", tKey: "settings.eventTaskAssigned" },
   { key: "task_completed", tKey: "settings.eventTaskCompleted" },
+  { key: "task_cancelled", tKey: "settings.eventTaskCancelled" },
   { key: "task_declined", tKey: "settings.eventTaskDeclined" },
   { key: "task_accepted", tKey: "settings.eventTaskAccepted" },
   { key: "team_invite", tKey: "settings.eventTeamInvite" },
