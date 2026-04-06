@@ -12,6 +12,7 @@ import {
   findTodoForUser,
   canAccessTodo,
   batchReorder,
+  listProjectTodos,
   CreateTodoInput,
   UpdateTodoInput,
 } from "../services/todoService";
@@ -19,7 +20,7 @@ import { listComments, addComment, deleteComment, editComment, toggleReaction, p
 import { findUserByEmail } from "../services/authService";
 import { createNotification } from "../services/notificationService";
 import { deleteGoogleCalendarEvent } from "../services/googleCalendarService";
-import { getProjectById } from "../services/projectService";
+import { getProjectById, listProjects } from "../services/projectService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity, getTaskActivity } from "../services/activityLogService";
 
@@ -322,10 +323,20 @@ export async function toggleReactionHandler(req: AuthenticatedRequest, res: Resp
   res.status(200).json(comment);
 }
 
+/**
+ * Comment badges need counts for every task the user may see:
+ * owned, assigned to them, and any task in a project they can open (incl. teammates' tasks).
+ */
 export async function commentCounts(req: AuthenticatedRequest, res: Response) {
-  const todos = listTodos(req.user!.uid);
-  const todoIds = todos.map((t) => t.id);
-  res.status(200).json(getCommentCounts(todoIds));
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  const idSet = new Set<string>();
+  for (const t of listTodos(uid)) idSet.add(t.id);
+  for (const t of listAssignedToMe(uid)) idSet.add(t.id);
+  for (const p of listProjects(uid, email)) {
+    for (const t of listProjectTodos(p.id)) idSet.add(t.id);
+  }
+  res.status(200).json(getCommentCounts([...idSet]));
 }
 
 export async function exportCsv(req: AuthenticatedRequest, res: Response) {
