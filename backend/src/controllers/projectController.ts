@@ -92,7 +92,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   logActivity(req.user!.uid, req.user!.email, "delete", "project", id);
-  deleteProject(req.user!.uid, id);
+  deleteProject(req.user!.uid, req.user!.email, id);
   res.status(204).end();
 }
 

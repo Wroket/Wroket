@@ -8,7 +8,7 @@ export interface Collaborator {
   status: "active" | "pending";
 }
 
-export type TeamMemberRole = "admin" | "super-user" | "user";
+export type TeamMemberRole = "co-owner" | "admin" | "super-user" | "user";
 
 export interface TeamMember {
   email: string;

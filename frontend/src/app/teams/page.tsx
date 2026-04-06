@@ -628,9 +628,12 @@ export default function TeamsPage() {
                       {isExpanded && (() => {
                         const isOwner = myUid === team.ownerUid;
                         const myMember = team.members.find((m) => m.email === myEmail);
-                        const isAdmin = isOwner || myMember?.role === "admin";
+                        const isCoOwner = myMember?.role === "co-owner";
+                        const isAdmin = isOwner || isCoOwner || myMember?.role === "admin";
+                        const canDeleteTeam = isOwner || isCoOwner;
 
                         const ROLE_STYLE: Record<TeamMemberRole, { label: string; cls: string }> = {
+                          "co-owner":   { label: t("teams.coOwner"),   cls: "bg-teal-100 text-teal-800 dark:bg-teal-900/35 dark:text-teal-300" },
                           admin:        { label: t("teams.admin"),     cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
                           "super-user": { label: t("teams.superUser"), cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
                           user:         { label: t("teams.user"),      cls: "bg-zinc-100 text-zinc-500 dark:bg-slate-800 dark:text-slate-400" },
@@ -675,6 +678,7 @@ export default function TeamsPage() {
                                         }}
                                         className="text-[11px] font-medium rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-500 cursor-pointer"
                                       >
+                                        <option value="co-owner">{t("teams.coOwner")}</option>
                                         <option value="admin">{t("teams.admin")}</option>
                                         <option value="super-user">{t("teams.superUser")}</option>
                                         <option value="user">{t("teams.user")} ({t("teams.readOnly")})</option>
@@ -707,8 +711,8 @@ export default function TeamsPage() {
                               );
                             })}
 
-                            {/* Delete team (owner only) */}
-                            {isOwner && (
+                            {/* Delete team (owner or co-owner) */}
+                            {canDeleteTeam && (
                               <div className="pt-2 border-t border-zinc-100 dark:border-slate-800 mt-2">
                                 {deleteConfirmTeamId === team.id ? (
                                   <div className="flex items-center gap-2">

@@ -50,6 +50,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const [conflicts, setConflicts] = useState<SlotConflict[]>([]);
   const [pendingSlot, setPendingSlot] = useState<{ start: string; end: string } | null>(null);
   const [mode, setMode] = useState<"suggested" | "manual">("suggested");
+  const [rescheduleMode, setRescheduleMode] = useState(false);
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("09:00");
   const ref = useRef<HTMLDivElement>(null);
@@ -93,7 +94,23 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const handleOpen = () => {
     computePosition();
     setOpen(true);
+    setRescheduleMode(false);
     if (!scheduledSlot) fetchSlots();
+  };
+
+  const handleReschedule = async () => {
+    setClearing(true);
+    try {
+      const updated = await clearTaskSlot(todoId);
+      onCleared(updated);
+      setRescheduleMode(true);
+      setMode("suggested");
+      fetchSlots();
+    } catch {
+      toast.error(t("toast.deleteError"));
+    } finally {
+      setClearing(false);
+    }
   };
 
   const doBook = async (start: string, end: string, force?: boolean) => {
@@ -195,7 +212,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
             <h4 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-2">
               {t("schedule.title")}
             </h4>
-            {!scheduledSlot && (
+            {(!scheduledSlot || rescheduleMode) && (
               <div className="flex gap-1">
                 <button
                   type="button"
@@ -251,7 +268,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                   </button>
                 </div>
               </div>
-            ) : scheduledSlot ? (
+            ) : scheduledSlot && !rescheduleMode ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-3 py-2.5">
                   <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -266,14 +283,24 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  disabled={clearing}
-                  className="w-full rounded border border-red-200 dark:border-red-800 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 transition-colors"
-                >
-                  {t("schedule.remove")}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleReschedule}
+                    disabled={clearing}
+                    className="flex-1 rounded border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50 transition-colors"
+                  >
+                    {t("schedule.reschedule")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    disabled={clearing}
+                    className="flex-1 rounded border border-red-200 dark:border-red-800 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 transition-colors"
+                  >
+                    {t("schedule.remove")}
+                  </button>
+                </div>
               </div>
             ) : mode === "manual" ? (
               <div className="space-y-3">

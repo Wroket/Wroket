@@ -255,12 +255,23 @@ export function updateProject(uid: string, userEmail: string, id: string, input:
   return project;
 }
 
-export function deleteProject(uid: string, id: string): void {
+export function deleteProject(uid: string, userEmail: string, id: string): void {
   const project = projectsById.get(id);
   if (!project) throw new NotFoundError("Projet introuvable");
-  if (project.ownerUid !== uid) throw new ForbiddenError("Seul le propriétaire peut supprimer un projet");
-  projectsById.delete(id);
-  persist();
+  if (project.ownerUid === uid) {
+    projectsById.delete(id);
+    persist();
+    return;
+  }
+  if (project.teamId) {
+    const team = getTeam(project.teamId);
+    if (team && getTeamRole(team, uid, userEmail) === "co-owner") {
+      projectsById.delete(id);
+      persist();
+      return;
+    }
+  }
+  throw new ForbiddenError("Seul le propriétaire ou un co-propriétaire d'équipe peut supprimer ce projet");
 }
 
 /**

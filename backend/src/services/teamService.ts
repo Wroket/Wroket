@@ -9,11 +9,11 @@ export interface Collaborator {
   status: "active" | "pending";
 }
 
-export type TeamRole = "owner" | "admin" | "super-user" | "user";
+export type TeamRole = "owner" | "co-owner" | "admin" | "super-user" | "user";
 
 export interface TeamMember {
   email: string;
-  role: "admin" | "super-user" | "user";
+  role: "co-owner" | "admin" | "super-user" | "user";
 }
 
 export interface Team {
@@ -188,37 +188,38 @@ export function declineCollaboration(inviterUid: string, inviteeEmail: string): 
 export function getTeamRole(team: Team, uid: string, userEmail: string): TeamRole | null {
   if (team.ownerUid === uid) return "owner";
   const member = team.members.find((m) => m.email === userEmail.toLowerCase());
-  return member?.role ?? null;
+  if (!member) return null;
+  return member.role;
 }
 
 /**
  * Returns true if the user can manage the team (invite/remove members, assign roles, edit team).
- * Only owner or admin.
+ * Owner, co-owner, or admin.
  */
 export function canManageTeam(team: Team, uid: string, userEmail: string): boolean {
   const role = getTeamRole(team, uid, userEmail);
-  return role === "owner" || role === "admin";
+  return role === "owner" || role === "co-owner" || role === "admin";
 }
 
 /**
  * Returns true if the user can create/edit the project itself (settings, name, etc.).
- * Only owner or admin.
+ * Owner, co-owner, or admin.
  */
 export function canManageProjects(team: Team, uid: string, userEmail: string): boolean {
   const role = getTeamRole(team, uid, userEmail);
-  return role === "owner" || role === "admin";
+  return role === "owner" || role === "co-owner" || role === "admin";
 }
 
 /**
  * Returns true if the user can read/write tasks, phases and sub-projects.
- * Requires owner, admin or super-user role.
+ * Requires owner, co-owner, admin or super-user role.
  */
 export function canEditContent(team: Team, uid: string, userEmail: string): boolean {
   const role = getTeamRole(team, uid, userEmail);
-  return role === "owner" || role === "admin" || role === "super-user";
+  return role === "owner" || role === "co-owner" || role === "admin" || role === "super-user";
 }
 
-const VALID_MEMBER_ROLES = new Set<TeamMember["role"]>(["admin", "super-user", "user"]);
+const VALID_MEMBER_ROLES = new Set<TeamMember["role"]>(["co-owner", "admin", "super-user", "user"]);
 
 /**
  * Updates the role of a team member. Only owner or admin can change roles.
@@ -331,10 +332,13 @@ export function listOwnedTeams(uid: string): Team[] {
   return result;
 }
 
-export function transferTeamOwnership(teamId: string, currentOwnerUid: string, newOwnerEmail: string): Team {
+export function transferTeamOwnership(teamId: string, uid: string, userEmail: string, newOwnerEmail: string): Team {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (team.ownerUid !== currentOwnerUid) throw new ForbiddenError("Seul le propriétaire peut transférer");
+  const role = getTeamRole(team, uid, userEmail);
+  if (role !== "owner" && role !== "co-owner") {
+    throw new ForbiddenError("Seul le propriétaire ou un co-propriétaire peut transférer");
+  }
 
   const normalised = newOwnerEmail.trim().toLowerCase();
   const member = team.members.find((m) => m.email === normalised);

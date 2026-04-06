@@ -232,6 +232,7 @@ export default function ProjectListView({
     if (!team) return { label: t("projects.roleMember"), cls: "bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400" };
     if (team.ownerUid === user?.uid) return { label: t("projects.roleOwner"), cls: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" };
     const member = team.members.find((m) => m.email === user?.email);
+    if (member?.role === "co-owner") return { label: t("projects.roleCoOwner"), cls: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300" };
     if (member?.role === "admin") return { label: t("projects.roleAdmin"), cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" };
     if (member?.role === "super-user") return { label: t("projects.roleSuperUser"), cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" };
     return { label: t("projects.roleMember"), cls: "bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400" };

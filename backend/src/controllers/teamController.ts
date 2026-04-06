@@ -188,8 +188,8 @@ export async function postUpdateMemberRole(req: AuthenticatedRequest, res: Respo
   const teamId = req.params.teamId as string;
   const { email, role } = req.body as { email?: string; role?: string };
   if (!email || typeof email !== "string") throw new ValidationError("Email requis");
-  if (role !== "admin" && role !== "super-user" && role !== "user") {
-    throw new ValidationError("Rôle invalide (admin, super-user ou user)");
+  if (role !== "co-owner" && role !== "admin" && role !== "super-user" && role !== "user") {
+    throw new ValidationError("Rôle invalide (co-owner, admin, super-user ou user)");
   }
 
   const team = updateMemberRole(teamId, req.user!.uid, req.user!.email, email, role);
@@ -265,7 +265,7 @@ export async function postTransferOwnership(req: AuthenticatedRequest, res: Resp
   if (!newOwnerEmail || typeof newOwnerEmail !== "string") {
     throw new ValidationError("Email du nouveau propriétaire requis");
   }
-  const team = transferTeamOwnership(teamId, req.user!.uid, newOwnerEmail);
+  const team = transferTeamOwnership(teamId, req.user!.uid, req.user!.email, newOwnerEmail);
 
   try {
     const targetUser = findUserByEmail(newOwnerEmail);
