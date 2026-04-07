@@ -33,6 +33,86 @@ export function classifyEvent(ev: CalendarEvent): EisenhowerQuadrant {
   return classify(pseudo);
 }
 
+/** Local midnight for YYYY-MM-DD (avoids UTC shift from `new Date("2026-04-09")`). */
+export function parseCalendarDayFromIso(iso: string): Date {
+  const ymd = iso.split("T")[0] ?? "";
+  const parts = ymd.split("-").map((x) => parseInt(x, 10));
+  if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  return new Date(iso);
+}
+
+function startOfLocalDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** Next local midnight after `d` (exclusive end for “calendar day” intervals). */
+function endOfLocalDayExclusive(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+}
+
+/**
+ * Whether the event should appear on this calendar cell (all-day row or timed grid use the same geometry).
+ * All-day Google events: start date inclusive, end date exclusive (RFC 5545 / Calendar API).
+ */
+export function eventVisibleOnCalendarDay(ev: CalendarEvent, day: Date): boolean {
+  const dayStart = startOfLocalDay(day);
+  const dayEnd = endOfLocalDayExclusive(day);
+
+  if (ev.allDay) {
+    const rangeStart = parseCalendarDayFromIso(ev.start).getTime();
+    let rangeEndExclusive: number;
+    if (!ev.end || ev.end === "") {
+      rangeEndExclusive = rangeStart + 86400000;
+    } else if (!ev.end.includes("T")) {
+      rangeEndExclusive = parseCalendarDayFromIso(ev.end).getTime();
+    } else {
+      rangeEndExclusive = new Date(ev.end).getTime();
+    }
+    return rangeStart < dayEnd && rangeEndExclusive > dayStart;
+  }
+
+  const evStart = new Date(ev.start).getTime();
+  const evEnd = new Date(ev.end).getTime();
+  return evStart < dayEnd && evEnd > dayStart;
+}
+
+/**
+ * Position of a timed event within the visible hour grid for a single day column (clips multi-day / overnight).
+ */
+export function getEventPositionForDay(event: CalendarEvent, day: Date): { top: number; height: number } {
+  if (event.allDay) {
+    return { top: 0, height: 22 };
+  }
+  const dayStart = startOfLocalDay(day);
+  const dayEnd = endOfLocalDayExclusive(day);
+  const evStart = new Date(event.start).getTime();
+  const evEnd = new Date(event.end).getTime();
+  const clipStart = Math.max(evStart, dayStart);
+  const clipEnd = Math.min(evEnd, dayEnd);
+  if (clipEnd <= clipStart) {
+    return { top: 0, height: 22 };
+  }
+
+  const visibleStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), DAY_START_HOUR, 0, 0, 0).getTime();
+  const visibleEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate(), DAY_END_HOUR, 0, 0, 0).getTime();
+
+  const drawStart = Math.max(clipStart, visibleStart);
+  const drawEnd = Math.min(clipEnd, visibleEnd);
+  if (drawEnd <= drawStart) {
+    return { top: 0, height: 22 };
+  }
+
+  const topMinutes = Math.max(0, (drawStart - visibleStart) / 60000);
+  const durationMinutes = Math.max((drawEnd - drawStart) / 60000, 15);
+  return {
+    top: (topMinutes / 60) * HOUR_HEIGHT,
+    height: Math.max((durationMinutes / 60) * HOUR_HEIGHT, 22),
+  };
+}
+
+/** @deprecated Prefer getEventPositionForDay for week/day grids */
 export function getEventPosition(event: CalendarEvent) {
   const start = new Date(event.start);
   const end = new Date(event.end);

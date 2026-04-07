@@ -37,7 +37,8 @@ import {
   ACCOUNT_COLORS,
   QUADRANT_COLORS,
   classifyEvent,
-  getEventPosition,
+  getEventPositionForDay,
+  eventVisibleOnCalendarDay,
   isSameDay,
   formatHour,
   hexToTintBg,
@@ -244,10 +245,7 @@ export default function AgendaPage() {
 
   const eventsForDay = useCallback(
     (day: Date, allDay: boolean) =>
-      allEvents.filter((e) => {
-        const eStart = new Date(e.start);
-        return isSameDay(eStart, day) && e.allDay === allDay;
-      }),
+      allEvents.filter((e) => e.allDay === allDay && eventVisibleOnCalendarDay(e, day)),
     [allEvents],
   );
 
@@ -657,7 +655,7 @@ export default function AgendaPage() {
                           const acctColor = !isWroket ? getAccountColor(ev.accountEmail) : "";
                           return (
                             <div
-                              key={ev.id}
+                              key={`${ev.id}-${day.toDateString()}`}
                               className={`rounded px-1.5 py-0.5 text-[11px] truncate border-l-2 ${
                                 isWroket && qc
                                   ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
@@ -715,7 +713,7 @@ export default function AgendaPage() {
 
                         {/* Events */}
                         {dayEvents.map((ev) => {
-                          const pos = getEventPosition(ev);
+                          const pos = getEventPositionForDay(ev, day);
                           const isWroket = ev.source === "wroket";
                           const qc = isWroket ? QUADRANT_COLORS[classifyEvent(ev)] : null;
                           const acctColor = !isWroket ? getAccountColor(ev.accountEmail) : "";
@@ -724,7 +722,7 @@ export default function AgendaPage() {
                             : undefined;
                           return (
                             <div
-                              key={ev.id}
+                              key={`${ev.id}-${day.toDateString()}`}
                               className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm ${
                                 isWroket && qc
                                   ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
@@ -795,7 +793,7 @@ export default function AgendaPage() {
                 {monthDays.map((day, i) => {
                   const isCurrentMonth = day.getMonth() === currentMonth;
                   const isToday = isSameDay(day, today);
-                  const dayEvts = allEvents.filter((e) => isSameDay(new Date(e.start), day));
+                  const dayEvts = allEvents.filter((e) => eventVisibleOnCalendarDay(e, day));
                   return (
                     <div
                       key={i}
