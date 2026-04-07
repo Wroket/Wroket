@@ -600,6 +600,7 @@ const translations = {
   "notif.read": { fr: "Lues", en: "Read" },
   "notif.all": { fr: "Toutes", en: "All" },
   "notif.viewAll": { fr: "Voir tout", en: "View all" },
+  "notif.open": { fr: "Ouvrir", en: "Open" },
   "notif.noUnread": { fr: "Aucune notification non lue", en: "No unread notifications" },
   "notif.noRead": { fr: "Aucune notification lue", en: "No read notifications" },
   "notif.noNotifications": { fr: "Aucune notification pour le moment", en: "No notifications yet" },

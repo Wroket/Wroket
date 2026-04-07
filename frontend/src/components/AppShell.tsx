@@ -558,7 +558,7 @@ export default function AppShell({ children }: AppShellProps) {
                 )}
               </button>
               {notifOpen && (
-                <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50 max-h-[400px] flex flex-col">
+                <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),26rem)] sm:w-[26rem] bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50 max-h-[min(70vh,32rem)] flex flex-col">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-slate-800">
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("notif.title")}</h3>
                     {unreadCount > 0 && (
@@ -578,15 +578,42 @@ export default function AppShell({ children }: AppShellProps) {
                       unreadNotifications.slice(0, 20).map((notif) => (
                         <div
                           key={notif.id}
-                          className="w-full text-left px-4 py-3 border-b border-zinc-50 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-950/20"
+                          className="w-full text-left px-3 py-2.5 border-b border-zinc-50 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-950/20"
                         >
-                          <div className="flex items-start gap-2">
-                            <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-blue-500" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{notif.message}</p>
-                              <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{timeAgo(notif.createdAt, t)}</p>
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-2 h-2 rounded-full mt-2 shrink-0 bg-blue-500" aria-hidden />
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                              <p className="text-sm text-zinc-800 dark:text-slate-200 leading-snug break-words line-clamp-5">
+                                {notif.message}
+                              </p>
+                              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                <span className="text-[10px] text-zinc-400 dark:text-slate-500 tabular-nums">
+                                  {timeAgo(notif.createdAt, t)}
+                                </span>
+                                {notif.type !== "team_invite" && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await handleMarkRead(notif.id);
+                                      setNotifOpen(false);
+                                      if (
+                                        notif.type === "task_assigned" ||
+                                        notif.type === "task_completed" ||
+                                        notif.type === "task_cancelled" ||
+                                        notif.type === "task_declined" ||
+                                        notif.type === "task_accepted"
+                                      ) {
+                                        window.location.href = "/todos";
+                                      }
+                                    }}
+                                    className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+                                  >
+                                    {t("notif.open")}
+                                  </button>
+                                )}
+                              </div>
                               {notif.type === "team_invite" && notif.data?.inviterEmail && (
-                                <div className="flex gap-2 mt-2">
+                                <div className="flex flex-wrap gap-2 pt-0.5">
                                   <button
                                     type="button"
                                     onClick={async (e) => {
@@ -616,27 +643,6 @@ export default function AppShell({ children }: AppShellProps) {
                                     {t("notif.decline")}
                                   </button>
                                 </div>
-                              )}
-                              {notif.type !== "team_invite" && (
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    await handleMarkRead(notif.id);
-                                    setNotifOpen(false);
-                                    if (
-                                      notif.type === "task_assigned" ||
-                                      notif.type === "task_completed" ||
-                                      notif.type === "task_cancelled" ||
-                                      notif.type === "task_declined" ||
-                                      notif.type === "task_accepted"
-                                    ) {
-                                      window.location.href = "/todos";
-                                    }
-                                  }}
-                                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline mt-1"
-                                >
-                                  →
-                                </button>
                               )}
                             </div>
                           </div>
