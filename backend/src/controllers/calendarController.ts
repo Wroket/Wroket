@@ -2,7 +2,15 @@ import { Request, Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
-import { updateTodo, listTodos, findTodoForUser, listAssignedToMe, type RecurrenceFrequency, type Todo } from "../services/todoService";
+import {
+  updateTodo,
+  listTodos,
+  findTodoForUser,
+  listAssignedToMe,
+  todoToClientJson,
+  type RecurrenceFrequency,
+  type Todo,
+} from "../services/todoService";
 import { findPhaseById } from "../services/projectService";
 import {
   findUserByUid,
@@ -259,7 +267,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     scheduledSlot: { start, end, calendarEventId },
   });
 
-  res.status(200).json(updated);
+  res.status(200).json(todoToClientJson(updated));
 }
 
 export async function clearSlot(req: AuthenticatedRequest, res: Response) {
@@ -277,7 +285,7 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const updated = updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: null,
   });
-  res.status(200).json(updated);
+  res.status(200).json(todoToClientJson(updated));
 }
 
 export async function googleAuthUrl(req: AuthenticatedRequest, res: Response) {

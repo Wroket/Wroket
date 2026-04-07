@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
+import { registerCryptoUserLookup } from "./cryptoUserBridge";
 import { ensureUserWrappedDek } from "./userDekService";
 
 export type EffortMinutes = { light: number; medium: number; heavy: number };
@@ -101,6 +102,8 @@ interface StoredSession {
 
 const usersByUid = new Map<string, StoredUser>();
 const sessionsByToken = new Map<string, StoredSession>();
+
+registerCryptoUserLookup((uid) => usersByUid.get(uid));
 
 function persistUsers(): void {
   const obj: Record<string, StoredUser> = {};

@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "./authController";
 import {
   createTodo,
   deleteTodo,
+  todoToClientJson,
   listTodos,
   listAssignedToMe,
   listArchivedTodos,
@@ -70,7 +71,11 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     recurrence,
     tags,
   });
-  logActivity(req.user!.uid, req.user!.email, "create", "todo", todo.id, { todoId: todo.id });
+  try {
+    logActivity(req.user!.uid, req.user!.email ?? "", "create", "todo", todo.id, { todoId: todo.id });
+  } catch (err) {
+    console.warn("[todo.create] activity log failed:", err);
+  }
 
   try {
     if (todo.assignedTo && todo.assignedTo !== req.user!.uid) {
@@ -86,7 +91,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     console.warn("[todo.create] notification failed:", err);
   }
 
-  res.status(201).json(todo);
+  res.status(201).json(todoToClientJson(todo));
 }
 
 export async function update(req: AuthenticatedRequest, res: Response) {
@@ -220,8 +225,12 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     console.warn("[todo.update] notification failed:", err);
   }
 
-  logActivity(req.user!.uid, req.user!.email, "update", "todo", todo.id, { todoId: todo.id });
-  res.status(200).json(todo);
+  try {
+    logActivity(req.user!.uid, req.user!.email ?? "", "update", "todo", todo.id, { todoId: todo.id });
+  } catch (err) {
+    console.warn("[todo.update] activity log failed:", err);
+  }
+  res.status(200).json(todoToClientJson(todo));
 }
 
 export async function remove(req: AuthenticatedRequest, res: Response) {
@@ -234,8 +243,12 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
     });
   }
 
-  logActivity(req.user!.uid, req.user!.email, "delete", "todo", todo.id, { todoId: todo.id });
-  res.status(200).json(todo);
+  try {
+    logActivity(req.user!.uid, req.user!.email ?? "", "delete", "todo", todo.id, { todoId: todo.id });
+  } catch (err) {
+    console.warn("[todo.remove] activity log failed:", err);
+  }
+  res.status(200).json(todoToClientJson(todo));
 }
 
 // ── Comments ──

@@ -174,6 +174,34 @@ export function getTodoStoreOwnerId(todoId: string): string | undefined {
   return ownerIndex.get(todoId);
 }
 
+/** Plain DTO for JSON responses — avoids leaking internal fields and ensures serializable output. */
+export function todoToClientJson(todo: Todo): Todo {
+  return {
+    id: todo.id,
+    userId: todo.userId,
+    parentId: todo.parentId,
+    projectId: todo.projectId,
+    phaseId: todo.phaseId,
+    assignedTo: todo.assignedTo,
+    assignmentStatus: todo.assignmentStatus,
+    title: todo.title,
+    priority: todo.priority,
+    effort: todo.effort,
+    estimatedMinutes: todo.estimatedMinutes,
+    startDate: todo.startDate,
+    deadline: todo.deadline,
+    tags: [...todo.tags],
+    scheduledSlot: todo.scheduledSlot,
+    suggestedSlot: todo.suggestedSlot,
+    recurrence: todo.recurrence,
+    sortOrder: todo.sortOrder ?? null,
+    status: todo.status,
+    statusChangedAt: todo.statusChangedAt,
+    createdAt: todo.createdAt,
+    updatedAt: todo.updatedAt,
+  };
+}
+
 function todoToPersisted(todo: Todo, ownerUid: string): Todo {
   const { encV1: _stripEnc, ...withoutEnc } = todo;
   if (!isKekConfigured()) {
