@@ -328,7 +328,7 @@ export async function changePassword(req: Request, res: Response) {
 export async function myExport(req: Request, res: Response) {
   const user = (req as AuthenticatedRequest).user;
   if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
-  const data = exportUserData(user.uid);
+  const data = exportUserData(user.uid, { decryptedTaskContent: true });
   res.status(200).json(data);
 }
 

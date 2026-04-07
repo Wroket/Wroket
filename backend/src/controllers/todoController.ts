@@ -70,7 +70,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     recurrence,
     tags,
   });
-  logActivity(req.user!.uid, req.user!.email, "create", "todo", todo.id, { title: todo.title });
+  logActivity(req.user!.uid, req.user!.email, "create", "todo", todo.id, { todoId: todo.id });
 
   try {
     if (todo.assignedTo && todo.assignedTo !== req.user!.uid) {
@@ -220,7 +220,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     console.warn("[todo.update] notification failed:", err);
   }
 
-  logActivity(req.user!.uid, req.user!.email, "update", "todo", todo.id, { title: todo.title });
+  logActivity(req.user!.uid, req.user!.email, "update", "todo", todo.id, { todoId: todo.id });
   res.status(200).json(todo);
 }
 
@@ -234,7 +234,7 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
     });
   }
 
-  logActivity(req.user!.uid, req.user!.email, "delete", "todo", todo.id, { title: todo.title });
+  logActivity(req.user!.uid, req.user!.email, "delete", "todo", todo.id, { todoId: todo.id });
   res.status(200).json(todo);
 }
 

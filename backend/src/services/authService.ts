@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
+import { ensureUserWrappedDek } from "./userDekService";
 
 export type EffortMinutes = { light: number; medium: number; heavy: number };
 
@@ -72,6 +73,8 @@ interface StoredUser {
   email: string;
   firstName: string;
   lastName: string;
+  /** AES-256 DEK wrapped with CRYPTO_KEK_BASE64 — encrypts todo titles/tags and task comments. */
+  wrappedDekB64?: string;
   passwordSaltB64: string;
   passwordHashB64: string;
   effortMinutes?: EffortMinutes;
@@ -260,6 +263,7 @@ export function register(input: RegisterInput): AuthUser & { verifyToken: string
   };
   usersByUid.set(uid, stored);
   persistUsers();
+  ensureUserWrappedDek(uid);
 
   return { ...toAuthUser(stored), verifyToken };
 }
@@ -403,6 +407,8 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
   sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
   persistSessions();
 
+  ensureUserWrappedDek(uid);
+
   return { ...toAuthUser(user), sessionToken };
 }
 
@@ -541,6 +547,7 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
     };
     usersByUid.set(uid, user);
     persistUsers();
+    ensureUserWrappedDek(uid);
     console.log("[auth] Google SSO — new user created: %s (tz: %s)", email, tz);
   } else {
     let changed = false;
@@ -557,6 +564,8 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
     }
     if (changed) persistUsers();
   }
+
+  ensureUserWrappedDek(uid);
 
   for (const [tok, sess] of sessionsByToken) {
     if (sess.uid === uid) sessionsByToken.delete(tok);

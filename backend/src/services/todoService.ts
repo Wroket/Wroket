@@ -1,7 +1,13 @@
 import crypto from "crypto";
 
+import { isKekConfigured } from "../crypto/kekService";
 import { getStore, scheduleTodoShardPersist, todoShardIndex } from "../persistence";
 import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
+import {
+  decryptTodoTitleTags,
+  encryptTodoTitleTags,
+  ensureUserWrappedDek,
+} from "./userDekService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
@@ -53,6 +59,8 @@ export interface Todo {
   statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
+  /** Present only in persisted store when CRYPTO_KEK_BASE64 is set (title+tags ciphertext). */
+  encV1?: string;
 }
 
 export interface CreateTodoInput {
@@ -162,6 +170,25 @@ const todosByUser = new Map<string, Map<string, Todo>>();
 /** Reverse index: todoId → ownerUserId for O(1) cross-user lookup */
 const ownerIndex = new Map<string, string>();
 
+export function getTodoStoreOwnerId(todoId: string): string | undefined {
+  return ownerIndex.get(todoId);
+}
+
+function todoToPersisted(todo: Todo, ownerUid: string): Todo {
+  const { encV1: _stripEnc, ...withoutEnc } = todo;
+  if (!isKekConfigured()) {
+    return { ...withoutEnc };
+  }
+  ensureUserWrappedDek(ownerUid);
+  const encV1 = encryptTodoTitleTags(ownerUid, todo.title, todo.tags);
+  return {
+    ...withoutEnc,
+    title: "",
+    tags: [],
+    encV1,
+  };
+}
+
 /**
  * @param ownerUidsForShards Firestore todo owner user ids whose shard doc must be rewritten.
  *   Omit or pass none to mark all shards (cross-user updates: phase cleanup, tombstone purge).
@@ -170,7 +197,7 @@ function persistTodos(...ownerUidsForShards: string[]): void {
   const obj: Record<string, Record<string, Todo>> = {};
   todosByUser.forEach((todos, userId) => {
     obj[userId] = {};
-    todos.forEach((todo, id) => { obj[userId][id] = todo; });
+    todos.forEach((todo, id) => { obj[userId][id] = todoToPersisted(todo, userId); });
   });
   const store = getStore();
   store.todos = obj;
@@ -189,6 +216,22 @@ function persistTodos(...ownerUidsForShards: string[]): void {
     for (const [userId, todos] of Object.entries(store.todos)) {
       const map = new Map<string, Todo>();
       for (const [id, todo] of Object.entries(todos as Record<string, Todo>)) {
+        const raw = todo as unknown as Record<string, unknown>;
+        const enc = raw.encV1;
+        if (typeof enc === "string" && enc.length > 0 && isKekConfigured()) {
+          try {
+            ensureUserWrappedDek(userId);
+            const plain = decryptTodoTitleTags(userId, enc);
+            todo.title = plain.title;
+            todo.tags = plain.tags;
+          } catch (err) {
+            console.error("[todos] decrypt title/tags failed uid=%s id=%s: %s", userId, id, err);
+            todo.title = "[chiffrement indisponible]";
+            todo.tags = [];
+          }
+          delete raw.encV1;
+          delete todo.encV1;
+        }
         if (todo.assignmentStatus === undefined) {
           todo.assignmentStatus = todo.assignedTo ? "pending" : null;
         }

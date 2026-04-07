@@ -1,7 +1,10 @@
 import crypto from "crypto";
 
+import { isKekConfigured } from "../crypto/kekService";
 import { getStore, scheduleSave } from "../persistence";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import { getTodoStoreOwnerId } from "./todoService";
+import { decryptCommentText, encryptCommentText, ensureUserWrappedDek } from "./userDekService";
 
 export interface Comment {
   id: string;
@@ -12,13 +15,58 @@ export interface Comment {
   createdAt: string;
   editedAt?: string;
   reactions?: Record<string, string[]>;
+  /** Ciphertext for text when CRYPTO_KEK_BASE64 is set (task owner DEK). */
+  encV1?: string;
 }
 
 const commentsByTodo = new Map<string, Comment[]>();
 
+function decodeCommentInMemory(todoId: string, c: Comment): Comment {
+  const enc = c.encV1;
+  if (typeof enc === "string" && enc.length > 0 && isKekConfigured()) {
+    const owner = getTodoStoreOwnerId(todoId);
+    if (!owner) {
+      const { encV1: _e, ...rest } = c;
+      return { ...rest, text: "[commentaire illisible]" };
+    }
+    try {
+      ensureUserWrappedDek(owner);
+      const text = decryptCommentText(owner, enc);
+      const { encV1: _e, ...rest } = c;
+      return { ...rest, text };
+    } catch (err) {
+      console.error("[comments] decrypt failed todoId=%s: %s", todoId, err);
+      const { encV1: _e, ...rest } = c;
+      return { ...rest, text: "[chiffrement indisponible]" };
+    }
+  }
+  const { encV1: _e, ...rest } = c;
+  return rest as Comment;
+}
+
+function commentToPersisted(c: Comment, todoId: string): Comment {
+  const { encV1: _strip, ...withoutEnc } = c;
+  if (!isKekConfigured()) {
+    return { ...withoutEnc };
+  }
+  const owner = getTodoStoreOwnerId(todoId);
+  if (!owner) {
+    return { ...withoutEnc };
+  }
+  ensureUserWrappedDek(owner);
+  const encV1 = encryptCommentText(owner, c.text);
+  return {
+    ...withoutEnc,
+    text: "",
+    encV1,
+  };
+}
+
 function persist(): void {
   const obj: Record<string, Comment[]> = {};
-  commentsByTodo.forEach((list, todoId) => { obj[todoId] = list; });
+  commentsByTodo.forEach((list, todoId) => {
+    obj[todoId] = list.map((c) => commentToPersisted(c, todoId));
+  });
   const store = getStore();
   store.comments = obj;
   scheduleSave("comments");
@@ -28,11 +76,23 @@ function persist(): void {
   const store = getStore();
   if (store.comments) {
     for (const [todoId, list] of Object.entries(store.comments)) {
-      commentsByTodo.set(todoId, list as Comment[]);
+      const decoded = (list as Comment[]).map((c) => decodeCommentInMemory(todoId, c));
+      commentsByTodo.set(todoId, decoded);
     }
     console.log("[comments] chargés pour %d tâche(s)", commentsByTodo.size);
   }
 })();
+
+/** Comments authored by user (decrypted in-memory), for self-service GDPR export. */
+export function exportCommentsByAuthor(userId: string): Comment[] {
+  const out: Comment[] = [];
+  commentsByTodo.forEach((list) => {
+    for (const c of list) {
+      if (c.userId === userId) out.push({ ...c });
+    }
+  });
+  return out;
+}
 
 export function listComments(todoId: string): Comment[] {
   return commentsByTodo.get(todoId) ?? [];

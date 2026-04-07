@@ -37,6 +37,15 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 async function main(): Promise<void> {
   await initStore();
 
+  const { isKekConfigured } = await import("./crypto/kekService");
+  if (!isKekConfigured()) {
+    console.warn(
+      "[server] CRYPTO_KEK_BASE64 not set — todo titles/tags and task comments are stored in plaintext at rest",
+    );
+  } else {
+    console.log("[server] Per-user content encryption (DEK wrapped by KEK) is enabled");
+  }
+
   const { default: app } = await import("./app");
   const { startReminderJob } = await import("./services/reminderService");
 
