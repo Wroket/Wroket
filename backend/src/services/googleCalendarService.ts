@@ -301,6 +301,45 @@ export async function createGoogleCalendarEvent(
 }
 
 /**
+ * Update an existing event (PATCH): same event id, new time/title.
+ * Returns true if Google accepted the update.
+ */
+export async function patchGoogleCalendarEvent(
+  uid: string,
+  eventId: string,
+  summary: string,
+  start: string,
+  end: string,
+  timezone?: string,
+): Promise<boolean> {
+  const accessToken = await getValidAccessToken(uid);
+  if (!accessToken) return false;
+
+  const tz = timezone || "UTC";
+
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary,
+          start: { dateTime: start, timeZone: tz },
+          end: { dateTime: end, timeZone: tz },
+        }),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Delete an event from Google Calendar.
  */
 export async function deleteGoogleCalendarEvent(

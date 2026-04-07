@@ -33,6 +33,7 @@ import {
   listGoogleCalendarListForAccount,
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent,
+  patchGoogleCalendarEvent,
 } from "../services/googleCalendarService";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 
@@ -260,7 +261,25 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   if (tokens) {
     const user = findUserByUid(uid);
     const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
-    calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
+    const existingEventId = todo.scheduledSlot?.calendarEventId ?? null;
+    if (existingEventId) {
+      const patched = await patchGoogleCalendarEvent(
+        uid,
+        existingEventId,
+        todo.title,
+        start,
+        end,
+        tz,
+      );
+      if (patched) {
+        calendarEventId = existingEventId;
+      } else {
+        await deleteGoogleCalendarEvent(uid, existingEventId);
+        calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
+      }
+    } else {
+      calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
+    }
   }
 
   const updated = updateTodo(uid, req.user!.email ?? "", todoId, {
