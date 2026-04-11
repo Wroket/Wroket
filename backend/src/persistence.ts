@@ -86,6 +86,37 @@ function mergeTodoUserMaps(target: TodoBlob, chunk: unknown): void {
   }
 }
 
+/**
+ * Sharded `store/todos_*` is loaded first; legacy `store/todos` only fills users missing from shards.
+ * If the same user exists in both, shard rows win entirely — so empty titles on shards could hide
+ * good titles still present on legacy. Copy title (and tags if shard empty) from legacy when the
+ * shard row has no usable title.
+ */
+function mergeLegacyTodoFieldsWhereShardEmpty(merged: TodoBlob, legacy: TodoBlob): void {
+  for (const [userId, legacyUserTodos] of Object.entries(legacy)) {
+    const mergedUser = merged[userId];
+    if (!mergedUser) continue;
+    for (const [todoId, legacyRow] of Object.entries(legacyUserTodos)) {
+      const mergedRow = mergedUser[todoId];
+      if (!legacyRow || typeof legacyRow !== "object" || !mergedRow || typeof mergedRow !== "object") continue;
+      const legacyRec = legacyRow as Record<string, unknown>;
+      const mergedRec = mergedRow as Record<string, unknown>;
+      const mergedTitle = typeof mergedRec.title === "string" ? mergedRec.title.trim() : "";
+      const legacyTitle = typeof legacyRec.title === "string" ? legacyRec.title.trim() : "";
+      if (mergedTitle.length === 0 && legacyTitle.length > 0) {
+        mergedRec.title = legacyTitle;
+      }
+      const mergedTags = mergedRec.tags;
+      const legacyTags = legacyRec.tags;
+      const mergedTagsEmpty = !Array.isArray(mergedTags) || mergedTags.length === 0;
+      const legacyTagsOk = Array.isArray(legacyTags) && legacyTags.length > 0;
+      if (mergedTagsEmpty && legacyTagsOk) {
+        mergedRec.tags = legacyTags.filter((t): t is string => typeof t === "string");
+      }
+    }
+  }
+}
+
 /** True if any shard document has at least one user bucket with data. */
 function shardsHaveAnyUserData(shardSnaps: Array<{ exists: boolean; data: () => FirebaseFirestore.DocumentData | undefined }>): boolean {
   for (const snap of shardSnaps) {
@@ -144,6 +175,7 @@ async function loadFromFirestore(): Promise<StoreData> {
         mergedTodos[userId] = todos;
       }
     }
+    mergeLegacyTodoFieldsWhereShardEmpty(mergedTodos, legacyData);
   }
 
   if (Object.keys(mergedTodos).length > 0) {
