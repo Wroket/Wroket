@@ -40,3 +40,12 @@ Ton objectif est de produire un code performant, modulaire et à coût minimal.
 - Avant de modifier plusieurs fichiers, résumer le plan d'action
 - Si une bibliothèque externe est nécessaire, demander confirmation
 - Toujours se référer à `.cursor/rules/architecture.mdc` pour les questions d'infra
+
+## Git — commits, push et PR
+- **Interdit** dans les messages de commit, les descriptions de PR/MR, les tags Git, ou tout trailer (`Co-authored-by`, etc.) : mentionner **Cursor**, **l’agent**, l’**IDE** ou tout outil d’assistance. Rédiger comme un développeur humain du projet (résumé technique factuel, style Conventional Commits si déjà utilisé).
+- Un `git push` ne porte pas de message ; la même règle s’applique à tout texte associé au dépôt distant (titre/corps de PR, notes de release générées en même temps qu’un push).
+
+## Données utilisateur (impératif)
+- **Git ne contient pas les données métier** (tâches, utilisateurs) : elles sont dans **Firestore** en prod ou dans `backend/data/` en local **hors dépôt** (voir `.gitignore`).
+- **Un commit ou un push ne doit jamais servir de prétexte** pour supprimer ou réinitialiser des données : toute évolution risquée pour le store suit `.cursor/rules/data-safety.mdc`.
+- Ne pas ajouter de code d’**init** qui vide Firestore / le store sans migration explicite et backup.

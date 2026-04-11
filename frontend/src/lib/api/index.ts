@@ -40,6 +40,10 @@ export {
   deleteTodo,
   reorderTodos,
   exportTasksCsv,
+  exportTasks,
+  importTasks,
+  previewTaskImport,
+  confirmTaskImport,
   getTaskActivity,
   getComments,
   getCommentCounts,
@@ -64,6 +68,7 @@ export type {
   UpdateTodoPayload,
   Comment,
   Attachment,
+  TaskImportPreviewResult,
 } from "./todos";
 
 export {
@@ -114,8 +119,11 @@ export {
   createPhase,
   updatePhaseApi,
   deletePhaseApi,
+  convertPhaseToSubproject,
   uploadCsvPreview,
   confirmCsvImport,
+  exportProjectData,
+  importProjectTasksFile,
 } from "./projects";
 export type {
   ProjectStatus,
@@ -128,6 +136,7 @@ export type {
   UpdateProjectPayload,
   CreatePhasePayload,
   UpdatePhasePayload,
+  ConvertPhaseToSubprojectPayload,
   ImportParsedTask,
   ImportError,
   ImportPreview,
@@ -157,6 +166,8 @@ export {
   deleteNoteApi,
   syncNotesApi,
   exportNotesMarkdown,
+  exportNotes,
+  importNotesFile,
 } from "./notes";
 export type { Note } from "./notes";
 

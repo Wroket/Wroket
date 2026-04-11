@@ -71,13 +71,10 @@ export async function parseJsonOrThrow(res: Response): Promise<unknown> {
 }
 
 export function extractApiMessage(body: unknown, fallback: string): string {
-  if (
-    typeof body === "object" &&
-    body !== null &&
-    "message" in body &&
-    typeof (body as Record<string, unknown>).message === "string"
-  ) {
-    return (body as { message: string }).message;
+  if (typeof body === "object" && body !== null) {
+    const o = body as Record<string, unknown>;
+    if (typeof o.message === "string") return o.message;
+    if (typeof o.error === "string") return o.error;
   }
   return fallback;
 }

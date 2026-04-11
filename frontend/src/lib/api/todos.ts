@@ -138,15 +138,69 @@ export async function reorderTodos(todoIds: string[]): Promise<void> {
 }
 
 export async function exportTasksCsv(): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/todos/export-csv`, { credentials: "include" });
+  return exportTasks("csv");
+}
+
+export async function exportTasks(
+  format: "csv" | "json",
+  options?: { includeArchived?: boolean },
+): Promise<void> {
+  const params = new URLSearchParams({ format });
+  if (options?.includeArchived) {
+    params.set("include", "archived");
+  }
+  const res = await fetch(`${API_BASE_URL}/todos/export?${params.toString()}`, { credentials: "include" });
   if (!res.ok) throw new Error("Export failed");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "wroket-tasks.csv";
+  const base = options?.includeArchived ? "wroket-tasks-all" : "wroket-tasks";
+  a.download = format === "json" ? `${base}.json` : `${base}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export interface TaskImportPreviewResult {
+  total: number;
+  errors: Array<{ row: number; message: string }>;
+  validTasks: Record<string, unknown>[];
+}
+
+export async function previewTaskImport(file: File): Promise<TaskImportPreviewResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/todos/import/preview`, { method: "POST", body: fd, credentials: "include" });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Preview failed"));
+  }
+  return res.json() as Promise<TaskImportPreviewResult>;
+}
+
+export async function confirmTaskImport(
+  tasks: Record<string, unknown>[],
+): Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }> {
+  const res = await fetch(`${API_BASE_URL}/todos/import/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tasks }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Import failed"));
+  }
+  return res.json();
+}
+
+/** One-shot import (no preview). Prefer preview + confirm in UI. */
+export async function importTasks(file: File): Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/todos/import`, { method: "POST", body: fd, credentials: "include" });
+  if (!res.ok) throw new Error("Import failed");
+  return res.json();
 }
 
 export async function getTaskActivity(todoId: string): Promise<ActivityLogEntry[]> {

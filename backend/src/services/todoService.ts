@@ -20,6 +20,8 @@ export interface ScheduledSlot {
   start: string; // ISO datetime
   end: string;   // ISO datetime
   calendarEventId: string | null;
+  /** Set when booking: Google event lives on this user’s primary calendar (owner or assignee). */
+  bookedByUid?: string;
 }
 
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
@@ -77,6 +79,12 @@ export interface CreateTodoInput {
   assignedTo?: string | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
+  /** Import / API: allow historical deadlines (round-trip export). */
+  allowPastDeadline?: boolean;
+  status?: TodoStatus;
+  assignmentStatus?: AssignmentStatus | null;
+  scheduledSlot?: ScheduledSlot | null;
+  suggestedSlot?: SuggestedSlot | null;
 }
 
 export interface UpdateTodoInput {
@@ -102,7 +110,27 @@ export interface UpdateTodoInput {
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
 const VALID_EFFORTS: Effort[] = ["light", "medium", "heavy"];
 const VALID_STATUSES: TodoStatus[] = ["active", "completed", "cancelled", "deleted"];
+const VALID_ASSIGNMENT_STATUSES: AssignmentStatus[] = ["pending", "accepted", "declined"];
 const VALID_FREQUENCIES: RecurrenceFrequency[] = ["daily", "weekly", "monthly"];
+
+function normalizeScheduledSlotForCreate(slot: ScheduledSlot | null | undefined): ScheduledSlot | null {
+  if (slot == null) return null;
+  if (typeof slot.start !== "string" || isNaN(new Date(slot.start).getTime())) {
+    throw new ValidationError("scheduledSlot.start doit être une date ISO valide");
+  }
+  if (typeof slot.end !== "string" || isNaN(new Date(slot.end).getTime())) {
+    throw new ValidationError("scheduledSlot.end doit être une date ISO valide");
+  }
+  if (slot.calendarEventId !== undefined && slot.calendarEventId !== null && typeof slot.calendarEventId !== "string") {
+    throw new ValidationError("scheduledSlot.calendarEventId doit être une chaîne ou null");
+  }
+  return {
+    start: slot.start,
+    end: slot.end,
+    calendarEventId:
+      slot.calendarEventId === undefined || slot.calendarEventId === null ? null : slot.calendarEventId,
+  };
+}
 
 function normalizeUserEmail(userEmail: string): string {
   return userEmail.trim().toLowerCase();
@@ -191,7 +219,13 @@ export function todoToClientJson(todo: Todo): Todo {
     startDate: todo.startDate,
     deadline: todo.deadline,
     tags: [...todo.tags],
-    scheduledSlot: todo.scheduledSlot,
+    scheduledSlot: todo.scheduledSlot
+      ? {
+          start: todo.scheduledSlot.start,
+          end: todo.scheduledSlot.end,
+          calendarEventId: todo.scheduledSlot.calendarEventId,
+        }
+      : null,
     suggestedSlot: todo.suggestedSlot,
     recurrence: todo.recurrence,
     sortOrder: todo.sortOrder ?? null,
@@ -381,10 +415,50 @@ export function listProjectTodos(projectId: string): Todo[] {
   return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-/**
- * Clears phaseId on todos that still reference a removed phase (any owner).
- * Keeps data consistent if a phase was deleted without the client-side move step.
- */
+/** Internal: bulk project/phase/parent updates (phase→sub-project conversion). */
+export interface TodoPhaseConversionPatch {
+  todoId: string;
+  projectId: string | null;
+  phaseId: string | null;
+  parentId: string | null;
+}
+
+export function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConversionPatch[]): void {
+  const now = new Date().toISOString();
+  const ownersToPersist = new Set<string>();
+  for (const p of patches) {
+    const owner = ownerIndex.get(p.todoId);
+    if (!owner) continue;
+    const todos = todosByUser.get(owner);
+    if (!todos) continue;
+    const todo = todos.get(p.todoId);
+    if (!todo) continue;
+    todo.projectId = p.projectId;
+    todo.phaseId = p.phaseId;
+    todo.parentId = p.parentId;
+    todo.updatedAt = now;
+    todos.set(p.todoId, todo);
+    ownersToPersist.add(owner);
+  }
+  for (const o of ownersToPersist) persistTodos(o);
+}
+
+/** Permanently remove todos from the store (used when root tasks become phases). */
+export function hardRemoveTodosByIds(todoIds: string[]): void {
+  const owners = new Set<string>();
+  for (const id of todoIds) {
+    const owner = ownerIndex.get(id);
+    if (!owner) continue;
+    const todos = todosByUser.get(owner);
+    if (!todos?.has(id)) continue;
+    todos.delete(id);
+    ownerIndex.delete(id);
+    owners.add(owner);
+  }
+  for (const o of owners) persistTodos(o);
+}
+
+/** Clears phaseId on todos that still reference a removed phase (any owner). */
 export function clearProjectPhaseReferences(projectId: string, phaseId: string): number {
   let updated = 0;
   const now = new Date().toISOString();
@@ -495,9 +569,11 @@ export function createTodo(userId: string, userEmail: string, input: CreateTodoI
   if (input.deadline) {
     const d = new Date(input.deadline);
     if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (d < today) throw new ValidationError("L'échéance ne peut pas être antérieure à aujourd'hui");
+    if (!input.allowPastDeadline) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (d < today) throw new ValidationError("L'échéance ne peut pas être antérieure à aujourd'hui");
+    }
   }
 
   let parentTodo: Todo | null = null;
@@ -559,6 +635,35 @@ export function createTodo(userId: string, userEmail: string, input: CreateTodoI
     validateRecurrence(input.recurrence);
   }
 
+  const normalizedSlot: ScheduledSlot | null =
+    input.scheduledSlot === undefined ? null : normalizeScheduledSlotForCreate(input.scheduledSlot);
+
+  let normalizedSuggested: SuggestedSlot | null = null;
+  if (input.suggestedSlot !== undefined && input.suggestedSlot !== null) {
+    const s = input.suggestedSlot;
+    if (typeof s.start !== "string" || isNaN(new Date(s.start).getTime())) {
+      throw new ValidationError("suggestedSlot.start invalide");
+    }
+    if (typeof s.end !== "string" || isNaN(new Date(s.end).getTime())) {
+      throw new ValidationError("suggestedSlot.end invalide");
+    }
+    normalizedSuggested = { start: s.start, end: s.end };
+  }
+
+  const status: TodoStatus =
+    input.status && VALID_STATUSES.includes(input.status) ? input.status : "active";
+
+  let assignmentStatus: AssignmentStatus | null = null;
+  if (input.assignedTo) {
+    if (input.assignmentStatus && VALID_ASSIGNMENT_STATUSES.includes(input.assignmentStatus)) {
+      assignmentStatus = input.assignmentStatus;
+    } else {
+      assignmentStatus = "pending";
+    }
+  } else if (input.assignmentStatus !== undefined && input.assignmentStatus !== null) {
+    assignmentStatus = VALID_ASSIGNMENT_STATUSES.includes(input.assignmentStatus) ? input.assignmentStatus : null;
+  }
+
   const now = new Date().toISOString();
   const todo: Todo = {
     id: crypto.randomUUID(),
@@ -567,7 +672,7 @@ export function createTodo(userId: string, userEmail: string, input: CreateTodoI
     projectId: resolvedProjectId,
     phaseId: resolvedPhaseId,
     assignedTo: input.assignedTo ?? null,
-    assignmentStatus: input.assignedTo ? "pending" : null,
+    assignmentStatus,
     title: input.title.trim(),
     priority: input.priority,
     effort: input.effort ?? "medium",
@@ -575,11 +680,11 @@ export function createTodo(userId: string, userEmail: string, input: CreateTodoI
     startDate: input.startDate ?? null,
     deadline: input.deadline ?? null,
     tags: (input.tags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10),
-    scheduledSlot: null,
-    suggestedSlot: null,
+    scheduledSlot: normalizedSlot,
+    suggestedSlot: normalizedSuggested,
     recurrence: input.recurrence ?? null,
     sortOrder: typeof input.sortOrder === "number" ? input.sortOrder : null,
-    status: "active",
+    status,
     statusChangedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -627,6 +732,7 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
 
   if (input.title !== undefined) {
     if (input.title.trim().length === 0) throw new ValidationError("Le titre est requis");
+    if (input.title.trim().length > 500) throw new ValidationError("Le titre ne doit pas dépasser 500 caractères");
     todo.title = input.title.trim();
   }
   if (input.priority !== undefined) {
@@ -642,6 +748,11 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
     todo.effort = input.effort;
   }
   if (input.estimatedMinutes !== undefined) {
+    if (input.estimatedMinutes !== null) {
+      if (typeof input.estimatedMinutes !== "number" || !Number.isFinite(input.estimatedMinutes) || input.estimatedMinutes < 0 || input.estimatedMinutes > 10000) {
+        throw new ValidationError("estimatedMinutes doit être null ou un nombre entre 0 et 10 000");
+      }
+    }
     todo.estimatedMinutes = input.estimatedMinutes;
   }
   if (input.deadline !== undefined) {
@@ -741,8 +852,37 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
     todo.assignmentStatus = input.assignmentStatus;
   }
   if (input.scheduledSlot !== undefined) {
-    todo.scheduledSlot = input.scheduledSlot;
-    if (input.scheduledSlot !== null) {
+    if (input.scheduledSlot === null) {
+      todo.scheduledSlot = null;
+    } else {
+      const slot = input.scheduledSlot;
+      if (typeof slot.start !== "string" || isNaN(new Date(slot.start).getTime())) {
+        throw new ValidationError("scheduledSlot.start doit être une date ISO valide");
+      }
+      if (typeof slot.end !== "string" || isNaN(new Date(slot.end).getTime())) {
+        throw new ValidationError("scheduledSlot.end doit être une date ISO valide");
+      }
+      if (slot.calendarEventId !== undefined && slot.calendarEventId !== null && typeof slot.calendarEventId !== "string") {
+        throw new ValidationError("scheduledSlot.calendarEventId doit être une chaîne ou undefined");
+      }
+      const normalized: ScheduledSlot = {
+        start: slot.start,
+        end: slot.end,
+        calendarEventId:
+          slot.calendarEventId === undefined || slot.calendarEventId === null
+            ? null
+            : slot.calendarEventId,
+      };
+      const prev = todo.scheduledSlot;
+      if (
+        prev?.bookedByUid &&
+        prev.start === normalized.start &&
+        prev.end === normalized.end &&
+        (prev.calendarEventId ?? null) === (normalized.calendarEventId ?? null)
+      ) {
+        normalized.bookedByUid = prev.bookedByUid;
+      }
+      todo.scheduledSlot = normalized;
       todo.suggestedSlot = null;
     }
   }

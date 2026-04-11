@@ -26,6 +26,13 @@ export interface WebhookConfig {
   createdAt: string;
 }
 
+const VALID_PLATFORMS = new Set<WebhookPlatform>(["slack", "discord", "teams", "custom"]);
+
+function normalizePlatform(p: unknown): WebhookPlatform {
+  if (typeof p === "string" && VALID_PLATFORMS.has(p as WebhookPlatform)) return p as WebhookPlatform;
+  return "custom";
+}
+
 const VALID_EVENTS: WebhookEvent[] = [
   "task_assigned",
   "task_completed",
@@ -82,7 +89,7 @@ export async function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id"
     if (existing) {
       existing.label = input.label?.trim() || existing.label;
       existing.url = input.url?.trim() || existing.url;
-      existing.platform = input.platform || existing.platform;
+      existing.platform = normalizePlatform(input.platform ?? existing.platform);
       existing.events = events;
       existing.enabled = input.enabled ?? existing.enabled;
       persist();
@@ -94,7 +101,7 @@ export async function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id"
     id: crypto.randomUUID(),
     label: input.label?.trim() || "Webhook",
     url: input.url.trim(),
-    platform: input.platform || "custom",
+    platform: normalizePlatform(input.platform),
     events,
     enabled: input.enabled ?? true,
     createdAt: new Date().toISOString(),
@@ -301,7 +308,8 @@ export function dispatchWebhooks(
 /**
  * Send a test payload to a webhook URL. Returns true if 2xx.
  */
-export async function testWebhook(url: string, platform: WebhookPlatform): Promise<boolean> {
+export async function testWebhook(url: string, platform: WebhookPlatform | string): Promise<boolean> {
+  const p = normalizePlatform(platform);
   const payload: WebhookPayload = {
     event: "task_assigned",
     title: "Test Wroket",
@@ -311,7 +319,7 @@ export async function testWebhook(url: string, platform: WebhookPlatform): Promi
 
   try {
     await validateWebhookUrl(url);
-    const body = formatPayload(platform, payload);
+    const body = formatPayload(p, payload);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

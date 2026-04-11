@@ -116,15 +116,18 @@ export async function updateProject(id: string, payload: UpdateProjectPayload): 
     credentials: "include",
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.error ?? "Erreur lors de la mise à jour du projet");
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de la mise à jour du projet"));
   }
   return (await res.json()) as Project;
 }
 
 export async function deleteProjectApi(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/projects/${id}`, { method: "DELETE", credentials: "include" });
-  if (!res.ok) throw new Error("Erreur lors de la suppression du projet");
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de la suppression du projet"));
+  }
 }
 
 export async function reorderProjects(projectIds: string[]): Promise<void> {
@@ -134,7 +137,10 @@ export async function reorderProjects(projectIds: string[]): Promise<void> {
     body: JSON.stringify({ projectIds }),
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Erreur de réordonnancement");
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur de réordonnancement"));
+  }
 }
 
 export async function getProjectTodos(projectId: string): Promise<Todo[]> {
@@ -187,7 +193,10 @@ export async function updatePhaseApi(projectId: string, phaseId: string, payload
     body: JSON.stringify(payload),
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Erreur lors de la mise à jour de la phase");
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de la mise à jour de la phase"));
+  }
   return (await res.json()) as ProjectPhase;
 }
 
@@ -196,7 +205,34 @@ export async function deletePhaseApi(projectId: string, phaseId: string): Promis
     method: "DELETE",
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Erreur lors de la suppression de la phase");
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur lors de la suppression de la phase"));
+  }
+}
+
+export interface ConvertPhaseToSubprojectPayload {
+  name?: string;
+  taskMode: "flat" | "tasks_as_phases";
+  subtaskMode: "in_phase" | "unphased";
+}
+
+export async function convertPhaseToSubproject(
+  projectId: string,
+  phaseId: string,
+  payload: ConvertPhaseToSubprojectPayload,
+): Promise<{ subProject: Project; parentProject: Project }> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/phases/${phaseId}/convert-to-subproject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  return (await res.json()) as { subProject: Project; parentProject: Project };
 }
 
 // ── CSV Import ──
@@ -257,5 +293,29 @@ export async function confirmCsvImport(file: File, projectName: string, teamId: 
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur lors de l'import"));
   }
+  return res.json();
+}
+
+// ── Project export / import ──
+
+export async function exportProjectData(projectId: string, format: "csv" | "json"): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/export?format=${format}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Export failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const match = disposition.match(/filename=([^\s;]+)/);
+  a.download = match?.[1] ?? `wroket-project.${format}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function importProjectTasksFile(projectId: string, file: File): Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/import`, { method: "POST", body: fd, credentials: "include" });
+  if (!res.ok) throw new Error("Import failed");
   return res.json();
 }

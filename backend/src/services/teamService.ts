@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { findUserByUid } from "./authService";
+import { assertValidEmailFormat } from "../utils/emailValidation";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export interface Collaborator {
@@ -29,6 +30,10 @@ const collaboratorsByUser = new Map<string, Collaborator[]>();
 
 /** teams keyed by team id */
 const teamsById = new Map<string, Team>();
+
+function assertValidRosterEmail(email: string, label = "Email"): void {
+  assertValidEmailFormat(email, `${label} invalide`);
+}
 
 function persistCollaborators(): void {
   const obj: Record<string, Collaborator[]> = {};
@@ -310,10 +315,13 @@ export function createTeam(
   if (!trimmed) throw new ValidationError("Le nom de l'équipe est requis");
   if (trimmed.length > 100) throw new ValidationError("Nom trop long (max 100)");
 
-  const members: TeamMember[] = memberEmails.map((email) => ({
-    email: email.trim().toLowerCase(),
-    role: "user" as const,
-  }));
+  const members: TeamMember[] = memberEmails.map((email) => {
+    assertValidRosterEmail(email, "Email membre");
+    return {
+      email: email.trim().toLowerCase(),
+      role: "user" as const,
+    };
+  });
 
   const team: Team = {
     id: crypto.randomUUID(),
@@ -338,6 +346,7 @@ export function addTeamMember(
   if (!team) throw new NotFoundError("Équipe introuvable");
   if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
+  assertValidRosterEmail(email, "Email");
   const normalised = email.trim().toLowerCase();
   if (team.members.some((m) => m.email === normalised)) {
     throw new ValidationError("Ce membre fait déjà partie de l'équipe");

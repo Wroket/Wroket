@@ -16,6 +16,8 @@ import TaskEditModal from "@/components/TaskEditModal";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import TodoCard from "@/components/TodoCard";
 import { useToast } from "@/components/Toast";
+import ExportImportDropdown from "@/components/ExportImportDropdown";
+import TaskImportModal from "@/components/TaskImportModal";
 import {
   createTodo,
   createNoteApi,
@@ -28,6 +30,7 @@ import {
   getCommentCounts,
   updateTodo,
   reorderTodos as reorderTodosApi,
+  exportTasks,
   lookupUser,
   getCollaborators,
   getTeams,
@@ -95,6 +98,8 @@ export default function TodosPage() {
   const [assignedTodos, setAssignedTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
 
@@ -318,7 +323,7 @@ export default function TodosPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [meUid, resolveUser]);
+  }, [meUid, resolveUser, refreshKey]);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -1081,6 +1086,23 @@ export default function TodosPage() {
                 }
                 {filters.size > 0 ? ` (${[...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")})` : ""}
               </span>
+              <ExportImportDropdown
+                exportOptions={[
+                  { label: t("export.csvActive"), action: () => exportTasks("csv") },
+                  { label: t("export.jsonActive"), action: () => exportTasks("json") },
+                  { label: t("export.csvArchived"), action: () => exportTasks("csv", { includeArchived: true }) },
+                  { label: t("export.jsonArchived"), action: () => exportTasks("json", { includeArchived: true }) },
+                ]}
+                onImportFile={(f) => setTaskImportFile(f)}
+                templateCsv={'title,status,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,assignedTo\nMy task,active,medium,medium,,2025-06-01,2025-06-15,"tag1, tag2",,,'}
+                templateJson={JSON.stringify([{ title: "My task", status: "active", priority: "medium", effort: "medium", deadline: "2025-06-15", tags: ["tag1"] }], null, 2)}
+              />
+              <TaskImportModal
+                file={taskImportFile}
+                open={taskImportFile !== null}
+                onClose={() => setTaskImportFile(null)}
+                onSuccess={() => setRefreshKey((k) => k + 1)}
+              />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
                 <button
                   type="button"

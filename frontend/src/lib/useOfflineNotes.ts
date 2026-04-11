@@ -244,5 +244,6 @@ export function useOfflineNotes() {
     saveNote,
     removeNote,
     togglePin,
+    reload: fetchAndSync,
   };
 }

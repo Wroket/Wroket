@@ -5,6 +5,7 @@ import {
   updateGoogleAccountTokens,
   type GoogleCalendarTokens,
 } from "./authService";
+import type { Todo } from "./todoService";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
@@ -360,5 +361,25 @@ export async function deleteGoogleCalendarEvent(
     return res.ok || res.status === 404;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Deletes the Google Calendar event tied to a todo’s scheduled slot.
+ * Tries the uid that booked the slot, then owner, then assignee (legacy / shared tasks).
+ */
+export async function deleteGoogleCalendarEventForTodo(todo: Todo): Promise<void> {
+  const eventId = todo.scheduledSlot?.calendarEventId;
+  if (!eventId) return;
+  const booked = todo.scheduledSlot?.bookedByUid;
+  const candidates = [booked, todo.userId, todo.assignedTo].filter(
+    (u): u is string => typeof u === "string" && u.length > 0
+  );
+  const seen = new Set<string>();
+  for (const uid of candidates) {
+    if (seen.has(uid)) continue;
+    seen.add(uid);
+    const ok = await deleteGoogleCalendarEvent(uid, eventId);
+    if (ok) return;
   }
 }

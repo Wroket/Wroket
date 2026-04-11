@@ -37,6 +37,11 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 async function main(): Promise<void> {
   await initStore();
 
+  if (process.env.NODE_ENV === "production" && !process.env.OAUTH_STATE_SECRET?.trim()) {
+    console.error("[server] OAUTH_STATE_SECRET is required in production (Calendar OAuth + Google SSO state signing)");
+    process.exit(1);
+  }
+
   const { isKekConfigured } = await import("./crypto/kekService");
   if (!isKekConfigured()) {
     console.warn(

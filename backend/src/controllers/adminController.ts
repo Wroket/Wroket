@@ -26,11 +26,12 @@ export async function adminActivity(req: AuthenticatedRequest, res: Response) {
   const { userId, entityType, limit, offset } = req.query as Record<string, string | undefined>;
   const parsedLimit = limit ? parseInt(limit, 10) : 50;
   const parsedOffset = offset ? parseInt(offset, 10) : 0;
+  const rawOffset = Number.isFinite(parsedOffset) ? parsedOffset : 0;
   const result = getActivityLog({
     userId: userId || undefined,
     entityType: entityType || undefined,
     limit: Math.min(Number.isFinite(parsedLimit) ? parsedLimit : 50, MAX_ACTIVITY_LIMIT),
-    offset: Number.isFinite(parsedOffset) ? parsedOffset : 0,
+    offset: Math.max(0, rawOffset),
   });
   res.status(200).json(result);
 }

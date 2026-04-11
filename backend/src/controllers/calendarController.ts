@@ -33,6 +33,7 @@ import {
   listGoogleCalendarListForAccount,
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent,
+  deleteGoogleCalendarEventForTodo,
   patchGoogleCalendarEvent,
 } from "../services/googleCalendarService";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
@@ -283,7 +284,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   }
 
   const updated = updateTodo(uid, req.user!.email ?? "", todoId, {
-    scheduledSlot: { start, end, calendarEventId },
+    scheduledSlot: { start, end, calendarEventId, bookedByUid: uid },
   });
 
   res.status(200).json(todoToClientJson(updated));
@@ -298,7 +299,7 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const { todo } = found;
 
   if (todo.scheduledSlot?.calendarEventId) {
-    await deleteGoogleCalendarEvent(uid, todo.scheduledSlot.calendarEventId);
+    await deleteGoogleCalendarEventForTodo(todo);
   }
 
   const updated = updateTodo(uid, req.user!.email ?? "", todoId, {

@@ -326,8 +326,8 @@ export function createProject(uid: string, userEmail: string, input: CreateProje
   const now = new Date().toISOString();
   const project: Project = {
     id: crypto.randomUUID(),
-    name: input.name.trim(),
-    description: (input.description ?? "").trim(),
+    name: input.name.trim().substring(0, 200),
+    description: (input.description ?? "").trim().substring(0, 5000),
     ownerUid: uid,
     teamId: input.teamId ?? null,
     parentProjectId: input.parentProjectId ?? null,
@@ -366,8 +366,8 @@ export function updateProject(uid: string, userEmail: string, id: string, input:
     throw new ForbiddenError("Accès réservé aux propriétaires et administrateurs");
   }
 
-  if (input.name !== undefined) project.name = input.name.trim();
-  if (input.description !== undefined) project.description = input.description.trim();
+  if (input.name !== undefined) project.name = input.name.trim().substring(0, 200);
+  if (input.description !== undefined) project.description = input.description.trim().substring(0, 5000);
   if (input.teamId !== undefined) {
     if (input.teamId) {
       const targetTeam = getTeam(input.teamId);
@@ -494,7 +494,7 @@ export function reorderProjects(uid: string, userEmail: string, projectIds: stri
   for (let i = 0; i < projectIds.length; i++) {
     const p = projectsById.get(projectIds[i]);
     if (!p) continue;
-    if (!canAccessProject(uid, userEmail, p)) continue;
+    if (!canEditProject(uid, userEmail, p)) continue;
     if (p.sortOrder !== i) {
       p.sortOrder = i;
       updated++;
@@ -548,7 +548,7 @@ export function addPhase(projectId: string, input: CreatePhaseInput): ProjectPha
   const phase: ProjectPhase = {
     id: crypto.randomUUID(),
     projectId,
-    name: input.name.trim(),
+    name: input.name.trim().substring(0, 200),
     color: input.color ?? PHASE_COLORS[project.phases.length % PHASE_COLORS.length],
     order: project.phases.length,
     startDate,
@@ -571,13 +571,16 @@ export function updatePhase(projectId: string, phaseId: string, input: UpdatePha
   const newEnd = input.endDate !== undefined ? input.endDate : phase.endDate;
   validatePhaseDatesAgainstParent(project, newStart, newEnd);
 
-  if (input.name !== undefined) phase.name = input.name.trim();
+  if (input.name !== undefined) phase.name = input.name.trim().substring(0, 200);
   if (input.color !== undefined) phase.color = input.color;
   if (input.startDate !== undefined) phase.startDate = input.startDate;
   if (input.endDate !== undefined) phase.endDate = input.endDate;
   if (input.order !== undefined) {
+    if (typeof input.order !== "number" || !Number.isFinite(input.order)) {
+      throw new ValidationError("order doit être un nombre fini");
+    }
     const oldOrder = phase.order;
-    const newOrder = Math.max(0, Math.min(input.order, project.phases.length - 1));
+    const newOrder = Math.max(0, Math.min(Math.floor(input.order), project.phases.length - 1));
     project.phases.splice(oldOrder, 1);
     project.phases.splice(newOrder, 0, phase);
     project.phases.forEach((p, i) => { p.order = i; });

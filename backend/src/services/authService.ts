@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
+import { assertValidEmailFormat } from "../utils/emailValidation";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
 import { registerCryptoUserLookup } from "./cryptoUserBridge";
 import { ensureUserWrappedDek } from "./userDekService";
@@ -236,10 +237,8 @@ function generateVerifyToken(): string {
 }
 
 export function register(input: RegisterInput): AuthUser & { verifyToken: string } {
+  assertValidEmailFormat(input.email);
   const email = normalizeEmail(input.email);
-  if (!email || !email.includes("@")) {
-    throw new ValidationError("Email invalide");
-  }
   validatePasswordLength(input.password);
 
   const uid = uidFromEmail(email);
@@ -297,6 +296,7 @@ export function verifyEmail(token: string): AuthUser {
  * Generates a new verification token and returns it for re-sending.
  */
 export function resendVerificationToken(email: string): { verifyToken: string } {
+  assertValidEmailFormat(email);
   const uid = uidFromEmail(normalizeEmail(email));
   const user = usersByUid.get(uid);
   if (!user) throw new NotFoundError("Utilisateur introuvable");
@@ -317,6 +317,11 @@ const RESET_TOKEN_TTL_MS = 1 * 60 * 60 * 1000; // 1h
  * (to avoid user enumeration).
  */
 export function requestPasswordReset(email: string): { resetToken: string; email: string } | null {
+  try {
+    assertValidEmailFormat(email);
+  } catch {
+    return null;
+  }
   const uid = uidFromEmail(normalizeEmail(email));
   const user = usersByUid.get(uid);
   if (!user) return null;
@@ -368,6 +373,12 @@ export interface LoginInput {
 
 export function login(input: LoginInput): AuthUser & { sessionToken: string } {
   if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES) {
+    throw new AppError(401, "Identifiants invalides");
+  }
+
+  try {
+    assertValidEmailFormat(input.email);
+  } catch {
     throw new AppError(401, "Identifiants invalides");
   }
 

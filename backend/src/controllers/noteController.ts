@@ -16,6 +16,13 @@ import {
 } from "../services/noteService";
 import { ValidationError } from "../utils/errors";
 
+const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
+function csvSafe(value: string): string {
+  let v = value.replace(/"/g, '""');
+  if (v.length > 0 && CSV_FORMULA_TRIGGERS.has(v[0])) v = `'${v}`;
+  return `"${v}"`;
+}
+
 export async function list(req: AuthenticatedRequest, res: Response) {
   res.status(200).json(listNotes(req.user!.uid));
 }
@@ -39,14 +46,67 @@ export async function todoNoteMap(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
-  const input = req.body as CreateNoteInput;
+  const body = req.body ?? {};
+  if (body.title !== undefined && typeof body.title !== "string") {
+    throw new ValidationError("title doit être une chaîne");
+  }
+  if (body.content !== undefined && typeof body.content !== "string") {
+    throw new ValidationError("content doit être une chaîne");
+  }
+  if (body.folder !== undefined && typeof body.folder !== "string") {
+    throw new ValidationError("folder doit être une chaîne");
+  }
+  if (body.tags !== undefined && (!Array.isArray(body.tags) || !body.tags.every((t: unknown) => typeof t === "string"))) {
+    throw new ValidationError("tags doit être un tableau de chaînes");
+  }
+  if (body.todoId !== undefined && typeof body.todoId !== "string") {
+    throw new ValidationError("todoId doit être une chaîne");
+  }
+  if (body.projectId !== undefined && typeof body.projectId !== "string") {
+    throw new ValidationError("projectId doit être une chaîne");
+  }
+  if (body.teamId !== undefined && typeof body.teamId !== "string") {
+    throw new ValidationError("teamId doit être une chaîne");
+  }
+  if (body.shared !== undefined && typeof body.shared !== "boolean") {
+    throw new ValidationError("shared doit être un booléen");
+  }
+  const input = body as CreateNoteInput;
   const note = createNote(req.user!.uid, input);
   res.status(201).json(note);
 }
 
 export async function update(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
-  const input = req.body as UpdateNoteInput;
+  const body = req.body ?? {};
+  if (body.title !== undefined && typeof body.title !== "string") {
+    throw new ValidationError("title doit être une chaîne");
+  }
+  if (body.content !== undefined && typeof body.content !== "string") {
+    throw new ValidationError("content doit être une chaîne");
+  }
+  if (body.folder !== undefined && typeof body.folder !== "string") {
+    throw new ValidationError("folder doit être une chaîne");
+  }
+  if (body.tags !== undefined && (!Array.isArray(body.tags) || !body.tags.every((t: unknown) => typeof t === "string"))) {
+    throw new ValidationError("tags doit être un tableau de chaînes");
+  }
+  if (body.todoId !== undefined && body.todoId !== null && typeof body.todoId !== "string") {
+    throw new ValidationError("todoId doit être une chaîne ou null");
+  }
+  if (body.projectId !== undefined && body.projectId !== null && typeof body.projectId !== "string") {
+    throw new ValidationError("projectId doit être une chaîne ou null");
+  }
+  if (body.teamId !== undefined && typeof body.teamId !== "string") {
+    throw new ValidationError("teamId doit être une chaîne");
+  }
+  if (body.pinned !== undefined && typeof body.pinned !== "boolean") {
+    throw new ValidationError("pinned doit être un booléen");
+  }
+  if (body.shared !== undefined && typeof body.shared !== "boolean") {
+    throw new ValidationError("shared doit être un booléen");
+  }
+  const input = body as UpdateNoteInput;
   const note = updateNote(req.user!.uid, id, input);
   res.status(200).json(note);
 }
@@ -58,18 +118,105 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function exportNotes(req: AuthenticatedRequest, res: Response) {
+  const format = (req.query.format as string)?.toLowerCase();
   const notes = listNotes(req.user!.uid);
+
+  if (format === "json") {
+    const data = notes.map((n) => ({
+      id: n.id, title: n.title, content: n.content, pinned: n.pinned,
+      folder: n.folder, tags: n.tags, todoId: n.todoId, projectId: n.projectId,
+      createdAt: n.createdAt, updatedAt: n.updatedAt,
+    }));
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=wroket-notes.json");
+    res.send(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  if (format === "csv") {
+    const header = "id,title,content,pinned,folder,tags,todoId,projectId,createdAt,updatedAt\n";
+    const rows = notes
+      .map((n) => [
+        n.id, csvSafe(n.title ?? ""), csvSafe((n.content ?? "").substring(0, 5000)),
+        n.pinned ? "true" : "false", csvSafe(n.folder ?? ""),
+        csvSafe((n.tags ?? []).join(", ")), n.todoId ?? "", n.projectId ?? "",
+        n.createdAt ?? "", n.updatedAt ?? "",
+      ].join(","))
+      .join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=wroket-notes.csv");
+    res.send(header + rows);
+    return;
+  }
+
+  // Default: markdown
   const md = notes
     .map((n) => {
-      const header = `# ${n.title || "Sans titre"}\n`;
+      const hdr = `# ${n.title || "Sans titre"}\n`;
       const meta = n.folder ? `> Dossier: ${n.folder}\n` : "";
       const tags = n.tags?.length ? `> Tags: ${n.tags.join(", ")}\n` : "";
-      return header + meta + tags + "\n" + (n.content || "") + "\n";
+      return hdr + meta + tags + "\n" + (n.content || "") + "\n";
     })
     .join("\n---\n\n");
   res.setHeader("Content-Type", "text/markdown; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=wroket-notes.md");
   res.send(md);
+}
+
+export async function importNotes(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+
+  let notes: Array<{ title?: string; content?: string; folder?: string; tags?: string[] | string; pinned?: boolean }>;
+
+  if (req.file) {
+    const text = req.file.buffer.toString("utf-8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (req.file.originalname.endsWith(".json") || req.file.mimetype === "application/json") {
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new ValidationError("Le JSON doit contenir un tableau de notes");
+      notes = parsed;
+    } else {
+      notes = parseCsvToNoteObjects(text);
+    }
+  } else if (req.body?.notes && Array.isArray(req.body.notes)) {
+    notes = req.body.notes;
+  } else {
+    throw new ValidationError("Fichier ou tableau de notes requis");
+  }
+
+  if (notes.length === 0) throw new ValidationError("Aucune note à importer");
+  if (notes.length > 500) throw new ValidationError("Maximum 500 notes par import");
+
+  let created = 0;
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    try {
+      createNote(uid, {
+        title: typeof n.title === "string" ? n.title.trim() : "Note importée",
+        content: typeof n.content === "string" ? n.content : "",
+        folder: typeof n.folder === "string" ? n.folder : undefined,
+        tags: Array.isArray(n.tags) ? n.tags : typeof n.tags === "string" ? n.tags.split(",").map((s: string) => s.trim()).filter(Boolean) : undefined,
+      });
+      created++;
+    } catch (err) {
+      errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Erreur" });
+    }
+  }
+
+  res.status(201).json({ created, errors, total: notes.length });
+}
+
+function parseCsvToNoteObjects(text: string): Array<Record<string, string>> {
+  const lines = text.split("\n").filter((l) => l.trim());
+  if (lines.length < 2) throw new ValidationError("Le CSV doit contenir un en-tête et au moins une ligne");
+  const headers = lines[0].split(/[,;]/).map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  return lines.slice(1).map((line) => {
+    const fields = line.split(/[,;]/).map((f) => f.trim().replace(/^"|"$/g, ""));
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = fields[i] ?? ""; });
+    return row;
+  });
 }
 
 export async function sync(req: AuthenticatedRequest, res: Response) {

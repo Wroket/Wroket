@@ -43,9 +43,12 @@ interface GanttChartProps {
   t: (key: TranslationKey) => string;
   locale: string;
   onMoveTask?: (taskId: string, newPhaseId: string | null, newIndex: number) => void;
+  /** When true, show "convert phase to sub-project" on real phase headers (root projects only). */
+  canConvertPhaseToSubproject?: boolean;
+  onConvertPhase?: (phaseId: string) => void;
 }
 
-export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: GanttChartProps) {
+export default function GanttChart({ phases, tasks, t, locale, onMoveTask, canConvertPhaseToSubproject, onConvertPhase }: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -267,13 +270,26 @@ export default function GanttChart({ phases, tasks, t, locale, onMoveTask }: Gan
   const renderPhaseSection = (phaseId: string, phaseName: string, phaseColor: string, phaseBar: { startDay: number | null; endDay: number | null } | null) => {
     const phaseTasks = tasksByPhase.get(phaseId) ?? [];
     let counter = 0;
+    const showConvert = phaseId !== "__none__" && canConvertPhaseToSubproject && onConvertPhase;
 
     return (
       <div key={phaseId}>
         <div className="flex items-center border-b border-zinc-100 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-800/30" style={{ height: 36 }}>
-          <div className="shrink-0 px-3 truncate font-semibold text-xs text-zinc-700 dark:text-slate-300" style={{ width: labelW }}>
-            <span className="inline-block w-2.5 h-2.5 rounded-sm mr-2 align-middle" style={{ backgroundColor: phaseColor }} />
-            {phaseName}
+          <div className="shrink-0 px-3 font-semibold text-xs text-zinc-700 dark:text-slate-300 flex items-center gap-1 min-w-0" style={{ width: labelW }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0 align-middle" style={{ backgroundColor: phaseColor }} />
+            <span className="truncate flex-1 min-w-0">{phaseName}</span>
+            {showConvert ? (
+              <button
+                type="button"
+                onClick={() => onConvertPhase(phaseId)}
+                className="shrink-0 text-zinc-400 hover:text-cyan-500 transition-colors p-0.5"
+                title={t("projects.convertToSubproject")}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </button>
+            ) : null}
           </div>
           <div className="flex-1 relative" style={{ height: "100%" }}>
             {phaseBar && renderBar(phaseBar.startDay, phaseBar.endDay, phaseColor, 0.85, "top-[8px] h-[20px]")}

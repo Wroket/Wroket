@@ -4,18 +4,19 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
+import ExportImportDropdown from "@/components/ExportImportDropdown";
 import PageHelpButton from "@/components/PageHelpButton";
 import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, getTodos, createTodo, lookupUser } from "@/lib/api";
+import { getProjects, getTodos, createTodo, lookupUser, exportNotes, importNotesFile } from "@/lib/api";
 import type { Note, Project, Todo } from "@/lib/api";
 
 function NotesPageInner() {
   const { t } = useLocale();
   const searchParams = useSearchParams();
-  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin } = useOfflineNotes();
+  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload } = useOfflineNotes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -144,6 +145,16 @@ function NotesPageInner() {
                 {t("notes.title")}
               </h1>
               <div className="flex items-center gap-1.5 relative">
+                <ExportImportDropdown
+                  exportOptions={[
+                    { label: t("export.csv"), action: () => exportNotes("csv") },
+                    { label: t("export.json"), action: () => exportNotes("json") },
+                    { label: t("export.markdown"), action: () => exportNotes("md") },
+                  ]}
+                  onImport={async (file) => { const r = await importNotesFile(file); await reload(); return r; }}
+                  templateCsv={'title,content,folder,tags\nMy note,Content here,General,"tag1, tag2"'}
+                  templateJson={JSON.stringify([{ title: "My note", content: "Content here", folder: "General", tags: ["tag1"] }], null, 2)}
+                />
                 <PageHelpButton
                   title={t("notes.title")}
                   items={[

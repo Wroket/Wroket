@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import { createSsoLoginState } from "../utils/oauthState";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
@@ -7,19 +7,8 @@ const GOOGLE_SSO_REDIRECT_URI = process.env.GOOGLE_SSO_REDIRECT_URI
 
 const SSO_SCOPES = "openid email profile";
 
-const SSO_STATE_TTL_MS = 10 * 60 * 1000;
-const pendingSsoStates = new Map<string, number>();
-
-setInterval(() => {
-  const cutoff = Date.now() - SSO_STATE_TTL_MS;
-  for (const [token, ts] of pendingSsoStates) {
-    if (ts < cutoff) pendingSsoStates.delete(token);
-  }
-}, 5 * 60 * 1000).unref();
-
 export function getGoogleSsoAuthUrl(loginHint?: string): { url: string; state: string } {
-  const state = crypto.randomBytes(32).toString("hex");
-  pendingSsoStates.set(state, Date.now());
+  const state = createSsoLoginState();
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -37,13 +26,6 @@ export function getGoogleSsoAuthUrl(loginHint?: string): { url: string; state: s
   }
 
   return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, state };
-}
-
-export function consumeSsoState(state: string): boolean {
-  const ts = pendingSsoStates.get(state);
-  if (!ts) return false;
-  pendingSsoStates.delete(state);
-  return Date.now() - ts <= SSO_STATE_TTL_MS;
 }
 
 interface GoogleTokenResponse {

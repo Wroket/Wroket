@@ -20,10 +20,16 @@ import {
 import { listComments, addComment, deleteComment, editComment, toggleReaction, parseMentions, getCommentCounts } from "../services/commentService";
 import { findUserByEmail } from "../services/authService";
 import { createNotification } from "../services/notificationService";
-import { deleteGoogleCalendarEvent } from "../services/googleCalendarService";
+import { deleteGoogleCalendarEventForTodo } from "../services/googleCalendarService";
 import { getProjectById, listProjects } from "../services/projectService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity, getTaskActivity } from "../services/activityLogService";
+import {
+  parseTaskImportBuffer,
+  coerceImportRowToCreateInput,
+  previewTaskImportRows,
+  executeTaskImport,
+} from "../services/taskImportService";
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled", "deleted"]);
 
@@ -53,7 +59,10 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
 
 export async function create(req: AuthenticatedRequest, res: Response) {
   const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags } = req.body as Partial<CreateTodoInput>;
-  if (!title || !priority) {
+  if (typeof title !== "string" || typeof priority !== "string") {
+    throw new ValidationError("Titre et priorité requis (chaînes)");
+  }
+  if (!title.trim() || !priority.trim()) {
     throw new ValidationError("Titre et priorité requis");
   }
 
@@ -104,18 +113,14 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   if (
     input.status &&
     TERMINAL_STATUSES.has(input.status) &&
-    todo.scheduledSlot
+    todo.scheduledSlot &&
+    new Date(todo.scheduledSlot.start).getTime() > Date.now()
   ) {
-    const slotStart = new Date(todo.scheduledSlot.start);
-    if (slotStart > new Date()) {
-      if (todo.scheduledSlot.calendarEventId) {
-        deleteGoogleCalendarEvent(req.user!.uid, todo.scheduledSlot.calendarEventId).catch((err) => {
-          console.warn("[todo.update] Google Calendar event cleanup failed:", err);
-        });
-      }
-      updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
-      todo.scheduledSlot = null;
-    }
+    deleteGoogleCalendarEventForTodo(todo).catch((err) => {
+      console.warn("[todo.update] Google Calendar event cleanup failed:", err);
+    });
+    updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
+    todo.scheduledSlot = null;
   }
 
   try {
@@ -237,10 +242,15 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const todo = deleteTodo(req.user!.uid, id);
 
-  if (todo.scheduledSlot?.calendarEventId) {
-    deleteGoogleCalendarEvent(req.user!.uid, todo.scheduledSlot.calendarEventId).catch((err) => {
+  if (
+    todo.scheduledSlot &&
+    new Date(todo.scheduledSlot.start).getTime() > Date.now()
+  ) {
+    deleteGoogleCalendarEventForTodo(todo).catch((err) => {
       console.warn("[todo.remove] Google Calendar event cleanup failed:", err);
     });
+    updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
+    todo.scheduledSlot = null;
   }
 
   try {
@@ -352,21 +362,85 @@ export async function commentCounts(req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getCommentCounts([...idSet]));
 }
 
-export async function exportCsv(req: AuthenticatedRequest, res: Response) {
-  const todos = listTodos(req.user!.uid);
-  const header = "id,title,status,priority,effort,deadline,tags,projectId,createdAt\n";
+export async function exportTodos(req: AuthenticatedRequest, res: Response) {
+  const format = (req.query.format as string)?.toLowerCase() === "json" ? "json" : "csv";
+  const includeArchived = req.query.include === "archived";
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+
+  const todos = includeArchived
+    ? [...listTodos(uid), ...listArchivedTodos(uid, email)]
+    : listTodos(uid);
+
+  if (format === "json") {
+    const data = todos.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      assignmentStatus: t.assignmentStatus,
+      priority: t.priority,
+      effort: t.effort,
+      estimatedMinutes: t.estimatedMinutes,
+      startDate: t.startDate,
+      deadline: t.deadline,
+      tags: t.tags,
+      projectId: t.projectId,
+      phaseId: t.phaseId,
+      parentId: t.parentId,
+      assignedTo: t.assignedTo,
+      sortOrder: t.sortOrder,
+      scheduledSlot: t.scheduledSlot
+        ? {
+            start: t.scheduledSlot.start,
+            end: t.scheduledSlot.end,
+            calendarEventId: t.scheduledSlot.calendarEventId,
+          }
+        : null,
+      suggestedSlot: t.suggestedSlot,
+      recurrence: t.recurrence,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      statusChangedAt: t.statusChangedAt,
+    }));
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=wroket-tasks.json");
+    res.send(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  const header =
+    "id,title,status,assignmentStatus,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,parentId,assignedTo,sortOrder," +
+    "scheduledStart,scheduledEnd,calendarEventId,suggestedStart,suggestedEnd,recurrenceJson,createdAt,updatedAt,statusChangedAt\n";
   const rows = todos
     .map((t) => {
+      const slot = t.scheduledSlot;
+      const sug = t.suggestedSlot;
+      const recStr = t.recurrence ? csvSafe(JSON.stringify(t.recurrence)) : "";
       const fields = [
         t.id,
         csvSafe(t.title ?? ""),
         t.status,
+        t.assignmentStatus ?? "",
         t.priority ?? "",
         t.effort ?? "",
+        t.estimatedMinutes != null ? String(t.estimatedMinutes) : "",
+        t.startDate ?? "",
         t.deadline ?? "",
         csvSafe((t.tags ?? []).join(", ")),
         t.projectId ?? "",
+        t.phaseId ?? "",
+        t.parentId ?? "",
+        t.assignedTo ?? "",
+        t.sortOrder != null ? String(t.sortOrder) : "",
+        slot?.start ?? "",
+        slot?.end ?? "",
+        slot?.calendarEventId ?? "",
+        sug?.start ?? "",
+        sug?.end ?? "",
+        recStr,
         t.createdAt ?? "",
+        t.updatedAt ?? "",
+        t.statusChangedAt ?? "",
       ];
       return fields.join(",");
     })
@@ -374,6 +448,66 @@ export async function exportCsv(req: AuthenticatedRequest, res: Response) {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=wroket-tasks.csv");
   res.send(header + rows);
+}
+
+export async function importTodos(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+
+  let rows: Record<string, unknown>[];
+
+  if (req.file) {
+    rows = parseTaskImportBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
+  } else if (req.body?.tasks && Array.isArray(req.body.tasks)) {
+    rows = req.body.tasks as Record<string, unknown>[];
+  } else {
+    throw new ValidationError("Fichier ou tableau de tâches requis");
+  }
+
+  if (rows.length === 0) throw new ValidationError("Aucune tâche à importer");
+  if (rows.length > 1000) throw new ValidationError("Maximum 1000 tâches par import");
+
+  let created = 0;
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const input = coerceImportRowToCreateInput(rows[i]);
+      createTodo(uid, email, input);
+      created++;
+    } catch (err) {
+      errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Erreur" });
+    }
+  }
+
+  res.status(201).json({ created, errors, total: rows.length });
+}
+
+/** POST multipart: parse file and return coercible rows + per-row preview errors (no DB writes). */
+export async function previewTaskImport(req: AuthenticatedRequest, res: Response) {
+  if (!req.file) throw new ValidationError("Fichier requis");
+  const rows = parseTaskImportBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
+  if (rows.length === 0) throw new ValidationError("Aucune ligne");
+  if (rows.length > 1000) throw new ValidationError("Maximum 1000 tâches par import");
+  const { total, errors, validInputs } = previewTaskImportRows(rows);
+  res.status(200).json({ total, errors, validTasks: validInputs });
+}
+
+/** POST JSON { tasks: CreateTodoInput[] } — same shape as validTasks from preview. */
+export async function confirmTaskImport(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  const body = req.body as { tasks?: unknown };
+  if (!body?.tasks || !Array.isArray(body.tasks)) {
+    throw new ValidationError("Corps JSON { tasks: [...] } requis");
+  }
+  const raw = body.tasks as Record<string, unknown>[];
+  const inputs: CreateTodoInput[] = [];
+  for (const row of raw) {
+    inputs.push(coerceImportRowToCreateInput(row));
+  }
+  const result = executeTaskImport(uid, email, inputs);
+  res.status(201).json(result);
 }
 
 const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);

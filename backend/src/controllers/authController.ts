@@ -20,7 +20,8 @@ import {
 import { exportUserData, deleteUserData } from "../services/rgpdService";
 import { getActivityLog } from "../services/activityLogService";
 import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "../services/emailService";
-import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode, consumeSsoState } from "../services/googleSsoService";
+import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
+import { consumeSsoLoginState } from "../utils/oauthState";
 import { ValidationError } from "../utils/errors";
 import { getStore, scheduleSave } from "../persistence";
 import { parseCookies } from "../utils/parseCookies";
@@ -140,7 +141,7 @@ export async function googleSsoCallback(req: Request, res: Response) {
     return;
   }
 
-  if (!consumeSsoState(stateParam)) {
+  if (!consumeSsoLoginState(stateParam)) {
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
     return;
   }

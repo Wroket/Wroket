@@ -98,6 +98,18 @@ export function listComments(todoId: string): Comment[] {
   return commentsByTodo.get(todoId) ?? [];
 }
 
+/** Remove all comments for one or more todos (e.g. phase→sub-project conversion purges root tasks). */
+export function removeCommentsForTodos(todoIds: string[]): void {
+  let changed = false;
+  for (const id of todoIds) {
+    if (commentsByTodo.has(id)) {
+      commentsByTodo.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) persist();
+}
+
 /**
  * Returns comment counts for a list of todo IDs.
  */

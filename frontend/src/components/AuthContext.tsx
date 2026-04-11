@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { getMe, logout as apiLogout, AuthMeResponse } from "@/lib/api";
+import { isPublicPath } from "@/lib/publicPaths";
 
 interface AuthContextType {
   user: AuthMeResponse | null;
@@ -17,8 +18,6 @@ const AuthContext = createContext<AuthContextType>({
   refresh: async () => {},
 });
 
-const PUBLIC_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email"];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
     } catch {
       setUser(null);
-      if (typeof window !== "undefined" && !PUBLIC_PATHS.includes(window.location.pathname)) {
+      if (typeof window !== "undefined" && !isPublicPath(window.location.pathname)) {
         window.location.href = "/login";
       }
     } finally {

@@ -205,8 +205,11 @@ export interface SearchResult {
 export async function globalSearch(query: string): Promise<SearchResult[]> {
   if (query.length < 2) return [];
   const res = await fetch(`${API_BASE_URL}/auth/search?q=${encodeURIComponent(query)}`, { credentials: "include" });
-  if (!res.ok) return [];
-  return res.json();
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur de recherche"));
+  }
+  return (await res.json()) as SearchResult[];
 }
 
 export async function lookupUser(email: string): Promise<AuthMeResponse | null> {

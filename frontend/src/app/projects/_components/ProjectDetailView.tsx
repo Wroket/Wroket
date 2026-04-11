@@ -17,6 +17,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import AppShell from "@/components/AppShell";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ExportImportDropdown from "@/components/ExportImportDropdown";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
@@ -26,7 +27,6 @@ import { useToast } from "@/components/Toast";
 import {
   updateProject,
   getProjectTodos,
-  getTodos,
   createTodo,
   updateTodo,
   deleteTodo as apiDeleteTodo,
@@ -38,6 +38,9 @@ import {
   getProjectAccess,
   putProjectAccess,
   createProject,
+  convertPhaseToSubproject,
+  exportProjectData,
+  importProjectTasksFile,
   lookupUser,
   getCollaborators,
   getCommentCounts,
@@ -92,6 +95,7 @@ export default function ProjectDetailView({
   const router = useRouter();
   const { resolveUser, displayName, cache } = useUserLookup();
   const meUid = user?.uid ?? null;
+  const canConvertToSubproject = !selectedProject.parentProjectId;
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
@@ -206,9 +210,12 @@ export default function ProjectDetailView({
   const [newTaskAssignError, setNewTaskAssignError] = useState<string | null>(null);
   const newTaskAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const [allTodos, setAllTodos] = useState<Todo[]>([]);
-  const [showLinkTask, setShowLinkTask] = useState(false);
-  const [linkPhaseId, setLinkPhaseId] = useState<string | null>(null);
+  const [convertModal, setConvertModal] = useState<{ phaseId: string; phaseName: string } | null>(null);
+  const [convertStep, setConvertStep] = useState<1 | 2>(1);
+  const [convertSubName, setConvertSubName] = useState("");
+  const [convertTaskMode, setConvertTaskMode] = useState<"flat" | "tasks_as_phases">("flat");
+  const [convertSubtaskMode, setConvertSubtaskMode] = useState<"in_phase" | "unphased">("in_phase");
+  const [convertSubmitting, setConvertSubmitting] = useState(false);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
@@ -700,13 +707,39 @@ export default function ProjectDetailView({
     }
   };
 
-  const handleLinkExisting = async (todo: Todo, phaseId: string | null) => {
+  const openConvertPhase = (phaseId: string) => {
+    const ph = selectedProject.phases.find((p) => p.id === phaseId);
+    if (!ph) return;
+    setConvertModal({ phaseId, phaseName: ph.name });
+    setConvertSubName(ph.name);
+    setConvertStep(1);
+    setConvertTaskMode("flat");
+    setConvertSubtaskMode("in_phase");
+  };
+
+  const runConvertPhaseToSubproject = async () => {
+    if (!convertModal) return;
+    setConvertSubmitting(true);
     try {
-      const updated = await updateTodo(todo.id, { projectId: selectedProject.id, phaseId });
-      setProjectTodos((prev) => [...prev, updated]);
-      setAllTodos((prev) => prev.filter((td) => td.id !== todo.id));
+      const result = await convertPhaseToSubproject(selectedProject.id, convertModal.phaseId, {
+        name: convertSubName.trim() || undefined,
+        taskMode: convertTaskMode,
+        subtaskMode: convertSubtaskMode,
+      });
+      setProjects((prev) => {
+        const rest = prev.filter((p) => p.id !== result.subProject.id);
+        return [result.subProject, ...rest];
+      });
+      setSelectedProject(result.parentProject);
+      const todos = await getProjectTodos(result.parentProject.id);
+      setProjectTodos(todos);
+      await loadProjects();
+      setConvertModal(null);
+      toast.success(t("projects.convertSuccess"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      setConvertSubmitting(false);
     }
   };
 
@@ -812,14 +845,6 @@ export default function ProjectDetailView({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
-  };
-
-  const openLinkTask = (phaseId: string | null) => {
-    setLinkPhaseId(phaseId);
-    setShowLinkTask(true);
-    getTodos()
-      .then((todos) => setAllTodos(todos.filter((td) => !td.projectId && td.status === "active" && !td.parentId)))
-      .catch(() => setAllTodos([]));
   };
 
   const handleCreateSubProject = async () => {
@@ -1146,6 +1171,15 @@ export default function ProjectDetailView({
                 <button onClick={() => handleArchiveRestore(selectedProject)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
                   {t((selectedProject.status === "active" ? "projects.archive" : "projects.restore"))}
                 </button>
+                <ExportImportDropdown
+                  exportOptions={[
+                    { label: t("export.csv"), action: () => exportProjectData(selectedProject.id, "csv") },
+                    { label: t("export.json"), action: () => exportProjectData(selectedProject.id, "json") },
+                  ]}
+                  onImport={async (file) => { const r = await importProjectTasksFile(selectedProject.id, file); await refreshProject(selectedProject.id); return r; }}
+                  templateCsv="title,priority,effort,estimatedMinutes,startDate,deadline,tags,phaseName,assignedTo\nMy task,medium,medium,,,,,Phase 1,"
+                  templateJson={JSON.stringify([{ title: "My task", priority: "medium", effort: "medium", phaseName: "Phase 1" }], null, 2)}
+                />
                 <PageHelpButton
                   title={t("projects.helpTitle")}
                   items={[
@@ -1340,9 +1374,15 @@ export default function ProjectDetailView({
                           <button type="button" onClick={() => { setAddTaskPhaseId(phase.id); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1" title={t("projects.addTask")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                           </button>
-                          <button type="button" onClick={() => openLinkTask(phase.id)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-1" title={t("projects.linkTask")}>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                          </button>
+                          {canConvertToSubproject ? (
+                            <button type="button" onClick={() => openConvertPhase(phase.id)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-1" title={t("projects.convertToSubproject")}>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                            </button>
+                          ) : (
+                            <span className="p-1 text-zinc-300 dark:text-slate-600 cursor-not-allowed" title={t("projects.convertNestedProjectHint")}>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                            </span>
+                          )}
                           <button type="button" onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.name); setEditPhaseStart(phase.startDate ?? ""); setEditPhaseEnd(phase.endDate ?? ""); }} className="text-zinc-400 hover:text-amber-500 transition-colors p-1" title={t("phase.edit")}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
@@ -1396,9 +1436,6 @@ export default function ProjectDetailView({
                     <div className="flex items-center gap-1">
                       <button type="button" onClick={() => { setAddTaskPhaseId(null); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-1">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                      </button>
-                      <button type="button" onClick={() => openLinkTask(null)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-1">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                       </button>
                     </div>
                   </div>
@@ -1473,9 +1510,15 @@ export default function ProjectDetailView({
                                 <button type="button" onClick={() => { setAddTaskPhaseId(isReal ? phase.id : null); setShowAddTask(true); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("projects.addTask")}>
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                                 </button>
-                                <button type="button" onClick={() => openLinkTask(isReal ? phase.id : null)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-0.5" title={t("projects.linkTask")}>
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                </button>
+                                {isReal && canConvertToSubproject ? (
+                                  <button type="button" onClick={() => openConvertPhase(phase.id)} className="text-zinc-400 hover:text-cyan-500 transition-colors p-0.5" title={t("projects.convertToSubproject")}>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                  </button>
+                                ) : isReal ? (
+                                  <span className="p-0.5 text-zinc-300 dark:text-slate-600 cursor-not-allowed" title={t("projects.convertNestedProjectHint")}>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                  </span>
+                                ) : null}
                                 {isReal && (
                                   <>
                                     <button type="button" onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.name); setEditPhaseStart(phase.startDate ?? ""); setEditPhaseEnd(phase.endDate ?? ""); }} className="text-zinc-400 hover:text-amber-500 transition-colors p-0.5" title={t("phase.edit")}>
@@ -1667,6 +1710,8 @@ export default function ProjectDetailView({
               tasks={projectTodos}
               t={t}
               locale={locale}
+              canConvertPhaseToSubproject={canConvertToSubproject}
+              onConvertPhase={openConvertPhase}
               onMoveTask={async (taskId, newPhaseId, newIndex) => {
                 try {
                   const updated = await updateTodo(taskId, { phaseId: newPhaseId, sortOrder: newIndex });
@@ -1790,24 +1835,74 @@ export default function ProjectDetailView({
           </div>
         )}
 
-        {/* Link existing task modal */}
-        {showLinkTask && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowLinkTask(false)}>
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.linkTask")}</h3>
-              <div className="overflow-y-auto flex-1 space-y-1">
-                {allTodos.length === 0 ? (
-                  <p className="text-sm text-zinc-400 italic text-center py-6">{t("projects.noTasksToLink")}</p>
-                ) : allTodos.map((todo) => (
-                  <button key={todo.id} onClick={() => handleLinkExisting(todo, linkPhaseId)} className="w-full text-left px-3 py-2 rounded hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between gap-2">
-                    <span className="text-sm text-zinc-900 dark:text-slate-100 truncate">{todo.title}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex justify-end mt-4">
-                <button onClick={() => setShowLinkTask(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
-              </div>
+        {convertModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => !convertSubmitting && setConvertModal(null)}>
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 flex flex-col" onClick={(e) => e.stopPropagation()}>
+              {convertStep === 1 ? (
+                <>
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-2">{t("projects.convertStep1Title")}</h3>
+                  <p className="text-sm text-zinc-600 dark:text-slate-400 mb-4">{t("projects.convertStep1Body")}</p>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.convertSubprojectName")}</label>
+                  <input
+                    value={convertSubName}
+                    onChange={(e) => setConvertSubName(e.target.value.slice(0, 200))}
+                    maxLength={200}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 mb-4"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setConvertModal(null)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
+                    <button
+                      type="button"
+                      onClick={() => setConvertStep(2)}
+                      disabled={!convertSubName.trim()}
+                      className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {t("projects.convertContinue")}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-3">{t("projects.convertStep2Title")}</h3>
+                  <div className="space-y-3 mb-4">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input type="radio" name="taskMode" checked={convertTaskMode === "flat"} onChange={() => setConvertTaskMode("flat")} className="mt-1" />
+                      <span className="text-sm text-zinc-800 dark:text-slate-200">{t("projects.convertTaskModeFlat")}</span>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input type="radio" name="taskMode" checked={convertTaskMode === "tasks_as_phases"} onChange={() => setConvertTaskMode("tasks_as_phases")} className="mt-1" />
+                      <span className="text-sm text-zinc-800 dark:text-slate-200">{t("projects.convertTaskModePhases")}</span>
+                    </label>
+                    {convertTaskMode === "tasks_as_phases" && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded px-2 py-1.5">{t("projects.convertPhasesWarning")}</p>
+                    )}
+                    {convertTaskMode === "tasks_as_phases" && (
+                      <div className="pl-1 space-y-2 border-l-2 border-zinc-200 dark:border-slate-600 ml-1">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input type="radio" name="subMode" checked={convertSubtaskMode === "in_phase"} onChange={() => setConvertSubtaskMode("in_phase")} className="mt-1" />
+                          <span className="text-sm text-zinc-700 dark:text-slate-300">{t("projects.convertSubtaskInPhase")}</span>
+                        </label>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input type="radio" name="subMode" checked={convertSubtaskMode === "unphased"} onChange={() => setConvertSubtaskMode("unphased")} className="mt-1" />
+                          <span className="text-sm text-zinc-700 dark:text-slate-300">{t("projects.convertSubtaskUnphased")}</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setConvertStep(1)} disabled={convertSubmitting} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.convertBack")}</button>
+                    <button
+                      type="button"
+                      onClick={runConvertPhaseToSubproject}
+                      disabled={convertSubmitting}
+                      className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {convertSubmitting ? "…" : t("projects.convertConfirm")}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

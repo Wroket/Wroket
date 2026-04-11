@@ -105,13 +105,26 @@ export async function syncNotesApi(notes: Array<{
 }
 
 export async function exportNotesMarkdown(): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/notes/export`, { credentials: "include" });
+  return exportNotes("md");
+}
+
+export async function exportNotes(format: "csv" | "json" | "md"): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/notes/export?format=${format}`, { credentials: "include" });
   if (!res.ok) throw new Error("Export failed");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "wroket-notes.md";
+  const ext = format === "json" ? "json" : format === "csv" ? "csv" : "md";
+  a.download = `wroket-notes.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function importNotesFile(file: File): Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/notes/import`, { method: "POST", body: fd, credentials: "include" });
+  if (!res.ok) throw new Error("Import failed");
+  return res.json();
 }

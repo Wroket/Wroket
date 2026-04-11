@@ -1,0 +1,28 @@
+---
+description: Données utilisateur — séparation Git, interdits, déploiements
+alwaysApply: true
+---
+
+# Données utilisateur et Git
+
+## Principe absolu
+- **Un commit ou un push Git ne modifie jamais directement** la base de données (Firestore) ni les fichiers de données sur les serveurs. Le dépôt ne contient que du **code source** et de la configuration **sans secrets**.
+- En **production**, les tâches et comptes sont dans **Firestore** (projet GCP). Les déploiements Cloud Run **remplacent l’image Docker** ; ils **ne réinitialisent pas** Firestore tant qu’aucun code ne l’efface volontairement.
+
+## Interdictions pour l’agent et les évolutions
+1. **Ne jamais** versionner ni proposer de commit pour : `backend/data/`, `local-store.json`, dumps, exports utilisateurs, `uploads/` (contenu utilisateur), sauvegardes Firestore.
+2. **Ne jamais** ajouter au démarrage de l’API (`server.ts`, `initStore`, migrations implicites) une logique qui **vide**, **tronque** ou **réinitialise** le store Firestore / le fichier local **sans** migration nommée, opt-in explicite (`RUN_MIGRATION=…`), et procédure de backup documentée.
+3. **Ne jamais** désactiver ou contourner `.gitignore` pour ajouter des données réelles au repo.
+4. Les **scripts de migration** destructifs doivent être **idempotents** quand c’est possible, **documentés**, et exécutés **consciemment** (pas au déploiement automatique par défaut).
+
+## Déploiement (Cloud Build / `main`)
+- Le pipeline **build + push image + deploy Cloud Run** ne doit pas inclure d’étape qui **écrase** Firestore ou importe un JSON de données utilisateur.
+- Toute nouvelle étape CI/CD touchant aux données (export, seed, wipe) doit être **signalée explicitement** dans la PR et **validée** humainement.
+
+## Si des données « disparaissent » après un déploiement
+- Vérifier : **même projet GCP** (`GOOGLE_CLOUD_PROJECT`), même base Firestore, pas de second environnement confondu.
+- Vérifier : **`CRYPTO_KEK_BASE64`** inchangée entre versions — une clé différente rend le contenu chiffré **illisible** (effet similaire à une perte).
+- Vérifier : **dev local** (`USE_LOCAL_STORE=true`) vs **prod** — ce ne sont pas les mêmes données.
+
+## Rappel pour les messages Git
+- Ne pas attribuer les changements de données à « le commit » : **séparer** code (Git) et **état** (Firestore / secrets).

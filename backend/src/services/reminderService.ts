@@ -1,5 +1,6 @@
 import { getStore } from "../persistence";
 import { createNotification, listNotifications } from "./notificationService";
+import { listAllTodos } from "./todoService";
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1h
 
@@ -14,9 +15,7 @@ function checkDeadlines(): void {
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const todayStr = now.toISOString().split("T")[0];
 
-  for (const [userId, todos] of Object.entries(todoStore)) {
-    const userTodos = todos as Record<string, Record<string, unknown>>;
-
+  for (const userId of Object.keys(todoStore)) {
     const notifs = listNotifications(userId);
     const sentToday = new Set(
       notifs
@@ -24,16 +23,17 @@ function checkDeadlines(): void {
         .map((n) => `${n.type}:${n.data!.todoId}`),
     );
 
-    for (const todo of Object.values(userTodos)) {
+    // Use in-memory todos (titles decrypted) — raw store.todos has empty title when encV1 is set.
+    for (const todo of listAllTodos(userId)) {
       if (todo.status !== "active") continue;
       if (!todo.deadline) continue;
 
-      const deadlineDate = new Date(todo.deadline as string);
+      const deadlineDate = new Date(todo.deadline);
       if (isNaN(deadlineDate.getTime())) continue;
 
       const deadlineStr = deadlineDate.toISOString().split("T")[0];
-      const title = todo.title as string;
-      const todoId = todo.id as string;
+      const title = todo.title;
+      const todoId = todo.id;
 
       if (deadlineStr === todayStr) {
         if (sentToday.has(`deadline_today:${todoId}`)) continue;

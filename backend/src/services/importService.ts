@@ -100,7 +100,11 @@ export function parseCsv(buffer: Buffer): CsvRow[] {
     if (!headers.includes(rh)) throw new ValidationError(`Colonne obligatoire manquante : ${rh}`);
   }
 
-  return lines.slice(1).map((line) => {
+  const dataLines = lines.slice(1);
+  if (dataLines.length > 1000) {
+    throw new ValidationError("Le CSV ne doit pas dépasser 1000 lignes de données");
+  }
+  return dataLines.map((line) => {
     const fields = parseCsvLine(line);
     const row: Record<string, string> = {};
     headers.forEach((h, i) => { row[h] = fields[i] ?? ""; });
