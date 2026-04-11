@@ -136,14 +136,14 @@ export async function googleSsoCallback(req: Request, res: Response) {
     return;
   }
 
-  if (storedState && stateParam !== storedState) {
-    res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
-    return;
-  }
-
+  // Validate signed state first. Do not require oauth_state cookie to match: some browsers
+  // or cross-site cookie rules leave it empty/stale while ?state= from Google is still valid.
   if (!consumeSsoLoginState(stateParam)) {
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
     return;
+  }
+  if (storedState && stateParam !== storedState) {
+    console.warn("[auth] Google SSO: oauth_state cookie differed from ?state= (ignored after HMAC ok)");
   }
 
   try {

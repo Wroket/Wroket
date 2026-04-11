@@ -28,6 +28,7 @@ alwaysApply: true
 - **GitHub Actions** (`.github/workflows/deploy.yml`) : lint + type-check sur push/PR
 - **Cloud Build** (`cloudbuild.yaml`) : build images Docker → push Artifact Registry → deploy Cloud Run
 - Registry : `europe-west1-docker.pkg.dev/$PROJECT_ID/wroket/{api,web}`
+- **Secrets** : `gcloud run deploy --set-secrets` **remplace toute** la liste des secrets pour le service — ne pas omettre `OAUTH_STATE_SECRET` pour `wroket-api`. Détail : `.cursor/rules/cloudbuild.mdc`
 
 ## Variables d'environnement Cloud Run (wroket-api)
 - `ADMIN_EMAILS` : emails admin séparés par virgule

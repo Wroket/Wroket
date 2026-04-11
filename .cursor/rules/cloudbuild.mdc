@@ -1,0 +1,23 @@
+---
+description: cloudbuild.yaml — Cloud Run deploy, --set-secrets, wroket-api secrets
+globs: cloudbuild.yaml
+alwaysApply: false
+---
+
+# `cloudbuild.yaml` et secrets Cloud Run
+
+## Règle critique : `--set-secrets` remplace tout
+
+Pour `gcloud run deploy`, **`--set-secrets` définit la liste complète** des variables d’environnement injectées depuis Secret Manager pour ce service. **Ce n’est pas un merge** avec la révision précédente : une seule entrée (ex. `CRYPTO_KEK_BASE64`) **efface** les autres (ex. `OAUTH_STATE_SECRET`).
+
+- Si plusieurs secrets sont nécessaires, les passer **dans le même** `--set-secrets`, séparés par des **virgules** (voir doc `gcloud run deploy --help` pour la syntaxe exacte).
+
+## `wroket-api` (backend)
+
+- En production, `backend/src/server.ts` exige **`OAUTH_STATE_SECRET`** (`NODE_ENV=production`). Sans cette variable, le processus **quitte avant** `listen` → erreur Cloud Run « container failed to start / PORT 8080 ».
+- Après la migration **sans chiffrement contenu** (Option A), **`CRYPTO_KEK_BASE64` ne doit plus** être injecté au runtime pour l’API. Le `cloudbuild.yaml` doit monter **`OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest`** (et pas remplacer par erreur par le seul KEK).
+- Le compte **`wroket-run@…`** doit avoir **Secret Manager Secret Accessor** sur chaque secret référencé.
+
+## Avant un push sur `main`
+
+- Vérifier que le step **deploy `wroket-api`** contient bien la bonne ligne **`--set-secrets`** (cohérente avec `server.ts` et les secrets réellement utilisés).
