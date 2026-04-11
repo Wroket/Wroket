@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
-import { getArchivedTodos, updateTodo, type Todo, type TodoStatus } from "@/lib/api";
+import { getArchivedTodos, updateTodo, type Priority, type Todo, type TodoStatus } from "@/lib/api";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { displayTodoTitle } from "@/lib/todoDisplay";
@@ -17,6 +17,17 @@ const STATUS_STYLES: Record<string, { tKey: string; cls: string }> = {
   cancelled: { tKey: "archives.cancelledOn", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
   deleted: { tKey: "archives.deletedOn", cls: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
 };
+
+const VALID_PRIORITIES = new Set<Priority>(["low", "medium", "high"]);
+const VALID_EFFORTS = new Set(["light", "medium", "heavy"] as const);
+
+function safePriority(p: Todo["priority"]): Priority {
+  return p && VALID_PRIORITIES.has(p) ? p : "medium";
+}
+
+function safeEffort(e: Todo["effort"] | undefined): "light" | "medium" | "heavy" {
+  return e && VALID_EFFORTS.has(e as "light" | "medium" | "heavy") ? e : "medium";
+}
 
 export default function ArchivedTasksPanel() {
   const { t } = useLocale();
@@ -80,8 +91,11 @@ export default function ArchivedTasksPanel() {
     }
   };
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const formatDate = (iso: string | undefined) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  };
 
   if (loading) {
     return (
@@ -143,6 +157,8 @@ export default function ArchivedTasksPanel() {
                 const dl = deadlineLabel(todo.deadline, t);
                 const statusInfo = STATUS_STYLES[todo.status] ?? STATUS_STYLES.deleted;
                 const subtasks = todos.filter((td) => td.parentId === todo.id);
+                const pri = safePriority(todo.priority);
+                const eff = safeEffort(todo.effort);
 
                 return (
                   <tr key={todo.id} className="border-b border-zinc-50 dark:border-slate-800/50 last:border-0 hover:bg-zinc-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -163,11 +179,11 @@ export default function ArchivedTasksPanel() {
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
                       <div className="flex items-center gap-1">
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>
-                          {t(`priority.${todo.priority}`)}
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[pri].cls}`}>
+                          {t(`priority.${pri}`)}
                         </span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
-                          {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[eff].cls}`}>
+                          {t(EFFORT_BADGES[eff].tKey)}
                         </span>
                         {dl && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
                       </div>
