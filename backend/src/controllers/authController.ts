@@ -23,7 +23,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "
 import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
 import { consumeSsoLoginState } from "../utils/oauthState";
 import { ValidationError } from "../utils/errors";
-import { getStore, scheduleSave } from "../persistence";
+import { flushNow, getStore, scheduleSave } from "../persistence";
 import { parseCookies } from "../utils/parseCookies";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -196,6 +196,10 @@ export async function googleSsoCallback(req: Request, res: Response) {
       timezone,
     });
 
+    // Persist session before redirect so another Cloud Run instance can validate /auth/me
+    // (scheduleSave debounces 500ms; without flush, load-balanced getMe often returns 401).
+    await flushNow();
+
     res.cookie(COOKIE_NAME, result.sessionToken, {
       ...baseCookieOpts(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -215,6 +219,8 @@ export async function login(req: Request, res: Response) {
   }
 
   const result = loginService({ email, password, timezone: typeof timezone === "string" ? timezone : undefined });
+
+  await flushNow();
 
   res.cookie(COOKIE_NAME, result.sessionToken, {
     ...baseCookieOpts(),
