@@ -50,6 +50,7 @@ import {
   type ProjectAccessEntry,
   type ProjectAccessInfo,
 } from "@/lib/api";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
@@ -984,7 +985,7 @@ export default function ProjectDetailView({
         )}
 
         <span className={`flex-1 text-sm truncate ${todo.status === "completed" ? "line-through text-zinc-400 dark:text-slate-500" : "text-zinc-800 dark:text-slate-200"}`}>
-          {todo.title}
+          {displayTodoTitle(todo.title, t("todos.untitled"))}
           {subtaskCount > 0 && (
             <span className="ml-1.5 text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subtaskCount} ↳</span>
           )}
@@ -1549,7 +1550,7 @@ export default function ProjectDetailView({
                                         <button type="button" onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "completed"); }} className="w-4 h-4 mt-0.5 rounded border border-zinc-300 dark:border-slate-600 flex items-center justify-center text-zinc-400 hover:border-green-500 hover:text-green-500 transition-colors shrink-0">
                                           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                         </button>
-                                        <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 leading-snug flex-1 min-w-0">{todo.title}</p>
+                                        <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 leading-snug flex-1 min-w-0">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
                                         <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover/card:opacity-100 transition-opacity shrink-0">
                                           <button type="button" onClick={(e) => { e.stopPropagation(); openSubtaskModal(todo); }} className="text-zinc-400 hover:text-blue-500 transition-colors p-0.5" title={t("subtask.add")}>
                                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
@@ -1610,7 +1611,7 @@ export default function ProjectDetailView({
                                               <button type="button" onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(sub, sub.status === "completed" ? "active" : "completed"); }} className={`w-3 h-3 rounded-sm border flex items-center justify-center shrink-0 ${sub.status === "completed" ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 dark:border-slate-600"}`}>
                                                 {sub.status === "completed" && <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                               </button>
-                                              <span className={sub.status === "completed" ? "line-through opacity-60" : ""}>{sub.title}</span>
+                                              <span className={sub.status === "completed" ? "line-through opacity-60" : ""}>{displayTodoTitle(sub.title, t("todos.untitled"))}</span>
                                             </div>
                                           ))}
                                         </div>
@@ -1629,7 +1630,7 @@ export default function ProjectDetailView({
                                           <button type="button" onClick={() => handleTaskStatusChange(todo, "active")} className="w-4 h-4 rounded bg-green-500 border border-green-500 flex items-center justify-center text-white shrink-0">
                                             <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                           </button>
-                                          <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{todo.title}</span>
+                                          <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
                                         </div>
                                       </div>
                                     </DraggableKanbanCard>
@@ -1642,7 +1643,7 @@ export default function ProjectDetailView({
                                   {other.map((todo) => (
                                     <DraggableKanbanCard key={todo.id} id={todo.id}>
                                       <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-40 cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
-                                        <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{todo.title}</span>
+                                        <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
                                       </div>
                                     </DraggableKanbanCard>
                                   ))}
@@ -1674,7 +1675,7 @@ export default function ProjectDetailView({
                               return (
                                 <DraggableKanbanCard key={todo.id} id={todo.id}>
                                   <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
-                                    <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{todo.title}</p>
+                                    <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
                                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                                       <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
                                       {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}

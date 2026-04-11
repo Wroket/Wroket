@@ -2,6 +2,7 @@
 
 import { arrayMove } from "@dnd-kit/sortable";
 
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
@@ -107,7 +108,7 @@ export default function SubtaskSortableRows({
             <td className="px-4 py-2">
               <span className="text-zinc-400 mr-1.5">↳</span>
               <span className={`text-sm ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>
-                {sub.title}
+                {displayTodoTitle(sub.title, t("todos.untitled"))}
               </span>
             </td>
             <td className="px-4 py-2">

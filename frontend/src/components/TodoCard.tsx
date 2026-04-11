@@ -2,6 +2,7 @@
 
 import { useLocale } from "@/lib/LocaleContext";
 import type { Todo, Project } from "@/lib/api";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -91,7 +92,7 @@ export default function TodoCard({
         </button>
       )}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-snug font-medium truncate ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}>{todo.title}</p>
+        <p className={`text-sm leading-snug font-medium truncate ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}>{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
         <div className="flex items-center gap-1 mt-1 flex-wrap gap-y-1">
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${badge.cls}`}>{t(badge.tKey)}</span>
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>

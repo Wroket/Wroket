@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import { getTeams, getTeamDashboard, Team, TeamDashboardData } from "@/lib/api";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 
 export default function TeamDashboardPage() {
@@ -139,7 +140,7 @@ export default function TeamDashboardPage() {
                         const isOverdue = todo.deadline && new Date(todo.deadline) < new Date();
                         return (
                           <tr key={todo.id} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30">
-                            <td className="px-4 py-3 text-zinc-900 dark:text-slate-100">{todo.title}</td>
+                            <td className="px-4 py-3 text-zinc-900 dark:text-slate-100">{displayTodoTitle(todo.title, t("todos.untitled"))}</td>
                             <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs font-mono">
                               {data.memberMap[todo.userId] ?? "—"}
                             </td>

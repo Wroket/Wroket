@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import { getArchivedTodos, updateTodo, type Todo, type TodoStatus } from "@/lib/api";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
@@ -147,7 +148,7 @@ export default function ArchivedTasksPanel() {
                   <tr key={todo.id} className="border-b border-zinc-50 dark:border-slate-800/50 last:border-0 hover:bg-zinc-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-zinc-600 dark:text-slate-300 line-through opacity-70">{todo.title}</span>
+                        <span className="text-zinc-600 dark:text-slate-300 line-through opacity-70">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
                         {subtasks.length > 0 && (
                           <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">
                             {subtasks.length} ↳

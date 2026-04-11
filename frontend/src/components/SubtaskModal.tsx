@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Todo, Priority, Effort } from "@/lib/api";
@@ -102,7 +103,7 @@ function SortableSubtaskItem({
             : "text-zinc-700 dark:text-slate-300"
         }`}
       >
-        {sub.title}
+        {displayTodoTitle(sub.title, t("todos.untitled"))}
       </span>
       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>
         {t(badge.tKey)}

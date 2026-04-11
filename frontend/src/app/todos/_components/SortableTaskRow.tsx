@@ -5,6 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -238,7 +239,7 @@ export default function SortableTaskRow({
             todo.status === "deleted" ? "line-through text-zinc-300 dark:text-slate-600" :
             "text-zinc-900 dark:text-slate-100"
           }`}>
-            {todo.title}
+            {displayTodoTitle(todo.title, t("todos.untitled"))}
           </span>
           {todo.projectId && (() => {
             const proj = projects.find((p) => p.id === todo.projectId);

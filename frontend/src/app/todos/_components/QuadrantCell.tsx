@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import TodoCard from "@/components/TodoCard";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { QUADRANT_CONFIG, type Quadrant } from "@/lib/todoConstants";
 import type { Todo, Project } from "@/lib/api";
@@ -110,7 +111,7 @@ export default function QuadrantCell({
                             </svg>
                           </button>
                           <span className="text-zinc-400 text-[10px]">↳</span>
-                          <span className={`flex-1 truncate ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>{sub.title}</span>
+                          <span className={`flex-1 truncate ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>{displayTodoTitle(sub.title, t("todos.untitled"))}</span>
                         </div>
                       ))}
                     </div>

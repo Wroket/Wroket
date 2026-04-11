@@ -9,6 +9,7 @@ import { useAuth } from "@/components/AuthContext";
 import { getTodos, getArchivedTodos, getAssignedTodos, getNotifications, Todo, AppNotification } from "@/lib/api";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useUserLookup } from "@/lib/userUtils";
 import type { TranslationKey } from "@/lib/i18n";
@@ -189,7 +190,7 @@ export default function DashboardPage() {
                       return (
                         <li key={todo.id} className="flex items-center gap-3">
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
-                          <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">{todo.title}</span>
+                          <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
                           <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>
                         </li>
                       );
@@ -240,7 +241,7 @@ export default function DashboardPage() {
                         <li key={todo.id} className="flex items-center gap-3">
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{todo.title}</p>
+                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
                             <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dashboard.from")} {userDisplayName(todo.userId)}</p>
                           </div>
                           {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
@@ -284,7 +285,7 @@ export default function DashboardPage() {
                         <li key={todo.id} className="flex items-center gap-3">
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{todo.title}</p>
+                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
                             <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dashboard.to")} {userDisplayName(todo.assignedTo!)}</p>
                           </div>
                           {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
@@ -325,7 +326,7 @@ export default function DashboardPage() {
                       <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
-                      <span className="text-sm text-zinc-500 dark:text-slate-400 line-through truncate">{todo.title}</span>
+                      <span className="text-sm text-zinc-500 dark:text-slate-400 line-through truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
                     </div>
                   ))}
                 </div>

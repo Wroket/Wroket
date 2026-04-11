@@ -43,6 +43,7 @@ import {
   Collaborator,
   Team,
 } from "@/lib/api";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -1316,7 +1317,7 @@ export default function TodosPage() {
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 leading-snug truncate">
-                                {todo.title}
+                                {displayTodoTitle(todo.title, t("todos.untitled"))}
                               </p>
                               <div className="flex items-center gap-1 mt-1 flex-wrap gap-y-1">
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${QUADRANT_BADGES[q].cls}`}>

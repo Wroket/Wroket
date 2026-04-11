@@ -264,6 +264,9 @@ function persistTodos(...ownerUidsForShards: string[]): void {
         if (raw.encV1 != null) {
           delete raw.encV1;
         }
+        if (typeof todo.title !== "string") {
+          todo.title = "";
+        }
         if (todo.assignmentStatus === undefined) {
           todo.assignmentStatus = todo.assignedTo ? "pending" : null;
         }

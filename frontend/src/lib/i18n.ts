@@ -169,6 +169,10 @@ const translations = {
   "todos.effortLabel": { fr: "Effort", en: "Effort" },
   "todos.deadlineLabel": { fr: "Échéance", en: "Deadline" },
   "todos.listTitle": { fr: "Liste des tâches", en: "Task list" },
+  "todos.untitled": {
+    fr: "Sans titre",
+    en: "Untitled task",
+  },
   "todos.matrixTitle": { fr: "Matrice d\u2019Eisenhower", en: "Eisenhower Matrix" },
   "todos.delegatedTitle": { fr: "Tâches que vous avez assignées", en: "Tasks you assigned to others" },
   "todos.delegatedEmpty": { fr: "Aucune tâche assignée à un autre membre", en: "No tasks assigned to someone else" },

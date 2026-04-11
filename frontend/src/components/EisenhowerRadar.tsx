@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Todo, Priority } from "@/lib/api";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -159,7 +160,7 @@ export default function EisenhowerRadar({ todos, subtaskCounts = {}, meUid, user
                 <div
                   tabIndex={0}
                   role="button"
-                  aria-label={todo.title}
+                  aria-label={displayTodoTitle(todo.title, t("todos.untitled"))}
                   className={`rounded-full border-2 border-white shadow-md cursor-pointer transition-transform focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 ${DOT_COLORS[q]} ${
                     isHovered ? "scale-150 ring-2 ring-offset-1 ring-zinc-400" : "hover:scale-125"
                   }`}
@@ -209,7 +210,7 @@ function Tooltip({
       className="absolute z-50 bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none radar-tooltip"
       style={{ ...verticalStyle, ...horizontalStyle }}
     >
-      <p className="font-semibold text-sm mb-1.5">{todo.title}</p>
+      <p className="font-semibold text-sm mb-1.5">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
       <div className="flex flex-wrap items-center gap-1.5 mb-1">
         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${badge.cls}`}>{t(badge.tKey)}</span>
         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>

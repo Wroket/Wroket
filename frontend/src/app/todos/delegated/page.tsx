@@ -12,6 +12,7 @@ import {
   Todo,
   TodoStatus,
 } from "@/lib/api";
+import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useUserLookup } from "@/lib/userUtils";
 
@@ -177,7 +178,7 @@ export default function DelegatedPage() {
                           todo.status === "deleted" ? "line-through text-zinc-300 dark:text-slate-600" :
                           "text-zinc-900 dark:text-slate-100"
                         }`}>
-                          {todo.title}
+                          {displayTodoTitle(todo.title, t("todos.untitled"))}
                         </span>
                       </td>
                       <td className="px-4 py-3">
