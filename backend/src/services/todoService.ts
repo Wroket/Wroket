@@ -1,13 +1,7 @@
 import crypto from "crypto";
 
-import { isKekConfigured } from "../crypto/kekService";
 import { getStore, scheduleTodoShardPersist, todoShardIndex } from "../persistence";
 import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
-import {
-  decryptTodoTitleTags,
-  encryptTodoTitleTags,
-  ensureUserWrappedDek,
-} from "./userDekService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
@@ -61,8 +55,6 @@ export interface Todo {
   statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
-  /** Present only in persisted store when CRYPTO_KEK_BASE64 is set (title+tags ciphertext). */
-  encV1?: string;
 }
 
 export interface CreateTodoInput {
@@ -236,19 +228,9 @@ export function todoToClientJson(todo: Todo): Todo {
   };
 }
 
-function todoToPersisted(todo: Todo, ownerUid: string): Todo {
-  const { encV1: _stripEnc, ...withoutEnc } = todo;
-  if (!isKekConfigured()) {
-    return { ...withoutEnc };
-  }
-  ensureUserWrappedDek(ownerUid);
-  const encV1 = encryptTodoTitleTags(ownerUid, todo.title, todo.tags);
-  return {
-    ...withoutEnc,
-    title: "",
-    tags: [],
-    encV1,
-  };
+function todoToPersisted(todo: Todo): Todo {
+  const { encV1: _e, ...rest } = todo as Todo & { encV1?: string };
+  return { ...rest };
 }
 
 /**
@@ -259,7 +241,7 @@ function persistTodos(...ownerUidsForShards: string[]): void {
   const obj: Record<string, Record<string, Todo>> = {};
   todosByUser.forEach((todos, userId) => {
     obj[userId] = {};
-    todos.forEach((todo, id) => { obj[userId][id] = todoToPersisted(todo, userId); });
+    todos.forEach((todo, id) => { obj[userId][id] = todoToPersisted(todo); });
   });
   const store = getStore();
   store.todos = obj;
@@ -279,20 +261,8 @@ function persistTodos(...ownerUidsForShards: string[]): void {
       const map = new Map<string, Todo>();
       for (const [id, todo] of Object.entries(todos as Record<string, Todo>)) {
         const raw = todo as unknown as Record<string, unknown>;
-        const enc = raw.encV1;
-        if (typeof enc === "string" && enc.length > 0 && isKekConfigured()) {
-          try {
-            ensureUserWrappedDek(userId);
-            const plain = decryptTodoTitleTags(userId, enc);
-            todo.title = plain.title;
-            todo.tags = plain.tags;
-          } catch (err) {
-            console.error("[todos] decrypt title/tags failed uid=%s id=%s: %s", userId, id, err);
-            todo.title = "[chiffrement indisponible]";
-            todo.tags = [];
-          }
+        if (raw.encV1 != null) {
           delete raw.encV1;
-          delete todo.encV1;
         }
         if (todo.assignmentStatus === undefined) {
           todo.assignmentStatus = todo.assignedTo ? "pending" : null;

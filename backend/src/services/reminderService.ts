@@ -23,7 +23,7 @@ function checkDeadlines(): void {
         .map((n) => `${n.type}:${n.data!.todoId}`),
     );
 
-    // Use in-memory todos (titles decrypted) — raw store.todos has empty title when encV1 is set.
+    // Use in-memory todos from todoService (hydrated list).
     for (const todo of listAllTodos(userId)) {
       if (todo.status !== "active") continue;
       if (!todo.deadline) continue;

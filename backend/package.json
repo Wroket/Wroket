@@ -7,7 +7,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "migrate:todos-shards": "npm run build && node -r dotenv/config dist/scripts/migrateTodosShards.js"
+    "migrate:todos-shards": "npm run build && node -r dotenv/config dist/scripts/migrateTodosShards.js",
+    "migrate:strip-encryption": "npm run build && node -r dotenv/config dist/scripts/migrateStripEncryption.js"
   },
   "keywords": [],
   "author": "",

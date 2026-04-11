@@ -3,9 +3,6 @@ import crypto from "crypto";
 import { getStore, scheduleSave } from "../persistence";
 import { assertValidEmailFormat } from "../utils/emailValidation";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
-import { registerCryptoUserLookup } from "./cryptoUserBridge";
-import { ensureUserWrappedDek } from "./userDekService";
-
 export type EffortMinutes = { light: number; medium: number; heavy: number };
 
 const DEFAULT_EFFORT_MINUTES: EffortMinutes = { light: 10, medium: 30, heavy: 60 };
@@ -75,8 +72,6 @@ interface StoredUser {
   email: string;
   firstName: string;
   lastName: string;
-  /** AES-256 DEK wrapped with CRYPTO_KEK_BASE64 — encrypts todo titles/tags and task comments. */
-  wrappedDekB64?: string;
   passwordSaltB64: string;
   passwordHashB64: string;
   effortMinutes?: EffortMinutes;
@@ -103,8 +98,6 @@ interface StoredSession {
 
 const usersByUid = new Map<string, StoredUser>();
 const sessionsByToken = new Map<string, StoredSession>();
-
-registerCryptoUserLookup((uid) => usersByUid.get(uid));
 
 function persistUsers(): void {
   const obj: Record<string, StoredUser> = {};
@@ -265,7 +258,6 @@ export function register(input: RegisterInput): AuthUser & { verifyToken: string
   };
   usersByUid.set(uid, stored);
   persistUsers();
-  ensureUserWrappedDek(uid);
 
   return { ...toAuthUser(stored), verifyToken };
 }
@@ -421,8 +413,6 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
   sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
   persistSessions();
 
-  ensureUserWrappedDek(uid);
-
   return { ...toAuthUser(user), sessionToken };
 }
 
@@ -561,7 +551,6 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
     };
     usersByUid.set(uid, user);
     persistUsers();
-    ensureUserWrappedDek(uid);
     console.log("[auth] Google SSO — new user created: %s (tz: %s)", email, tz);
   } else {
     let changed = false;
@@ -578,8 +567,6 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
     }
     if (changed) persistUsers();
   }
-
-  ensureUserWrappedDek(uid);
 
   for (const [tok, sess] of sessionsByToken) {
     if (sess.uid === uid) sessionsByToken.delete(tok);

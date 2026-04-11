@@ -3,8 +3,6 @@ import { NotFoundError } from "../utils/errors";
 import { exportCommentsByAuthor } from "./commentService";
 import { createNotification } from "./notificationService";
 import { listAllTodos } from "./todoService";
-import { clearUserDekCache } from "./userDekService";
-
 export interface UserDataExport {
   user: Record<string, unknown>;
   todos: unknown[];
@@ -43,7 +41,7 @@ export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserD
     });
   }
 
-  // Comments — same split (store holds ciphertext when crypto enabled)
+  // Comments — same split
   let comments: unknown[];
   if (opts?.decryptedTaskContent) {
     comments = exportCommentsByAuthor(uid) as unknown[];
@@ -96,7 +94,6 @@ const SENSITIVE_FIELDS = [
   "passwordHashB64", "passwordSaltB64",
   "googleCalendarTokens", "googleAccounts",
   "emailVerifyToken", "resetToken", "resetTokenExpiry",
-  "wrappedDekB64",
 ];
 
 function sanitizeUserForExport(user: Record<string, unknown>): Record<string, unknown> {
@@ -250,8 +247,6 @@ export async function deleteUserData(uid: string): Promise<void> {
   // Remove user record last (after all lookups are done)
   delete users[uid];
   scheduleSave("users");
-
-  clearUserDekCache(uid);
 
   // Force immediate persistence so data is gone before the response
   await flushNow();
