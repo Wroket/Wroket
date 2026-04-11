@@ -24,7 +24,13 @@ dotenv.config();
 const app = express();
 
 app.set("trust proxy", 1);
-app.use(helmet());
+// Default CORP is `same-origin`, which blocks the browser from using cross-origin API responses
+// (e.g. fetch from https://wroket.com to https://api.wroket.com). CORS alone is not enough.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 app.use(compression());
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://localhost:3002")

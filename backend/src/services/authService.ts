@@ -419,9 +419,13 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
 function extractSessionToken(cookies: string | undefined): string | null {
   if (!cookies) return null;
   const cookiePairs = cookies.split(";").map((v) => v.trim());
-  const match = cookiePairs.find((p) => p.startsWith(`${COOKIE_NAME}=`));
-  if (!match) return null;
-  return match.slice(COOKIE_NAME.length + 1);
+  let last: string | null = null;
+  for (const p of cookiePairs) {
+    if (p.startsWith(`${COOKIE_NAME}=`)) {
+      last = p.slice(COOKIE_NAME.length + 1);
+    }
+  }
+  return last;
 }
 
 export function getUserFromRequestCookies(cookies: string | undefined): AuthUser | null {
