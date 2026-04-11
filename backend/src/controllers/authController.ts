@@ -31,6 +31,47 @@ const cookieSecure =
   process.env.COOKIE_SECURE === "true" ||
   (isProd && (process.env.FRONTEND_URL?.startsWith("https://") ?? false));
 
+/**
+ * Shared parent domain (e.g. `.wroket.com`) so `auth_token` is sent to both `wroket.com`
+ * (Next.js middleware) and `api.wroket.com` (API). Without this, SSO redirect to /dashboard
+ * has no cookie on the web host and middleware sends users back to /login.
+ */
+function cookieParentDomain(): string | undefined {
+  const raw = process.env.COOKIE_DOMAIN?.trim();
+  if (raw) {
+    return raw.startsWith(".") ? raw : `.${raw}`;
+  }
+  const front = process.env.FRONTEND_URL;
+  if (!front) return undefined;
+  try {
+    const { hostname } = new URL(front);
+    if (hostname === "localhost" || /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
+      return undefined;
+    }
+    const parts = hostname.split(".");
+    if (parts.length < 2) return undefined;
+    return `.${parts.slice(-2).join(".")}`;
+  } catch {
+    return undefined;
+  }
+}
+
+const COOKIE_DOMAIN = cookieParentDomain();
+
+function baseCookieOpts(): { httpOnly: boolean; sameSite: "lax"; secure: boolean; path: string; domain?: string } {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: cookieSecure,
+    path: "/",
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
+  };
+}
+
+function clearCookieOpts(): { path: string; domain?: string } {
+  return { path: "/", ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}) };
+}
+
 const MAX_INVITE_LOG = 10_000;
 
 function logInvite(fromEmail: string, fromName: string, toEmail: string): void {
@@ -112,10 +153,7 @@ export async function googleSsoUrl(req: Request, res: Response) {
   const loginHint = typeof req.query.login_hint === "string" ? req.query.login_hint : undefined;
   const { url, state } = getGoogleSsoAuthUrl(loginHint);
   res.cookie("oauth_state", state, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: cookieSecure,
-    path: "/",
+    ...baseCookieOpts(),
     maxAge: 10 * 60 * 1000,
   });
   res.status(200).json({ url });
@@ -129,7 +167,7 @@ export async function googleSsoCallback(req: Request, res: Response) {
   const cookies = parseCookies(req.headers.cookie);
   const storedState = cookies.oauth_state;
 
-  res.clearCookie("oauth_state", { path: "/" });
+  res.clearCookie("oauth_state", clearCookieOpts());
 
   if (!code || !stateParam) {
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
@@ -159,10 +197,7 @@ export async function googleSsoCallback(req: Request, res: Response) {
     });
 
     res.cookie(COOKIE_NAME, result.sessionToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: cookieSecure,
-      path: "/",
+      ...baseCookieOpts(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -182,10 +217,7 @@ export async function login(req: Request, res: Response) {
   const result = loginService({ email, password, timezone: typeof timezone === "string" ? timezone : undefined });
 
   res.cookie(COOKIE_NAME, result.sessionToken, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: cookieSecure,
-    path: "/",
+    ...baseCookieOpts(),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
@@ -194,7 +226,7 @@ export async function login(req: Request, res: Response) {
 
 export async function logout(req: Request, res: Response) {
   logoutService(req.headers.cookie);
-  res.clearCookie(COOKIE_NAME, { path: "/" });
+  res.clearCookie(COOKIE_NAME, clearCookieOpts());
   res.status(200).json({ message: "Logged out" });
 }
 
@@ -342,7 +374,7 @@ export async function myDeleteAccount(req: Request, res: Response) {
     throw new ValidationError("Type SUPPRIMER or DELETE to confirm");
   }
   await deleteUserData(user.uid);
-  res.clearCookie(COOKIE_NAME, { path: "/" });
+  res.clearCookie(COOKIE_NAME, clearCookieOpts());
   res.status(200).json({ message: "Compte supprimé" });
 }
 
