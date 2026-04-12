@@ -46,7 +46,8 @@ jobs:
             > backend/.env
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium --prefix e2e
+        # Use npm --prefix (npx does not support --prefix; it was passed to playwright and failed).
+        run: npm run install:browsers --prefix e2e
 
       - name: Run E2E smoke
         run: npm run test:e2e

@@ -12,7 +12,7 @@ Depuis la **racine du monorepo** (`Wroket`) :
 
 ```bash
 npm install --prefix e2e
-npx playwright install --with-deps chromium --prefix e2e
+npm run install:browsers --prefix e2e
 npm run test:e2e
 ```
 
