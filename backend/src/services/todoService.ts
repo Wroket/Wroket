@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-import { getStore, scheduleTodoShardPersist, todoShardIndex } from "../persistence";
+import { getStore, scheduleTodoShardPersist, todoShardIndex, flushNow } from "../persistence";
 import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
@@ -237,7 +237,7 @@ function todoToPersisted(todo: Todo): Todo {
  * @param ownerUidsForShards Firestore todo owner user ids whose shard doc must be rewritten.
  *   Omit or pass none to mark all shards (cross-user updates: phase cleanup, tombstone purge).
  */
-function persistTodos(...ownerUidsForShards: string[]): void {
+async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
   const obj: Record<string, Record<string, Todo>> = {};
   todosByUser.forEach((todos, userId) => {
     obj[userId] = {};
@@ -251,6 +251,7 @@ function persistTodos(...ownerUidsForShards: string[]): void {
     const shardIndices = [...new Set(ownerUidsForShards.map((uid) => todoShardIndex(uid)))];
     scheduleTodoShardPersist(shardIndices);
   }
+  await flushNow();
 }
 
 (function hydrateTodos() {
@@ -396,7 +397,7 @@ export interface TodoPhaseConversionPatch {
   parentId: string | null;
 }
 
-export function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConversionPatch[]): void {
+export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConversionPatch[]): Promise<void> {
   const now = new Date().toISOString();
   const ownersToPersist = new Set<string>();
   for (const p of patches) {
@@ -413,11 +414,13 @@ export function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConversionP
     todos.set(p.todoId, todo);
     ownersToPersist.add(owner);
   }
-  for (const o of ownersToPersist) persistTodos(o);
+  if (ownersToPersist.size > 0) {
+    await persistTodos(...ownersToPersist);
+  }
 }
 
 /** Permanently remove todos from the store (used when root tasks become phases). */
-export function hardRemoveTodosByIds(todoIds: string[]): void {
+export async function hardRemoveTodosByIds(todoIds: string[]): Promise<void> {
   const owners = new Set<string>();
   for (const id of todoIds) {
     const owner = ownerIndex.get(id);
@@ -428,11 +431,13 @@ export function hardRemoveTodosByIds(todoIds: string[]): void {
     ownerIndex.delete(id);
     owners.add(owner);
   }
-  for (const o of owners) persistTodos(o);
+  if (owners.size > 0) {
+    await persistTodos(...owners);
+  }
 }
 
 /** Clears phaseId on todos that still reference a removed phase (any owner). */
-export function clearProjectPhaseReferences(projectId: string, phaseId: string): number {
+export async function clearProjectPhaseReferences(projectId: string, phaseId: string): Promise<number> {
   let updated = 0;
   const now = new Date().toISOString();
   todosByUser.forEach((todos) => {
@@ -444,7 +449,7 @@ export function clearProjectPhaseReferences(projectId: string, phaseId: string):
       }
     });
   });
-  if (updated > 0) persistTodos();
+  if (updated > 0) await persistTodos();
   return updated;
 }
 
@@ -511,7 +516,7 @@ const MAX_REORDER_SIZE = 200;
  * Updates sortOrder for a batch of owned todos in a single persist.
  * Returns the count of successfully updated items.
  */
-export function batchReorder(userId: string, todoIds: string[]): number {
+export async function batchReorder(userId: string, todoIds: string[]): Promise<number> {
   const capped = todoIds.slice(0, MAX_REORDER_SIZE);
   let updated = 0;
   for (let i = 0; i < capped.length; i++) {
@@ -522,11 +527,11 @@ export function batchReorder(userId: string, todoIds: string[]): number {
       updated++;
     }
   }
-  if (updated > 0) persistTodos(userId);
+  if (updated > 0) await persistTodos(userId);
   return updated;
 }
 
-export function createTodo(userId: string, userEmail: string, input: CreateTodoInput): Todo {
+export async function createTodo(userId: string, userEmail: string, input: CreateTodoInput): Promise<Todo> {
   if (!input.title || input.title.trim().length === 0) {
     throw new ValidationError("Le titre est requis");
   }
@@ -665,7 +670,7 @@ export function createTodo(userId: string, userEmail: string, input: CreateTodoI
 
   getUserTodos(userId).set(todo.id, todo);
   ownerIndex.set(todo.id, userId);
-  persistTodos(userId);
+  await persistTodos(userId);
   return todo;
 }
 
@@ -687,7 +692,7 @@ export function findTodoForUser(userId: string, todoId: string): { todo: Todo; o
   return null;
 }
 
-export function updateTodo(userId: string, userEmail: string, todoId: string, input: UpdateTodoInput): Todo {
+export async function updateTodo(userId: string, userEmail: string, todoId: string, input: UpdateTodoInput): Promise<Todo> {
   const found = findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
@@ -875,7 +880,6 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
 
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
-  persistTodos(todo.userId);
 
   if (
     input.status === "completed" &&
@@ -920,10 +924,10 @@ export function updateTodo(userId: string, userEmail: string, todoId: string, in
       };
       ownerTodos.set(clone.id, clone);
       ownerIndex.set(clone.id, todo.userId);
-      persistTodos(todo.userId);
     }
   }
 
+  await persistTodos(todo.userId);
   return todo;
 }
 
@@ -942,12 +946,14 @@ setInterval(() => {
     }
   });
   if (cleaned > 0) {
-    persistTodos();
+    void persistTodos().catch((err) => {
+      console.error("[todos] échec persistance après purge tombstones:", err);
+    });
     console.log("[todos] %d tombstone(s) purgée(s) (> 30 jours)", cleaned);
   }
 }, 6 * 60 * 60 * 1000).unref();
 
-export function deleteTodo(userId: string, todoId: string): Todo {
+export async function deleteTodo(userId: string, todoId: string): Promise<Todo> {
   const found = findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
@@ -957,6 +963,6 @@ export function deleteTodo(userId: string, todoId: string): Todo {
   todo.statusChangedAt = now;
   todo.updatedAt = now;
   todos.set(todoId, todo);
-  persistTodos(userId);
+  await persistTodos(userId);
   return todo;
 }

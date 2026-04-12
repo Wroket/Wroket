@@ -108,7 +108,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError("Titre et priorité requis");
   }
 
-  const todo = createTodo(req.user!.uid, req.user!.email ?? "", {
+  const todo = await createTodo(req.user!.uid, req.user!.email ?? "", {
     title,
     priority,
     effort,
@@ -150,7 +150,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   const input = req.body as UpdateTodoInput;
   const prevFound = findTodoForUser(req.user!.uid, id);
   const previousTodo = prevFound?.todo ? { ...prevFound.todo } : null;
-  const todo = updateTodo(req.user!.uid, req.user!.email ?? "", id, input);
+  let todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, input);
 
   if (
     input.status &&
@@ -161,8 +161,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     deleteGoogleCalendarEventForTodo(todo).catch((err) => {
       console.warn("[todo.update] Google Calendar event cleanup failed:", err);
     });
-    updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
-    todo.scheduledSlot = null;
+    todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
   }
 
   try {
@@ -282,7 +281,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
-  const todo = deleteTodo(req.user!.uid, id);
+  let todo = await deleteTodo(req.user!.uid, id);
 
   if (
     todo.scheduledSlot &&
@@ -291,8 +290,7 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
     deleteGoogleCalendarEventForTodo(todo).catch((err) => {
       console.warn("[todo.remove] Google Calendar event cleanup failed:", err);
     });
-    updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
-    todo.scheduledSlot = null;
+    todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
   }
 
   try {
@@ -519,7 +517,7 @@ export async function importTodos(req: AuthenticatedRequest, res: Response) {
   for (let i = 0; i < rows.length; i++) {
     try {
       const input = coerceImportRowToCreateInput(rows[i]);
-      createTodo(uid, email, input);
+      await createTodo(uid, email, input);
       created++;
     } catch (err) {
       errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Erreur" });
@@ -552,7 +550,7 @@ export async function confirmTaskImport(req: AuthenticatedRequest, res: Response
   for (const row of raw) {
     inputs.push(coerceImportRowToCreateInput(row));
   }
-  const result = executeTaskImport(uid, email, inputs);
+  const result = await executeTaskImport(uid, email, inputs);
   res.status(201).json(result);
 }
 
@@ -577,6 +575,6 @@ export async function taskActivity(req: AuthenticatedRequest, res: Response) {
 export async function reorderTodos(req: AuthenticatedRequest, res: Response) {
   const { todoIds } = req.body as { todoIds?: string[] };
   if (!Array.isArray(todoIds)) throw new ValidationError("todoIds requis");
-  const updated = batchReorder(req.user!.uid, todoIds);
+  const updated = await batchReorder(req.user!.uid, todoIds);
   res.status(200).json({ message: "OK", updated });
 }

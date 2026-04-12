@@ -66,13 +66,13 @@ function sortRootsForConversion(roots: Todo[]): Todo[] {
 /**
  * Converts a phase into a child project and moves tasks. Caller must enforce auth.
  */
-export function convertPhaseToSubproject(
+export async function convertPhaseToSubproject(
   uid: string,
   userEmail: string,
   projectId: string,
   phaseId: string,
   input: ConvertPhaseToSubprojectInput,
-): ConvertPhaseToSubprojectResult {
+): Promise<ConvertPhaseToSubprojectResult> {
   const project = getProjectById(projectId);
   if (!project) throw new NotFoundError("Projet introuvable");
   if (!canEditProjectContent(uid, userEmail.trim().toLowerCase(), project)) {
@@ -109,7 +109,7 @@ export function convertPhaseToSubproject(
       phaseId: null,
       parentId: t.parentId,
     }));
-    applyTodoPatchesForPhaseConversion(patches);
+    await applyTodoPatchesForPhaseConversion(patches);
   } else {
     const roots = phaseTodosAll.filter((t) => !t.parentId || !inPhase.has(t.parentId));
     if (roots.length > 50) {
@@ -155,10 +155,10 @@ export function convertPhaseToSubproject(
       }
     }
 
-    applyTodoPatchesForPhaseConversion(patches);
+    await applyTodoPatchesForPhaseConversion(patches);
 
     removeCommentsForTodos([...rootIds]);
-    hardRemoveTodosByIds([...rootIds]);
+    await hardRemoveTodosByIds([...rootIds]);
   }
 
   deletePhase(projectId, phaseId);
@@ -176,13 +176,13 @@ export function convertPhaseToSubproject(
  * Merges a direct sub-project into its parent as one or more phases and moves all tasks.
  * Inverse of {@link convertPhaseToSubproject} (sub-project → phases on parent).
  */
-export function convertSubprojectToPhase(
+export async function convertSubprojectToPhase(
   uid: string,
   userEmail: string,
   parentProjectId: string,
   subProjectId: string,
   input: ConvertSubprojectToPhaseInput = {},
-): ConvertSubprojectToPhaseResult {
+): Promise<ConvertSubprojectToPhaseResult> {
   const parent = getProjectById(parentProjectId);
   const sub = getProjectById(subProjectId);
   if (!parent || !sub) throw new NotFoundError("Projet introuvable");
@@ -235,7 +235,7 @@ export function convertSubprojectToPhase(
       parentId: t.parentId,
     };
   });
-  applyTodoPatchesForPhaseConversion(patches);
+  await applyTodoPatchesForPhaseConversion(patches);
 
   deleteProject(uid, userEmail, subProjectId);
 

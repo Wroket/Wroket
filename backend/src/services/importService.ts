@@ -188,13 +188,13 @@ export function validateAndPreview(rows: CsvRow[], projectName: string): ImportP
   return { projectName, phases, tasks, errors };
 }
 
-export function executeImport(
+export async function executeImport(
   uid: string,
   userEmail: string,
   projectName: string,
   teamId: string | null,
   tasks: ParsedTask[],
-): { project: Project; taskCount: number } {
+): Promise<{ project: Project; taskCount: number }> {
   const project = createProject(uid, userEmail, { name: projectName, teamId });
 
   // Create phases in order of first appearance
@@ -211,7 +211,7 @@ export function executeImport(
   // Create tasks
   let count = 0;
   for (const task of tasks) {
-    createTodo(uid, userEmail, {
+    await createTodo(uid, userEmail, {
       title: task.title,
       priority: task.priority,
       effort: task.effort,

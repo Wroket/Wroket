@@ -283,7 +283,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     }
   }
 
-  const updated = updateTodo(uid, req.user!.email ?? "", todoId, {
+  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: { start, end, calendarEventId, bookedByUid: uid },
   });
 
@@ -302,7 +302,7 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
     await deleteGoogleCalendarEventForTodo(todo);
   }
 
-  const updated = updateTodo(uid, req.user!.email ?? "", todoId, {
+  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: null,
   });
   res.status(200).json(todoToClientJson(updated));

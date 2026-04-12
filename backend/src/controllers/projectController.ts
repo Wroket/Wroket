@@ -256,7 +256,7 @@ export async function removePhase(req: AuthenticatedRequest, res: Response) {
 
   const phaseId = req.params.phaseId as string;
   deletePhase(projectId, phaseId);
-  clearProjectPhaseReferences(projectId, phaseId);
+  await clearProjectPhaseReferences(projectId, phaseId);
   res.status(204).end();
 }
 
@@ -379,7 +379,7 @@ export async function importProjectTasks(req: AuthenticatedRequest, res: Respons
     const resolvedPhaseId = rawPhase ? phaseMap.get(phaseKey) ?? null : null;
 
     try {
-      createTodo(uid, email, {
+      await createTodo(uid, email, {
         title,
         priority: (["low", "medium", "high"].includes(t.priority ?? "") ? t.priority : "medium") as "low" | "medium" | "high",
         effort: (["light", "medium", "heavy"].includes(t.effort ?? "") ? t.effort : "medium") as "light" | "medium" | "heavy",
@@ -421,7 +421,7 @@ export async function convertPhaseToSubproject(req: AuthenticatedRequest, res: R
   const taskMode = body.taskMode === "tasks_as_phases" ? "tasks_as_phases" : "flat";
   const subtaskMode = body.subtaskMode === "unphased" ? "unphased" : "in_phase";
 
-  const result = convertPhaseToSubprojectService(req.user!.uid, req.user!.email ?? "", projectId, phaseId, {
+  const result = await convertPhaseToSubprojectService(req.user!.uid, req.user!.email ?? "", projectId, phaseId, {
     name: rawName,
     taskMode,
     subtaskMode,
@@ -442,7 +442,7 @@ export async function convertSubprojectToPhase(req: AuthenticatedRequest, res: R
   const body = req.body as { phaseName?: string };
   const phaseName = typeof body.phaseName === "string" ? body.phaseName.substring(0, 200) : undefined;
 
-  const result = convertSubprojectToPhaseService(req.user!.uid, req.user!.email ?? "", parentId, subId, {
+  const result = await convertSubprojectToPhaseService(req.user!.uid, req.user!.email ?? "", parentId, subId, {
     phaseName,
   });
 

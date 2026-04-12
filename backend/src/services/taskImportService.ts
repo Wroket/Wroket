@@ -202,11 +202,11 @@ export function previewTaskImportRows(rows: Record<string, unknown>[]): {
   return { total: rows.length, errors, validInputs };
 }
 
-export function executeTaskImport(
+export async function executeTaskImport(
   uid: string,
   email: string,
   inputs: CreateTodoInput[],
-): { created: number; errors: Array<{ row: number; message: string }>; total: number } {
+): Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }> {
   if (inputs.length === 0) throw new ValidationError("Aucune tâche à importer");
   if (inputs.length > MAX_TASKS) throw new ValidationError(`Maximum ${MAX_TASKS} tâches par import`);
 
@@ -215,7 +215,7 @@ export function executeTaskImport(
 
   for (let i = 0; i < inputs.length; i++) {
     try {
-      createTodo(uid, email, inputs[i]);
+      await createTodo(uid, email, inputs[i]);
       created++;
     } catch (err) {
       errors.push({

@@ -42,6 +42,6 @@ export async function confirm(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError(`${preview.errors.length} erreur(s) dans le CSV — utilisez l'aperçu pour corriger`);
   }
 
-  const result = executeImport(req.user!.uid, req.user!.email, projectName, teamId, preview.tasks);
+  const result = await executeImport(req.user!.uid, req.user!.email, projectName, teamId, preview.tasks);
   res.status(201).json(result);
 }
