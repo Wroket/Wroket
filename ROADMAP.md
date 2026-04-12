@@ -79,7 +79,8 @@
 - [x] **Responsive bloc-notes** — Pattern master-detail mobile (liste ou éditeur plein écran) avec bouton retour
 - [x] **Dark mode boutons** — Harmonisation couleurs boutons en dark mode (slate-600 au lieu de slate-100), correction tabs illisibles dark mode (archives, projets, SlotPicker)
 - [x] **Import CSV → Projet** — Upload CSV pour créer un projet complet (phases + tâches), prévisualisation avant import, validation
-- [x] **Commentaires avancés** — Édition de commentaires, réactions emoji (👍 ✅ ❤️), @mentions avec autocomplétion des collaborateurs
+- [x] **Import de tâches dans un projet existant** — Upload (ex. CSV) sur la fiche projet : création automatique des phases manquantes si besoin (`phaseConversionService`), route `POST /projects/:id/import`
+- [x] **Commentaires avancés** — Édition de commentaires, réactions emoji (👍 ✅ ❤️), @mentions avec autocomplétion des collaborateurs ; **mentions différées** : file d'attente `pendingCommentMentions` si le mentionné n'est pas encore collaborateur, notifications livrées après acceptation de la collaboration
 - [x] **Popup commentaires** — Icône commentaire sur les tâches (Cards, Liste, Radar) avec popup hover via `createPortal`, chargement lazy des commentaires
 - [x] **Administration complète (RGPD)** — Dashboard admin : stats globales (users, tâches, projets, notes, commentaires, uptime), liste utilisateurs (dernière connexion, notes, taux de complétion), journal d'activité, sessions actives, intégrations, registre RGPD, export/suppression conformes
 
@@ -99,7 +100,7 @@
 - [x] **Export CSV** — Export de toutes les tâches au format CSV (id, titre, statut, priorité, effort, deadline, tags, projet, date)
 - [x] **Audit log par tâche** — Historique des actions par tâche (GET /:id/activity), filtrage par entityId+entityType, limité à 50 entrées
 - [x] **Notes — dossiers / tags** — Champs `folder` et `tags` sur les notes, acceptés en création et mise à jour
-- [x] **Notes — export Markdown** — Export de toutes les notes en un seul fichier Markdown avec métadonnées (dossier, tags), route GET /notes/export
+- [x] **Notes — export Markdown & import** — Export GET /notes/export (Markdown avec métadonnées) ; import JSON ou CSV via POST /notes/import (upload fichier)
 - [x] **Notes partagées** — Partage de notes avec une équipe via `shared` + `teamId`, endpoint GET /notes/shared pour lister les notes partagées par les membres des équipes de l'utilisateur
 - [x] **Sous-projets** — Arborescence hiérarchique : créer des sous-projets dans un projet (`parentProjectId`), affichage en arbre dans la vue card, promotion en projet racine
 - [x] **Tags projets** — Tags personnalisés sur les projets et sous-projets (ajout libre, badges, recherche globale incluse)
@@ -123,6 +124,7 @@
 - [x] **Tâches récurrentes dans l'agenda** — Expansion des occurrences récurrentes dans l'agenda (backend génère les événements virtuels dans la plage demandée, indicateur ↻, double-clic ouvre la tâche parente)
 - [x] **Notes simplifiées** — Suppression du sélecteur projet sur les notes ; une note est soit autonome, soit liée en lecture seule à une tâche/sous-tâche (créée depuis celle-ci)
 - [x] **Renommage navigation** — "Collaboration > Collaboration" renommé en "Mes équipes", "Dashboard équipe" renommé en "Tableau de bord"
+- [x] **Export / import tâches (JSON & CSV)** — Export JSON enrichi côté API ; import avec prévisualisation (`POST /todos/import/preview`) et confirmation (`POST /todos/import/confirm`), service `taskImportService` ; menu `ExportImportDropdown` + flux sur la page Tâches
 
 ## Intégrations & Connecteurs
 
@@ -185,6 +187,9 @@
 - [x] **Attachments sécurisés** — MIME allowlist (images, PDF, docs, CSV, ZIP, JSON), `resolveAndGuard` anti path-traversal, `sanitizeFilename`, Content-Disposition RFC 5987, `X-Content-Type-Options: nosniff`
 - [x] **Hardening sécurité (v4)** — Préservation refresh_token Google lors de re-auth, suppression fuite body Google dans erreurs, validation dates ISO (format + start<end + range max 90j), fan-out Google Calendar plafonné (20 requêtes parallèles max), max 5 comptes Google par user, calendarId length-bound (200), clearSlot/disconnectGoogle 404 si introuvable, protection open redirect auth URL Google, handleTest try/catch, correction bug logique deleteMyAccount
 - [x] **Hardening sécurité (v5)** — `trust proxy` pour détection IP derrière Cloud Run, limite longueur mot de passe (MAX_PASSWORD_BYTES 1024, anti CPU DoS), `crypto.timingSafeEqual` avec length guard dans `changePassword`, centralisation logique `cookieSecure` (NODE_ENV + FRONTEND_URL), suppression `req.query.token` dans `verifyEmail` (token body only), validation inputs projets (types, valeurs vides, statut), CORS `callback(null, false)` au lieu d'erreur
+- [x] **Contenu utilisateur sans chiffrement KEK (prod)** — Titres/tags des tâches et textes des commentaires en clair côté application ; plus d'injection `CRYPTO_KEK_BASE64` sur Cloud Run pour le runtime API ; script optionnel `npm run migrate:strip-encryption` pour migrer d'éventuelles données legacy (`encV1` / `wrappedDekB64`)
+- [x] **Audit npm / Next.js** — Next.js 16.2.3 et lockfiles à jour (correctifs sécurité transitifs : nodemailer, path-to-regexp, picomatch, brace-expansion, etc.)
+- [x] **RGPD export (doc code)** — Commentaires dans `exportUserData` : export self-service via modèles en mémoire vs lignes brutes admin avec retrait du champ legacy `encV1` (pas de chiffrement applicatif en prod)
 - [x] **Optimisation performance** — Compression Gzip/Brotli (`compression` middleware), fix N+1 queries team membership (`teamMembershipCache` dans `listProjects`), batch `Promise.all` pour suppression de phase, memoisation `ProjectListView` (`useMemo` sur projets actifs/archivés/enfants/health)
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
 - [ ] **2FA** — Authentification à deux facteurs (TOTP)
@@ -231,6 +236,7 @@
 - [x] **Cloud Build** — CI/CD sur push `main`
   - Build Docker backend + frontend → Artifact Registry (`europe-west1`)
   - Deploy automatique vers Cloud Run
+  - Secret injecté sur `wroket-api` : `OAUTH_STATE_SECRET` (OAuth Google / SSO) — pas de `CRYPTO_KEK_BASE64` pour le contenu utilisateur en prod
 - [x] **CI GitHub Actions** — Lint & type check sur push/PR
 - [x] **DNS & Domaines** — `wroket.com` + `www.wroket.com` + `api.wroket.com` (CNAME `ghs.googlehosted.com`)
 - [ ] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore)
