@@ -49,16 +49,18 @@ export default defineConfig({
   webServer: skipWebServer
     ? undefined
     : [
+        // cwd must be backend/ so server.ts dotenv loads backend/.env (PORT=3001, USE_LOCAL_STORE, …).
+        // `npm run --prefix` from repo root leaves cwd at root → wrong .env and port clash with Next on 3000.
         {
-          command: "npm run dev --prefix backend",
-          cwd: repoRoot,
+          command: "npm run dev",
+          cwd: path.join(repoRoot, "backend"),
           url: apiHealthUrl,
           timeout: webServerTimeoutMs,
           reuseExistingServer: reuseDevServer,
         },
         {
-          command: "npm run dev --prefix frontend",
-          cwd: repoRoot,
+          command: "npm run dev",
+          cwd: path.join(repoRoot, "frontend"),
           url: defaultBaseUrl,
           timeout: webServerTimeoutMs,
           reuseExistingServer: reuseDevServer,
