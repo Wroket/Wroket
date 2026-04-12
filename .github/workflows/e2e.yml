@@ -6,6 +6,10 @@ on:
   push:
     branches: [main]
 
+# GitHub-hosted runners: opt into Node 24 for actions (checkout/setup-node/upload-artifact) before the default switch.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   e2e-smoke:
     name: Playwright smoke
@@ -17,7 +21,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
@@ -37,8 +41,8 @@ jobs:
           printf '%s\n' \
             'PORT=3001' \
             'USE_LOCAL_STORE=true' \
-            'ALLOWED_ORIGINS=http://127.0.0.1:3000' \
-            'FRONTEND_URL=http://127.0.0.1:3000' \
+            'ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000' \
+            'FRONTEND_URL=http://localhost:3000' \
             > backend/.env
 
       - name: Install Playwright Chromium
@@ -56,3 +60,4 @@ jobs:
           name: playwright-report
           path: e2e/playwright-report/
           retention-days: 7
+          if-no-files-found: ignore

@@ -271,7 +271,14 @@ export async function initStore(): Promise<void> {
       cachedStore = await loadFromFirestore();
       console.log("[persistence] Loaded from Firestore");
     } catch (err) {
-      console.error("[persistence] Firestore init failed, starting with empty store:", err);
+      console.error("[persistence] Firestore init failed:", err);
+      // Never serve an empty in-memory store in production: users would see "missing" tasks while
+      // Firestore still holds data — looks like data loss. Fail startup so Cloud Run keeps/reverts.
+      const isProd = process.env.NODE_ENV === "production";
+      if (isProd) {
+        throw err;
+      }
+      console.warn("[persistence] Dev fallback: starting with empty store (set USE_LOCAL_STORE=true for file-backed dev)");
       db = null;
       cachedStore = {};
     }

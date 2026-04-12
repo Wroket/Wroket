@@ -4,7 +4,7 @@
 
 - Backend sur **port 3001** (ex. `backend/.env` avec `PORT=3001`) et `USE_LOCAL_STORE=true` en local.
 - Frontend Next sur **port 3000** (défaut).
-- Ou : laisser Playwright lancer **`npm run dev`** à la racine du repo (concurrently) — premier démarrage ~1–2 min.
+- Ou : laisser Playwright lancer **`npm run dev --prefix backend`** et **`npm run dev --prefix frontend`** (deux processus ; chaque URL est attendue avant les tests — évite les flakes quand `:3000` répond avant l’API). Premier démarrage ~1–2 min.
 
 ## Commandes
 
