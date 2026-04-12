@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
@@ -92,6 +92,7 @@ export default function TodosPage() {
   const { t } = useLocale();
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const meUid = user?.uid ?? null;
   const { resolveUser, displayName: userDisplayName, cache: userCache } = useUserLookup();
   const { toast } = useToast();
@@ -240,6 +241,20 @@ export default function TodosPage() {
       resolveUser(todo.assignedTo);
     }
   };
+
+  const openEditRef = useRef(openEdit);
+  openEditRef.current = openEdit;
+
+  const consumedTaskFromUrl = useRef(false);
+  useEffect(() => {
+    if (loading || consumedTaskFromUrl.current) return;
+    const taskId = searchParams.get("task");
+    if (!taskId) return;
+    consumedTaskFromUrl.current = true;
+    const todo = todos.find((t) => t.id === taskId);
+    if (todo) openEditRef.current(todo);
+    router.replace("/todos", { scroll: false });
+  }, [loading, todos, searchParams, router]);
 
   const onEditAutoSaved = useCallback(
     (updated: Todo) => {
@@ -1082,12 +1097,8 @@ export default function TodosPage() {
                 {filters.size > 0 ? ` (${[...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")})` : ""}
               </span>
               <ExportImportDropdown
-                exportOptions={[
-                  { label: t("export.csvActive"), action: () => exportTasks("csv") },
-                  { label: t("export.jsonActive"), action: () => exportTasks("json") },
-                  { label: t("export.csvArchived"), action: () => exportTasks("csv", { includeArchived: true }) },
-                  { label: t("export.jsonArchived"), action: () => exportTasks("json", { includeArchived: true }) },
-                ]}
+                exportCsv={() => exportTasks("csv")}
+                exportJson={() => exportTasks("json")}
                 onImportFile={(f) => setTaskImportFile(f)}
                 templateCsv={'title,status,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,assignedTo\nMy task,active,medium,medium,,2025-06-01,2025-06-15,"tag1, tag2",,,'}
                 templateJson={JSON.stringify([{ title: "My task", status: "active", priority: "medium", effort: "medium", deadline: "2025-06-15", tags: ["tag1"] }], null, 2)}

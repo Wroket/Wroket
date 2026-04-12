@@ -1190,10 +1190,8 @@ export default function ProjectDetailView({
                   {t((selectedProject.status === "active" ? "projects.archive" : "projects.restore"))}
                 </button>
                 <ExportImportDropdown
-                  exportOptions={[
-                    { label: t("export.csv"), action: () => exportProjectData(selectedProject.id, "csv") },
-                    { label: t("export.json"), action: () => exportProjectData(selectedProject.id, "json") },
-                  ]}
+                  exportCsv={() => exportProjectData(selectedProject.id, "csv")}
+                  exportJson={() => exportProjectData(selectedProject.id, "json")}
                   onImport={async (file) => { const r = await importProjectTasksFile(selectedProject.id, file); await refreshProject(selectedProject.id); return r; }}
                   templateCsv="title,priority,effort,estimatedMinutes,startDate,deadline,tags,phaseName,assignedTo\nMy task,medium,medium,,,,,Phase 1,"
                   templateJson={JSON.stringify([{ title: "My task", priority: "medium", effort: "medium", phaseName: "Phase 1" }], null, 2)}

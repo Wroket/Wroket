@@ -6,7 +6,8 @@ import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "@/components/Toast";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
-import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators } from "@/lib/api";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators, inviteCollaborator } from "@/lib/api";
 import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency, Project, SuggestedSlot } from "@/lib/api";
 
 export interface TaskEditModalProps {
@@ -125,6 +126,8 @@ export default function TaskEditModal({
   const [suggestDate, setSuggestDate] = useState("");
   const [suggestTime, setSuggestTime] = useState("09:00");
   const [suggestDuration, setSuggestDuration] = useState(30);
+  const [mentionInviteOpen, setMentionInviteOpen] = useState(false);
+  const [mentionInviteEmails, setMentionInviteEmails] = useState<string[]>([]);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
@@ -221,12 +224,17 @@ export default function TaskEditModal({
     if (!commentText.trim() || !todo) return;
     setCommentLoading(true);
     try {
-      const c = await postCommentApi(todo.id, commentText.trim());
+      const raw = await postCommentApi(todo.id, commentText.trim());
+      const { mentionInviteNeeded, ...c } = raw;
       setComments((prev) => [...prev, c]);
       setCommentText("");
       setMentionQuery(null);
       setMentionResults([]);
       onTodoCommentsChanged?.(todo.id);
+      if (mentionInviteNeeded && mentionInviteNeeded.length > 0) {
+        setMentionInviteEmails(mentionInviteNeeded);
+        setMentionInviteOpen(true);
+      }
     } catch { /* ignore */ }
     setCommentLoading(false);
   };
@@ -243,10 +251,15 @@ export default function TaskEditModal({
   const handleEditComment = async (commentId: string) => {
     if (!todo || !editingText.trim()) return;
     try {
-      const updated = await editCommentApi(todo.id, commentId, editingText.trim());
+      const raw = await editCommentApi(todo.id, commentId, editingText.trim());
+      const { mentionInviteNeeded, ...updated } = raw;
       setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
       setEditingCommentId(null);
       setEditingText("");
+      if (mentionInviteNeeded && mentionInviteNeeded.length > 0) {
+        setMentionInviteEmails(mentionInviteNeeded);
+        setMentionInviteOpen(true);
+      }
     } catch { /* ignore */ }
   };
 
@@ -264,8 +277,39 @@ export default function TaskEditModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={() => void onClose()}
+      onClick={() => {
+        if (mentionInviteOpen) return;
+        void onClose();
+      }}
     >
+      <ConfirmDialog
+        open={mentionInviteOpen}
+        title={t("comments.mentionInviteTitle")}
+        message={`${t("comments.mentionInviteIntro")}\n\n${mentionInviteEmails.join(", ")}\n\n${t("comments.mentionInviteQuestion")}`}
+        variant="info"
+        confirmLabel={t("comments.mentionInviteSend")}
+        onCancel={() => {
+          setMentionInviteOpen(false);
+          setMentionInviteEmails([]);
+        }}
+        onConfirm={() => {
+          const emails = [...mentionInviteEmails];
+          setMentionInviteOpen(false);
+          setMentionInviteEmails([]);
+          void (async () => {
+            let failed = 0;
+            for (const email of emails) {
+              try {
+                await inviteCollaborator(email);
+              } catch {
+                failed++;
+              }
+            }
+            if (failed === 0) toast.success(t("comments.mentionInviteToastOk"));
+            else toast.error(t("comments.mentionInviteToastErr"));
+          })();
+        }}
+      />
       <div
         ref={trapRef}
         role="dialog"

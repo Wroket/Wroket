@@ -143,10 +143,12 @@ export async function exportTasksCsv(): Promise<void> {
 
 export async function exportTasks(
   format: "csv" | "json",
-  options?: { includeArchived?: boolean },
+  options?: { includeArchived?: boolean; archivedOnly?: boolean },
 ): Promise<void> {
   const params = new URLSearchParams({ format });
-  if (options?.includeArchived) {
+  if (options?.archivedOnly) {
+    params.set("scope", "archived-only");
+  } else if (options?.includeArchived) {
     params.set("include", "archived");
   }
   const res = await fetch(`${API_BASE_URL}/todos/export?${params.toString()}`, { credentials: "include" });
@@ -155,7 +157,7 @@ export async function exportTasks(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const base = options?.includeArchived ? "wroket-tasks-all" : "wroket-tasks";
+  const base = options?.archivedOnly ? "wroket-tasks-archived" : options?.includeArchived ? "wroket-tasks-all" : "wroket-tasks";
   a.download = format === "json" ? `${base}.json` : `${base}.csv`;
   a.click();
   URL.revokeObjectURL(url);
@@ -234,7 +236,9 @@ export async function getCommentCounts(): Promise<Record<string, number>> {
   return res.json();
 }
 
-export async function postCommentApi(todoId: string, text: string): Promise<Comment> {
+export type CommentPostResult = Comment & { mentionInviteNeeded?: string[] };
+
+export async function postCommentApi(todoId: string, text: string): Promise<CommentPostResult> {
   const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -242,10 +246,10 @@ export async function postCommentApi(todoId: string, text: string): Promise<Comm
     credentials: "include",
   });
   if (!res.ok) throw new Error("Impossible d'ajouter le commentaire");
-  return res.json();
+  return res.json() as Promise<CommentPostResult>;
 }
 
-export async function editCommentApi(todoId: string, commentId: string, text: string): Promise<Comment> {
+export async function editCommentApi(todoId: string, commentId: string, text: string): Promise<CommentPostResult> {
   const res = await fetch(`${API_BASE_URL}/todos/${todoId}/comments/${commentId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -253,7 +257,7 @@ export async function editCommentApi(todoId: string, commentId: string, text: st
     credentials: "include",
   });
   if (!res.ok) throw new Error("Impossible de modifier le commentaire");
-  return res.json();
+  return res.json() as Promise<CommentPostResult>;
 }
 
 export async function deleteCommentApi(todoId: string, commentId: string): Promise<void> {

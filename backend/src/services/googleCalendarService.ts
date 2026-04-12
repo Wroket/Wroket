@@ -261,6 +261,9 @@ async function fetchEvents(
   }
 }
 
+/** Shown in Google Calendar (and mirrored in Wroket agenda). */
+export const WROKET_CALENDAR_BOOKING_NOTE = "Booked from Wroket";
+
 /**
  * Create an event on Google Calendar.
  */
@@ -270,6 +273,7 @@ export async function createGoogleCalendarEvent(
   start: string,
   end: string,
   timezone?: string,
+  description: string = WROKET_CALENDAR_BOOKING_NOTE,
 ): Promise<string | null> {
   const accessToken = await getValidAccessToken(uid);
   if (!accessToken) return null;
@@ -287,6 +291,7 @@ export async function createGoogleCalendarEvent(
         },
         body: JSON.stringify({
           summary,
+          description,
           start: { dateTime: start, timeZone: tz },
           end: { dateTime: end, timeZone: tz },
         }),
@@ -312,6 +317,7 @@ export async function patchGoogleCalendarEvent(
   start: string,
   end: string,
   timezone?: string,
+  description: string = WROKET_CALENDAR_BOOKING_NOTE,
 ): Promise<boolean> {
   const accessToken = await getValidAccessToken(uid);
   if (!accessToken) return false;
@@ -329,6 +335,7 @@ export async function patchGoogleCalendarEvent(
         },
         body: JSON.stringify({
           summary,
+          description,
           start: { dateTime: start, timeZone: tz },
           end: { dateTime: end, timeZone: tz },
         }),

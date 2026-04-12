@@ -31,6 +31,7 @@ export function todoShardDocId(shardIndex: number): string {
 const DOMAINS = [
   "users", "notifications", "collaborators",
   "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "activityLog", "attachments",
+  "pendingCommentMentions",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -49,6 +50,8 @@ export interface StoreData {
   notes?: Record<string, Record<string, unknown>>;
   activityLog?: unknown[];
   attachments?: Record<string, unknown[]>;
+  /** Queued comment_mention notifications until invitee accepts collaboration */
+  pendingCommentMentions?: unknown[];
 }
 
 let cachedStore: StoreData = {};

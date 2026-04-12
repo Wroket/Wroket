@@ -84,6 +84,8 @@ const translations = {
     en: "Team history: deleted teams are not kept in this archive yet.",
   },
   "archives.teamsEmpty": { fr: "Aucune équipe archivée", en: "No archived teams" },
+  "archives.teamsExportEmpty": { fr: "Aucune équipe à exporter", en: "No teams to export" },
+  "archives.exportProjectsEmpty": { fr: "Aucun projet archivé à exporter", en: "No archived projects to export" },
   "archives.statusDateColumn": { fr: "Date (statut)", en: "Status date" },
 
   // ── Login ──
@@ -526,6 +528,18 @@ const translations = {
   "comments.edit": { fr: "Modifier", en: "Edit" },
   "comments.edited": { fr: "(modifié)", en: "(edited)" },
   "comments.addReaction": { fr: "Ajouter une réaction", en: "Add reaction" },
+  "comments.mentionInviteTitle": { fr: "Invitation collaborateurs", en: "Collaborator invitations" },
+  "comments.mentionInviteIntro": {
+    fr: "La ou les personnes suivantes ne sont pas encore dans vos collaborateurs (invitation non acceptée ou absente) :",
+    en: "The following people are not yet in your collaborators (no invite or not accepted):",
+  },
+  "comments.mentionInviteQuestion": {
+    fr: "Souhaitez-vous leur envoyer une invitation à collaborer par e-mail ? La mention leur sera notifiée lorsqu’ils auront accepté.",
+    en: "Send them a collaboration invite by email? They will be notified about the mention after they accept.",
+  },
+  "comments.mentionInviteSend": { fr: "Envoyer les invitations", en: "Send invitations" },
+  "comments.mentionInviteToastOk": { fr: "Invitations envoyées", en: "Invitations sent" },
+  "comments.mentionInviteToastErr": { fr: "Certaines invitations n’ont pas pu être envoyées", en: "Some invitations could not be sent" },
 
   // ── Tags ──
   "tags.label": { fr: "Tags", en: "Tags" },
@@ -796,6 +810,7 @@ const translations = {
   "agenda.disconnect": { fr: "Déconnecter", en: "Disconnect" },
   "agenda.noEvents": { fr: "Aucun événement", en: "No events" },
   "agenda.wroketTask": { fr: "Tâche Wroket", en: "Wroket task" },
+  "agenda.bookedFromWroket": { fr: "Réservé depuis Wroket", en: "Booked from Wroket" },
   "agenda.googleEvent": { fr: "Événement Google", en: "Google event" },
   "agenda.allDay": { fr: "Toute la journée", en: "All day" },
   "agenda.calendars": { fr: "Calendriers", en: "Calendars" },
@@ -860,7 +875,7 @@ const translations = {
   "help.notes.slash": { fr: "Tapez / dans l'éditeur : /task, /assign, /deadline, /project, /date, /time, /code", en: "Type / in the editor: /task, /assign, /deadline, /project, /date, /time, /code" },
   "help.notes.folders": { fr: "Organisez vos notes en dossiers", en: "Organize your notes in folders" },
   "help.notes.tags": { fr: "Ajoutez des tags pour catégoriser vos notes", en: "Add tags to categorize your notes" },
-  "help.notes.export": { fr: "Exportez vos notes en Markdown ou texte brut", en: "Export your notes as Markdown or plain text" },
+  "help.notes.export": { fr: "Données : export et import CSV ou JSON (modèles inclus)", en: "Data: export and import as CSV or JSON (templates included)" },
   "help.notes.sharing": { fr: "Partagez des notes avec votre équipe", en: "Share notes with your team" },
   "help.notes.offline": { fr: "Mode hors-ligne : notes sauvées localement, synchro auto au retour en ligne", en: "Offline mode: notes saved locally, auto-sync when back online" },
 
@@ -928,6 +943,9 @@ const translations = {
   "import.notes": { fr: "notes", en: "notes" },
   "import.downloadJsonTemplate": { fr: "Template JSON", en: "JSON template" },
   "import.downloadCsvTemplate": { fr: "Template CSV", en: "CSV template" },
+  "import.templates": { fr: "Modèles", en: "Templates" },
+  "import.asCsv": { fr: "CSV", en: "CSV" },
+  "import.asJson": { fr: "JSON", en: "JSON" },
   "import.tasksPreviewTitle": { fr: "Aperçu d'import des tâches", en: "Task import preview" },
   "import.previewLoading": { fr: "Analyse du fichier…", en: "Parsing file…" },
   "import.previewValid": { fr: "Tâches prêtes à importer", en: "Tasks ready to import" },
@@ -939,6 +957,10 @@ const translations = {
 
   // ── Export ──
   "export.button": { fr: "Données", en: "Data" },
+  "export.sectionExport": { fr: "Export", en: "Export" },
+  "export.sectionImport": { fr: "Import", en: "Import" },
+  "export.asCsv": { fr: "CSV", en: "CSV" },
+  "export.asJson": { fr: "JSON", en: "JSON" },
   "export.csv": { fr: "Exporter en CSV", en: "Export as CSV" },
   "export.json": { fr: "Exporter en JSON", en: "Export as JSON" },
   "export.csvActive": { fr: "CSV (tâches actives)", en: "CSV (active tasks)" },

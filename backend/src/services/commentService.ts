@@ -1,5 +1,6 @@
 import crypto from "crypto";
 
+import { normalizeEmail } from "./authService";
 import { getStore, scheduleSave } from "../persistence";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
@@ -160,8 +161,28 @@ export function toggleReaction(todoId: string, commentId: string, userId: string
   return comment;
 }
 
+/**
+ * Extract emails from Wroket mention syntax: `@local@domain.tld` (one leading @, email contains @).
+ * Normalizes with {@link normalizeEmail} for lookup via {@link findUserByEmail}.
+ */
 export function parseMentions(text: string): string[] {
-  const matches = text.match(/@([\w.+-]+@[\w.-]+)/g);
-  if (!matches) return [];
-  return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
+  // Require a real TLD (at least 2 letters) so we don't match truncated `@user@host` while typing.
+  const re = /@([a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,})/gi;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const e = normalizeEmail(m[1]);
+    if (!seen.has(e)) {
+      seen.add(e);
+      out.push(e);
+    }
+  }
+  return out;
+}
+
+/** Emails newly mentioned in `newText` vs `oldText` (for edit: avoid re-notifying). */
+export function newMentionsOnly(oldText: string, newText: string): string[] {
+  const before = new Set(parseMentions(oldText));
+  return parseMentions(newText).filter((e) => !before.has(e));
 }

@@ -17,9 +17,20 @@ import {
   CreateTodoInput,
   UpdateTodoInput,
 } from "../services/todoService";
-import { listComments, addComment, deleteComment, editComment, toggleReaction, parseMentions, getCommentCounts } from "../services/commentService";
-import { findUserByEmail } from "../services/authService";
+import {
+  listComments,
+  addComment,
+  deleteComment,
+  editComment,
+  toggleReaction,
+  parseMentions,
+  newMentionsOnly,
+  getCommentCounts,
+} from "../services/commentService";
+import { findUserByEmail, normalizeEmail } from "../services/authService";
+import { enqueuePendingMention } from "../services/pendingMentionService";
 import { createNotification } from "../services/notificationService";
+import { isActiveCollaborator } from "../services/teamService";
 import { deleteGoogleCalendarEventForTodo } from "../services/googleCalendarService";
 import { getProjectById, listProjects } from "../services/projectService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
@@ -32,6 +43,37 @@ import {
 } from "../services/taskImportService";
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled", "deleted"]);
+
+/** Immediate notification if active collaborator; otherwise queue until collaboration is accepted. */
+function applyCommentMentions(
+  authorUid: string,
+  authorEmail: string | undefined,
+  todoId: string,
+  commentId: string,
+  emails: string[],
+): string[] {
+  const mentionInviteNeeded: string[] = [];
+  const actor = normalizeEmail(authorEmail ?? "");
+  for (const email of emails) {
+    if (email === actor) continue;
+    if (isActiveCollaborator(authorUid, email)) {
+      const mentioned = findUserByEmail(email);
+      if (mentioned) {
+        createNotification(
+          mentioned.uid,
+          "comment_mention",
+          "Mention dans un commentaire",
+          `${authorEmail ?? "Quelqu'un"} vous a mentionné dans un commentaire`,
+          { todoId },
+        );
+      }
+    } else {
+      enqueuePendingMention(authorUid, email, todoId, commentId);
+      mentionInviteNeeded.push(email);
+    }
+  }
+  return mentionInviteNeeded;
+}
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const todos = listTodos(req.user!.uid);
@@ -286,19 +328,14 @@ export async function postComment(req: AuthenticatedRequest, res: Response) {
   if (!text || typeof text !== "string") throw new ValidationError("Texte requis");
   const comment = addComment(todoId, req.user!.uid, req.user!.email, text);
 
+  let mentionInviteNeeded: string[] = [];
   try {
-    for (const email of parseMentions(text)) {
-      if (email === req.user!.email) continue;
-      const mentioned = findUserByEmail(email);
-      if (mentioned) {
-        createNotification(mentioned.uid, "comment_mention", "Mention dans un commentaire", `${req.user!.email} vous a mentionné dans un commentaire`, { todoId });
-      }
-    }
+    mentionInviteNeeded = applyCommentMentions(req.user!.uid, req.user!.email, todoId, comment.id, parseMentions(text));
   } catch (err) {
     console.warn("[comment] mention notification failed:", err);
   }
 
-  res.status(201).json(comment);
+  res.status(201).json({ ...comment, mentionInviteNeeded });
 }
 
 export async function removeComment(req: AuthenticatedRequest, res: Response) {
@@ -318,21 +355,25 @@ export async function editCommentHandler(req: AuthenticatedRequest, res: Respons
   }
   const { text } = req.body as { text?: string };
   if (!text || typeof text !== "string") throw new ValidationError("Texte requis");
-  const comment = editComment(todoId, req.params.commentId as string, req.user!.uid, text);
+  const commentId = req.params.commentId as string;
+  const previous = listComments(todoId).find((c) => c.id === commentId);
+  const oldText = previous?.text ?? "";
+  const comment = editComment(todoId, commentId, req.user!.uid, text);
 
+  let mentionInviteNeeded: string[] = [];
   try {
-    for (const email of parseMentions(text)) {
-      if (email === req.user!.email) continue;
-      const mentioned = findUserByEmail(email);
-      if (mentioned) {
-        createNotification(mentioned.uid, "comment_mention", "Mention dans un commentaire", `${req.user!.email} vous a mentionné dans un commentaire`, { todoId });
-      }
-    }
+    mentionInviteNeeded = applyCommentMentions(
+      req.user!.uid,
+      req.user!.email,
+      todoId,
+      comment.id,
+      newMentionsOnly(oldText, text),
+    );
   } catch (err) {
     console.warn("[comment] mention notification failed:", err);
   }
 
-  res.status(200).json(comment);
+  res.status(200).json({ ...comment, mentionInviteNeeded });
 }
 
 export async function toggleReactionHandler(req: AuthenticatedRequest, res: Response) {
@@ -365,12 +406,17 @@ export async function commentCounts(req: AuthenticatedRequest, res: Response) {
 export async function exportTodos(req: AuthenticatedRequest, res: Response) {
   const format = (req.query.format as string)?.toLowerCase() === "json" ? "json" : "csv";
   const includeArchived = req.query.include === "archived";
+  const archivedOnly = req.query.scope === "archived-only";
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
 
-  const todos = includeArchived
-    ? [...listTodos(uid), ...listArchivedTodos(uid, email)]
-    : listTodos(uid);
+  const todos = archivedOnly
+    ? listArchivedTodos(uid, email)
+    : includeArchived
+      ? [...listTodos(uid), ...listArchivedTodos(uid, email)]
+      : listTodos(uid);
+
+  const fileBase = archivedOnly ? "wroket-tasks-archived" : includeArchived ? "wroket-tasks-all" : "wroket-tasks";
 
   if (format === "json") {
     const data = todos.map((t) => ({
@@ -403,7 +449,7 @@ export async function exportTodos(req: AuthenticatedRequest, res: Response) {
       statusChangedAt: t.statusChangedAt,
     }));
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", "attachment; filename=wroket-tasks.json");
+    res.setHeader("Content-Disposition", `attachment; filename=${fileBase}.json`);
     res.send(JSON.stringify(data, null, 2));
     return;
   }
@@ -446,7 +492,7 @@ export async function exportTodos(req: AuthenticatedRequest, res: Response) {
     })
     .join("\n");
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", "attachment; filename=wroket-tasks.csv");
+  res.setHeader("Content-Disposition", `attachment; filename=${fileBase}.csv`);
   res.send(header + rows);
 }
 

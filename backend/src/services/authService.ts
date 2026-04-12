@@ -191,7 +191,8 @@ function toAuthUser(user: StoredUser): AuthUser {
 const COOKIE_NAME = "auth_token";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
-function normalizeEmail(email: string): string {
+/** Trim + lowercase — same rules as {@link uidFromEmail} input. */
+export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 

@@ -26,6 +26,7 @@ import { listTodosForUsers } from "../services/todoService";
 import { createNotification } from "../services/notificationService";
 import { findUserByEmail, findUserByUid, type AuthUser } from "../services/authService";
 import { sendCollaborationInviteEmail } from "../services/emailService";
+import { deliverPendingMentionsAfterCollaborationAccepted } from "../services/pendingMentionService";
 import { NotFoundError, ValidationError } from "../utils/errors";
 
 /**
@@ -131,6 +132,12 @@ export async function postAcceptCollaboration(req: AuthenticatedRequest, res: Re
   if (!inviter) throw new ValidationError("Utilisateur introuvable");
 
   acceptCollaboration(req.user!.uid, req.user!.email, inviter.uid, inviterEmail);
+
+  try {
+    deliverPendingMentionsAfterCollaborationAccepted(inviter.uid, req.user!.email ?? "");
+  } catch (err) {
+    console.warn("[team] deliver pending mention notifications failed:", err);
+  }
 
   try {
     createNotification(

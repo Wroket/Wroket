@@ -657,15 +657,21 @@ export default function AgendaPage() {
                           return (
                             <div
                               key={`${ev.id}-${day.toDateString()}`}
-                              className={`rounded px-1.5 py-0.5 text-[11px] truncate border-l-2 ${
+                              className={`rounded px-1.5 py-0.5 text-[11px] border-l-2 ${
                                 isWroket && qc
                                   ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
                                   : "text-zinc-800 dark:text-slate-200"
                               }`}
                               style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
                               onDoubleClick={() => handleDoubleClickEvent(ev)}
+                              title={isWroket ? `${ev.summary}\n${t("agenda.bookedFromWroket")}` : undefined}
                             >
-                              {ev.delegated ? "← " : ""}{isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
+                              <div className="truncate leading-tight">
+                                {ev.delegated ? "← " : ""}{isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
+                              </div>
+                              {isWroket && (
+                                <div className="text-[9px] opacity-80 truncate leading-tight mt-0.5">{t("agenda.bookedFromWroket")}</div>
+                              )}
                             </div>
                           );
                         })}
@@ -738,13 +744,20 @@ export default function AgendaPage() {
                                   backgroundColor: hexToTintBg(acctColor, 0.18),
                                 } : {}),
                               }}
-                              title={isWroket && qc ? `${ev.summary} — ${qc.icon} ${qc.label}` : googleTitle}
+                              title={
+                                isWroket && qc
+                                  ? `${ev.summary} — ${qc.icon} ${qc.label}\n${t("agenda.bookedFromWroket")}`
+                                  : googleTitle
+                              }
                               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
                             >
                               <div className="text-xs font-semibold truncate leading-snug">
                                 {ev.delegated ? "← " : ""}{isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
                               </div>
-                              {pos.height >= 36 && (
+                              {isWroket && (
+                                <div className="text-[9px] opacity-85 truncate leading-tight mt-0.5">{t("agenda.bookedFromWroket")}</div>
+                              )}
+                              {pos.height >= 44 && (
                                 <div className="text-[10px] opacity-80 mt-0.5 font-medium">
                                   {new Date(ev.start).toLocaleTimeString(locale === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" })}
                                   {" – "}
@@ -825,9 +838,12 @@ export default function AgendaPage() {
                               }`}
                               style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
                               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
-                              title={ev.summary}
+                              title={isWroket ? `${ev.summary}\n${t("agenda.bookedFromWroket")}` : ev.summary}
                             >
-                              {ev.delegated ? "← " : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
+                              <span className="block truncate">{ev.delegated ? "← " : ""}{ev.recurring ? "↻ " : ""}{ev.summary}</span>
+                              {isWroket && (
+                                <span className="block text-[8px] opacity-75 truncate leading-tight">{t("agenda.bookedFromWroket")}</span>
+                              )}
                             </div>
                           );
                         })}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import ExportImportDropdown from "@/components/ExportImportDropdown";
 import { useToast } from "@/components/Toast";
-import { getProjects, getTeams, updateProject, type Project, type Team } from "@/lib/api";
+import { exportProjectData, getProjects, getTeams, updateProject, type Project, type Team } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 
 export default function ArchivedProjectsPanel() {
@@ -57,6 +58,24 @@ export default function ArchivedProjectsPanel() {
     }
   };
 
+  const exportArchivedProjects = useCallback(
+    async (format: "csv" | "json") => {
+      if (archivedRootProjects.length === 0) {
+        toast.error(t("archives.exportProjectsEmpty"));
+        return;
+      }
+      try {
+        for (const p of archivedRootProjects) {
+          await exportProjectData(p.id, format);
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      } catch {
+        toast.error(t("export.error"));
+      }
+    },
+    [archivedRootProjects, t, toast],
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -67,9 +86,19 @@ export default function ArchivedProjectsPanel() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.projects")}</h1>
-        <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.projectsIntro")}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.projects")}</h1>
+          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.projectsIntro")}</p>
+        </div>
+        <div className="shrink-0 flex justify-end">
+          <ExportImportDropdown
+            exportCsv={() => exportArchivedProjects("csv")}
+            exportJson={() => exportArchivedProjects("json")}
+            templateCsv="title,priority,effort,estimatedMinutes,startDate,deadline,tags,phaseName,assignedTo\nMy task,medium,medium,,,,,Phase 1,"
+            templateJson={JSON.stringify([{ title: "My task", priority: "medium", effort: "medium", phaseName: "Phase 1" }], null, 2)}
+          />
+        </div>
       </div>
 
       {archivedRootProjects.length === 0 ? (

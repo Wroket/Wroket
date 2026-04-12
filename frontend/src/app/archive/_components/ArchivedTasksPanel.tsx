@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthContext";
+import ExportImportDropdown from "@/components/ExportImportDropdown";
+import TaskImportModal from "@/components/TaskImportModal";
 import { useToast } from "@/components/Toast";
-import { getArchivedTodos, updateTodo, type Priority, type Todo, type TodoStatus } from "@/lib/api";
+import { exportTasks, getArchivedTodos, updateTodo, type Priority, type Todo, type TodoStatus } from "@/lib/api";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { displayTodoTitle } from "@/lib/todoDisplay";
@@ -39,9 +41,12 @@ export default function ArchivedTasksPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [taskFilter, setTaskFilter] = useState<TodoStatus | "all">("all");
+  const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     getArchivedTodos()
       .then((data) => {
         if (!cancelled) setTodos(data);
@@ -53,7 +58,7 @@ export default function ArchivedTasksPanel() {
     return () => {
       cancelled = true;
     };
-  }, [toast, t]);
+  }, [toast, t, refreshKey]);
 
   useEffect(() => {
     const uids = new Set<string>();
@@ -107,13 +112,30 @@ export default function ArchivedTasksPanel() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.tasks")}</h1>
-        <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.subtitle")}</p>
-        <p className="text-xs text-zinc-500 dark:text-slate-500 mt-3 leading-relaxed border-l-2 border-zinc-200 dark:border-slate-600 pl-3">
-          {t("archives.tasksPrivacy")}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.tasks")}</h1>
+          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.subtitle")}</p>
+          <p className="text-xs text-zinc-500 dark:text-slate-500 mt-3 leading-relaxed border-l-2 border-zinc-200 dark:border-slate-600 pl-3">
+            {t("archives.tasksPrivacy")}
+          </p>
+        </div>
+        <div className="shrink-0 flex justify-end">
+          <ExportImportDropdown
+            exportCsv={() => exportTasks("csv", { archivedOnly: true })}
+            exportJson={() => exportTasks("json", { archivedOnly: true })}
+            onImportFile={(f) => setTaskImportFile(f)}
+            templateCsv={'title,status,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,assignedTo\nMy task,active,medium,medium,,2025-06-01,2025-06-15,"tag1, tag2",,,'}
+            templateJson={JSON.stringify([{ title: "My task", status: "active", priority: "medium", effort: "medium", deadline: "2025-06-15", tags: ["tag1"] }], null, 2)}
+          />
+        </div>
       </div>
+      <TaskImportModal
+        file={taskImportFile}
+        open={taskImportFile !== null}
+        onClose={() => setTaskImportFile(null)}
+        onSuccess={() => setRefreshKey((k) => k + 1)}
+      />
 
       <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-1">
         {(["all", "completed", "cancelled", "deleted"] as const).map((key) => (

@@ -15,7 +15,11 @@ export interface UserDataExport {
 }
 
 export interface ExportUserDataOptions {
-  /** When true (self-service export), todos and comments come from decrypted in-memory models. */
+  /**
+   * When true (self-service export), todos and comments come from the in-memory services (same normalized
+   * models as the running app). When false or omitted (e.g. admin), exports use raw store rows with any
+   * legacy `encV1` field stripped — there is no application-layer encryption in production anymore.
+   */
   decryptedTaskContent?: boolean;
 }
 
@@ -27,7 +31,7 @@ export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserD
   const user = users[uid];
   if (!user) throw new NotFoundError("Utilisateur introuvable");
 
-  // Todos — admin reads raw store (titles/tags ciphertext); owner export uses decrypted tasks
+  // Todos — self-service: normalized in-memory todos; admin: raw shard rows with legacy encV1 removed
   let todos: unknown[];
   if (opts?.decryptedTaskContent) {
     todos = listAllTodos(uid) as unknown[];
@@ -41,7 +45,7 @@ export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserD
     });
   }
 
-  // Comments — same split
+  // Comments — same as todos (in-memory vs raw rows, encV1 stripped from raw)
   let comments: unknown[];
   if (opts?.decryptedTaskContent) {
     comments = exportCommentsByAuthor(uid) as unknown[];

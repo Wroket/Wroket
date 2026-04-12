@@ -25,6 +25,7 @@ const NOTIF_ICON: Record<string, { icon: string; bg: string }> = {
   team_invite: { icon: "👥", bg: "bg-violet-100 dark:bg-violet-900/30" },
   deadline_approaching: { icon: "⏰", bg: "bg-amber-100 dark:bg-amber-900/30" },
   deadline_today: { icon: "🔴", bg: "bg-red-100 dark:bg-red-900/30" },
+  comment_mention: { icon: "💬", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
 };
 
 function timeAgo(iso: string, t: (k: TranslationKey) => string): string {
@@ -54,8 +55,12 @@ function notifHref(notif: AppNotification): string {
     notif.type === "task_completed" ||
     notif.type === "task_cancelled" ||
     notif.type === "task_declined" ||
-    notif.type === "task_accepted"
+    notif.type === "task_accepted" ||
+    notif.type === "comment_mention"
   ) {
+    if (notif.type === "comment_mention" && notif.data?.todoId) {
+      return `/todos?task=${encodeURIComponent(notif.data.todoId)}`;
+    }
     return "/todos";
   }
   if (notif.type === "team_invite") return "/teams";

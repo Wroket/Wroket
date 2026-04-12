@@ -171,11 +171,8 @@ function NotesPageInner() {
               </h1>
               <div className="flex items-center gap-1.5 relative">
                 <ExportImportDropdown
-                  exportOptions={[
-                    { label: t("export.csv"), action: () => exportNotes("csv") },
-                    { label: t("export.json"), action: () => exportNotes("json") },
-                    { label: t("export.markdown"), action: () => exportNotes("md") },
-                  ]}
+                  exportCsv={() => exportNotes("csv")}
+                  exportJson={() => exportNotes("json")}
                   onImport={async (file) => { const r = await importNotesFile(file); await reload(); return r; }}
                   templateCsv={'title,content,folder,tags\nMy note,Content here,General,"tag1, tag2"'}
                   templateJson={JSON.stringify([{ title: "My note", content: "Content here", folder: "General", tags: ["tag1"] }], null, 2)}

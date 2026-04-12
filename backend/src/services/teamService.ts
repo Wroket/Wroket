@@ -114,6 +114,12 @@ export function findCollaborator(uid: string, email: string): Collaborator | und
   return getUserCollaborators(uid).find((c) => c.email === normalised);
 }
 
+/** True if this email is a confirmed collaborator (not only pending invite). */
+export function isActiveCollaborator(ownerUid: string, email: string): boolean {
+  const c = findCollaborator(ownerUid, email);
+  return c?.status === "active";
+}
+
 export interface ReceivedInvitation {
   fromEmail: string;
 }

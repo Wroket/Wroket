@@ -67,6 +67,7 @@ export type {
   CreateTodoPayload,
   UpdateTodoPayload,
   Comment,
+  CommentPostResult,
   Attachment,
   TaskImportPreviewResult,
 } from "./todos";
