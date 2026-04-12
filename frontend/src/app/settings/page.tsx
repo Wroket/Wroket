@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -17,6 +18,15 @@ import {
   testWebhookApi,
   getOwnedTeams,
   transferTeamOwnership,
+  totpSetup,
+  totpEnable,
+  totpDisable,
+  totpCancelSetup,
+  requestEmail2faEnrollment,
+  confirmEmail2faEnrollment,
+  putTotpEmailFallback,
+  requestEmail2faDisableOtp,
+  disableEmailOtp2fa,
   type WorkingHours,
   type WebhookConfig,
   type WebhookEvent,
@@ -38,7 +48,18 @@ const DAY_KEYS: TranslationKey[] = [
 ];
 const DAY_VALUES = [1, 2, 3, 4, 5, 6, 0];
 
-type Section = "profile" | "languages" | "tasks" | "integrations" | "history" | "admin";
+/** Auth/session errors that should show a calm notice + link, not a red “hard error”. */
+function isSessionLikeAuthError(raw: string): boolean {
+  const m = raw.trim();
+  return (
+    m === "Non authentifié"
+    || m.toLowerCase().includes("non authentifié")
+    || m === "Unauthorized"
+    || /^401\b/.test(m)
+  );
+}
+
+type Section = "profile" | "security" | "languages" | "tasks" | "integrations" | "history" | "admin";
 
 const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
   {
@@ -47,6 +68,15 @@ const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    ),
+  },
+  {
+    key: "security",
+    tKey: "settings.security",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
       </svg>
     ),
   },
@@ -156,6 +186,7 @@ function SettingsContent() {
           {/* ── Content ── */}
           <div className="flex-1 min-w-0 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-8rem)]">
             {active === "profile" && <ProfileSection />}
+            {active === "security" && <SecuritySection />}
             {active === "languages" && <LanguagesSection />}
             {active === "tasks" && <TasksSection />}
             {active === "integrations" && <IntegrationsSection />}
@@ -245,6 +276,533 @@ function ProfileSection() {
         </button>
         {saved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
       </div>
+    </div>
+  );
+}
+
+function SecuritySection() {
+  const { t } = useLocale();
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [disableNeedsPassword, setDisableNeedsPassword] = useState(true);
+  const [loadingMe, setLoadingMe] = useState(true);
+  const [pairing, setPairing] = useState<{ otpauthUrl: string; secret: string } | null>(null);
+  const [enableCode, setEnableCode] = useState("");
+  const [disablePassword, setDisablePassword] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [disableSuccess, setDisableSuccess] = useState(false);
+  const [disableSuccessKind, setDisableSuccessKind] = useState<"totp" | "email" | null>(null);
+  const [enableSuccessModalOpen, setEnableSuccessModalOpen] = useState(false);
+  const [enableSuccessWasEmail, setEnableSuccessWasEmail] = useState(false);
+  const [emailOtp2faEnabled, setEmailOtp2faEnabled] = useState(false);
+  const [totpEmailFallback, setTotpEmailFallback] = useState(true);
+  const [emailEnrolling, setEmailEnrolling] = useState(false);
+  const [emailEnrollCode, setEmailEnrollCode] = useState("");
+  const [emailDisablePassword, setEmailDisablePassword] = useState("");
+  const [emailDisableCode, setEmailDisableCode] = useState("");
+
+  const inputCls =
+    "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
+
+  const refreshMe = async () => {
+    const me = await getMe();
+    setTwoFactorEnabled(!!me.twoFactorEnabled);
+    setDisableNeedsPassword(me.twoFactorDisableRequiresPassword !== false);
+    setEmailOtp2faEnabled(!!me.emailOtp2faEnabled);
+    setTotpEmailFallback(me.totpEmailFallbackEnabled !== false);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await getMe();
+        if (!cancelled) {
+          setTwoFactorEnabled(!!me.twoFactorEnabled);
+          setDisableNeedsPassword(me.twoFactorDisableRequiresPassword !== false);
+          setEmailOtp2faEnabled(!!me.emailOtp2faEnabled);
+          setTotpEmailFallback(me.totpEmailFallbackEnabled !== false);
+        }
+      } catch { /* auth handled by AppShell */ }
+      finally {
+        if (!cancelled) setLoadingMe(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const startEmailEnroll = async () => {
+    setError(null);
+    setDisableSuccess(false);
+    setBusy(true);
+    try {
+      await requestEmail2faEnrollment();
+      setEmailEnrolling(true);
+      setEmailEnrollCode("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmEmailEnroll = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await confirmEmail2faEnrollment(emailEnrollCode);
+      setEmailEnrolling(false);
+      setEmailEnrollCode("");
+      await refreshMe();
+      setEnableSuccessWasEmail(true);
+      setEnableSuccessModalOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelEmailEnroll = () => {
+    setEmailEnrolling(false);
+    setEmailEnrollCode("");
+    setError(null);
+  };
+
+  const toggleTotpFallback = async (enabled: boolean) => {
+    setError(null);
+    try {
+      await putTotpEmailFallback(enabled);
+      setTotpEmailFallback(enabled);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    }
+  };
+
+  const sendEmailDisableCode = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await requestEmail2faDisableOtp();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disableEmail2fa = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await disableEmailOtp2fa({
+        code: emailDisableCode,
+        password: disableNeedsPassword ? emailDisablePassword : undefined,
+      });
+      setEmailDisablePassword("");
+      setEmailDisableCode("");
+      await refreshMe();
+      setDisableSuccessKind("email");
+      setDisableSuccess(true);
+      setTimeout(() => setDisableSuccess(false), 8000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startPairing = async () => {
+    setError(null);
+    setDisableSuccess(false);
+    setBusy(true);
+    try {
+      const r = await totpSetup();
+      setPairing(r);
+      setEnableCode("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmEnable = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await totpEnable(enableCode);
+      setPairing(null);
+      setEnableCode("");
+      try {
+        await refreshMe();
+      } catch (re) {
+        setTwoFactorEnabled(true);
+        setError(re instanceof Error ? re.message : "Non authentifié");
+        return;
+      }
+      setError(null);
+      setEnableSuccessWasEmail(false);
+      setEnableSuccessModalOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelPairing = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await totpCancelSetup();
+      setPairing(null);
+    } catch {
+      setPairing(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable2fa = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await totpDisable({
+        code: disableCode,
+        password: disableNeedsPassword ? disablePassword : undefined,
+      });
+      setDisablePassword("");
+      setDisableCode("");
+      setError(null);
+      await refreshMe();
+      setDisableSuccessKind("totp");
+      setDisableSuccess(true);
+      setTimeout(() => setDisableSuccess(false), 8000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const qrSrc = pairing
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pairing.otpauthUrl)}`
+    : "";
+
+  if (loadingMe) {
+    return (
+      <div className="space-y-6">
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.security")}</h3>
+        <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.securityLoading")}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.security2fa")}</h3>
+        <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.security2faDesc")}</p>
+      </div>
+
+      {disableSuccess && !twoFactorEnabled && (
+        <p
+          role="status"
+          className="text-sm text-green-800 dark:text-green-300 bg-green-50 dark:bg-green-950/35 border border-green-200 dark:border-green-800 rounded-md px-3 py-2"
+        >
+          {disableSuccessKind === "email"
+            ? t("settings.security2faDisabledSuccessEmail")
+            : t("settings.security2faDisabledSuccess")}
+        </p>
+      )}
+
+      {error && isSessionLikeAuthError(error) && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-200/90 dark:border-amber-700/50 bg-gradient-to-br from-amber-50 to-orange-50/80 dark:from-amber-950/40 dark:to-slate-900/60 px-4 py-3 flex gap-3 shadow-sm"
+        >
+          <div className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+              {t("settings.security2faSessionNoticeTitle")}
+            </p>
+            <p className="text-sm text-amber-900/85 dark:text-amber-100/85 leading-relaxed">
+              {t("settings.security2faSessionNoticeBody")}
+            </p>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-200 underline underline-offset-2 decoration-amber-700/40 hover:decoration-amber-900 dark:decoration-amber-500/50"
+            >
+              {t("settings.security2faSessionNoticeCta")}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {error && !isSessionLikeAuthError(error) && (
+        <p
+          role="alert"
+          className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md px-3 py-2"
+        >
+          {error}
+        </p>
+      )}
+
+      {!twoFactorEnabled && !pairing && !emailEnrolling && (
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={startPairing}
+            className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
+          >
+            {busy ? "…" : t("settings.security2faEnableApp")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={startEmailEnroll}
+            className="rounded border border-zinc-300 dark:border-slate-600 px-5 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60 transition-colors"
+          >
+            {busy ? "…" : t("settings.security2faEnableEmail")}
+          </button>
+        </div>
+      )}
+
+      {emailEnrolling && (
+        <div className="space-y-4 rounded border border-zinc-200 dark:border-slate-700 p-4">
+          <p className="text-sm text-zinc-700 dark:text-slate-300">{t("settings.security2faEmailEnrollHint")}</p>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faCode")}</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={emailEnrollCode}
+              onChange={(e) => setEmailEnrollCode(e.target.value.replace(/\D/g, ""))}
+              className={inputCls}
+              maxLength={12}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={confirmEmailEnroll}
+              className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60"
+            >
+              {busy ? "…" : t("settings.security2faEmailEnrollConfirm")}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={cancelEmailEnroll}
+              className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60"
+            >
+              {t("settings.security2faCancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pairing && (
+        <div className="space-y-4 rounded border border-zinc-200 dark:border-slate-700 p-4">
+          <p className="text-sm text-zinc-700 dark:text-slate-300">{t("settings.security2faScan")}</p>
+          <div className="flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrSrc} alt="" className="rounded border border-zinc-200 dark:border-slate-600 bg-white p-2" width={200} height={200} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faSecret")}</label>
+            <code className="block text-xs break-all rounded border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/80 px-2 py-2 font-mono text-zinc-800 dark:text-slate-200">
+              {pairing.secret}
+            </code>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faConfirm")}</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={enableCode}
+              onChange={(e) => setEnableCode(e.target.value.replace(/\D/g, ""))}
+              className={inputCls}
+              maxLength={12}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={confirmEnable}
+              className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60"
+            >
+              {busy ? "…" : t("settings.security2faEnable")}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={cancelPairing}
+              className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60"
+            >
+              {t("settings.security2faCancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {twoFactorEnabled && emailOtp2faEnabled && (
+        <div className="space-y-4 rounded border border-zinc-200 dark:border-slate-700 p-4">
+          <p className="text-sm text-zinc-700 dark:text-slate-300">{t("settings.security2faDisableEmailTitle")}</p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={sendEmailDisableCode}
+            className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60"
+          >
+            {busy ? "…" : t("settings.security2faRequestDisableEmail")}
+          </button>
+          {!disableNeedsPassword && (
+            <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.security2faSsoDisableHint")}</p>
+          )}
+          {disableNeedsPassword && (
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faPassword")}</label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={emailDisablePassword}
+                onChange={(e) => setEmailDisablePassword(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faCode")}</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={emailDisableCode}
+              onChange={(e) => setEmailDisableCode(e.target.value.replace(/\D/g, ""))}
+              className={inputCls}
+              maxLength={12}
+            />
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={disableEmail2fa}
+            className="rounded bg-red-600 dark:bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:hover:bg-red-400 disabled:opacity-60"
+          >
+            {busy ? "…" : t("settings.security2faDisableEmailCta")}
+          </button>
+        </div>
+      )}
+
+      {twoFactorEnabled && !emailOtp2faEnabled && (
+        <>
+          <div className="rounded border border-zinc-200 dark:border-slate-700 p-4 flex items-start gap-3">
+            <input
+              id="totp-fallback"
+              type="checkbox"
+              className="mt-1 rounded border-zinc-300 dark:border-slate-600"
+              checked={totpEmailFallback}
+              onChange={(e) => void toggleTotpFallback(e.target.checked)}
+            />
+            <label htmlFor="totp-fallback" className="text-sm text-zinc-700 dark:text-slate-300 cursor-pointer">
+              {t("settings.security2faTotpFallback")}
+            </label>
+          </div>
+          <div className="space-y-4 rounded border border-zinc-200 dark:border-slate-700 p-4">
+            <p className="text-sm text-zinc-700 dark:text-slate-300">{t("settings.security2faDisable")}</p>
+            {!disableNeedsPassword && (
+              <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.security2faSsoDisableHint")}</p>
+            )}
+            {disableNeedsPassword && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faPassword")}</label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={disablePassword}
+                  onChange={(e) => setDisablePassword(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faCode")}</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ""))}
+                className={inputCls}
+                maxLength={12}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={disable2fa}
+              className="rounded bg-red-600 dark:bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:hover:bg-red-400 disabled:opacity-60"
+            >
+              {busy ? "…" : t("settings.security2faDisable")}
+            </button>
+          </div>
+        </>
+      )}
+
+      {enableSuccessModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-default border-0 p-0"
+            aria-label="Close"
+            onClick={() => setEnableSuccessModalOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="security-2fa-enabled-title"
+            className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-zinc-200 dark:border-slate-700 max-w-md w-full p-6"
+          >
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-11 h-11 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h2 id="security-2fa-enabled-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
+                  {t(enableSuccessWasEmail ? "settings.security2faEnabledModalTitleEmail" : "settings.security2faEnabledModalTitle")}
+                </h2>
+                <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400">
+                  {t(enableSuccessWasEmail ? "settings.security2faEnabledModalBodyEmail" : "settings.security2faEnabledModalBody")}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEnableSuccessModalOpen(false)}
+              className="mt-6 w-full rounded-lg bg-emerald-600 dark:bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 transition-colors"
+            >
+              {t("settings.security2faEnabledModalOk")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

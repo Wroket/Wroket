@@ -1,8 +1,18 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
+import {
+  buildKeyUri,
+  createPendingTwoFactorToken,
+  deletePendingToken,
+  generateTotpSecret,
+  getPendingRow,
+  verifyEmailOtpOnRow,
+  verifyTotpCode,
+} from "./twoFactorService";
 import { assertValidEmailFormat } from "../utils/emailValidation";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
+import { sendEmailOtpEmail } from "./emailService";
 export type EffortMinutes = { light: number; medium: number; heavy: number };
 
 const DEFAULT_EFFORT_MINUTES: EffortMinutes = { light: 10, medium: 30, heavy: 60 };
@@ -65,6 +75,12 @@ export interface AuthUser {
   googleCalendarConnected: boolean;
   googleAccounts: GoogleAccountPublic[];
   emailVerified: boolean;
+  /** True when TOTP and/or email OTP 2FA is active */
+  twoFactorEnabled: boolean;
+  /** Primary 2FA is email codes (no authenticator) */
+  emailOtp2faEnabled?: boolean;
+  /** If true (default), TOTP users can request an email code at login when they lose their phone */
+  totpEmailFallbackEnabled?: boolean;
 }
 
 interface StoredUser {
@@ -88,6 +104,25 @@ interface StoredUser {
   resetToken?: string;
   resetTokenExpiresAt?: number;
   createdAt: string;
+  totpEnabled?: boolean;
+  /** Base32 secret (stored after setup) */
+  totpSecretB64?: string;
+  /** Pending secret until user confirms first code */
+  totpPendingSecretB64?: string;
+  /**
+   * True if the user chose this password (register / reset / change).
+   * False for Google-only accounts that got a random placeholder hash at signup.
+   */
+  passwordUserChosen?: boolean;
+  /** Email-based 2FA (no authenticator app) */
+  emailOtp2faEnabled?: boolean;
+  /** When false, TOTP users cannot use email OTP at login (default true = allow fallback) */
+  totpEmailFallbackEnabled?: boolean;
+  /** Pending enrollment / disable flows — email OTP verification */
+  email2faEnrollHash?: string;
+  email2faEnrollExpiresAt?: number;
+  email2faDisableHash?: string;
+  email2faDisableExpiresAt?: number;
 }
 
 interface StoredSession {
@@ -185,11 +220,75 @@ function toAuthUser(user: StoredUser): AuthUser {
     googleCalendarConnected: accounts.length > 0,
     googleAccounts: accounts.map((a) => ({ id: a.id, email: a.email, calendars: a.calendars })),
     emailVerified: user.emailVerified ?? false,
+    twoFactorEnabled: !!(
+      (user.totpEnabled && user.totpSecretB64) || user.emailOtp2faEnabled
+    ),
+    emailOtp2faEnabled: !!user.emailOtp2faEnabled,
+    totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
   };
 }
 
 const COOKIE_NAME = "auth_token";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+
+export type LoginSuccess = AuthUser & { sessionToken: string };
+export type TwoFactorMethod = "totp" | "email";
+
+export type LoginNeedsTotp = {
+  requiresTwoFactor: true;
+  pendingToken: string;
+  twoFactorMethods: TwoFactorMethod[];
+};
+export type LoginResult = LoginSuccess | LoginNeedsTotp;
+
+function twoFactorMethodsForPendingUser(user: StoredUser): TwoFactorMethod[] {
+  if (user.emailOtp2faEnabled && !user.totpSecretB64) {
+    return ["email"];
+  }
+  if (user.totpEnabled && user.totpSecretB64) {
+    const methods: TwoFactorMethod[] = ["totp"];
+    if (user.totpEmailFallbackEnabled !== false && user.emailVerified) {
+      methods.push("email");
+    }
+    return methods;
+  }
+  return ["totp"];
+}
+
+function needsSecondFactorAfterPrimaryAuth(user: StoredUser): boolean {
+  return !!(
+    (user.totpEnabled && user.totpSecretB64) || user.emailOtp2faEnabled
+  );
+}
+
+function createPendingTokenForUser(user: StoredUser): string {
+  if (user.emailOtp2faEnabled && !user.totpSecretB64) {
+    return createPendingTwoFactorToken(user.uid, "email_only");
+  }
+  if (user.totpEnabled && user.totpSecretB64) {
+    const allowEmail =
+      user.totpEmailFallbackEnabled !== false && user.emailVerified;
+    return createPendingTwoFactorToken(
+      user.uid,
+      allowEmail ? "totp_or_email" : "totp",
+    );
+  }
+  return createPendingTwoFactorToken(user.uid, "totp");
+}
+
+function issueSessionToken(uid: string): LoginSuccess {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  for (const [tok, sess] of sessionsByToken) {
+    if (sess.uid === uid) sessionsByToken.delete(tok);
+  }
+  const sessionToken = crypto.randomBytes(32).toString("hex");
+  const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
+  sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
+  persistSessions();
+  return { ...toAuthUser(user), sessionToken };
+}
 
 /** Trim + lowercase — same rules as {@link uidFromEmail} input. */
 export function normalizeEmail(email: string): string {
@@ -230,6 +329,13 @@ function generateVerifyToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+/** Constant-time string equality via SHA-256 digests (mitigates timing leaks on secret tokens). */
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const ha = crypto.createHash("sha256").update(a, "utf8").digest();
+  const hb = crypto.createHash("sha256").update(b, "utf8").digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 export function register(input: RegisterInput): AuthUser & { verifyToken: string } {
   assertValidEmailFormat(input.email);
   const email = normalizeEmail(input.email);
@@ -250,6 +356,7 @@ export function register(input: RegisterInput): AuthUser & { verifyToken: string
   const stored: StoredUser = {
     uid, email, firstName: "", lastName: "",
     passwordSaltB64: saltB64, passwordHashB64: hashB64,
+    passwordUserChosen: true,
     effortMinutes: DEFAULT_EFFORT_MINUTES,
     workingHours: { ...DEFAULT_WORKING_HOURS, timezone: tz },
     emailVerified: false,
@@ -270,7 +377,8 @@ export function verifyEmail(token: string): AuthUser {
   if (!token) throw new ValidationError("Token requis");
 
   for (const user of usersByUid.values()) {
-    if (user.emailVerifyToken === token) {
+    const stored = user.emailVerifyToken;
+    if (stored && timingSafeEqualStrings(stored, token)) {
       if (user.emailVerifyExpiresAt && Date.now() > user.emailVerifyExpiresAt) {
         throw new AppError(410, "Lien de vérification expiré. Demandez un nouveau lien.");
       }
@@ -335,7 +443,8 @@ export function resetPassword(token: string, newPassword: string): void {
   validatePasswordLength(newPassword);
 
   for (const user of usersByUid.values()) {
-    if (user.resetToken === token) {
+    const stored = user.resetToken;
+    if (stored && timingSafeEqualStrings(stored, token)) {
       if (user.resetTokenExpiresAt && Date.now() > user.resetTokenExpiresAt) {
         throw new AppError(410, "Lien de réinitialisation expiré. Demandez un nouveau lien.");
       }
@@ -343,6 +452,7 @@ export function resetPassword(token: string, newPassword: string): void {
       const saltB64 = crypto.randomBytes(16).toString("base64");
       user.passwordSaltB64 = saltB64;
       user.passwordHashB64 = pbkdf2Hash(newPassword, saltB64);
+      user.passwordUserChosen = true;
       delete user.resetToken;
       delete user.resetTokenExpiresAt;
 
@@ -364,7 +474,7 @@ export interface LoginInput {
   timezone?: string;
 }
 
-export function login(input: LoginInput): AuthUser & { sessionToken: string } {
+export function login(input: LoginInput): LoginResult {
   if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES) {
     throw new AppError(401, "Identifiants invalides");
   }
@@ -404,17 +514,16 @@ export function login(input: LoginInput): AuthUser & { sessionToken: string } {
     }
   }
 
-  for (const [tok, sess] of sessionsByToken) {
-    if (sess.uid === uid) sessionsByToken.delete(tok);
+  if (needsSecondFactorAfterPrimaryAuth(user)) {
+    const pendingToken = createPendingTokenForUser(user);
+    return {
+      requiresTwoFactor: true,
+      pendingToken,
+      twoFactorMethods: twoFactorMethodsForPendingUser(user),
+    };
   }
 
-  const sessionToken = crypto.randomBytes(32).toString("hex");
-  const now = Date.now();
-  const expiresAt = now + SESSION_TTL_MS;
-  sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
-  persistSessions();
-
-  return { ...toAuthUser(user), sessionToken };
+  return issueSessionToken(uid);
 }
 
 function extractSessionToken(cookies: string | undefined): string | null {
@@ -531,7 +640,7 @@ export function findUserByUid(uid: string): AuthUser | null {
  * Logs in (or registers) a user via Google SSO.
  * The email is auto-verified since Google has already validated it.
  */
-export function loginWithGoogle(profile: { email: string; firstName: string; lastName: string; timezone?: string }): AuthUser & { sessionToken: string } {
+export function loginWithGoogle(profile: { email: string; firstName: string; lastName: string; timezone?: string }): LoginResult {
   const email = normalizeEmail(profile.email);
   const uid = uidFromEmail(email);
   let user = usersByUid.get(uid);
@@ -549,6 +658,7 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
       lastName: profile.lastName,
       passwordSaltB64: saltB64,
       passwordHashB64: hashB64,
+      passwordUserChosen: false,
       effortMinutes: DEFAULT_EFFORT_MINUTES,
       workingHours: { ...DEFAULT_WORKING_HOURS, timezone: tz },
       emailVerified: true,
@@ -573,17 +683,250 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
     if (changed) persistUsers();
   }
 
+  if (needsSecondFactorAfterPrimaryAuth(user)) {
+    const pendingToken = createPendingTokenForUser(user);
+    return {
+      requiresTwoFactor: true,
+      pendingToken,
+      twoFactorMethods: twoFactorMethodsForPendingUser(user),
+    };
+  }
+
+  return issueSessionToken(uid);
+}
+
+/** After password or Google pre-auth, validate TOTP and/or email OTP and open session */
+export function verifyTwoFactorLogin(pendingToken: string, code: string): LoginSuccess {
+  const row = getPendingRow(pendingToken);
+  if (!row) {
+    throw new AppError(401, "Session 2FA expirée ou invalide. Reconnectez-vous.");
+  }
+  const user = usersByUid.get(row.uid);
+  if (!user) {
+    throw new AppError(401, "Session 2FA expirée ou invalide. Reconnectez-vous.");
+  }
+  const mode = row.mode ?? "totp";
+  let ok = false;
+  if (mode === "email_only") {
+    ok = verifyEmailOtpOnRow(row, code);
+  } else if (mode === "totp") {
+    ok = !!(user.totpSecretB64 && verifyTotpCode(user.totpSecretB64, code));
+  } else if (mode === "totp_or_email") {
+    ok =
+      !!(user.totpSecretB64 && verifyTotpCode(user.totpSecretB64, code))
+      || verifyEmailOtpOnRow(row, code);
+  }
+  if (!ok) {
+    throw new AppError(401, "Code d'authentification invalide");
+  }
+  deletePendingToken(pendingToken);
+  return issueSessionToken(row.uid);
+}
+
+export function beginTotpSetup(uid: string): { otpauthUrl: string; secret: string } {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (user.emailOtp2faEnabled) {
+    throw new AppError(400, "Désactivez d'abord la 2FA par email dans les paramètres");
+  }
+  if (user.totpEnabled && user.totpSecretB64) {
+    throw new AppError(400, "La double authentification est déjà activée");
+  }
+  const secret = generateTotpSecret();
+  user.totpPendingSecretB64 = secret;
+  usersByUid.set(uid, user);
+  persistUsers();
+  return {
+    otpauthUrl: buildKeyUri(user.email, secret),
+    secret,
+  };
+}
+
+export function completeTotpSetup(uid: string, code: string): AuthUser {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const pending = user.totpPendingSecretB64;
+  if (!pending) {
+    throw new AppError(400, "Aucune configuration 2FA en cours. Lancez d'abord l'appairage.");
+  }
+  if (!verifyTotpCode(pending, code)) {
+    throw new AppError(400, "Code incorrect");
+  }
+  user.totpSecretB64 = pending;
+  user.totpEnabled = true;
+  user.emailOtp2faEnabled = false;
+  delete user.totpPendingSecretB64;
+  usersByUid.set(uid, user);
+  persistUsers();
+  return toAuthUser(user);
+}
+
+/** True when disabling 2FA must also verify the account password (not SSO placeholder). */
+export function twoFactorDisableRequiresPassword(uid: string): boolean {
+  const user = usersByUid.get(uid);
+  return user?.passwordUserChosen === true;
+}
+
+export function disableTotp(uid: string, password: string | undefined, code: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (!user.totpEnabled || !user.totpSecretB64) {
+    throw new AppError(400, "La double authentification n'est pas activée");
+  }
+  const mustVerifyPassword = user.passwordUserChosen === true;
+  if (mustVerifyPassword) {
+    if (!user.passwordSaltB64 || !user.passwordHashB64) {
+      throw new AppError(400, "Mot de passe non configuré");
+    }
+    if (password === undefined || password === "") {
+      throw new ValidationError("Mot de passe requis");
+    }
+    const actualHash = pbkdf2Hash(password, user.passwordSaltB64);
+    const expectedHash = user.passwordHashB64;
+    if (
+      expectedHash.length !== actualHash.length ||
+      !crypto.timingSafeEqual(Buffer.from(expectedHash, "base64"), Buffer.from(actualHash, "base64"))
+    ) {
+      throw new AppError(401, "Mot de passe incorrect");
+    }
+  }
+  if (!verifyTotpCode(user.totpSecretB64, code)) {
+    throw new AppError(401, "Code d'authentification invalide");
+  }
+  delete user.totpEnabled;
+  delete user.totpSecretB64;
+  delete user.totpPendingSecretB64;
+  usersByUid.set(uid, user);
   for (const [tok, sess] of sessionsByToken) {
     if (sess.uid === uid) sessionsByToken.delete(tok);
   }
-
-  const sessionToken = crypto.randomBytes(32).toString("hex");
-  const now = Date.now();
-  const expiresAt = now + SESSION_TTL_MS;
-  sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
   persistSessions();
+  persistUsers();
+}
 
-  return { ...toAuthUser(user), sessionToken };
+export function cancelTotpSetup(uid: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (user.totpPendingSecretB64 && !user.totpEnabled) {
+    delete user.totpPendingSecretB64;
+    usersByUid.set(uid, user);
+    persistUsers();
+  }
+}
+
+const EMAIL_OTP_ENROLL_TTL_MS = 10 * 60 * 1000;
+
+function verifyEmailOtpHash(
+  storedHash: string | undefined,
+  expiresAt: number | undefined,
+  code: string,
+): boolean {
+  if (!storedHash || !expiresAt || Date.now() > expiresAt) return false;
+  const digits = code.replace(/\s/g, "");
+  if (!/^\d{6}$/.test(digits)) return false;
+  const h = crypto.createHash("sha256").update(digits).digest("hex");
+  if (h.length !== storedHash.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(h, "hex"), Buffer.from(storedHash, "hex"));
+}
+
+export async function requestEmail2faEnrollment(uid: string, locale: "fr" | "en"): Promise<void> {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (!user.emailVerified) {
+    throw new AppError(400, "Vérifiez votre adresse email avant d'activer la 2FA par email");
+  }
+  if (user.totpEnabled && user.totpSecretB64) {
+    throw new AppError(400, "Désactivez d'abord l'authentificateur dans les paramètres");
+  }
+  if (user.emailOtp2faEnabled) {
+    throw new AppError(400, "La 2FA par email est déjà activée");
+  }
+  const code = (100000 + Math.floor(Math.random() * 900000)).toString();
+  user.email2faEnrollHash = crypto.createHash("sha256").update(code).digest("hex");
+  user.email2faEnrollExpiresAt = Date.now() + EMAIL_OTP_ENROLL_TTL_MS;
+  usersByUid.set(uid, user);
+  persistUsers();
+  await sendEmailOtpEmail(user.email, code, "enrollment", locale);
+}
+
+export function confirmEmail2faEnrollment(uid: string, code: string): AuthUser {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (!verifyEmailOtpHash(user.email2faEnrollHash, user.email2faEnrollExpiresAt, code)) {
+    throw new AppError(400, "Code incorrect ou expiré");
+  }
+  delete user.email2faEnrollHash;
+  delete user.email2faEnrollExpiresAt;
+  user.emailOtp2faEnabled = true;
+  delete user.totpEnabled;
+  delete user.totpSecretB64;
+  delete user.totpPendingSecretB64;
+  usersByUid.set(uid, user);
+  persistUsers();
+  return toAuthUser(user);
+}
+
+export function setTotpEmailFallback(uid: string, enabled: boolean): AuthUser {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (!(user.totpEnabled && user.totpSecretB64)) {
+    throw new AppError(400, "L'authentificateur n'est pas activé");
+  }
+  user.totpEmailFallbackEnabled = enabled;
+  usersByUid.set(uid, user);
+  persistUsers();
+  return toAuthUser(user);
+}
+
+export async function requestDisableEmail2faOtp(uid: string, locale: "fr" | "en"): Promise<void> {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (!user.emailOtp2faEnabled) {
+    throw new AppError(400, "La 2FA par email n'est pas activée");
+  }
+  const code = (100000 + Math.floor(Math.random() * 900000)).toString();
+  user.email2faDisableHash = crypto.createHash("sha256").update(code).digest("hex");
+  user.email2faDisableExpiresAt = Date.now() + EMAIL_OTP_ENROLL_TTL_MS;
+  usersByUid.set(uid, user);
+  persistUsers();
+  await sendEmailOtpEmail(user.email, code, "disable", locale);
+}
+
+export function disableEmailOtp2fa(uid: string, password: string | undefined, code: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  if (!user.emailOtp2faEnabled) {
+    throw new AppError(400, "La 2FA par email n'est pas activée");
+  }
+  const mustVerifyPassword = user.passwordUserChosen === true;
+  if (mustVerifyPassword) {
+    if (!user.passwordSaltB64 || !user.passwordHashB64) {
+      throw new AppError(400, "Mot de passe non configuré");
+    }
+    if (password === undefined || password === "") {
+      throw new ValidationError("Mot de passe requis");
+    }
+    const actualHash = pbkdf2Hash(password, user.passwordSaltB64);
+    const expectedHash = user.passwordHashB64;
+    if (
+      expectedHash.length !== actualHash.length ||
+      !crypto.timingSafeEqual(Buffer.from(expectedHash, "base64"), Buffer.from(actualHash, "base64"))
+    ) {
+      throw new AppError(401, "Mot de passe incorrect");
+    }
+  }
+  if (!verifyEmailOtpHash(user.email2faDisableHash, user.email2faDisableExpiresAt, code)) {
+    throw new AppError(401, "Code incorrect ou expiré");
+  }
+  delete user.emailOtp2faEnabled;
+  delete user.email2faDisableHash;
+  delete user.email2faDisableExpiresAt;
+  usersByUid.set(uid, user);
+  for (const [tok, sess] of sessionsByToken) {
+    if (sess.uid === uid) sessionsByToken.delete(tok);
+  }
+  persistSessions();
+  persistUsers();
 }
 
 export function changePassword(uid: string, currentPassword: string, newPassword: string, currentSessionToken?: string): void {
@@ -606,6 +949,7 @@ export function changePassword(uid: string, currentPassword: string, newPassword
   const saltB64 = crypto.randomBytes(16).toString("base64");
   user.passwordSaltB64 = saltB64;
   user.passwordHashB64 = pbkdf2Hash(newPassword, saltB64);
+  user.passwordUserChosen = true;
 
   for (const [tok, sess] of sessionsByToken) {
     if (sess.uid === uid && tok !== currentSessionToken) sessionsByToken.delete(tok);

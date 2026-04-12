@@ -270,3 +270,68 @@ export async function sendPasswordResetEmail(
     console.error("[email] Failed to send password reset to %s: %s", toEmail, err);
   }
 }
+
+/**
+ * 6-digit OTP for login (pending 2FA) or enrollment — never log the code.
+ */
+export async function sendEmailOtpEmail(
+  toEmail: string,
+  code: string,
+  kind: "login" | "enrollment" | "disable",
+  locale: "fr" | "en" = "fr",
+): Promise<void> {
+  const subjects: Record<typeof kind, { fr: string; en: string }> = {
+    login: {
+      fr: "Wroket — Votre code de connexion",
+      en: "Wroket — Your sign-in code",
+    },
+    enrollment: {
+      fr: "Wroket — Activez la 2FA par email",
+      en: "Wroket — Enable email two-factor authentication",
+    },
+    disable: {
+      fr: "Wroket — Code pour désactiver la 2FA par email",
+      en: "Wroket — Code to turn off email 2FA",
+    },
+  };
+
+  const bodies: Record<typeof kind, { fr: string; en: string }> = {
+    login: {
+      fr: `Votre code à 6 chiffres : <strong style="font-size:22px;letter-spacing:4px">${escapeHtml(code)}</strong><p style="font-size:12px;color:#94a3b8">Valide 10 minutes. Si ce n'est pas vous, changez votre mot de passe.</p>`,
+      en: `Your 6-digit code: <strong style="font-size:22px;letter-spacing:4px">${escapeHtml(code)}</strong><p style="font-size:12px;color:#94a3b8">Valid for 10 minutes. If this wasn't you, change your password.</p>`,
+    },
+    enrollment: {
+      fr: `Entrez ce code dans les paramètres Wroket pour activer la 2FA par email : <strong style="font-size:22px;letter-spacing:4px">${escapeHtml(code)}</strong><p style="font-size:12px;color:#94a3b8">Valide 10 minutes.</p>`,
+      en: `Enter this code in Wroket settings to enable email 2FA: <strong style="font-size:22px;letter-spacing:4px">${escapeHtml(code)}</strong><p style="font-size:12px;color:#94a3b8">Valid for 10 minutes.</p>`,
+    },
+    disable: {
+      fr: `Pour désactiver la 2FA par email, entrez ce code dans les paramètres : <strong style="font-size:22px;letter-spacing:4px">${escapeHtml(code)}</strong>`,
+      en: `To turn off email 2FA, enter this code in settings: <strong style="font-size:22px;letter-spacing:4px">${escapeHtml(code)}</strong>`,
+    },
+  };
+
+  const subject = subjects[kind][locale];
+  const inner = bodies[kind][locale];
+  const html = `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+    ${emailHeader()}
+    <div style="color:#334155">${inner}</div>
+    ${emailFooter()}
+  </div>`;
+
+  const t = getTransporter();
+  try {
+    const info = await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: toEmail,
+      subject,
+      html,
+    });
+    if (SMTP_USER) {
+      console.log("[email] OTP (%s) sent to %s (messageId: %s)", kind, toEmail, info.messageId);
+    } else {
+      console.log("[email] (dry-run) OTP email kind=%s for %s", kind, toEmail);
+    }
+  } catch (err) {
+    console.error("[email] Failed to send OTP to %s: %s", toEmail, err);
+  }
+}

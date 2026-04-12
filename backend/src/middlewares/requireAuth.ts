@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 
 import { getUserFromRequestCookies } from "../services/authService";
 import { AuthenticatedRequest } from "../controllers/authController";
+import { logger } from "../utils/logger";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
@@ -14,7 +15,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     (req as AuthenticatedRequest).user = user;
     next();
   } catch (err) {
-    console.error("[requireAuth] error", err);
+    logger.error("[requireAuth] unexpected error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     res.status(500).json({ message: "Erreur serveur" });
   }
 }

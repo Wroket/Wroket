@@ -24,11 +24,17 @@ dotenv.config();
 const app = express();
 
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// Request ID first so every response (including errors from later middleware) is traceable.
+app.use(requestId);
+
 // Default CORP is `same-origin`, which blocks the browser from using cross-origin API responses
 // (e.g. fetch from https://wroket.com to https://api.wroket.com). CORS alone is not enough.
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    hidePoweredBy: true,
   }),
 );
 app.use(compression());
@@ -50,7 +56,6 @@ app.use(
   })
 );
 app.use(express.json({ limit: "128kb" }));
-app.use(requestId);
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,

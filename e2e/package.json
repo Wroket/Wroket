@@ -1,0 +1,12 @@
+{
+  "name": "wroket-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0"
+  }
+}

@@ -4,7 +4,17 @@ import { FormEvent, useEffect, useState } from "react";
 
 import Link from "next/link";
 
-import { getMe, getGoogleSsoUrl, login, register, resendVerificationApi } from "@/lib/api";
+import {
+  getMe,
+  getGoogleSsoUrl,
+  login,
+  register,
+  resendVerificationApi,
+  verifyTwoFactor,
+  fetchPendingTwoFactorMeta,
+  sendEmailOtpForPendingLogin,
+  type TwoFactorMethod,
+} from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 
 type Mode = "login" | "register";
@@ -22,6 +32,11 @@ export default function LoginPage() {
   const [resending, setResending] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [twoFaPendingToken, setTwoFaPendingToken] = useState<string | null>(null);
+  const [twoFactorMethods, setTwoFactorMethods] = useState<TwoFactorMethod[] | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const [emailOtpSending, setEmailOtpSending] = useState(false);
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("wroket-dark");
@@ -41,12 +56,70 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    let params = new URLSearchParams(window.location.search);
+    const pending2fa = params.get("pending2fa");
+
     if (params.get("error") === "google_sso_failed") {
       setError(t("login.googleSsoError"));
-      window.history.replaceState({}, "", "/login");
+      params.delete("error");
+      const q = params.toString();
+      window.history.replaceState({}, "", q ? `/login?${q}` : "/login");
+      params = new URLSearchParams(window.location.search);
+    }
+
+    if (pending2fa) {
+      setTwoFaPendingToken(pending2fa);
+      setTotpCode("");
+      setError(null);
+      setEmailOtpSent(false);
+      fetchPendingTwoFactorMeta(pending2fa)
+        .then((m) => setTwoFactorMethods(m))
+        .catch(() => setTwoFactorMethods(["totp"]));
+      params = new URLSearchParams(window.location.search);
+      params.delete("pending2fa");
+      const q = params.toString();
+      window.history.replaceState({}, "", q ? `/login?${q}` : "/login");
     }
   }, [t]);
+
+  const exitTwoFa = () => {
+    setTwoFaPendingToken(null);
+    setTwoFactorMethods(null);
+    setTotpCode("");
+    setError(null);
+    setEmailOtpSent(false);
+  };
+
+  const handleSendEmailOtp = async () => {
+    if (!twoFaPendingToken) return;
+    setError(null);
+    setEmailOtpSending(true);
+    try {
+      await sendEmailOtpForPendingLogin(twoFaPendingToken);
+      setEmailOtpSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setEmailOtpSending(false);
+    }
+  };
+
+  const handleSubmitTwoFa = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!twoFaPendingToken) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await verifyTwoFactor(twoFaPendingToken, totpCode);
+      const me = await getMe();
+      if (me?.email) localStorage.setItem("wroket-login-email", me.email);
+      window.location.href = "/dashboard";
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleSso = async () => {
     setGoogleLoading(true);
@@ -71,7 +144,14 @@ export default function LoginPage() {
 
     try {
       if (mode === "login") {
-        await login({ email, password });
+        const outcome = await login({ email, password });
+        if (outcome.status === "needs_two_factor") {
+          setTwoFaPendingToken(outcome.pendingToken);
+          setTwoFactorMethods(outcome.twoFactorMethods);
+          setTotpCode("");
+          setEmailOtpSent(false);
+          return;
+        }
       } else {
         if (password.length < 8) {
           setError(t("login.passwordTooShort"));
@@ -103,23 +183,115 @@ export default function LoginPage() {
     }
   };
 
+  const darkToggleButton = (
+    <button
+      type="button"
+      onClick={toggleDarkMode}
+      className="fixed top-4 right-4 rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+      aria-label="Toggle dark mode"
+    >
+      {darkMode ? (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+      )}
+    </button>
+  );
+
+  if (twoFaPendingToken) {
+    const showTotp = twoFactorMethods?.includes("totp") ?? true;
+    const showEmail = twoFactorMethods?.includes("email") ?? false;
+    const hint =
+      showTotp && showEmail
+        ? t("login.twoFactorHintBoth")
+        : showEmail && !showTotp
+          ? t("login.twoFactorHintEmail")
+          : t("login.twoFactorHint");
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-slate-950 transition-colors">
+        {darkToggleButton}
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 shadow-lg rounded-2xl px-8 py-10 border border-transparent dark:border-slate-700">
+          <div className="mb-6">
+            <Link href="/" className="flex flex-col items-center gap-3 mb-4 hover:opacity-80 transition-opacity">
+              <div className="w-14 h-14 rounded-2xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center shadow-lg">
+                <svg className="w-9 h-9" viewBox="0 0 24 24" fill="none">
+                  <path d="M2 13l4 4 4.5-6" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M11 13l4 4 4.5-6" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12.4 8l0.7-1" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" />
+                  <path d="M21.4 8l0.7-1" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold">
+                <span className="text-slate-800 dark:text-slate-100">Wro</span><span className="text-emerald-500 dark:text-emerald-400">ket</span>
+              </h1>
+            </Link>
+            <h2 className="text-center text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("login.twoFactorTitle")}</h2>
+            <p className="text-center text-sm text-zinc-500 dark:text-slate-400 mt-2">{hint}</p>
+          </div>
+          <form onSubmit={handleSubmitTwoFa} className="space-y-5">
+            {showEmail && (
+              <button
+                type="button"
+                disabled={emailOtpSending || loading}
+                onClick={handleSendEmailOtp}
+                className="w-full rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/30 px-4 py-2.5 text-sm font-medium text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40 disabled:opacity-60"
+              >
+                {emailOtpSending ? t("login.sendingEmailOtp") : t("login.sendEmailOtp")}
+              </button>
+            )}
+            {emailOtpSent && (
+              <p className="text-xs text-center text-emerald-700 dark:text-emerald-400">{t("login.emailOtpSentHint")}</p>
+            )}
+            <div>
+              <label htmlFor="totp-code" className="block text-sm font-medium text-zinc-700 dark:text-slate-300">
+                {t("settings.security2faCode")}
+              </label>
+              <input
+                id="totp-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={12}
+                required
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 tracking-widest text-center font-mono shadow-sm focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-800 rounded-md px-3 py-2">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading ? t("login.twoFactorVerifying") : t("login.twoFactorSubmit")}
+            </button>
+            <button
+              type="button"
+              onClick={exitTwoFa}
+              disabled={loading}
+              className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60"
+            >
+              {t("login.twoFactorBack")}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-slate-950 transition-colors">
-      <button
-        onClick={toggleDarkMode}
-        className="fixed top-4 right-4 rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
-        aria-label="Toggle dark mode"
-      >
-        {darkMode ? (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-        ) : (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-          </svg>
-        )}
-      </button>
+      {darkToggleButton}
 
       <div className="w-full max-w-md bg-white dark:bg-slate-900 shadow-lg rounded-2xl px-8 py-10 border border-transparent dark:border-slate-700">
         <div className="mb-6">

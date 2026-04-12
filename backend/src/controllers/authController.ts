@@ -16,13 +16,29 @@ import {
   resetPassword as resetPasswordService,
   AuthUser,
   WorkingHours,
+  type LoginSuccess,
+  beginTotpSetup as beginTotpSetupService,
+  completeTotpSetup as completeTotpSetupService,
+  disableTotp as disableTotpService,
+  twoFactorDisableRequiresPassword,
+  cancelTotpSetup as cancelTotpSetupService,
+  verifyTwoFactorLogin as verifyTwoFactorLoginService,
+  requestEmail2faEnrollment as requestEmail2faEnrollmentService,
+  confirmEmail2faEnrollment as confirmEmail2faEnrollmentService,
+  setTotpEmailFallback as setTotpEmailFallbackService,
+  requestDisableEmail2faOtp as requestDisableEmail2faOtpService,
+  disableEmailOtp2fa as disableEmailOtp2faService,
 } from "../services/authService";
+import {
+  getPendingTwoFactorMethods,
+  prepareEmailOtpForPending,
+} from "../services/twoFactorService";
 import { exportUserData, deleteUserData } from "../services/rgpdService";
 import { getActivityLog } from "../services/activityLogService";
-import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail } from "../services/emailService";
+import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail, sendEmailOtpEmail } from "../services/emailService";
 import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
 import { consumeSsoLoginState } from "../utils/oauthState";
-import { ValidationError } from "../utils/errors";
+import { AppError, ValidationError } from "../utils/errors";
 import { flushNow, getStore, scheduleSave } from "../persistence";
 import { parseCookies } from "../utils/parseCookies";
 
@@ -196,11 +212,15 @@ export async function googleSsoCallback(req: Request, res: Response) {
       timezone,
     });
 
-    // Persist session before redirect so another Cloud Run instance can validate /auth/me
-    // (scheduleSave debounces 500ms; without flush, load-balanced getMe often returns 401).
     await flushNow();
 
-    res.cookie(COOKIE_NAME, result.sessionToken, {
+    if ("requiresTwoFactor" in result && result.requiresTwoFactor) {
+      res.redirect(`${frontendUrl}/login?pending2fa=${encodeURIComponent(result.pendingToken)}`);
+      return;
+    }
+
+    const session = result as LoginSuccess;
+    res.cookie(COOKIE_NAME, session.sessionToken, {
       ...baseCookieOpts(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -222,12 +242,150 @@ export async function login(req: Request, res: Response) {
 
   await flushNow();
 
+  if ("requiresTwoFactor" in result && result.requiresTwoFactor) {
+    res.status(200).json({
+      requiresTwoFactor: true,
+      pendingToken: result.pendingToken,
+      twoFactorMethods: result.twoFactorMethods,
+    });
+    return;
+  }
+
+  const session = result as LoginSuccess;
+  res.cookie(COOKIE_NAME, session.sessionToken, {
+    ...baseCookieOpts(),
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  res.status(200).json({ message: "Login OK" });
+}
+
+function localeFromReq(req: Request): "fr" | "en" {
+  return req.acceptsLanguages(["fr", "en"]) === "en" ? "en" : "fr";
+}
+
+/** Public: which second factors are allowed for this pending login (e.g. after Google redirect). */
+export function pendingTwoFactorMeta(req: Request, res: Response) {
+  const token = typeof req.query.pendingToken === "string" ? req.query.pendingToken.trim() : "";
+  if (!token) {
+    res.status(400).json({ message: "Jeton requis" });
+    return;
+  }
+  const methods = getPendingTwoFactorMethods(token);
+  if (!methods) {
+    res.status(404).json({ message: "Jeton invalide ou expiré" });
+    return;
+  }
+  res.status(200).json({ twoFactorMethods: methods });
+}
+
+/** Send a 6-digit login code by email (pending step after password / Google). */
+export async function sendEmailOtpForPendingLogin(req: Request, res: Response) {
+  const { pendingToken } = req.body as { pendingToken?: unknown };
+  if (typeof pendingToken !== "string" || !pendingToken.trim()) {
+    throw new ValidationError("Jeton requis");
+  }
+  const token = pendingToken.trim();
+  const { code, uid } = prepareEmailOtpForPending(token);
+  const authUser = findUserByUid(uid);
+  if (!authUser?.email) {
+    throw new AppError(401, "Session 2FA expirée ou invalide. Reconnectez-vous.");
+  }
+  await sendEmailOtpEmail(authUser.email, code, "login", localeFromReq(req));
+  await flushNow();
+  res.status(200).json({ message: "Code envoyé" });
+}
+
+export async function email2faEnrollmentRequest(req: AuthenticatedRequest, res: Response) {
+  await requestEmail2faEnrollmentService(req.user!.uid, localeFromReq(req));
+  await flushNow();
+  res.status(200).json({ message: "Code envoyé" });
+}
+
+export async function email2faEnrollmentConfirm(req: AuthenticatedRequest, res: Response) {
+  const { code } = req.body as { code?: unknown };
+  if (typeof code !== "string" || !code.trim()) {
+    throw new ValidationError("Code requis");
+  }
+  const user = confirmEmail2faEnrollmentService(req.user!.uid, code.trim());
+  await flushNow();
+  res.status(200).json(user);
+}
+
+export async function putTotpEmailFallback(req: AuthenticatedRequest, res: Response) {
+  const { enabled } = req.body as { enabled?: unknown };
+  if (typeof enabled !== "boolean") {
+    throw new ValidationError("enabled requis");
+  }
+  const user = setTotpEmailFallbackService(req.user!.uid, enabled);
+  await flushNow();
+  res.status(200).json(user);
+}
+
+export async function email2faDisableRequest(req: AuthenticatedRequest, res: Response) {
+  await requestDisableEmail2faOtpService(req.user!.uid, localeFromReq(req));
+  await flushNow();
+  res.status(200).json({ message: "Code envoyé" });
+}
+
+export async function email2faDisable(req: AuthenticatedRequest, res: Response) {
+  const { password, code } = req.body as { password?: unknown; code?: unknown };
+  if (typeof code !== "string" || !code.trim()) {
+    throw new ValidationError("Code requis");
+  }
+  const pwd = typeof password === "string" ? password : undefined;
+  disableEmailOtp2faService(req.user!.uid, pwd, code.trim());
+  await flushNow();
+  res.status(200).json({ message: "OK" });
+}
+
+export async function verifyTwoFactor(req: Request, res: Response) {
+  const { pendingToken, code } = req.body as { pendingToken?: unknown; code?: unknown };
+  if (typeof pendingToken !== "string" || typeof code !== "string") {
+    throw new ValidationError("Jeton et code requis");
+  }
+
+  const result = verifyTwoFactorLoginService(pendingToken, code);
+  await flushNow();
+
   res.cookie(COOKIE_NAME, result.sessionToken, {
     ...baseCookieOpts(),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   res.status(200).json({ message: "Login OK" });
+}
+
+export async function totpSetup(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const out = beginTotpSetupService(uid);
+  res.status(200).json(out);
+}
+
+export async function totpEnable(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const { code } = req.body as { code?: unknown };
+  if (typeof code !== "string" || !code.trim()) {
+    throw new ValidationError("Code requis");
+  }
+  const user = completeTotpSetupService(uid, code.trim());
+  res.status(200).json(user);
+}
+
+export async function totpDisable(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const { password, code } = req.body as { password?: unknown; code?: unknown };
+  if (typeof code !== "string" || !code.trim()) {
+    throw new ValidationError("Code requis");
+  }
+  const pwd = typeof password === "string" ? password : undefined;
+  disableTotpService(uid, pwd, code.trim());
+  res.status(200).json({ message: "2FA désactivée" });
+}
+
+export async function totpCancelSetup(req: AuthenticatedRequest, res: Response) {
+  cancelTotpSetupService(req.user!.uid);
+  res.status(200).json({ message: "OK" });
 }
 
 export async function logout(req: Request, res: Response) {
@@ -251,6 +409,10 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     workingHours: user.workingHours,
     googleCalendarConnected: user.googleCalendarConnected,
     googleAccounts: user.googleAccounts,
+    twoFactorEnabled: user.twoFactorEnabled,
+    twoFactorDisableRequiresPassword: twoFactorDisableRequiresPassword(user.uid),
+    emailOtp2faEnabled: user.emailOtp2faEnabled === true,
+    totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
   });
 }
 

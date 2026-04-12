@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
+              "base-uri 'self'",
+              "form-action 'self'",
               // Dev: Next/Turbopack may need unsafe-eval. Prod: drop eval to tighten XSS surface.
               isProd
                 ? "script-src 'self' 'unsafe-inline'"

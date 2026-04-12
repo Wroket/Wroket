@@ -49,6 +49,14 @@ export interface AuthMeResponse {
   workingHours: WorkingHours;
   skipNonWorkingDays: boolean;
   googleCalendarConnected: boolean;
+  /** True when TOTP 2FA is enabled */
+  twoFactorEnabled?: boolean;
+  /** When true, disabling 2FA requires the account password (email/password users). SSO-only accounts use TOTP only. */
+  twoFactorDisableRequiresPassword?: boolean;
+  /** Primary 2FA is email OTP (no authenticator) */
+  emailOtp2faEnabled?: boolean;
+  /** When true, TOTP users can request an email code at login if they lose their phone */
+  totpEmailFallbackEnabled?: boolean;
 }
 
 export interface ActivityLogEntry {

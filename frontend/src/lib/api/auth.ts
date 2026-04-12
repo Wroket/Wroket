@@ -1,6 +1,11 @@
 import {
-  API_BASE_URL, parseJsonOrThrow, extractApiMessage, getBrowserTimezone,
-  type AuthMeResponse, type WorkingHours, type ActivityLogEntry,
+  API_BASE_URL,
+  parseJsonOrThrow,
+  extractApiMessage,
+  getBrowserTimezone,
+  type AuthMeResponse,
+  type WorkingHours,
+  type ActivityLogEntry,
 } from "./core";
 
 interface LoginPayload {
@@ -8,16 +13,191 @@ interface LoginPayload {
   password: string;
 }
 
-export async function login(payload: LoginPayload): Promise<void> {
+export type TwoFactorMethod = "totp" | "email";
+
+export type LoginOutcome =
+  | { status: "ok" }
+  | { status: "needs_two_factor"; pendingToken: string; twoFactorMethods: TwoFactorMethod[] };
+
+export async function login(payload: LoginPayload): Promise<LoginOutcome> {
   const res = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...payload, timezone: getBrowserTimezone() }),
     credentials: "include",
   });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    throw new Error(extractApiMessage(body, "Identifiants invalides"));
+  }
+  if (body.requiresTwoFactor === true && typeof body.pendingToken === "string") {
+    const raw = body.twoFactorMethods;
+    let twoFactorMethods: TwoFactorMethod[] = ["totp"];
+    if (Array.isArray(raw)) {
+      twoFactorMethods = raw.filter((m): m is TwoFactorMethod => m === "totp" || m === "email");
+    }
+    if (twoFactorMethods.length === 0) twoFactorMethods = ["totp"];
+    return { status: "needs_two_factor", pendingToken: body.pendingToken, twoFactorMethods };
+  }
+  return { status: "ok" };
+}
+
+export async function fetchPendingTwoFactorMeta(pendingToken: string): Promise<TwoFactorMethod[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/auth/2fa/pending-meta?${new URLSearchParams({ pendingToken })}`,
+  );
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    throw new Error(extractApiMessage(body, "Session 2FA invalide"));
+  }
+  const raw = body.twoFactorMethods;
+  let twoFactorMethods: TwoFactorMethod[] = ["totp"];
+  if (Array.isArray(raw)) {
+    twoFactorMethods = raw.filter((m): m is TwoFactorMethod => m === "totp" || m === "email");
+  }
+  if (twoFactorMethods.length === 0) twoFactorMethods = ["totp"];
+  return twoFactorMethods;
+}
+
+export async function sendEmailOtpForPendingLogin(pendingToken: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/send-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pendingToken }),
+    credentials: "include",
+  });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
-    throw new Error(extractApiMessage(body, "Identifiants invalides"));
+    throw new Error(extractApiMessage(body, "Envoi impossible"));
+  }
+}
+
+export async function verifyTwoFactor(pendingToken: string, code: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pendingToken, code: code.replace(/\s/g, "") }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Code invalide"));
+  }
+}
+
+export async function totpSetup(): Promise<{ otpauthUrl: string; secret: string }> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/setup`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  return (await res.json()) as { otpauthUrl: string; secret: string };
+}
+
+export async function totpEnable(code: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/enable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: code.trim() }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Code incorrect"));
+  }
+}
+
+export async function totpDisable(opts: { password?: string; code: string }): Promise<void> {
+  const body: { code: string; password?: string } = { code: opts.code.trim() };
+  if (opts.password !== undefined && opts.password !== "") {
+    body.password = opts.password;
+  }
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/disable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+}
+
+export async function totpCancelSetup(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/cancel-setup`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur");
+}
+
+export async function requestEmail2faEnrollment(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/email/request-enrollment`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+}
+
+export async function confirmEmail2faEnrollment(code: string): Promise<AuthMeResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/email/confirm-enrollment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: code.trim() }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Code incorrect"));
+  }
+  return (await res.json()) as AuthMeResponse;
+}
+
+export async function putTotpEmailFallback(enabled: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/email/totp-fallback`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+}
+
+export async function requestEmail2faDisableOtp(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/email/disable-request`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+}
+
+export async function disableEmailOtp2fa(opts: { password?: string; code: string }): Promise<void> {
+  const body: { code: string; password?: string } = { code: opts.code.trim() };
+  if (opts.password !== undefined && opts.password !== "") {
+    body.password = opts.password;
+  }
+  const res = await fetch(`${API_BASE_URL}/auth/2fa/email/disable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const bodyJson = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(bodyJson, "Erreur"));
   }
 }
 

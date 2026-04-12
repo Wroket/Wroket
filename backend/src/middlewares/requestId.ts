@@ -14,8 +14,8 @@ import { NextFunction, Request, Response } from "express";
  *   • Attaches it to `req` so the errorHandler and any logger call can include
  *     it in the log entry without threading it through every function signature.
  *
- * Register it as the very first middleware in app.ts (before routes) so the ID
- * is available everywhere.
+ * Register it early in app.ts (before helmet and routes) so the ID is available
+ * everywhere and error responses still include `X-Request-Id`.
  */
 
 export interface RequestWithId extends Request {

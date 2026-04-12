@@ -1,5 +1,19 @@
 # Wroket — Roadmap
 
+## Priorités produit (ordre recommandé)
+
+**Objectif** : rendre Wroket **fiable en prod**, **agréable au quotidien** (mobile, rappels, vues focus), **crédible pour les équipes** (2FA, écosystème Microsoft), puis **monétisable** — avant d’investir dans les intégrations lourdes (bots Slack, sync bidirectionnelle) ou le R&D lourd (notes temps réel, CRDT).
+
+| Phase | Focus | Pistes principales (détail dans les sections ci-dessous) |
+|-------|--------|---------------------------------------------------------|
+| **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
+| **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
+| **P2** | Usage quotidien & différenciation | **Expérience utilisateur & attractivité** — PWA, notifications push, vue « Ma semaine », templates, liens partageables, a11y |
+| **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **À l’étude** — notes collaboratives, CalDAV |
+| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
+
+Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
+
 ## Implémenté
 
 - [x] **Authentification** — Register, login, logout, sessions cookie, hachage bcrypt
@@ -126,7 +140,18 @@
 - [x] **Renommage navigation** — "Collaboration > Collaboration" renommé en "Mes équipes", "Dashboard équipe" renommé en "Tableau de bord"
 - [x] **Export / import tâches (JSON & CSV)** — Export JSON enrichi côté API ; import avec prévisualisation (`POST /todos/import/preview`) et confirmation (`POST /todos/import/confirm`), service `taskImportService` ; menu `ExportImportDropdown` + flux sur la page Tâches
 
+## Expérience utilisateur & attractivité
+
+- [ ] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette.
+- [ ] **Notifications push** — Web Push (ou équivalent) pour rappels deadline, assignations et événements clés hors onglet actif ; complète notifications in-app + email.
+- [ ] **Vue « Ma semaine » / focus** — Synthèse dédiée : échéances de la semaine, charge estimée, tâches non planifiées ou à risque ; s’appuie sur slots, agenda et priorités existants.
+- [ ] **Templates & checklists de tâches** — Modèles réutilisables (onboarding client, release, procédures) : création de tâches pré-remplies et/ou listes à cocher dans une tâche.
+- [ ] **Liens partageables en lecture seule** — URL signée ou token limité dans le temps pour consulter une tâche ou la vue d’un projet sans compte Wroket (socle léger avant un client portal complet — voir *Fonctionnalités Premium*).
+- [ ] **Accessibilité (a11y) ciblée** — Focus trap des modales, contrastes WCAG sur les flux critiques, labels et annonces pour lecteurs d’écran sur Tâches, Agenda, Paramètres.
+
 ## Intégrations & Connecteurs
+
+*Niveau 1 livré ; N2/N3 = charge d’intégration élevée — placer après P1/P2 sauf besoin client fort (cf. priorités P3).*
 
 - [x] **Webhooks sortants (Niveau 1)** — Notifications Wroket vers Slack, Discord, Microsoft Teams
   - Configuration par utilisateur dans Paramètres > Intégrations
@@ -144,6 +169,8 @@
   - Threads Slack liés aux tâches Wroket
 
 ## À l'étude (R&D)
+
+*Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
 
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
@@ -191,10 +218,12 @@
 - [x] **Audit npm / Next.js** — Next.js 16.2.3 et lockfiles à jour (correctifs sécurité transitifs : nodemailer, path-to-regexp, picomatch, brace-expansion, etc.)
 - [x] **RGPD export (doc code)** — Commentaires dans `exportUserData` : export self-service via modèles en mémoire vs lignes brutes admin avec retrait du champ legacy `encV1` (pas de chiffrement applicatif en prod)
 - [x] **Optimisation performance** — Compression Gzip/Brotli (`compression` middleware), fix N+1 queries team membership (`teamMembershipCache` dans `listProjects`), batch `Promise.all` pour suppression de phase, memoisation `ProjectListView` (`useMemo` sur projets actifs/archivés/enfants/health)
-- [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires
-- [ ] **2FA** — Authentification à deux facteurs (TOTP)
+- [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires — *Microsoft en tête pour l’adoption entreprise (cf. P1)*
+- [x] **2FA** — Authentification à deux facteurs (TOTP) — *cf. priorités P0*
 
 ## Monétisation & Plan System
+
+*Bloc P1 : rendre l’offre lisible et facturable avant d’empiler les features « Business ».*
 
 - [ ] **Plan system (Free / Pro / Team)** — Champ `plan` sur le modèle utilisateur, middleware de feature gating, prompts d'upgrade frontend
   - Free : 25 tâches actives, pas d'archives (purge auto 7j), 3 notes, pas de récurrence, pas de pièces jointes, Google Calendar en lecture seule, planification manuelle uniquement
@@ -204,6 +233,8 @@
 - [ ] **Page Pricing** — Page publique `/pricing` avec comparatif des plans, FAQ, CTA vers Stripe Checkout
 
 ## Fonctionnalités Premium (Business tier — $20-25/utilisateur/mois)
+
+*À traiter après monétisation de base (P1) et traction sur Pro/Team — cf. priorités P4.*
 
 - [ ] **Time tracking** — Chronomètre intégré par tâche, temps réel vs estimé, historique des sessions de travail, rapports temps passé par projet/phase/membre
 - [ ] **Analytics & Reporting** — Dashboard analytique : burndown charts, vélocité d'équipe, taux de complétion par période, tendances de productivité, répartition temps par priorité/effort
@@ -217,9 +248,11 @@
 
 ## Tests & Qualité
 
+*Ordre conseillé (cf. priorités P0) : E2E sur les parcours critiques d’abord, puis unitaires sur les services les plus sensibles.*
+
+- [ ] **Tests E2E** — Playwright pour les parcours utilisateur (login, tâche, projet/agenda, export)
 - [ ] **Tests unitaires backend** — Jest/Vitest pour services et controllers
 - [ ] **Tests unitaires frontend** — Tests des composants React critiques
-- [ ] **Tests E2E** — Playwright pour les parcours utilisateur
 
 ## Déploiement & Infrastructure
 
@@ -239,4 +272,4 @@
   - Secret injecté sur `wroket-api` : `OAUTH_STATE_SECRET` (OAuth Google / SSO) — pas de `CRYPTO_KEK_BASE64` pour le contenu utilisateur en prod
 - [x] **CI GitHub Actions** — Lint & type check sur push/PR
 - [x] **DNS & Domaines** — `wroket.com` + `www.wroket.com` + `api.wroket.com` (CNAME `ghs.googlehosted.com`)
-- [ ] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore)
+- [ ] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore) — *priorité P0 pour la confiance prod*

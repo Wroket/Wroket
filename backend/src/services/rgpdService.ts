@@ -98,6 +98,8 @@ const SENSITIVE_FIELDS = [
   "passwordHashB64", "passwordSaltB64",
   "googleCalendarTokens", "googleAccounts",
   "emailVerifyToken", "resetToken", "resetTokenExpiry",
+  "totpSecretB64", "totpPendingSecretB64", "totpEnabled",
+  "emailOtp2faEnabled", "email2faEnrollHash", "email2faDisableHash",
 ];
 
 function sanitizeUserForExport(user: Record<string, unknown>): Record<string, unknown> {

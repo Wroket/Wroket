@@ -32,6 +32,8 @@ const DOMAINS = [
   "users", "notifications", "collaborators",
   "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "activityLog", "attachments",
   "pendingCommentMentions",
+  /** Short-lived tokens for password/Google login when TOTP is enabled (multi-instance safe) */
+  "pendingTwoFactor",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -52,6 +54,8 @@ export interface StoreData {
   attachments?: Record<string, unknown[]>;
   /** Queued comment_mention notifications until invitee accepts collaboration */
   pendingCommentMentions?: unknown[];
+  /** Map token -> pending 2FA row (TOTP / email OTP / both) after primary auth */
+  pendingTwoFactor?: Record<string, Record<string, unknown>>;
 }
 
 let cachedStore: StoreData = {};
@@ -331,5 +335,26 @@ export async function flushNow(): Promise<void> {
     dirtyTodoShards.clear();
   } else {
     await saveToFirestore();
+  }
+}
+
+/**
+ * Lightweight read for readiness probes (/health/ready). Does not verify full hydration.
+ * - Local JSON: always ok if process is up.
+ * - Firestore: single document read on store/users (exists in prod).
+ */
+export async function pingDatastore(): Promise<{ ok: boolean; backend: "local" | "firestore" }> {
+  if (USE_LOCAL) {
+    return { ok: true, backend: "local" };
+  }
+  if (!db) {
+    return { ok: false, backend: "firestore" };
+  }
+  try {
+    await db.collection("store").doc("users").get();
+    return { ok: true, backend: "firestore" };
+  } catch (err) {
+    console.error("[persistence] pingDatastore failed:", err);
+    return { ok: false, backend: "firestore" };
   }
 }

@@ -11,6 +11,18 @@ export type {
 
 export {
   login,
+  fetchPendingTwoFactorMeta,
+  sendEmailOtpForPendingLogin,
+  verifyTwoFactor,
+  totpSetup,
+  totpEnable,
+  totpDisable,
+  totpCancelSetup,
+  requestEmail2faEnrollment,
+  confirmEmail2faEnrollment,
+  putTotpEmailFallback,
+  requestEmail2faDisableOtp,
+  disableEmailOtp2fa,
   register,
   verifyEmailApi,
   resendVerificationApi,
@@ -29,7 +41,7 @@ export {
   lookupUser,
   lookupUserByUid,
 } from "./auth";
-export type { SearchResult } from "./auth";
+export type { SearchResult, LoginOutcome, TwoFactorMethod } from "./auth";
 
 export {
   getTodos,
