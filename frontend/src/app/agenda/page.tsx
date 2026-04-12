@@ -8,6 +8,7 @@ import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useToast } from "@/components/Toast";
+import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import {
   getCalendarEvents,
   getMe,
@@ -81,7 +82,6 @@ export default function AgendaPage() {
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const accountColorMap = useMemo(() => {
@@ -404,43 +404,44 @@ export default function AgendaPage() {
     }
   };
 
-  const saveEdit = async () => {
-    if (!editingTodo) return;
-    setEditSaving(true);
-    try {
-      await updateTodo(editingTodo.id, {
-        title: editForm.title,
-        priority: editForm.priority,
-        effort: editForm.effort,
-        startDate: editForm.startDate || null,
-        deadline: editForm.deadline || null,
-        assignedTo: editForm.assignedTo,
-        estimatedMinutes: editForm.estimatedMinutes,
-        tags: editForm.tags,
-        recurrence: editForm.recurrence,
-        projectId: editForm.projectId,
-      });
-      setEditingTodo(null);
-      toast.success(t("toast.taskUpdated"));
-      const data = await getCalendarEvents(dateRange.start, dateRange.end);
-      setWroketEvents(data.wroketEvents);
-      setGoogleEvents(data.googleEvents);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  const persistEditTags = useCallback(async (tags: string[]) => {
-    if (!editingTodo) return;
-    const updated = await updateTodo(editingTodo.id, { tags });
-    setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
-    setEditingTodo(updated);
+  const refreshCalendarForRange = useCallback(async () => {
     const data = await getCalendarEvents(dateRange.start, dateRange.end);
     setWroketEvents(data.wroketEvents);
     setGoogleEvents(data.googleEvents);
-  }, [editingTodo, dateRange]);
+  }, [dateRange]);
+
+  const onEditAutoSaved = useCallback(
+    (updated: Todo) => {
+      setEditingTodo(updated);
+      void refreshCalendarForRange();
+    },
+    [refreshCalendarForRange],
+  );
+
+  const { saving: editAutoSaving, syncBaseline, flush } = useTaskEditAutoSave({
+    editingTodo,
+    editForm,
+    onSaved: onEditAutoSaved,
+    onError: (msg) => toast.error(msg),
+  });
+
+  const closeEditModal = useCallback(async () => {
+    await flush();
+    setEditingTodo(null);
+    await refreshCalendarForRange();
+  }, [flush, refreshCalendarForRange]);
+
+  const persistEditTags = useCallback(
+    async (tags: string[]) => {
+      if (!editingTodo) return;
+      const updated = await updateTodo(editingTodo.id, { tags });
+      setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
+      setEditingTodo(updated);
+      syncBaseline();
+      await refreshCalendarForRange();
+    },
+    [editingTodo, refreshCalendarForRange, syncBaseline],
+  );
 
   const handleEditAssignLookup = (email: string) => {
     setEditAssignEmail(email);
@@ -967,9 +968,8 @@ export default function AgendaPage() {
           todo={editingTodo}
           form={editForm}
           onFormChange={(updates) => setEditForm((f) => ({ ...f, ...updates }))}
-          onSave={saveEdit}
-          onClose={() => setEditingTodo(null)}
-          saving={editSaving}
+          onClose={closeEditModal}
+          saving={editAutoSaving}
           assignEmail={editAssignEmail}
           onAssignEmailChange={handleEditAssignLookup}
           assignedUser={editAssignedUser}

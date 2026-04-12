@@ -18,6 +18,7 @@ import {
   patchPhase,
   removePhase,
   convertPhaseToSubproject,
+  convertSubprojectToPhase,
   exportProject,
   importProjectTasks,
 } from "../controllers/projectController";
@@ -45,6 +46,7 @@ router.get("/:id/todos", requireAuth, getTodos);
 
 router.post("/:id/phases", requireAuth, createPhase);
 router.post("/:id/phases/:phaseId/convert-to-subproject", requireAuth, convertPhaseToSubproject);
+router.post("/:id/subprojects/:subId/convert-to-phase", requireAuth, convertSubprojectToPhase);
 router.put("/:id/phases/:phaseId", requireAuth, patchPhase);
 router.delete("/:id/phases/:phaseId", requireAuth, removePhase);
 

@@ -24,8 +24,8 @@ export interface TaskEditModalProps {
     projectId: string | null;
   };
   onFormChange: (updates: Partial<TaskEditModalProps["form"]>) => void;
-  onSave: () => void;
-  onClose: () => void;
+  /** Close the modal (parent should flush auto-save if used). */
+  onClose: () => void | Promise<void>;
   saving: boolean;
   assignEmail: string;
   onAssignEmailChange: (email: string) => void;
@@ -52,7 +52,6 @@ export default function TaskEditModal({
   todo,
   form,
   onFormChange,
-  onSave,
   onClose,
   saving,
   assignEmail,
@@ -145,7 +144,7 @@ export default function TaskEditModal({
     setShowAllComments(false);
     let cancelled = false;
     getComments(todo.id).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") void onClose(); };
     document.addEventListener("keydown", handleKey);
     return () => { cancelled = true; document.removeEventListener("keydown", handleKey); };
   }, [todo, onClose, loadComments]);
@@ -265,7 +264,7 @@ export default function TaskEditModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={() => void onClose()}
     >
       <div
         ref={trapRef}
@@ -301,8 +300,7 @@ export default function TaskEditModal({
               value={form.title}
               onChange={(e) => onFormChange({ title: e.target.value })}
               onKeyDown={(e) => {
-                if (e.key === "Enter") onSave();
-                if (e.key === "Escape") onClose();
+                if (e.key === "Escape") void onClose();
               }}
               autoFocus
               className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
@@ -839,21 +837,24 @@ export default function TaskEditModal({
               {t("subtask.addShort")}
             </button>
           )}
-          <div className="flex gap-2 ml-auto">
+          <div className="flex gap-2 ml-auto items-center">
+            {saving && (
+              <span className="text-xs text-zinc-400 dark:text-slate-500">{t("edit.saving")}</span>
+            )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void onClose()}
               className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
             >
               {t("edit.cancel")}
             </button>
             <button
               type="button"
-              onClick={onSave}
-              disabled={saving || !form.title.trim()}
+              onClick={() => void onClose()}
+              disabled={!form.title.trim()}
               className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
             >
-              {saving ? t("edit.saving") : t("edit.save")}
+              {t("edit.done")}
             </button>
           </div>
         </div>

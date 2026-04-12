@@ -257,6 +257,7 @@ const translations = {
   "edit.deadline": { fr: "Échéance", en: "Deadline" },
   "edit.cancel": { fr: "Annuler", en: "Cancel" },
   "edit.save": { fr: "Enregistrer", en: "Save" },
+  "edit.done": { fr: "Terminer", en: "Done" },
   "edit.saving": { fr: "Enregistrement…", en: "Saving…" },
   "edit.recurrence": { fr: "Récurrence", en: "Recurrence" },
   "edit.recurrenceDaily": { fr: "Quotidien", en: "Daily" },
@@ -440,6 +441,8 @@ const translations = {
   // ── Notes ──
   "nav.notes": { fr: "Bloc-notes", en: "Notes" },
   "notes.title": { fr: "Bloc-notes", en: "Notes" },
+  "notes.prevNote": { fr: "Note précédente", en: "Previous note" },
+  "notes.nextNote": { fr: "Note suivante", en: "Next note" },
   "notes.new": { fr: "Nouvelle note", en: "New note" },
   "notes.untitled": { fr: "Sans titre", en: "Untitled" },
   "notes.empty": { fr: "Aucune note", en: "No notes" },
@@ -715,6 +718,16 @@ const translations = {
   "projects.convertSubtaskUnphased": { fr: "Sous-tâches : sans phase dans le sous-projet", en: "Subtasks: unphased in the sub-project" },
   "projects.convertConfirm": { fr: "Confirmer la transformation", en: "Confirm conversion" },
   "projects.convertSuccess": { fr: "Phase transformée en sous-projet", en: "Phase converted to sub-project" },
+  "projects.mergeSub": { fr: "→ Phase", en: "→ Phase" },
+  "projects.mergeSubHint": {
+    fr: "Fusionner ce sous-projet en phase(s) dans le projet actuel",
+    en: "Merge this sub-project as phase(s) into the current project",
+  },
+  "projects.mergeSubConfirm": {
+    fr: "Fusionner ce sous-projet dans le projet courant ? Les tâches seront déplacées vers des phases portant les mêmes noms (ou le nom du sous-projet s'il n'y avait pas de phases).",
+    en: "Merge this sub-project into the current project? Tasks will move to phases with the same names (or the sub-project name if it had no phases).",
+  },
+  "projects.mergeSubSuccess": { fr: "Sous-projet fusionné en phase(s)", en: "Sub-project merged into phase(s)" },
   "projects.convertNestedProjectHint": { fr: "Réservé aux projets racine (pas de sous-projet dans un sous-projet)", en: "Only for root projects (no sub-project under a sub-project)" },
   "projects.convertPhasesWarning": { fr: "Les tâches principales seront supprimées en tant que tâches : leur titre devient le nom de phase.", en: "Top-level tasks will be removed as tasks: their titles become phase names." },
   "projects.completion": { fr: "Avancement", en: "Completion" },
@@ -925,7 +938,7 @@ const translations = {
   "import.errorsDuringConfirm": { fr: "erreur(s) à l'import", en: "error(s) while importing" },
 
   // ── Export ──
-  "export.button": { fr: "Exporter", en: "Export" },
+  "export.button": { fr: "Données", en: "Data" },
   "export.csv": { fr: "Exporter en CSV", en: "Export as CSV" },
   "export.json": { fr: "Exporter en JSON", en: "Export as JSON" },
   "export.csvActive": { fr: "CSV (tâches actives)", en: "CSV (active tasks)" },

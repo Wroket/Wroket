@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
@@ -57,6 +57,15 @@ function NotesPageInner() {
     setMobileShowEditor(true);
   }, []);
 
+  const noteNav = useMemo(() => {
+    const idx = filtered.findIndex((n) => n.id === selectedId);
+    return {
+      index: idx,
+      prev: idx > 0 ? filtered[idx - 1]! : null,
+      next: idx >= 0 && idx < filtered.length - 1 ? filtered[idx + 1]! : null,
+    };
+  }, [filtered, selectedId]);
+
   const handleTitleChange = useCallback((value: string) => {
     if (!selectedId) return;
     saveNote(selectedId, { title: value });
@@ -100,6 +109,22 @@ function NotesPageInner() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [handleNew]);
+
+  useEffect(() => {
+    const nav = (e: KeyboardEvent) => {
+      if (!e.altKey) return;
+      if (e.key === "ArrowUp" && noteNav.prev) {
+        e.preventDefault();
+        handleSelect(noteNav.prev);
+      }
+      if (e.key === "ArrowDown" && noteNav.next) {
+        e.preventDefault();
+        handleSelect(noteNav.next);
+      }
+    };
+    document.addEventListener("keydown", nav);
+    return () => document.removeEventListener("keydown", nav);
+  }, [noteNav, handleSelect]);
 
   const handleAddTag = useCallback((tag: string) => {
     if (!selectedId || !tag.trim()) return;
@@ -266,6 +291,30 @@ function NotesPageInner() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
+                <div className="flex items-center gap-0.5 border border-zinc-200 dark:border-slate-600 rounded-md overflow-hidden shrink-0">
+                  <button
+                    type="button"
+                    title={`${t("notes.prevNote")} (Alt+↑)`}
+                    disabled={!noteNav.prev}
+                    onClick={() => noteNav.prev && handleSelect(noteNav.prev)}
+                    className="p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    title={`${t("notes.nextNote")} (Alt+↓)`}
+                    disabled={!noteNav.next}
+                    onClick={() => noteNav.next && handleSelect(noteNav.next)}
+                    className="p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed border-l border-zinc-200 dark:border-slate-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
                 <input
                   ref={titleRef}
                   type="text"

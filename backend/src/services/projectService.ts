@@ -299,6 +299,15 @@ export function getProjectById(id: string): Project | null {
   return projectsById.get(id) ?? null;
 }
 
+/** Direct child projects (e.g. sub-projects of a root project). */
+export function listChildProjects(parentId: string): Project[] {
+  const out: Project[] = [];
+  projectsById.forEach((p) => {
+    if (p.parentProjectId === parentId) out.push(p);
+  });
+  return out;
+}
+
 export function createProject(uid: string, userEmail: string, input: CreateProjectInput): Project {
   if (!input.name || input.name.trim().length === 0) {
     throw new ValidationError("Le nom du projet est requis");

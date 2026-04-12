@@ -39,6 +39,7 @@ import {
   putProjectAccess,
   createProject,
   convertPhaseToSubproject,
+  convertSubprojectToPhase,
   exportProjectData,
   importProjectTasksFile,
   lookupUser,
@@ -55,6 +56,7 @@ import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
+import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 
 import PageHelpButton from "@/components/PageHelpButton";
 
@@ -217,13 +219,13 @@ export default function ProjectDetailView({
   const [convertTaskMode, setConvertTaskMode] = useState<"flat" | "tasks_as_phases">("flat");
   const [convertSubtaskMode, setConvertSubtaskMode] = useState<"in_phase" | "unphased">("in_phase");
   const [convertSubmitting, setConvertSubmitting] = useState(false);
+  const [mergingSubId, setMergingSubId] = useState<string | null>(null);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
 
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
@@ -583,30 +585,25 @@ export default function ProjectDetailView({
     }
   };
 
-  const saveEdit = async () => {
-    if (!editingTodo) return;
-    setEditSaving(true);
-    try {
-      const updated = await updateTodo(editingTodo.id, {
-        title: editForm.title,
-        priority: editForm.priority,
-        effort: editForm.effort,
-        startDate: editForm.startDate || null,
-        deadline: editForm.deadline || null,
-        assignedTo: editForm.assignedTo,
-        estimatedMinutes: editForm.estimatedMinutes,
-        tags: editForm.tags,
-        recurrence: editForm.recurrence,
-        projectId: editForm.projectId,
-      });
+  const onEditAutoSaved = useCallback(
+    (updated: Todo) => {
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
-      setEditingTodo(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
-    } finally {
-      setEditSaving(false);
-    }
-  };
+      setEditingTodo(updated);
+    },
+    [],
+  );
+
+  const { saving: editAutoSaving, syncBaseline, flush } = useTaskEditAutoSave({
+    editingTodo,
+    editForm,
+    onSaved: onEditAutoSaved,
+    onError: (msg) => toast.error(msg),
+  });
+
+  const closeTaskEditModal = useCallback(async () => {
+    await flush();
+    setEditingTodo(null);
+  }, [flush]);
 
   const persistTaskTags = async (tags: string[]) => {
     if (!editingTodo) return;
@@ -614,6 +611,7 @@ export default function ProjectDetailView({
     setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
     setEditingTodo(updated);
     setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+    syncBaseline();
   };
 
   const handleEditAssignLookup = async (email: string) => {
@@ -744,6 +742,24 @@ export default function ProjectDetailView({
     }
   };
 
+  const runMergeSubproject = async (sub: Project) => {
+    if (!window.confirm(t("projects.mergeSubConfirm"))) return;
+    setMergingSubId(sub.id);
+    try {
+      const result = await convertSubprojectToPhase(selectedProject.id, sub.id, {});
+      setSelectedProject(result.parentProject);
+      setProjects((prev) => prev.filter((p) => p.id !== sub.id));
+      const todos = await getProjectTodos(result.parentProject.id);
+      setProjectTodos(todos);
+      await loadProjects();
+      toast.success(t("projects.mergeSubSuccess"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      setMergingSubId(null);
+    }
+  };
+
   const handleUnlinkTask = async (todo: Todo) => {
     try {
       await updateTodo(todo.id, { projectId: null, phaseId: null });
@@ -789,6 +805,7 @@ export default function ProjectDetailView({
 
   const handleAcceptDeclineTask = async (todo: Todo, assignmentStatus: "accepted" | "declined") => {
     try {
+      if (editingTodo?.id === todo.id) await flush();
       const updated = await updateTodo(todo.id, { assignmentStatus });
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
       if (editingTodo?.id === todo.id) setEditingTodo(null);
@@ -1241,10 +1258,26 @@ export default function ProjectDetailView({
             {subProjects.length > 0 && (
               <div className="space-y-1">
                 {subProjects.map((sub) => (
-                  <button key={sub.id} type="button" onClick={() => handleSelectProject(sub)} className="w-full flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors text-left">
-                    <span className="font-medium text-zinc-800 dark:text-slate-200">{sub.name}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${sub.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400"}`}>{t(`projects.${sub.status}`)}</span>
-                  </button>
+                  <div key={sub.id} className="flex items-stretch gap-1 rounded-md border border-transparent hover:border-zinc-200 dark:hover:border-slate-600">
+                    <button type="button" onClick={() => handleSelectProject(sub)} className="flex-1 flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors text-left min-w-0">
+                      <span className="font-medium text-zinc-800 dark:text-slate-200 truncate">{sub.name}</span>
+                      <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded ${sub.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400"}`}>{t(`projects.${sub.status}`)}</span>
+                    </button>
+                    {selectedProject.status === "active" && sub.status === "active" && (
+                      <button
+                        type="button"
+                        title={t("projects.mergeSubHint")}
+                        disabled={mergingSubId === sub.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void runMergeSubproject(sub);
+                        }}
+                        className="shrink-0 px-2 py-1 text-[10px] font-semibold rounded-md border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 disabled:opacity-50"
+                      >
+                        {mergingSubId === sub.id ? "…" : t("projects.mergeSub")}
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -1912,9 +1945,8 @@ export default function ProjectDetailView({
           todo={editingTodo}
           form={editForm}
           onFormChange={(updates) => setEditForm(f => ({ ...f, ...updates }))}
-          onSave={saveEdit}
-          onClose={() => setEditingTodo(null)}
-          saving={editSaving}
+          onClose={closeTaskEditModal}
+          saving={editAutoSaving}
           assignEmail={editAssignEmail}
           onAssignEmailChange={handleEditAssignLookup}
           assignedUser={editAssignedUser}

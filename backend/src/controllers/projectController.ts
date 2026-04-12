@@ -25,7 +25,10 @@ import {
 } from "../services/projectService";
 import { listProjectTodos, clearProjectPhaseReferences, createTodo } from "../services/todoService";
 import { listComments } from "../services/commentService";
-import { convertPhaseToSubproject as convertPhaseToSubprojectService } from "../services/phaseConversionService";
+import {
+  convertPhaseToSubproject as convertPhaseToSubprojectService,
+  convertSubprojectToPhase as convertSubprojectToPhaseService,
+} from "../services/phaseConversionService";
 import { getTeam } from "../services/teamService";
 import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
@@ -428,6 +431,24 @@ export async function convertPhaseToSubproject(req: AuthenticatedRequest, res: R
     phaseConvertedToSubproject: true,
     phaseId,
     subProjectId: result.subProject.id,
+  });
+
+  res.status(200).json(result);
+}
+
+export async function convertSubprojectToPhase(req: AuthenticatedRequest, res: Response) {
+  const parentId = req.params.id as string;
+  const subId = req.params.subId as string;
+  const body = req.body as { phaseName?: string };
+  const phaseName = typeof body.phaseName === "string" ? body.phaseName.substring(0, 200) : undefined;
+
+  const result = convertSubprojectToPhaseService(req.user!.uid, req.user!.email ?? "", parentId, subId, {
+    phaseName,
+  });
+
+  logActivity(req.user!.uid, req.user!.email ?? "", "update", "project", parentId, {
+    subprojectMergedAsPhases: true,
+    subProjectId: subId,
   });
 
   res.status(200).json(result);

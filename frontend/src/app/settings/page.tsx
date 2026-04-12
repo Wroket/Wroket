@@ -436,8 +436,8 @@ function TasksSection() {
                   onClick={() => toggleDay(dayVal)}
                   className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                     active
-                      ? "bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-100"
-                      : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
+                      ? "bg-emerald-600 text-white dark:bg-emerald-700 dark:text-white shadow-sm"
+                      : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900"
                   }`}
                 >
                   {t(dayKey)}
@@ -511,7 +511,7 @@ function TasksSection() {
               setSkipNonWorkingDays(!next);
             }
           }}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${skipNonWorkingDays ? "bg-slate-700 dark:bg-slate-500" : "bg-zinc-300 dark:bg-slate-600"}`}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${skipNonWorkingDays ? "bg-emerald-600 dark:bg-emerald-700" : "bg-zinc-300 dark:bg-slate-600"}`}
         >
           <span
             className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ${skipNonWorkingDays ? "translate-x-5" : "translate-x-0"}`}

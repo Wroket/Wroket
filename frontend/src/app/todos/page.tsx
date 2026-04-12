@@ -58,6 +58,7 @@ import {
   type SortDirection,
 } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
+import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 
 import { FILTER_BUTTONS, QUADRANT_BADGES, QUADRANT_RANK, PRIORITY_RANK, sortTodos } from "./_components/sortUtils";
 import SubtaskBadge from "./_components/SubtaskBadge";
@@ -211,7 +212,6 @@ export default function TodosPage() {
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
 
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
@@ -241,44 +241,38 @@ export default function TodosPage() {
     }
   };
 
-  const closeEditModal = useCallback(() => {
+  const onEditAutoSaved = useCallback(
+    (updated: Todo) => {
+      replaceTodoInLists(updated);
+      setEditingTodo(updated);
+    },
+    [replaceTodoInLists],
+  );
+
+  const { saving: editAutoSaving, syncBaseline, flush } = useTaskEditAutoSave({
+    editingTodo,
+    editForm,
+    onSaved: onEditAutoSaved,
+    onError: (msg) => toast.error(msg),
+  });
+
+  const closeEditModal = useCallback(async () => {
+    await flush();
     setEditingTodo(null);
     getCommentCounts().then(setCommentCounts).catch(() => {});
-  }, []);
+  }, [flush]);
 
-  const saveEdit = async () => {
-    if (!editingTodo) return;
-    setEditSaving(true);
-    try {
-      const updated = await updateTodo(editingTodo.id, {
-        title: editForm.title,
-        priority: editForm.priority,
-        effort: editForm.effort,
-        startDate: editForm.startDate || null,
-        deadline: editForm.deadline || null,
-        assignedTo: editForm.assignedTo,
-        estimatedMinutes: editForm.estimatedMinutes,
-        tags: editForm.tags,
-        recurrence: editForm.recurrence,
-        projectId: editForm.projectId,
-      });
+  const persistEditTags = useCallback(
+    async (tags: string[]) => {
+      if (!editingTodo) return;
+      const updated = await updateTodo(editingTodo.id, { tags });
+      setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
+      setEditingTodo(updated);
       replaceTodoInLists(updated);
-      closeEditModal();
-      toast.success(t("toast.taskUpdated"));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  const persistEditTags = useCallback(async (tags: string[]) => {
-    if (!editingTodo) return;
-    const updated = await updateTodo(editingTodo.id, { tags });
-    setEditForm((f) => ({ ...f, tags: updated.tags ?? tags }));
-    setEditingTodo(updated);
-    replaceTodoInLists(updated);
-  }, [editingTodo, replaceTodoInLists]);
+      syncBaseline();
+    },
+    [editingTodo, replaceTodoInLists, syncBaseline],
+  );
 
   useEffect(() => {
     if (!openDropdown) return;
@@ -1476,9 +1470,8 @@ export default function TodosPage() {
         todo={editingTodo}
         form={editForm}
         onFormChange={(updates) => setEditForm((f) => ({ ...f, ...updates }))}
-        onSave={saveEdit}
         onClose={closeEditModal}
-        saving={editSaving}
+        saving={editAutoSaving}
         assignEmail={editAssignEmail}
         onAssignEmailChange={handleEditAssignLookup}
         assignedUser={editAssignedUser}

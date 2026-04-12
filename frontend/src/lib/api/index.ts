@@ -120,6 +120,7 @@ export {
   updatePhaseApi,
   deletePhaseApi,
   convertPhaseToSubproject,
+  convertSubprojectToPhase,
   uploadCsvPreview,
   confirmCsvImport,
   exportProjectData,

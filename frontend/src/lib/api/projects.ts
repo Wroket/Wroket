@@ -235,6 +235,27 @@ export async function convertPhaseToSubproject(
   return (await res.json()) as { subProject: Project; parentProject: Project };
 }
 
+export async function convertSubprojectToPhase(
+  parentProjectId: string,
+  subProjectId: string,
+  payload?: { phaseName?: string },
+): Promise<{ parentProject: Project }> {
+  const res = await fetch(
+    `${API_BASE_URL}/projects/${parentProjectId}/subprojects/${subProjectId}/convert-to-phase`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload ?? {}),
+      credentials: "include",
+    },
+  );
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  return (await res.json()) as { parentProject: Project };
+}
+
 // ── CSV Import ──
 
 export interface ImportParsedTask {

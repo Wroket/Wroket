@@ -4,8 +4,10 @@ import {
   addPhase,
   createProject,
   deletePhase,
+  deleteProject,
   getProjectById,
   canEditProjectContent,
+  listChildProjects,
   type Project,
   type ProjectPhase,
 } from "./projectService";
@@ -28,6 +30,15 @@ export interface ConvertPhaseToSubprojectInput {
 
 export interface ConvertPhaseToSubprojectResult {
   subProject: Project;
+  parentProject: Project;
+}
+
+export interface ConvertSubprojectToPhaseInput {
+  /** Optional name for the single phase when the sub-project had no phases (defaults to sub-project name). */
+  phaseName?: string;
+}
+
+export interface ConvertSubprojectToPhaseResult {
   parentProject: Project;
 }
 
@@ -159,4 +170,76 @@ export function convertPhaseToSubproject(
   }
 
   return { subProject: subAfter, parentProject: parentAfter };
+}
+
+/**
+ * Merges a direct sub-project into its parent as one or more phases and moves all tasks.
+ * Inverse of {@link convertPhaseToSubproject} (sub-project → phases on parent).
+ */
+export function convertSubprojectToPhase(
+  uid: string,
+  userEmail: string,
+  parentProjectId: string,
+  subProjectId: string,
+  input: ConvertSubprojectToPhaseInput = {},
+): ConvertSubprojectToPhaseResult {
+  const parent = getProjectById(parentProjectId);
+  const sub = getProjectById(subProjectId);
+  if (!parent || !sub) throw new NotFoundError("Projet introuvable");
+  if (parent.parentProjectId) {
+    throw new ForbiddenError("Le projet parent doit être un projet racine");
+  }
+  if (sub.parentProjectId !== parentProjectId) {
+    throw new ValidationError("Ce n'est pas un sous-projet direct de ce projet");
+  }
+  const email = userEmail.trim().toLowerCase();
+  if (!canEditProjectContent(uid, email, parent)) {
+    throw new ForbiddenError("Accès réservé (super-user minimum)");
+  }
+  if (!canEditProjectContent(uid, email, sub)) {
+    throw new ForbiddenError("Accès réservé au sous-projet");
+  }
+  if (listChildProjects(subProjectId).length > 0) {
+    throw new ValidationError("Déplacez les sous-projets imbriqués avant de fusionner");
+  }
+
+  const sortedSubPhases = [...sub.phases].sort((a, b) => a.order - b.order);
+  const phaseMap = new Map<string, string>();
+  let fallbackPhaseId: string;
+
+  if (sortedSubPhases.length === 0) {
+    const name = (input.phaseName?.trim() || sub.name).trim().substring(0, 200);
+    if (!name) throw new ValidationError("Le nom de la phase est requis");
+    const ph = addPhase(parentProjectId, { name });
+    fallbackPhaseId = ph.id;
+  } else {
+    for (const sph of sortedSubPhases) {
+      const ph = addPhase(parentProjectId, {
+        name: sph.name,
+        color: sph.color,
+        startDate: sph.startDate,
+        endDate: sph.endDate,
+      });
+      phaseMap.set(sph.id, ph.id);
+    }
+    fallbackPhaseId = phaseMap.get(sortedSubPhases[0]!.id)!;
+  }
+
+  const todos = listProjectTodos(subProjectId);
+  const patches: TodoPhaseConversionPatch[] = todos.map((t) => {
+    const nextPhase = t.phaseId ? phaseMap.get(t.phaseId) ?? fallbackPhaseId : fallbackPhaseId;
+    return {
+      todoId: t.id,
+      projectId: parentProjectId,
+      phaseId: nextPhase,
+      parentId: t.parentId,
+    };
+  });
+  applyTodoPatchesForPhaseConversion(patches);
+
+  deleteProject(uid, userEmail, subProjectId);
+
+  const parentAfter = getProjectById(parentProjectId);
+  if (!parentAfter) throw new NotFoundError("Projet introuvable");
+  return { parentProject: parentAfter };
 }
