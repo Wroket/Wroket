@@ -1379,7 +1379,7 @@ export default function TodosPage() {
                             {todo.status !== "active" ? (
                               <button
                                 onClick={() => handleStatusChange(todo, "active")}
-                                title="Remettre en tâche active"
+                                title={t("todos.reactivate")}
                                 className="shrink-0 inline-flex items-center gap-0.5 rounded border border-green-300 dark:border-green-700 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
                               >
                                 <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1405,8 +1405,8 @@ export default function TodosPage() {
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(todo, "completed"); }}
                                   className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-green-600 dark:hover:text-green-400 cursor-pointer"
-                                  aria-label="Accomplir"
-                                  title="Accomplir"
+                                  aria-label={t("a11y.complete")}
+                                  title={t("a11y.complete")}
                                 >
                                   <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1416,8 +1416,8 @@ export default function TodosPage() {
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(todo, "cancelled"); }}
                                   className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer"
-                                  aria-label="Annuler"
-                                  title="Annuler"
+                                  aria-label={t("a11y.cancelTask")}
+                                  title={t("a11y.cancelTask")}
                                 >
                                   <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -1458,8 +1458,8 @@ export default function TodosPage() {
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); requestDelete(todo); }}
                                   className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 cursor-pointer"
-                                  aria-label="Supprimer"
-                                  title="Supprimer"
+                                  aria-label={t("a11y.delete")}
+                                  title={t("a11y.delete")}
                                 >
                                   <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

@@ -1,4 +1,4 @@
-export type Locale = "fr" | "en";
+﻿export type Locale = "fr" | "en";
 
 const translations = {
   // ── App Shell / Header ──
@@ -6,6 +6,7 @@ const translations = {
   "app.logout": { fr: "Déconnexion", en: "Log out" },
   "app.share": { fr: "Faites découvrir Wroket", en: "Share Wroket" },
   "app.share.placeholder": { fr: "Adresse email du destinataire", en: "Recipient email address" },
+  "app.shareEmailExample": { fr: "email@exemple.com", en: "name@example.com" },
   "app.share.send": { fr: "Envoyer l'invitation", en: "Send invitation" },
   "app.share.sending": { fr: "Envoi...", en: "Sending..." },
   "app.share.success": { fr: "Invitation envoyée !", en: "Invitation sent!" },
@@ -298,6 +299,8 @@ const translations = {
   "table.deadline": { fr: "Échéance", en: "Deadline" },
   "table.actions": { fr: "Actions", en: "Actions" },
   "table.status": { fr: "Statut", en: "Status" },
+  "table.moveUp": { fr: "Monter", en: "Move up" },
+  "table.moveDown": { fr: "Descendre", en: "Move down" },
 
   // ── Quadrants ──
   "quadrant.doFirst": { fr: "FAIRE", en: "DO" },
@@ -1026,6 +1029,7 @@ const translations = {
   // ── CSV Import ──
   "import.title": { fr: "Importer un projet (CSV)", en: "Import project (CSV)" },
   "import.projectName": { fr: "Nom du projet", en: "Project name" },
+  "import.projectNamePlaceholder": { fr: "Mon projet…", en: "My project…" },
   "import.team": { fr: "Équipe (optionnel)", en: "Team (optional)" },
   "import.noTeam": { fr: "— Aucune équipe —", en: "— No team —" },
   "import.selectFile": { fr: "Sélectionner un fichier CSV", en: "Select a CSV file" },
@@ -1100,6 +1104,9 @@ const translations = {
   "admin.integrations.google": { fr: "Google Calendar connectés", en: "Google Calendar connected" },
   "admin.rgpd.title": { fr: "Gestion RGPD", en: "GDPR Management" },
   "admin.rgpd.export": { fr: "Exporter les données", en: "Export data" },
+  "admin.exportShort": { fr: "Exporter", en: "Export" },
+  "admin.verifiedTooltip": { fr: "Email vérifié", en: "Email verified" },
+  "admin.unverifiedTooltip": { fr: "Email non vérifié", en: "Email not verified" },
   "admin.rgpd.delete": { fr: "Supprimer le compte", en: "Delete account" },
   "admin.rgpd.deleteConfirm": { fr: "Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur et toutes ses données ?", en: "Are you sure you want to permanently delete this user and all their data?" },
   "admin.rgpd.registry": { fr: "Registre des traitements", en: "Processing registry" },
@@ -1134,6 +1141,10 @@ const translations = {
   "a11y.edit": { fr: "Modifier", en: "Edit" },
   "a11y.delete": { fr: "Supprimer", en: "Delete" },
   "a11y.close": { fr: "Fermer", en: "Close" },
+  "a11y.mainNavigation": { fr: "Navigation principale", en: "Main navigation" },
+  "a11y.reorderRow": { fr: "Réordonner", en: "Reorder" },
+  "a11y.dragReorderHint": { fr: "Glisser pour réordonner", en: "Drag to reorder" },
+  "a11y.cancelTask": { fr: "Annuler la tâche", en: "Cancel task" },
 
   // ── Error boundary ──
   "error.boundary.message": { fr: "Une erreur inattendue est survenue.", en: "An unexpected error occurred." },

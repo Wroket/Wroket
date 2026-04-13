@@ -772,7 +772,7 @@ function SecuritySection() {
           <button
             type="button"
             className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-default border-0 p-0"
-            aria-label="Close"
+            aria-label={t("a11y.close")}
             onClick={() => setEnableSuccessModalOpen(false)}
           />
           <div

@@ -255,8 +255,8 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-zinc-700 dark:text-slate-300">{u.firstName || u.lastName ? `${u.firstName} ${u.lastName}`.trim() : "—"}</td>
                       <td className="px-4 py-3 text-center">
                         {u.emailVerified
-                          ? <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" title="Vérifié" />
-                          : <span className="inline-block w-2 h-2 rounded-full bg-zinc-300 dark:bg-slate-600" title="Non vérifié" />}
+                          ? <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" title={t("admin.verifiedTooltip")} />
+                          : <span className="inline-block w-2 h-2 rounded-full bg-zinc-300 dark:bg-slate-600" title={t("admin.unverifiedTooltip")} />}
                       </td>
                       <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.taskCount}</td>
                       <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.noteCount ?? 0}</td>
@@ -266,7 +266,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => handleExportUser(u.uid)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline" title={t("admin.rgpd.export")}>
-                            Export
+                            {t("admin.exportShort")}
                           </button>
                           {deleteConfirmUid === u.uid ? (
                             <div className="flex items-center gap-1">

@@ -113,7 +113,7 @@ export default function ImportPage() {
             type="text"
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
-            placeholder="Mon projet..."
+            placeholder={t("import.projectNamePlaceholder")}
             className={inputClass}
           />
         </div>

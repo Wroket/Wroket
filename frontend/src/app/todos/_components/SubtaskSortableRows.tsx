@@ -52,7 +52,7 @@ export default function SubtaskSortableRows({
                     onClick={() => moveSubtask(idx, -1)}
                     disabled={idx === 0}
                     className="text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 disabled:opacity-20 disabled:cursor-default transition-colors"
-                    title="Monter"
+                    title={t("table.moveUp")}
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
@@ -63,7 +63,7 @@ export default function SubtaskSortableRows({
                     onClick={() => moveSubtask(idx, 1)}
                     disabled={idx === subs.length - 1}
                     className="text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 disabled:opacity-20 disabled:cursor-default transition-colors"
-                    title="Descendre"
+                    title={t("table.moveDown")}
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -76,6 +76,8 @@ export default function SubtaskSortableRows({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onComplete(sub)}
+                  aria-label={t("a11y.complete")}
+                  title={t("a11y.complete")}
                   className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
                     sub.status === "completed"
                       ? "bg-green-500 border-green-500 text-white"
@@ -88,7 +90,8 @@ export default function SubtaskSortableRows({
                 </button>
                 <button
                   onClick={() => onCancel(sub)}
-                  title="Annuler"
+                  aria-label={t("a11y.cancelTask")}
+                  title={t("a11y.cancelTask")}
                   className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
                 >
                   <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -97,6 +100,8 @@ export default function SubtaskSortableRows({
                 </button>
                 <button
                   onClick={() => onDelete(sub)}
+                  aria-label={t("a11y.delete")}
+                  title={t("a11y.delete")}
                   className="w-5 h-5 rounded flex items-center justify-center border border-transparent text-zinc-300 hover:text-red-500"
                 >
                   <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
