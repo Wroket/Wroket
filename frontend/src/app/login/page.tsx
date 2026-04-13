@@ -188,7 +188,7 @@ export default function LoginPage() {
       type="button"
       onClick={toggleDarkMode}
       className="fixed top-4 right-4 rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
-      aria-label="Toggle dark mode"
+      aria-label={darkMode ? t("a11y.toggleLightMode") : t("a11y.toggleDarkMode")}
     >
       {darkMode ? (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

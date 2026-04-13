@@ -79,7 +79,7 @@ export default function TodoCard({
       {todo.status !== "active" ? (
         <button
           onClick={() => onComplete(todo)}
-          title="Remettre en tâche active"
+          title={t("todos.reactivate")}
           className="mt-0.5 shrink-0 inline-flex items-center gap-0.5 rounded border border-green-300 dark:border-green-700 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
         >
           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

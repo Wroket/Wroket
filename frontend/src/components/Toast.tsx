@@ -2,6 +2,8 @@
 
 import { createContext, ReactNode, useCallback, useContext, useState } from "react";
 
+import { useLocale } from "@/lib/LocaleContext";
+
 type ToastType = "success" | "error" | "info";
 
 interface Toast {
@@ -33,6 +35,7 @@ const ToastContext = createContext<{ toast: ToastAPI }>({
 let nextId = 0;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const { t } = useLocale();
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const dismiss = useCallback((id: number) => {
@@ -59,19 +62,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toast }}>
       {children}
       <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
-        {toasts.map((t) => (
+        {toasts.map((item) => (
           <div
-            key={t.id}
+            key={item.id}
             className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-md shadow-lg border-l-4 text-sm
               min-w-[280px] max-w-[400px] transition-all duration-300
-              ${STYLES[t.type]}
-              ${t.exiting ? "opacity-0 translate-x-4" : "opacity-100 translate-x-0 toast-enter"}`}
+              ${STYLES[item.type]}
+              ${item.exiting ? "opacity-0 translate-x-4" : "opacity-100 translate-x-0 toast-enter"}`}
           >
-            <span className="flex-1">{t.message}</span>
+            <span className="flex-1">{item.message}</span>
             <button
-              onClick={() => dismiss(t.id)}
+              onClick={() => dismiss(item.id)}
               className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-              aria-label="Close"
+              aria-label={t("a11y.close")}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

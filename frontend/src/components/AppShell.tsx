@@ -775,7 +775,7 @@ export default function AppShell({ children }: AppShellProps) {
       >
         <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
         <nav
-          aria-label="Main navigation"
+          aria-label={t("a11y.mainNavigation")}
           className={`absolute inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 py-4 px-3 flex flex-col gap-1 overflow-y-auto transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
         >
           {NAV_ITEMS.slice(0, 1).map((item) => (
@@ -937,7 +937,7 @@ export default function AppShell({ children }: AppShellProps) {
       <div className="flex">
         {/* ── Desktop Sidebar ── */}
         <aside className="hidden md:flex flex-col w-56 shrink-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 min-h-[calc(100vh-65px)]">
-          <nav aria-label="Main navigation" className="flex flex-col py-4 px-3 gap-1">
+          <nav aria-label={t("a11y.mainNavigation")} className="flex flex-col py-4 px-3 gap-1">
             {NAV_ITEMS.slice(0, 1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
             ))}
@@ -1187,7 +1187,7 @@ export default function AppShell({ children }: AppShellProps) {
               value={shareEmail}
               onChange={setShareEmail}
               onKeyDown={(e) => { if (e.key === "Enter") handleShareInvite(); }}
-              placeholder="email@exemple.com"
+              placeholder={t("app.shareEmailExample")}
               inputClassName="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400"
             />
             {shareResult === "success" && (

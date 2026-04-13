@@ -102,8 +102,8 @@ export default function SortableTaskRow({
             type="button"
             {...listeners}
             className="inline-flex items-center justify-center w-6 h-6 rounded text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 cursor-grab active:cursor-grabbing transition-colors"
-            aria-label="Réordonner"
-            title="Glisser pour réordonner"
+            aria-label={t("a11y.reorderRow")}
+            title={t("a11y.dragReorderHint")}
           >
             <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
               <circle cx="5" cy="3" r="1.2" /><circle cx="11" cy="3" r="1.2" />
@@ -116,7 +116,7 @@ export default function SortableTaskRow({
           {isArchived ? (
             <button
               onClick={() => onComplete(todo)}
-              title="Remettre en tâche active"
+              title={t("todos.reactivate")}
               className="inline-flex items-center gap-1 rounded border border-green-300 dark:border-green-700 px-2 py-1 text-[11px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -128,7 +128,8 @@ export default function SortableTaskRow({
             <div className="flex items-center gap-1">
               <button
                 onClick={() => onComplete(todo)}
-                title="Accomplir"
+                aria-label={t("a11y.complete")}
+                title={t("a11y.complete")}
                 className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-green-500 hover:text-green-500"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -169,7 +170,8 @@ export default function SortableTaskRow({
               })()}
               <button
                 onClick={() => onCancel(todo)}
-                title="Annuler"
+                aria-label={t("a11y.cancelTask")}
+                title={t("a11y.cancelTask")}
                 className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -222,7 +224,8 @@ export default function SortableTaskRow({
               )}
               <button
                 onClick={() => onDelete(todo)}
-                title="Supprimer"
+                aria-label={t("a11y.delete")}
+                title={t("a11y.delete")}
                 className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
