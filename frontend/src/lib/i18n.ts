@@ -1,4 +1,4 @@
-export type Locale = "fr" | "en";
+﻿export type Locale = "fr" | "en";
 
 const translations = {
   // ── App Shell / Header ──
@@ -284,6 +284,16 @@ const translations = {
   "todos.scopeAll": { fr: "Toutes", en: "All" },
   "todos.scopeMine": { fr: "Personnelles", en: "Personal" },
   "todos.scopeAssigned": { fr: "Attribuées", en: "Assigned" },
+
+  "ui.beta.toggle": { fr: "UI bêta", en: "Beta UI" },
+  "ui.beta.tooltip": { fr: "Liste type tableau, menu actions (⋯). Préférence enregistrée sur cet appareil.", en: "Table-style list, three-dots action menu. Preference saved on this device." },
+  "task.actions.openMenu": { fr: "Actions sur la tâche", en: "Task actions" },
+  "task.actions.heading": { fr: "Actions", en: "Actions" },
+  "task.actions.editDetails": { fr: "Modifier les détails…", en: "Edit details…" },
+  "task.actions.comments": { fr: "Commentaires", en: "Comments" },
+  "task.actions.subtasksExpand": { fr: "Afficher les sous-tâches", en: "Expand subtasks" },
+  "task.actions.subtasksCollapse": { fr: "Masquer les sous-tâches", en: "Collapse subtasks" },
+  "task.actions.markDone": { fr: "Marquer comme accompli", en: "Mark as done" },
 
   // ── Views toggle ──
   "view.list": { fr: "Liste", en: "List" },

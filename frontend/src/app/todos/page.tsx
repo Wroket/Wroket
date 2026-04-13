@@ -48,6 +48,7 @@ import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUiBeta } from "@/lib/UiBetaContext";
 import {
   QUADRANT_CONFIG,
   PRIORITY_BADGES,
@@ -91,6 +92,7 @@ function applySortOrderPatchToList(list: Todo[], orderedIds: string[]): Todo[] {
 
 export default function TodosPage() {
   const { t } = useLocale();
+  const { betaUi } = useUiBeta();
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -733,7 +735,11 @@ export default function TodosPage() {
         {/* ── Create form ── */}
         <form
           onSubmit={handleCreate}
-          className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-3 sm:p-5"
+          className={`bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-3 sm:p-5 ${
+            betaUi
+              ? "sticky top-0 z-30 shadow-md backdrop-blur-sm bg-white/95 dark:bg-slate-900/95"
+              : "shadow-sm"
+          }`}
         >
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">

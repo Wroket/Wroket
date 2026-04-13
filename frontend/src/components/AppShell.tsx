@@ -23,6 +23,7 @@ import type { TranslationKey } from "@/lib/i18n";
 import TutorialModal, { useTutorial } from "@/components/TutorialModal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
+import { useUiBeta } from "@/lib/UiBetaContext";
 
 interface AppShellProps {
   children: ReactNode;
@@ -180,6 +181,7 @@ export default function AppShell({ children }: AppShellProps) {
   const { user: me, loading } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
 
+  const { betaUi, toggleBetaUi } = useUiBeta();
   const { showTutorial, openTutorial, closeTutorial } = useTutorial();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -531,6 +533,31 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
+            {me && (
+              <div
+                className="flex items-center gap-1.5 shrink-0"
+                title={t("ui.beta.tooltip")}
+              >
+                <span className="text-[11px] text-zinc-500 dark:text-slate-400 whitespace-nowrap">
+                  {t("ui.beta.toggle")}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={betaUi}
+                  onClick={toggleBetaUi}
+                  className={`relative w-9 h-5 rounded-full transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                    betaUi ? "bg-emerald-600" : "bg-zinc-300 dark:bg-slate-600"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      betaUi ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
             <Link href="/settings" className="flex items-center gap-2 rounded px-1.5 sm:px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
               <div className="w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">

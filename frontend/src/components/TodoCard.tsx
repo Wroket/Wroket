@@ -13,6 +13,8 @@ import {
 } from "@/lib/todoConstants";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
+import TaskRowActionsMenu from "@/components/TaskRowActionsMenu";
+import { useUiBeta } from "@/lib/UiBetaContext";
 
 interface TodoCardProps {
   todo: Todo;
@@ -48,6 +50,7 @@ export default function TodoCard({
   projects = [],
 }: TodoCardProps) {
   const { t } = useLocale();
+  const { betaUi } = useUiBeta();
   const badge = PRIORITY_BADGES[todo.priority];
   const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
 
@@ -66,7 +69,11 @@ export default function TodoCard({
       role="button"
       onDoubleClick={(e) => { e.preventDefault(); onEdit?.(todo); }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit?.(todo); } }}
-      className="group bg-white dark:bg-slate-900/80 rounded border border-zinc-200 dark:border-slate-600/40 pl-1 pr-3 py-2.5 flex items-start gap-2.5 shadow-sm hover:shadow transition-shadow cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
+      className={
+        betaUi
+          ? "group bg-white dark:bg-slate-900/90 rounded-sm border border-zinc-200 dark:border-slate-600/50 pl-1 pr-2 py-2 flex items-start gap-2 shadow-none hover:bg-zinc-50/90 dark:hover:bg-slate-800/50 transition-colors cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
+          : "group bg-white dark:bg-slate-900/80 rounded border border-zinc-200 dark:border-slate-600/40 pl-1 pr-3 py-2.5 flex items-start gap-2.5 shadow-sm hover:shadow transition-shadow cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
+      }
     >
       <div className={`w-1 self-stretch rounded-full shrink-0 ${QUADRANT_CONFIG[classify(todo)].accentBar}`} />
       {todo.status !== "active" ? (
@@ -147,7 +154,7 @@ export default function TodoCard({
           )}
         </div>
       </div>
-      {todo.status === "active" && (
+      {todo.status === "active" && !betaUi && (
         <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
           {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && onDecline && (
             <button
@@ -209,6 +216,51 @@ export default function TodoCard({
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
+        </div>
+      )}
+      {todo.status === "active" && betaUi && (
+        <div className="flex items-center gap-1 shrink-0 mt-0.5">
+          {!todo.parentId && onScheduleUpdate && (
+            <SlotPicker
+              todoId={todo.id}
+              scheduledSlot={todo.scheduledSlot}
+              suggestedSlot={todo.suggestedSlot}
+              onBooked={onScheduleUpdate}
+              onCleared={onScheduleUpdate}
+              dateMin={slotDateMin}
+              dateMax={slotDateMax}
+            />
+          )}
+          <TaskRowActionsMenu
+            todo={todo}
+            meUid={meUid}
+            subtaskCount={subtaskCount}
+            subtasksExpanded={subtasksExpanded}
+            commentCount={commentCount}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onComplete={onComplete}
+            onDecline={onDecline}
+            onAccept={onAccept}
+            onToggleSubtasks={subtaskCount > 0 ? onToggleSubtasks : undefined}
+          />
+        </div>
+      )}
+      {todo.status !== "active" && betaUi && (
+        <div className="flex items-center shrink-0 mt-0.5">
+          <TaskRowActionsMenu
+            todo={todo}
+            meUid={meUid}
+            subtaskCount={subtaskCount}
+            subtasksExpanded={subtasksExpanded}
+            commentCount={commentCount}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onComplete={onComplete}
+            onDecline={onDecline}
+            onAccept={onAccept}
+            onToggleSubtasks={subtaskCount > 0 ? onToggleSubtasks : undefined}
+          />
         </div>
       )}
     </div>
