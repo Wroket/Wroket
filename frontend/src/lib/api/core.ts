@@ -1,6 +1,12 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 
+/** Default options for authenticated API calls (avoid stale JSON from HTTP caches). */
+export const apiFetchDefaults: Pick<RequestInit, "credentials" | "cache"> = {
+  credentials: "include",
+  cache: "no-store",
+};
+
 export interface WorkingHours {
   start: string;
   end: string;

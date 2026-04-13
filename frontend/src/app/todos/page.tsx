@@ -59,6 +59,7 @@ import {
 } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
+import { useTodoListSync } from "@/lib/useTodoListSync";
 
 import { FILTER_BUTTONS, QUADRANT_BADGES, QUADRANT_RANK, PRIORITY_RANK, sortTodos } from "./_components/sortUtils";
 import SubtaskBadge from "./_components/SubtaskBadge";
@@ -102,6 +103,10 @@ export default function TodosPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const bumpRefresh = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+  useTodoListSync(bumpRefresh);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
@@ -1107,7 +1112,7 @@ export default function TodosPage() {
                 file={taskImportFile}
                 open={taskImportFile !== null}
                 onClose={() => setTaskImportFile(null)}
-                onSuccess={() => setRefreshKey((k) => k + 1)}
+                onSuccess={bumpRefresh}
               />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
                 <button

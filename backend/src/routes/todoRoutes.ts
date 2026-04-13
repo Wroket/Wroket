@@ -7,11 +7,13 @@ import {
   toggleReactionHandler, commentCounts, exportTodos, importTodos, previewTaskImport, confirmTaskImport, taskActivity, reorderTodos,
 } from "../controllers/todoController";
 import { requireAuth } from "../middlewares/requireAuth";
+import { noStoreCache } from "../middlewares/noStoreCache";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 const todoRoutes = Router();
 
 todoRoutes.use(requireAuth);
+todoRoutes.use(noStoreCache);
 
 todoRoutes.get("/", list);
 todoRoutes.get("/assigned", assigned);
