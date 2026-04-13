@@ -129,6 +129,7 @@ export default function DashboardPage() {
               title={t("dashboard.title")}
               items={[
                 { text: t("help.dashboard.overview") },
+                { text: t("help.dashboard.search") },
                 { text: t("help.dashboard.radar") },
                 { text: t("help.dashboard.notifs") },
                 { text: t("help.dashboard.progress") },

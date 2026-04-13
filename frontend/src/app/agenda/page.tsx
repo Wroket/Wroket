@@ -477,10 +477,14 @@ export default function AgendaPage() {
             <PageHelpButton
               title={t("agenda.title")}
               items={[
-                { text: t("help.agenda.week") },
-                { text: t("help.agenda.edit") },
+                { text: t("help.agenda.viewDay") },
+                { text: t("help.agenda.viewWeek") },
+                { text: t("help.agenda.viewMonth") },
+                { text: t("help.agenda.editTask") },
+                { text: t("help.agenda.quickCreate") },
                 { text: t("help.agenda.google") },
                 { text: t("help.agenda.colors") },
+                { text: t("help.agenda.recurring") },
                 { text: t("help.agenda.smartSlots") },
               ]}
             />

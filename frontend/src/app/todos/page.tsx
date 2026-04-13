@@ -1045,12 +1045,14 @@ export default function TodosPage() {
                 title={t("todos.listTitle")}
                 items={[
                   { text: t("help.todos.views") },
+                  { text: t("help.todos.scope") },
                   { text: t("help.todos.dnd") },
                   { text: t("help.todos.edit") },
                   { text: t("help.todos.recurrence") },
                   { text: t("help.todos.attachments") },
                   { text: t("help.todos.comments") },
                   { text: t("help.todos.export") },
+                  { text: t("help.todos.sync") },
                 ]}
               />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">

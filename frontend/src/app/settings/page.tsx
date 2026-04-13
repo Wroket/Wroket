@@ -156,6 +156,9 @@ function SettingsContent() {
               items={[
                 { text: t("help.settings.lang") },
                 { text: t("help.settings.hours") },
+                { text: t("help.settings.security") },
+                { text: t("help.settings.integrations") },
+                { text: t("help.settings.google") },
                 { text: t("help.settings.teams") },
                 { text: t("help.settings.activity") },
               ]}

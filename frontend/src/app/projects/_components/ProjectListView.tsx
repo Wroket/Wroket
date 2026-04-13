@@ -438,6 +438,7 @@ export default function ProjectListView({
                   { text: t("help.projects.kanbanDnd") },
                   { text: t("help.projects.gantt") },
                   { text: t("help.projects.import") },
+                  { text: t("help.projects.undo") },
                 ]}
               />
             </div>

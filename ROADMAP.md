@@ -12,6 +12,8 @@
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
+**P0 — terminé** : monitoring (alertes / doc ops), tests E2E + unitaires ciblés, 2FA TOTP. **Priorité actuelle : P1** (monétisation, Microsoft / Outlook).
+
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
 ## Implémenté
@@ -219,7 +221,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - [x] **RGPD export (doc code)** — Commentaires dans `exportUserData` : export self-service via modèles en mémoire vs lignes brutes admin avec retrait du champ legacy `encV1` (pas de chiffrement applicatif en prod)
 - [x] **Optimisation performance** — Compression Gzip/Brotli (`compression` middleware), fix N+1 queries team membership (`teamMembershipCache` dans `listProjects`), batch `Promise.all` pour suppression de phase, memoisation `ProjectListView` (`useMemo` sur projets actifs/archivés/enfants/health)
 - [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires — *Microsoft en tête pour l’adoption entreprise (cf. P1)*
-- [x] **2FA** — Authentification à deux facteurs (TOTP) — *cf. priorités P0*
+- [x] **2FA** — Authentification à deux facteurs (TOTP) — *P0*
 
 ## Monétisation & Plan System
 
@@ -248,11 +250,11 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ## Tests & Qualité
 
-*Ordre conseillé (cf. priorités P0) : E2E sur les parcours critiques d’abord, puis unitaires sur les services les plus sensibles.*
+*P0 livré : E2E (smoke + parcours critiques) et unitaires ciblés backend / frontend ; extension possible selon besoins.*
 
-- [ ] **Tests E2E** — Playwright pour les parcours utilisateur (login, tâche, projet/agenda, export)
-- [ ] **Tests unitaires backend** — Jest/Vitest pour services et controllers
-- [ ] **Tests unitaires frontend** — Tests des composants React critiques
+- [x] **Tests E2E** — Playwright pour les parcours utilisateur (login, tâche, projet/agenda, export)
+- [x] **Tests unitaires backend** — Jest/Vitest pour services et controllers
+- [x] **Tests unitaires frontend** — Tests des composants React critiques
 
 ## Déploiement & Infrastructure
 
@@ -272,4 +274,4 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
   - Secret injecté sur `wroket-api` : `OAUTH_STATE_SECRET` (OAuth Google / SSO) — pas de `CRYPTO_KEK_BASE64` pour le contenu utilisateur en prod
 - [x] **CI GitHub Actions** — Lint & type check sur push/PR
 - [x] **DNS & Domaines** — `wroket.com` + `www.wroket.com` + `api.wroket.com` (CNAME `ghs.googlehosted.com`)
-- [ ] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore) — *priorité P0 pour la confiance prod*
+- [x] **Monitoring** — Cloud Monitoring alertes (latence, erreurs 5xx, usage Firestore) — *P0*

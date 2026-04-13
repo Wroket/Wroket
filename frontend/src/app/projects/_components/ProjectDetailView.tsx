@@ -1202,6 +1202,8 @@ export default function ProjectDetailView({
                     { icon: "📋", text: t("projects.helpBoard") },
                     { icon: "📊", text: t("projects.helpKanban") },
                     { icon: "📅", text: t("projects.helpGantt") },
+                    { text: t("projects.helpImportExport") },
+                    { text: t("projects.helpTagsHealth") },
                   ]}
                 />
               </div>
