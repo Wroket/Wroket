@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { LocaleProvider } from "@/lib/LocaleContext";
-import { UiBetaProvider } from "@/lib/UiBetaContext";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/components/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -40,15 +39,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <LocaleProvider>
-          <UiBetaProvider>
-            <ToastProvider>
-              <AuthProvider>
-                <ErrorBoundary>
-                  {children}
-                </ErrorBoundary>
-              </AuthProvider>
-            </ToastProvider>
-          </UiBetaProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+            </AuthProvider>
+          </ToastProvider>
         </LocaleProvider>
       </body>
     </html>

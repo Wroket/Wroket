@@ -162,10 +162,12 @@ export function useOfflineNotes() {
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
-  const addNote = useCallback((title?: string, opts?: { todoId?: string; projectId?: string }) => {
+  const addNote = useCallback((title?: string, opts?: { todoId?: string; projectId?: string; shared?: boolean; teamId?: string }) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const noteTitle = title ?? "";
+    const shared = opts?.shared && opts?.teamId ? true : undefined;
+    const teamId = opts?.shared && opts?.teamId ? opts.teamId : undefined;
     const note: Note = {
       id,
       userId: "",
@@ -174,6 +176,8 @@ export function useOfflineNotes() {
       pinned: false,
       todoId: opts?.todoId,
       projectId: opts?.projectId,
+      shared,
+      teamId,
       createdAt: now,
       updatedAt: now,
     };
@@ -182,7 +186,15 @@ export function useOfflineNotes() {
     writeLocal([note, ...readLocal()]);
 
     if (online) {
-      createNoteApi({ title: noteTitle || "Sans titre", content: "", id, todoId: opts?.todoId, projectId: opts?.projectId })
+      createNoteApi({
+        title: noteTitle || "Sans titre",
+        content: "",
+        id,
+        todoId: opts?.todoId,
+        projectId: opts?.projectId,
+        shared: opts?.shared,
+        teamId: opts?.teamId,
+      })
         .catch(() => markDirty([id]));
     } else {
       markDirty([id]);
@@ -191,24 +203,59 @@ export function useOfflineNotes() {
     return id;
   }, [online]);
 
-  const saveNote = useCallback((id: string, updates: { title?: string; content?: string; pinned?: boolean; tags?: string[]; todoId?: string | null; projectId?: string | null }) => {
+  const saveNote = useCallback((id: string, updates: {
+    title?: string;
+    content?: string;
+    pinned?: boolean;
+    tags?: string[];
+    todoId?: string | null;
+    projectId?: string | null;
+    shared?: boolean;
+    teamId?: string | null;
+  }) => {
     const now = new Date().toISOString();
 
-    setNotes((prev) => sortNotes(prev.map((n) =>
-      n.id === id ? { ...n, ...updates, updatedAt: now } : n
-    )));
+    const mergeLocal = (n: Note): Note => {
+      const raw = { ...n, ...updates, updatedAt: now };
+      if (updates.shared === false) {
+        raw.shared = undefined;
+        raw.teamId = undefined;
+      }
+      if (updates.teamId === null || updates.teamId === "") {
+        raw.teamId = undefined;
+      }
+      return raw as Note;
+    };
+
+    setNotes((prev) => sortNotes(prev.map((n) => (n.id === id ? mergeLocal(n) : n))));
 
     const local = readLocal();
-    writeLocal(local.map((n) =>
-      n.id === id ? { ...n, ...updates, updatedAt: now } : n
-    ));
+    writeLocal(local.map((n) => (n.id === id ? mergeLocal(n) : n)));
 
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+
+    const hasSharing = updates.shared !== undefined || updates.teamId !== undefined;
+    if (hasSharing && online) {
+      const sp: { shared?: boolean; teamId?: string } = {};
+      if (updates.shared !== undefined) sp.shared = updates.shared;
+      if (updates.teamId !== undefined) {
+        sp.teamId = updates.teamId === null || updates.teamId === "" ? undefined : updates.teamId;
+      }
+      updateNoteApi(id, sp).catch(() => markDirty([id]));
+    } else if (hasSharing && !online) {
+      markDirty([id]);
+    }
+
+    const rest: Record<string, unknown> = { ...updates };
+    delete rest.shared;
+    delete rest.teamId;
+    const restKeys = Object.keys(rest).filter((k) => rest[k] !== undefined);
+    if (restKeys.length === 0) return;
 
     if (online) {
       syncTimerRef.current = setTimeout(async () => {
         try {
-          await updateNoteApi(id, updates);
+          await updateNoteApi(id, rest as Parameters<typeof updateNoteApi>[1]);
         } catch {
           markDirty([id]);
         }

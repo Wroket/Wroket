@@ -9,12 +9,12 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
-import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
+import { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
-import CommentHoverIcon from "@/components/CommentHoverIcon";
 import TodoCard from "@/components/TodoCard";
+import TaskIconToolbar from "@/components/TaskIconToolbar";
 import { useToast } from "@/components/Toast";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
@@ -48,7 +48,6 @@ import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
-import { useUiBeta } from "@/lib/UiBetaContext";
 import {
   QUADRANT_CONFIG,
   PRIORITY_BADGES,
@@ -61,8 +60,17 @@ import {
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import { useTodoListSync } from "@/lib/useTodoListSync";
+import { compareTodosForRadarList, type RadarMode } from "@/lib/taskScores";
+import type { TranslationKey } from "@/lib/i18n";
 
-import { FILTER_BUTTONS, QUADRANT_BADGES, QUADRANT_RANK, PRIORITY_RANK, sortTodos } from "./_components/sortUtils";
+import { FILTER_BUTTONS, QUADRANT_BADGES, sortTodos } from "./_components/sortUtils";
+
+const RADAR_MODE_LABEL_KEYS: Record<RadarMode, TranslationKey> = {
+  eisenhower: "matrix.radarModeEisenhower",
+  pressure: "matrix.radarModePressure",
+  roi: "matrix.radarModeRoi",
+  load: "matrix.radarModeLoad",
+};
 import SubtaskBadge from "./_components/SubtaskBadge";
 import TaskList from "./_components/TaskList";
 import QuadrantCell from "./_components/QuadrantCell";
@@ -92,7 +100,6 @@ function applySortOrderPatchToList(list: Todo[], orderedIds: string[]): Todo[] {
 
 export default function TodosPage() {
   const { t } = useLocale();
-  const { betaUi } = useUiBeta();
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -177,15 +184,6 @@ export default function TodosPage() {
     return result;
   }, [projects]);
 
-  const getPhaseRange = useCallback((phaseId: string | null | undefined) => {
-    if (!phaseId) return { start: undefined as string | undefined, end: undefined as string | undefined };
-    for (const proj of projects) {
-      const phase = proj.phases?.find((p) => p.id === phaseId);
-      if (phase) return { start: phase.startDate ?? undefined, end: phase.endDate ?? undefined };
-    }
-    return { start: undefined as string | undefined, end: undefined as string | undefined };
-  }, [projects]);
-
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [priorityTouched, setPriorityTouched] = useState(false);
@@ -215,6 +213,7 @@ export default function TodosPage() {
   const [lastAction, setLastAction] = useState<{ todoId: string; previousStatus: TodoStatus } | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [mainView, setMainView] = useState<"list" | "cards" | "radar">("list");
+  const [radarMode, setRadarMode] = useState<RadarMode>("eisenhower");
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
@@ -703,18 +702,8 @@ export default function TodosPage() {
 
   const radarPriorityList = useMemo(() => {
     const source: Todo[] = filters.size === 0 ? activeTodos : listTodos;
-    return [...source].sort((a, b) => {
-      const rA = QUADRANT_RANK[classify(a)];
-      const rB = QUADRANT_RANK[classify(b)];
-      if (rA !== rB) return rA - rB;
-      const pA = PRIORITY_RANK[a.priority];
-      const pB = PRIORITY_RANK[b.priority];
-      if (pA !== pB) return pA - pB;
-      const dA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-      const dB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-      return dA - dB;
-    });
-  }, [filters.size, activeTodos, listTodos]);
+    return [...source].sort((a, b) => compareTodosForRadarList(a, b, radarMode));
+  }, [filters.size, activeTodos, listTodos, radarMode]);
 
   const activeQuadrantFilters = QUADRANT_KEYS.filter((k) => filters.has(k));
   const activeStatusFilters = STATUS_KEYS.filter((k) => filters.has(k));
@@ -735,11 +724,7 @@ export default function TodosPage() {
         {/* ── Create form ── */}
         <form
           onSubmit={handleCreate}
-          className={`bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-3 sm:p-5 ${
-            betaUi
-              ? "sticky top-0 z-30 shadow-md backdrop-blur-sm bg-white/95 dark:bg-slate-900/95"
-              : "shadow-sm"
-          }`}
+          className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-3 sm:p-5 shadow-sm"
         >
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -1050,15 +1035,11 @@ export default function TodosPage() {
               <PageHelpButton
                 title={t("todos.listTitle")}
                 items={[
-                  { text: t("help.todos.views") },
-                  { text: t("help.todos.scope") },
                   { text: t("help.todos.dnd") },
                   { text: t("help.todos.edit") },
-                  { text: t("help.todos.recurrence") },
                   { text: t("help.todos.attachments") },
                   { text: t("help.todos.comments") },
                   { text: t("help.todos.export") },
-                  { text: t("help.todos.sync") },
                 ]}
               />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
@@ -1222,7 +1203,7 @@ export default function TodosPage() {
                   ) : (
                     <div className="space-y-2">
                       {listTodos.map((todo) => (
-                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} />
+                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
                       ))}
                     </div>
                   )}
@@ -1232,7 +1213,7 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
@@ -1246,7 +1227,7 @@ export default function TodosPage() {
                         {activeStatusFilters.flatMap((f) =>
                           f === "completed" ? completedTodos : f === "cancelled" ? cancelledTodos : deletedTodos
                         ).map((todo) => (
-                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} />
+                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
                         ))}
                       </div>
                     </div>
@@ -1278,10 +1259,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
 
@@ -1293,10 +1274,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
                 </>
@@ -1306,11 +1287,18 @@ export default function TodosPage() {
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-6">
               <div className="flex flex-col md:flex-row gap-6">
                 {/* Priority list */}
-                <div className="w-full md:w-72 md:shrink-0">
-                  <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
-                    {filters.size === 0
-                      ? t("todos.priorities")
-                      : [...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")}
+                <div className="w-full md:w-96 md:max-w-full md:shrink-0">
+                  <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-3 flex items-center gap-1.5 flex-wrap">
+                    {filters.size === 0 ? (
+                      <>
+                        {t("todos.priorities")}
+                        <span className="text-zinc-500 dark:text-slate-500 font-normal">
+                          · {t(RADAR_MODE_LABEL_KEYS[radarMode])}
+                        </span>
+                      </>
+                    ) : (
+                      [...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")
+                    )}
                   </h3>
                   <div className="space-y-2">
                     {(() => {
@@ -1330,14 +1318,14 @@ export default function TodosPage() {
                             onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
                             className={`group/card flex items-start gap-2 rounded border px-2.5 py-2 cursor-pointer select-none ${CARD_BG[q]}`}
                           >
-                            <span className="text-xs font-bold text-zinc-400 mt-0.5 w-4 text-right shrink-0">
+                            <span className="text-xs font-bold text-zinc-400 dark:text-slate-500 pt-0.5 w-4 text-right shrink-0 tabular-nums">
                               {i + 1}
                             </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 leading-snug truncate">
+                            <div className="flex-1 min-w-0 flex flex-col gap-1.5 items-stretch">
+                              <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 leading-snug line-clamp-2">
                                 {displayTodoTitle(todo.title, t("todos.untitled"))}
                               </p>
-                              <div className="flex items-center gap-1 mt-1 flex-wrap gap-y-1">
+                              <div className="flex items-center gap-1 flex-wrap gap-y-1">
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${QUADRANT_BADGES[q].cls}`}>
                                   {t(QUADRANT_BADGES[q].tKey)}
                                 </span>
@@ -1382,97 +1370,42 @@ export default function TodosPage() {
                                 )}
                               </div>
                             </div>
-                            {todo.status !== "active" ? (
-                              <button
-                                onClick={() => handleStatusChange(todo, "active")}
-                                title={t("todos.reactivate")}
-                                className="shrink-0 inline-flex items-center gap-0.5 rounded border border-green-300 dark:border-green-700 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
-                              >
-                                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
-                                </svg>
-                                {t("todos.reactivate")}
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                                {!todo.parentId && (
-                                  <SlotPicker
-                                    todoId={todo.id}
-                                    scheduledSlot={todo.scheduledSlot}
-                                    suggestedSlot={todo.suggestedSlot}
-                                    onBooked={handleScheduleUpdate}
-                                    onCleared={handleScheduleUpdate}
-                                    autoOpen={todo.id === justCreatedId}
-                                    dateMin={getPhaseRange(todo.phaseId).start}
-                                    dateMax={getPhaseRange(todo.phaseId).end}
-                                  />
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(todo, "completed"); }}
-                                  className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-green-600 dark:hover:text-green-400 cursor-pointer"
-                                  aria-label={t("a11y.complete")}
-                                  title={t("a11y.complete")}
-                                >
-                                  <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(todo, "cancelled"); }}
-                                  className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer"
-                                  aria-label={t("a11y.cancelTask")}
-                                  title={t("a11y.cancelTask")}
-                                >
-                                  <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                  </svg>
-                                </button>
-                                {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDecline(todo); }}
-                                    className="p-0.5 text-orange-300 dark:text-orange-700 hover:text-orange-600 dark:hover:text-orange-400 cursor-pointer"
-                                    aria-label={t("assign.decline")}
-                                    title={t("assign.decline")}
-                                  >
-                                    <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                )}
-                                {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (todo.assignmentStatus === "declined" || todo.assignmentStatus === "pending") && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleAccept(todo); }}
-                                    className="p-0.5 text-emerald-300 dark:text-emerald-700 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
-                                    aria-label={t("assign.accept")}
-                                    title={t("assign.accept")}
-                                  >
-                                    <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  </button>
-                                )}
-                                <CommentHoverIcon
-                                  todoId={todo.id}
+                            <div className="shrink-0 self-start pt-0.5">
+                              {todo.status === "active" ? (
+                                <TaskIconToolbar
+                                  todo={todo}
+                                  meUid={meUid}
+                                  projects={projects}
                                   commentCount={commentCounts[todo.id] ?? 0}
-                                  onClick={() => openEdit(todo)}
+                                  onComplete={(t) => handleStatusChange(t, "completed")}
+                                  onSubtask={openSubtaskModal}
+                                  onScheduleUpdate={handleScheduleUpdate}
+                                  onCancel={(t) => handleStatusChange(t, "cancelled")}
+                                  onDecline={handleDecline}
+                                  onAccept={handleAccept}
+                                  onEdit={openEdit}
+                                  onDelete={requestDelete}
+                                  onCreateNote={handleNoteAction}
+                                  hasLinkedNote={!!todoNoteIds[todo.id]}
+                                  justCreatedId={justCreatedId}
+                                  suggestedSlot={todo.suggestedSlot}
+                                  isolatePointerEvents
+                                  variant="radar"
                                 />
+                              ) : (
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); requestDelete(todo); }}
-                                  className="p-0.5 text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 cursor-pointer"
-                                  aria-label={t("a11y.delete")}
-                                  title={t("a11y.delete")}
+                                  onClick={(e) => { e.stopPropagation(); handleStatusChange(todo, "active"); }}
+                                  title={t("todos.reactivate")}
+                                  className="inline-flex items-center gap-0.5 rounded border border-green-300 dark:border-green-700 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors w-[6.75rem] justify-center"
                                 >
-                                  <svg className="w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
                                   </svg>
+                                  {t("todos.reactivate")}
                                 </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         );
                       });
@@ -1482,7 +1415,14 @@ export default function TodosPage() {
 
                 {/* Radar */}
                 <div className="flex-1 min-w-0">
-                  <EisenhowerRadar todos={activeTodos} subtaskCounts={subtaskCounts} meUid={meUid} userDisplayName={userDisplayName} />
+                  <EisenhowerRadar
+                    todos={activeTodos}
+                    subtaskCounts={subtaskCounts}
+                    meUid={meUid}
+                    userDisplayName={userDisplayName}
+                    radarMode={radarMode}
+                    onRadarModeChange={setRadarMode}
+                  />
                 </div>
               </div>
             </div>

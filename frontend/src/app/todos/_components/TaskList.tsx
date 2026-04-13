@@ -97,6 +97,7 @@ export default function TaskList({
     });
   };
   const thBtn = "flex items-center gap-0.5 cursor-pointer select-none hover:text-zinc-900 transition-colors";
+  const thPad = "px-4 py-3";
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -127,22 +128,22 @@ export default function TaskList({
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/80">
                   <th className="w-8 px-1 py-3" />
-                  <th className="w-20 px-4 py-3 text-left font-semibold text-zinc-600 dark:text-slate-400 text-xs">{t("table.actions")}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400">{t("table.title")}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-28">
+                  <th className={`w-20 ${thPad} text-left font-semibold text-zinc-600 dark:text-slate-400 text-xs`}>{t("table.actions")}</th>
+                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400`}>{t("table.title")}</th>
+                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 w-28`}>
                     <button type="button" className={thBtn} onClick={() => onSort("priority")}>
                       {t("table.priority")} <SortArrow col="priority" activeCol={sortCol} dir={sortDir} />
                     </button>
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-32">
+                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 w-32`}>
                     {t("table.effort")}
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-36">
+                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 w-36`}>
                     <button type="button" className={thBtn} onClick={() => onSort("deadline")}>
                       {t("table.deadline")} <SortArrow col="deadline" activeCol={sortCol} dir={sortDir} />
                     </button>
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-zinc-600 dark:text-slate-400 w-36">
+                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 w-36`}>
                     <button type="button" className={thBtn} onClick={() => onSort("classification")}>
                       {t("table.classification")} <SortArrow col="classification" activeCol={sortCol} dir={sortDir} />
                     </button>

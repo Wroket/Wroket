@@ -14,12 +14,17 @@ export interface QuadrantCellProps {
   allTodos?: Todo[];
   onComplete: (t: Todo) => void;
   onDelete: (t: Todo) => void;
+  onCancel?: (t: Todo) => void;
+  onSubtask?: (t: Todo) => void;
   onDecline?: (t: Todo) => void;
   onAccept?: (t: Todo) => void;
   onEdit?: (t: Todo) => void;
   onScheduleUpdate?: (t: Todo) => void;
   subtaskCounts?: Record<string, number>;
   commentCounts?: Record<string, number>;
+  todoNoteIds?: Record<string, string>;
+  onCreateNote?: (t: Todo) => void;
+  justCreatedId?: string | null;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   projects?: Project[];
@@ -31,12 +36,17 @@ export default function QuadrantCell({
   allTodos = [],
   onComplete,
   onDelete,
+  onCancel,
+  onSubtask,
   onDecline,
   onAccept,
   onEdit,
   onScheduleUpdate,
   subtaskCounts = {},
   commentCounts: ccounts = {},
+  todoNoteIds = {},
+  onCreateNote,
+  justCreatedId,
   meUid,
   userDisplayName,
   projects = [],
@@ -93,7 +103,27 @@ export default function QuadrantCell({
               const subs = expanded.has(todo.id) ? subtasksOf(todo.id) : [];
               return (
                 <div key={todo.id}>
-                  <TodoCard todo={todo} onComplete={onComplete} onDelete={onDelete} onDecline={onDecline} onAccept={onAccept} onEdit={onEdit} onScheduleUpdate={onScheduleUpdate} subtaskCount={sc} onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined} subtasksExpanded={expanded.has(todo.id)} meUid={meUid} userDisplayName={userDisplayName} commentCount={ccounts[todo.id] ?? 0} projects={projects} />
+                  <TodoCard
+                    todo={todo}
+                    onComplete={onComplete}
+                    onDelete={onDelete}
+                    onCancel={onCancel}
+                    onSubtask={onSubtask}
+                    onDecline={onDecline}
+                    onAccept={onAccept}
+                    onEdit={onEdit}
+                    onScheduleUpdate={onScheduleUpdate}
+                    onCreateNote={onCreateNote}
+                    hasLinkedNote={!!todoNoteIds[todo.id]}
+                    justCreatedId={justCreatedId}
+                    subtaskCount={sc}
+                    onToggleSubtasks={sc > 0 ? () => toggleExpand(todo.id) : undefined}
+                    subtasksExpanded={expanded.has(todo.id)}
+                    meUid={meUid}
+                    userDisplayName={userDisplayName}
+                    commentCount={ccounts[todo.id] ?? 0}
+                    projects={projects}
+                  />
                   {subs.length > 0 && (
                     <div className="ml-5 mt-1 space-y-1">
                       {subs.map((sub) => (

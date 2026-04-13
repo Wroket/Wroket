@@ -7,8 +7,32 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "@/components/Toast";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { getComments, postCommentApi, deleteCommentApi, editCommentApi, toggleReactionApi, getCollaborators, inviteCollaborator } from "@/lib/api";
-import type { Todo, Priority, Effort, AuthMeResponse, Comment, Collaborator, Recurrence, RecurrenceFrequency, Project, SuggestedSlot } from "@/lib/api";
+import {
+  getComments,
+  postCommentApi,
+  deleteCommentApi,
+  editCommentApi,
+  toggleReactionApi,
+  getCollaborators,
+  inviteCollaborator,
+  getAttachments,
+  uploadAttachment,
+  downloadAttachment,
+  deleteAttachmentApi,
+} from "@/lib/api";
+import type {
+  Todo,
+  Priority,
+  Effort,
+  AuthMeResponse,
+  Comment,
+  Collaborator,
+  Recurrence,
+  RecurrenceFrequency,
+  Project,
+  SuggestedSlot,
+  Attachment,
+} from "@/lib/api";
 
 export interface TaskEditModalProps {
   todo: Todo | null;
@@ -128,6 +152,9 @@ export default function TaskEditModal({
   const [suggestDuration, setSuggestDuration] = useState(30);
   const [mentionInviteOpen, setMentionInviteOpen] = useState(false);
   const [mentionInviteEmails, setMentionInviteEmails] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
@@ -145,8 +172,10 @@ export default function TaskEditModal({
     setComments([]);
     setCommentText("");
     setShowAllComments(false);
+    setAttachments([]);
     let cancelled = false;
     getComments(todo.id).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
+    getAttachments(todo.id).then((a) => { if (!cancelled) setAttachments(a); }).catch(() => {});
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") void onClose(); };
     document.addEventListener("keydown", handleKey);
     return () => { cancelled = true; document.removeEventListener("keydown", handleKey); };
@@ -186,6 +215,41 @@ export default function TaskEditModal({
       toast.error(t("toast.updateError"));
     } finally {
       setTagsSaving(false);
+    }
+  };
+
+  const formatAttachmentSize = (n: number) => {
+    if (n < 1024) return `${n} o`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} Ko`;
+    return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
+  };
+
+  const handleAttachmentFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const max = 5 * 1024 * 1024;
+    if (file.size > max) {
+      toast.error(t("edit.maxSize"));
+      return;
+    }
+    setAttachmentUploading(true);
+    try {
+      const att = await uploadAttachment(todo.id, file);
+      setAttachments((prev) => [...prev, att]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("toast.updateError"));
+    } finally {
+      setAttachmentUploading(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    try {
+      await deleteAttachmentApi(todo.id, attachmentId);
+      setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+    } catch {
+      toast.error(t("toast.updateError"));
     }
   };
 
@@ -723,6 +787,66 @@ export default function TaskEditModal({
           </div>
         </div>
         </>}
+
+        {/* Attachments */}
+        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <div>
+              <h4 className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("edit.attachments")}</h4>
+              <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{t("edit.maxSize")}</p>
+            </div>
+            {isTaskOwner && (
+              <>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  className="sr-only"
+                  onChange={handleAttachmentFile}
+                  accept="image/*,application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  disabled={attachmentUploading}
+                />
+                <button
+                  type="button"
+                  disabled={attachmentUploading}
+                  onClick={() => attachmentInputRef.current?.click()}
+                  className="shrink-0 rounded border border-indigo-300 dark:border-indigo-600 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 disabled:opacity-50"
+                >
+                  {t("edit.addFile")}
+                </button>
+              </>
+            )}
+          </div>
+          {attachments.length === 0 ? (
+            <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("edit.noAttachments")}</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {attachments.map((a) => (
+                <li key={a.id} className="flex items-center gap-2 text-xs min-w-0">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left text-indigo-600 dark:text-indigo-400 hover:underline truncate"
+                    onClick={() => void downloadAttachment(todo.id, a.id, a.originalName)}
+                  >
+                    {a.originalName}
+                  </button>
+                  <span className="text-zinc-400 dark:text-slate-500 shrink-0 tabular-nums">{formatAttachmentSize(a.size)}</span>
+                  {isTaskOwner && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteAttachment(a.id)}
+                      className="text-zinc-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 shrink-0"
+                      title={t("a11y.delete")}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         {/* Comments */}
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">

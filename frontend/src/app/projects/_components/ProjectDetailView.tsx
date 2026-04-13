@@ -1026,6 +1026,18 @@ export default function ProjectDetailView({
 
         <button
           type="button"
+          onClick={(e) => { e.stopPropagation(); openEdit(todo); }}
+          title={t("a11y.taskAttachments")}
+          aria-label={t("a11y.taskAttachments")}
+          className="w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors border border-transparent text-zinc-300 dark:text-slate-600 hover:text-amber-600 dark:hover:text-amber-400"
+        >
+          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); handleNoteAction(todo); }}
           title={todoNoteIds[todo.id] ? t("notes.openLinkedNote") : t("notes.createFromTask")}
           className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${
@@ -1600,6 +1612,17 @@ export default function ProjectDetailView({
                                         {subs.length > 0 && <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subs.length} ↳</span>}
                                         {todo.estimatedMinutes != null && todo.estimatedMinutes > 0 && <span className="text-[9px] font-medium text-zinc-400 dark:text-slate-500">⏱ {formatMins(todo.estimatedMinutes)}</span>}
                                         <CommentHoverIcon todoId={todo.id} commentCount={commentCounts[todo.id] ?? 0} />
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); openEdit(todo); }}
+                                          title={t("a11y.taskAttachments")}
+                                          aria-label={t("a11y.taskAttachments")}
+                                          className="w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border border-transparent text-zinc-300 dark:text-slate-600 hover:text-amber-600 dark:hover:text-amber-400"
+                                        >
+                                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                          </svg>
+                                        </button>
                                         <button
                                           type="button"
                                           onClick={(e) => { e.stopPropagation(); handleNoteAction(todo); }}

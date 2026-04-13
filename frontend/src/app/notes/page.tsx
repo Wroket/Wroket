@@ -10,8 +10,8 @@ import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, getTodos, createTodo, lookupUser, exportNotes, importNotesFile } from "@/lib/api";
-import type { Note, Project, Todo } from "@/lib/api";
+import { getProjects, getTodos, createTodo, lookupUser, exportNotes, importNotesFile, getTeams } from "@/lib/api";
+import type { Note, Project, Todo, Team } from "@/lib/api";
 
 function NotesPageInner() {
   const { t } = useLocale();
@@ -22,6 +22,7 @@ function NotesPageInner() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [tagInput, setTagInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -29,6 +30,7 @@ function NotesPageInner() {
   useEffect(() => {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
     getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
+    getTeams().then(setTeams).catch(() => setTeams([]));
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
@@ -235,6 +237,9 @@ function NotesPageInner() {
                   >
                     <div className="flex items-center gap-1.5">
                       {note.pinned && <span className="text-amber-500 text-[10px]">📌</span>}
+                      {note.shared && note.teamId && (
+                        <span className="text-[10px] text-cyan-600 dark:text-cyan-400 shrink-0" title={t("notes.shareWith")}>👥</span>
+                      )}
                       <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate flex-1">
                         {note.title || t("notes.untitled")}
                       </p>
@@ -384,6 +389,49 @@ function NotesPageInner() {
                     className="flex-1 min-w-[80px] bg-transparent text-[11px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
                   />
                 </div>
+
+                {/* Partage équipe */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-100 dark:border-slate-800/80">
+                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
+                  {teams.length === 0 ? (
+                    <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("notes.teamShareNoTeams")}</p>
+                  ) : (
+                    <>
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] text-zinc-700 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          className="rounded border-zinc-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                          checked={!!selected.shared && !!selected.teamId}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const first = teams[0];
+                              if (first) saveNote(selected.id, { shared: true, teamId: first.id });
+                            } else {
+                              saveNote(selected.id, { shared: false });
+                            }
+                          }}
+                        />
+                        {t("notes.shareWith")}
+                      </label>
+                      <select
+                        value={selected.teamId ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!v) saveNote(selected.id, { shared: false });
+                          else saveNote(selected.id, { shared: true, teamId: v });
+                        }}
+                        disabled={!selected.shared}
+                        className="text-[11px] rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[200px] disabled:opacity-50"
+                        title={t("notes.selectTeam")}
+                      >
+                        {teams.map((tm) => (
+                          <option key={tm.id} value={tm.id}>{tm.name}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+
                 {selected.todoId && (() => {
                   const linkedTask = todos.find((td) => td.id === selected.todoId);
                   return linkedTask ? (

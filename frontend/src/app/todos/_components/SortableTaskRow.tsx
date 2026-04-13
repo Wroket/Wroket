@@ -3,8 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import CommentHoverIcon from "@/components/CommentHoverIcon";
-import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
+import { ScheduledSlotBadge } from "@/components/SlotPicker";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -14,6 +13,7 @@ import { PRIORITY_BADGES, SUBTASK_BADGE_CLS } from "@/lib/todoConstants";
 import type { Todo, Project } from "@/lib/api";
 
 import { QUADRANT_BADGES } from "./sortUtils";
+import TaskIconToolbar from "@/components/TaskIconToolbar";
 import SubtaskSortableRows from "./SubtaskSortableRows";
 
 export interface SortableTaskRowProps {
@@ -125,114 +125,23 @@ export default function SortableTaskRow({
               {t("todos.reactivate")}
             </button>
           ) : (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => onComplete(todo)}
-                aria-label={t("a11y.complete")}
-                title={t("a11y.complete")}
-                className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-green-500 hover:text-green-500"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
-              {!todo.parentId && (
-                <button
-                  onClick={() => onSubtask(todo)}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500"
-                  title={t("subtask.add")}
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              )}
-              {!todo.parentId && onScheduleUpdate && (() => {
-                let dateMin: string | undefined;
-                let dateMax: string | undefined;
-                if (todo.phaseId) {
-                  for (const proj of projects) {
-                    const ph = proj.phases?.find((p) => p.id === todo.phaseId);
-                    if (ph) { dateMin = ph.startDate ?? undefined; dateMax = ph.endDate ?? undefined; break; }
-                  }
-                }
-                return (
-                  <SlotPicker
-                    todoId={todo.id}
-                    scheduledSlot={todo.scheduledSlot}
-                    onBooked={onScheduleUpdate}
-                    onCleared={onScheduleUpdate}
-                    autoOpen={todo.id === justCreatedId}
-                    dateMin={dateMin}
-                    dateMax={dateMax}
-                  />
-                );
-              })()}
-              <button
-                onClick={() => onCancel(todo)}
-                aria-label={t("a11y.cancelTask")}
-                title={t("a11y.cancelTask")}
-                className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-              </button>
-              {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && todo.assignmentStatus !== "declined" && (
-                <button
-                  onClick={() => onDecline(todo)}
-                  title={t("assign.decline")}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-orange-300 dark:border-orange-700 text-orange-400 hover:border-orange-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-              {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (todo.assignmentStatus === "declined" || todo.assignmentStatus === "pending") && (
-                <button
-                  onClick={() => onAccept(todo)}
-                  title={t("assign.accept")}
-                  className="w-6 h-6 rounded flex items-center justify-center border border-emerald-300 dark:border-emerald-700 text-emerald-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-              )}
-              <CommentHoverIcon
-                todoId={todo.id}
-                commentCount={commentCounts[todo.id] ?? 0}
-                onClick={() => onEdit(todo)}
-                buttonClass="relative w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"
-                iconSize="w-3 h-3"
-              />
-              {onCreateNote && (
-                <button
-                  onClick={() => onCreateNote(todo)}
-                  title={hasLinkedNote ? t("notes.openLinkedNote") : t("notes.createFromTask")}
-                  className={`w-6 h-6 rounded flex items-center justify-center border transition-colors ${
-                    hasLinkedNote
-                      ? "border-indigo-300 dark:border-indigo-700 text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
-                      : "border-transparent text-zinc-300 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400"
-                  }`}
-                >
-                  <svg className="w-3 h-3" fill={hasLinkedNote ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-              )}
-              <button
-                onClick={() => onDelete(todo)}
-                aria-label={t("a11y.delete")}
-                title={t("a11y.delete")}
-                className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
+            <TaskIconToolbar
+              todo={todo}
+              meUid={meUid}
+              projects={projects}
+              commentCount={commentCounts[todo.id] ?? 0}
+              onComplete={onComplete}
+              onSubtask={onSubtask}
+              onScheduleUpdate={onScheduleUpdate}
+              onCancel={onCancel}
+              onDecline={onDecline}
+              onAccept={onAccept}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onCreateNote={onCreateNote}
+              hasLinkedNote={hasLinkedNote}
+              justCreatedId={justCreatedId}
+            />
           )}
         </td>
         <td className="px-4 py-3">
