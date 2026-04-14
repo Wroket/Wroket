@@ -12,9 +12,12 @@ export type WebhookEvent =
   | "task_declined"
   | "task_accepted"
   | "team_invite"
-  | "deadline_approaching";
+  | "deadline_approaching"
+  | "deadline_today"
+  | "comment_mention"
+  | "project_deleted";
 
-export type WebhookPlatform = "slack" | "discord" | "teams" | "custom";
+export type WebhookPlatform = "slack" | "discord" | "teams" | "google_chat" | "custom";
 
 export interface WebhookConfig {
   id: string;
@@ -26,7 +29,7 @@ export interface WebhookConfig {
   createdAt: string;
 }
 
-const VALID_PLATFORMS = new Set<WebhookPlatform>(["slack", "discord", "teams", "custom"]);
+const VALID_PLATFORMS = new Set<WebhookPlatform>(["slack", "discord", "teams", "google_chat", "custom"]);
 
 function normalizePlatform(p: unknown): WebhookPlatform {
   if (typeof p === "string" && VALID_PLATFORMS.has(p as WebhookPlatform)) return p as WebhookPlatform;
@@ -41,6 +44,9 @@ const VALID_EVENTS: WebhookEvent[] = [
   "task_accepted",
   "team_invite",
   "deadline_approaching",
+  "deadline_today",
+  "comment_mention",
+  "project_deleted",
 ];
 
 const webhooksByUser = new Map<string, WebhookConfig[]>();
@@ -130,7 +136,7 @@ interface WebhookPayload {
 
 /**
  * Format a payload for the target platform.
- * Slack uses Block Kit, Discord uses embeds, Teams uses Adaptive Cards.
+ * Slack uses Block Kit, Discord uses embeds, Teams uses Adaptive Cards, Google Chat uses `text`.
  */
 function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unknown {
   const color = {
@@ -141,6 +147,9 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
     task_accepted: "#10B981",
     team_invite: "#8B5CF6",
     deadline_approaching: "#F59E0B",
+    deadline_today: "#EF4444",
+    comment_mention: "#6366F1",
+    project_deleted: "#78716C",
   }[payload.event] ?? "#6B7280";
 
   const emoji = {
@@ -151,6 +160,9 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
     task_accepted: "🤝",
     team_invite: "👥",
     deadline_approaching: "⏰",
+    deadline_today: "📌",
+    comment_mention: "💬",
+    project_deleted: "🗑️",
   }[payload.event] ?? "🔔";
 
   switch (platform) {
@@ -200,6 +212,12 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
         ],
       };
 
+    case "google_chat":
+      // Incoming webhooks: https://developers.google.com/chat/how-tasks/incoming-webhooks
+      return {
+        text: `${emoji} ${payload.title}\n\n${payload.message}`,
+      };
+
     default:
       return payload;
   }
@@ -232,7 +250,7 @@ function isPrivateIP(ip: string): boolean {
  * Reject URLs targeting private/internal networks (SSRF protection).
  * Resolves DNS to block rebinding attacks (e.g. nip.io, localtest.me).
  */
-async function validateWebhookUrl(raw: string): Promise<URL> {
+export async function validateWebhookUrl(raw: string): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(raw);
@@ -330,6 +348,40 @@ export async function testWebhook(url: string, platform: WebhookPlatform | strin
   } catch {
     return false;
   }
+}
+
+/**
+ * Sends one notification to a user-configured Slack, Teams, or Google Chat URL (settings → delivery channel).
+ * Fire-and-forget; errors are logged only.
+ */
+export function dispatchOutboundWebhook(
+  url: string,
+  platform: "slack" | "teams" | "google_chat",
+  event: WebhookEvent,
+  title: string,
+  message: string,
+  data?: Record<string, string>,
+): void {
+  const payload: WebhookPayload = {
+    event,
+    title,
+    message,
+    data,
+    timestamp: new Date().toISOString(),
+  };
+  validateWebhookUrl(url)
+    .then((validUrl) => {
+      const body = formatPayload(platform, payload);
+      return fetch(validUrl.href, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      });
+    })
+    .catch((err) => {
+      console.warn("[webhook] outbound delivery failed: %s", (err as Error).message ?? err);
+    });
 }
 
 export function getWebhooksOverview(): { total: number; active: number; byPlatform: Record<string, number> } {

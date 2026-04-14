@@ -13,6 +13,7 @@ import {
 import { assertValidEmailFormat } from "../utils/emailValidation";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
 import { sendEmailOtpEmail } from "./emailService";
+import { validateWebhookUrl } from "./webhookService";
 export type EffortMinutes = { light: number; medium: number; heavy: number };
 
 const DEFAULT_EFFORT_MINUTES: EffortMinutes = { light: 10, medium: 30, heavy: 60 };
@@ -64,6 +65,9 @@ export interface GoogleAccountPublic {
   calendars: GoogleCalendarEntry[];
 }
 
+/** Where to send copies of in-app notifications (Paramètres → Intégrations). */
+export type NotificationDeliveryMode = "none" | "email" | "slack" | "teams" | "google_chat";
+
 export interface AuthUser {
   uid: string;
   email: string;
@@ -81,6 +85,9 @@ export interface AuthUser {
   emailOtp2faEnabled?: boolean;
   /** If true (default), TOTP users can request an email code at login when they lose their phone */
   totpEmailFallbackEnabled?: boolean;
+  notificationDeliveryMode: NotificationDeliveryMode;
+  /** Required when mode is slack, teams, or google_chat */
+  notificationDeliveryWebhookUrl: string | null;
 }
 
 interface StoredUser {
@@ -118,6 +125,8 @@ interface StoredUser {
   emailOtp2faEnabled?: boolean;
   /** When false, TOTP users cannot use email OTP at login (default true = allow fallback) */
   totpEmailFallbackEnabled?: boolean;
+  notificationDeliveryMode?: NotificationDeliveryMode;
+  notificationDeliveryWebhookUrl?: string;
   /** Pending enrollment / disable flows — email OTP verification */
   email2faEnrollHash?: string;
   email2faEnrollExpiresAt?: number;
@@ -207,6 +216,12 @@ function resolveGoogleAccounts(user: StoredUser): GoogleAccount[] {
   return user.googleAccounts ?? [];
 }
 
+function readNotificationDeliveryMode(user: StoredUser): NotificationDeliveryMode {
+  const m = user.notificationDeliveryMode;
+  if (m === "none" || m === "email" || m === "slack" || m === "teams" || m === "google_chat") return m;
+  return "none";
+}
+
 function toAuthUser(user: StoredUser): AuthUser {
   const accounts = resolveGoogleAccounts(user);
   return {
@@ -225,6 +240,8 @@ function toAuthUser(user: StoredUser): AuthUser {
     ),
     emailOtp2faEnabled: !!user.emailOtp2faEnabled,
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
+    notificationDeliveryMode: readNotificationDeliveryMode(user),
+    notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl?.trim() || null,
   };
 }
 
@@ -561,6 +578,8 @@ export interface UpdateProfileInput {
   effortMinutes?: EffortMinutes;
   workingHours?: WorkingHours;
   skipNonWorkingDays?: boolean;
+  notificationDeliveryMode?: NotificationDeliveryMode;
+  notificationDeliveryWebhookUrl?: string | null;
 }
 
 const HH_MM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -587,7 +606,12 @@ function validateWorkingHours(wh: WorkingHours): void {
   }
 }
 
-export function updateProfile(uid: string, input: UpdateProfileInput): AuthUser {
+function normalizeNotificationDeliveryModeInput(m: unknown): NotificationDeliveryMode {
+  if (m === "none" || m === "email" || m === "slack" || m === "teams" || m === "google_chat") return m;
+  throw new ValidationError("notificationDeliveryMode invalide");
+}
+
+export async function updateProfile(uid: string, input: UpdateProfileInput): Promise<AuthUser> {
   const user = usersByUid.get(uid);
   if (!user) throw new NotFoundError("Utilisateur introuvable");
 
@@ -611,10 +635,51 @@ export function updateProfile(uid: string, input: UpdateProfileInput): AuthUser 
     user.skipNonWorkingDays = !!input.skipNonWorkingDays;
   }
 
+  if (input.notificationDeliveryMode !== undefined || input.notificationDeliveryWebhookUrl !== undefined) {
+    const mode =
+      input.notificationDeliveryMode !== undefined
+        ? normalizeNotificationDeliveryModeInput(input.notificationDeliveryMode)
+        : readNotificationDeliveryMode(user);
+    const urlFromInput = input.notificationDeliveryWebhookUrl;
+    const url =
+      urlFromInput !== undefined
+        ? (typeof urlFromInput === "string" ? urlFromInput.trim() : "")
+        : (user.notificationDeliveryWebhookUrl?.trim() ?? "");
+
+    if (mode === "slack" || mode === "teams" || mode === "google_chat") {
+      if (!url) {
+        throw new ValidationError("URL du webhook requise pour Slack, Microsoft Teams ou Google Chat");
+      }
+      await validateWebhookUrl(url);
+      user.notificationDeliveryMode = mode;
+      user.notificationDeliveryWebhookUrl = url;
+    } else {
+      user.notificationDeliveryMode = mode;
+      user.notificationDeliveryWebhookUrl = undefined;
+    }
+  }
+
   usersByUid.set(uid, user);
   persistUsers();
 
   return toAuthUser(user);
+}
+
+/**
+ * Preferences for mirroring in-app notifications (email / Slack / Teams / Google Chat).
+ */
+export function getNotificationDeliveryPrefs(uid: string): {
+  mode: NotificationDeliveryMode;
+  webhookUrl: string | null;
+  email: string;
+} | null {
+  const user = usersByUid.get(uid);
+  if (!user) return null;
+  return {
+    mode: readNotificationDeliveryMode(user),
+    webhookUrl: user.notificationDeliveryWebhookUrl?.trim() || null,
+    email: user.email,
+  };
 }
 
 /**

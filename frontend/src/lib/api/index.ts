@@ -7,6 +7,7 @@ export type {
   GoogleAccountPublic,
   AuthMeResponse,
   ActivityLogEntry,
+  NotificationDeliveryMode,
 } from "./core";
 
 export {

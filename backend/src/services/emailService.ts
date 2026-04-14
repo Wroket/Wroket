@@ -335,3 +335,30 @@ export async function sendEmailOtpEmail(
     console.error("[email] Failed to send OTP to %s: %s", toEmail, err);
   }
 }
+
+/**
+ * In-app notification mirrored to the user's email (settings → notification channel).
+ */
+export async function sendNotificationEmail(toEmail: string, title: string, message: string): Promise<void> {
+  const subject = `Wroket — ${title}`;
+  const html = `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+    ${emailHeader()}
+    <h2 style="color:#334155">${escapeHtml(title)}</h2>
+    <p style="color:#475569;line-height:1.5">${escapeHtml(message)}</p>
+    ${emailFooter()}
+  </div>`;
+  const t = getTransporter();
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: toEmail,
+      subject,
+      html,
+    });
+    if (!SMTP_USER) {
+      console.log("[email] (dry-run) notification email for %s", toEmail);
+    }
+  } catch (err) {
+    console.error("[email] Failed to send notification to %s: %s", toEmail, err);
+  }
+}

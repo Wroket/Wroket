@@ -7,6 +7,7 @@ import {
   logout as logoutService,
   register as registerService,
   updateProfile as updateProfileService,
+  type NotificationDeliveryMode,
   changePassword as changePasswordService,
   findUserByEmail,
   findUserByUid,
@@ -407,12 +408,15 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     lastName: user.lastName,
     effortMinutes: user.effortMinutes,
     workingHours: user.workingHours,
+    skipNonWorkingDays: user.skipNonWorkingDays,
     googleCalendarConnected: user.googleCalendarConnected,
     googleAccounts: user.googleAccounts,
     twoFactorEnabled: user.twoFactorEnabled,
     twoFactorDisableRequiresPassword: twoFactorDisableRequiresPassword(user.uid),
     emailOtp2faEnabled: user.emailOtp2faEnabled === true,
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
+    notificationDeliveryMode: user.notificationDeliveryMode,
+    notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl,
   });
 }
 
@@ -464,8 +468,9 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     return;
   }
 
-  const { firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays } = req.body as {
+  const { firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays, notificationDeliveryMode, notificationDeliveryWebhookUrl } = req.body as {
     firstName?: unknown; lastName?: unknown; effortMinutes?: unknown; workingHours?: unknown; skipNonWorkingDays?: unknown;
+    notificationDeliveryMode?: unknown; notificationDeliveryWebhookUrl?: unknown;
   };
   if (firstName !== undefined && typeof firstName !== "string") {
     throw new ValidationError("Prénom invalide");
@@ -503,12 +508,21 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     };
   }
 
-  const updated = updateProfileService(user.uid, {
+  let validatedWebhookUrl: string | null | undefined;
+  if (notificationDeliveryWebhookUrl !== undefined) {
+    if (notificationDeliveryWebhookUrl === null) validatedWebhookUrl = null;
+    else if (typeof notificationDeliveryWebhookUrl === "string") validatedWebhookUrl = notificationDeliveryWebhookUrl;
+    else throw new ValidationError("notificationDeliveryWebhookUrl invalide");
+  }
+
+  const updated = await updateProfileService(user.uid, {
     firstName: firstName as string | undefined,
     lastName: lastName as string | undefined,
     effortMinutes: validatedEffort,
     workingHours: validatedWorkingHours,
     skipNonWorkingDays: skipNonWorkingDays !== undefined ? !!skipNonWorkingDays : undefined,
+    notificationDeliveryMode: notificationDeliveryMode !== undefined ? notificationDeliveryMode as NotificationDeliveryMode : undefined,
+    notificationDeliveryWebhookUrl: validatedWebhookUrl,
   });
   res.status(200).json(updated);
 }

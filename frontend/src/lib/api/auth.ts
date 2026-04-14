@@ -6,6 +6,7 @@ import {
   type AuthMeResponse,
   type WorkingHours,
   type ActivityLogEntry,
+  type NotificationDeliveryMode,
 } from "./core";
 
 interface LoginPayload {
@@ -308,6 +309,8 @@ export async function updateProfile(payload: {
   effortMinutes?: { light: number; medium: number; heavy: number };
   workingHours?: WorkingHours;
   skipNonWorkingDays?: boolean;
+  notificationDeliveryMode?: NotificationDeliveryMode;
+  notificationDeliveryWebhookUrl?: string | null;
 }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PUT",

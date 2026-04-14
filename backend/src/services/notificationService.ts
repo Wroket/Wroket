@@ -2,7 +2,9 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError } from "../utils/errors";
-import { dispatchWebhooks, type WebhookEvent } from "./webhookService";
+import { getNotificationDeliveryPrefs } from "./authService";
+import { sendNotificationEmail } from "./emailService";
+import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
 
 export type NotificationType =
   | "task_assigned"
@@ -84,7 +86,35 @@ export function createNotification(
     console.warn("[notifications] webhook dispatch error:", err);
   }
 
+  try {
+    deliverProfileOutbound(userId, type, title, message, data);
+  } catch (err) {
+    console.warn("[notifications] profile outbound error:", err);
+  }
+
   return notif;
+}
+
+/** Email / Slack / Teams / Google Chat channel from user settings (Paramètres → Intégrations). */
+function deliverProfileOutbound(
+  userId: string,
+  type: NotificationType,
+  title: string,
+  message: string,
+  data?: Record<string, string>,
+): void {
+  const prefs = getNotificationDeliveryPrefs(userId);
+  if (!prefs || prefs.mode === "none") return;
+  if (prefs.mode === "email") {
+    void sendNotificationEmail(prefs.email, title, message);
+    return;
+  }
+  if (
+    (prefs.mode === "slack" || prefs.mode === "teams" || prefs.mode === "google_chat") &&
+    prefs.webhookUrl
+  ) {
+    dispatchOutboundWebhook(prefs.webhookUrl, prefs.mode, type as WebhookEvent, title, message, data);
+  }
 }
 
 export function listNotifications(userId: string): Notification[] {

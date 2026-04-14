@@ -33,6 +33,7 @@ import {
   type WebhookPlatform,
   type ActivityLogEntry,
   type Team,
+  type NotificationDeliveryMode,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
@@ -1091,12 +1092,16 @@ const ALL_EVENTS: { key: WebhookEvent; tKey: TranslationKey }[] = [
   { key: "task_accepted", tKey: "settings.eventTaskAccepted" },
   { key: "team_invite", tKey: "settings.eventTeamInvite" },
   { key: "deadline_approaching", tKey: "settings.eventDeadline" },
+  { key: "deadline_today", tKey: "settings.eventDeadlineToday" },
+  { key: "comment_mention", tKey: "settings.eventCommentMention" },
+  { key: "project_deleted", tKey: "settings.eventProjectDeleted" },
 ];
 
 const PLATFORMS: { key: WebhookPlatform; label: string }[] = [
   { key: "slack", label: "Slack" },
   { key: "discord", label: "Discord" },
   { key: "teams", label: "Microsoft Teams" },
+  { key: "google_chat", label: "Google Chat" },
   { key: "custom", label: "Custom (JSON)" },
 ];
 
@@ -1105,6 +1110,11 @@ function IntegrationsSection() {
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  const [deliveryMode, setDeliveryMode] = useState<NotificationDeliveryMode>("none");
+  const [deliveryUrl, setDeliveryUrl] = useState("");
+  const [savingDelivery, setSavingDelivery] = useState(false);
+  const [deliverySaved, setDeliverySaved] = useState(false);
 
   const [editId, setEditId] = useState<string | undefined>(undefined);
   const [label, setLabel] = useState("");
@@ -1119,13 +1129,37 @@ function IntegrationsSection() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await getWebhooks();
-        if (!cancelled) setWebhooks(list);
+        const [list, me] = await Promise.all([getWebhooks(), getMe()]);
+        if (!cancelled) {
+          setWebhooks(list);
+          setDeliveryMode(me.notificationDeliveryMode ?? "none");
+          setDeliveryUrl(me.notificationDeliveryWebhookUrl ?? "");
+        }
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const handleSaveDelivery = async () => {
+    setSavingDelivery(true);
+    setDeliverySaved(false);
+    try {
+      await updateProfile({
+        notificationDeliveryMode: deliveryMode,
+        notificationDeliveryWebhookUrl:
+          deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat"
+            ? deliveryUrl.trim()
+            : null,
+      });
+      setDeliverySaved(true);
+      setTimeout(() => setDeliverySaved(false), 4000);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error");
+    } finally {
+      setSavingDelivery(false);
+    }
+  };
 
   const resetForm = () => {
     setEditId(undefined);
@@ -1211,14 +1245,79 @@ function IntegrationsSection() {
       case "slack": return "💬";
       case "discord": return "🎮";
       case "teams": return "💼";
+      case "google_chat": return "💬";
       default: return "🔗";
     }
   };
+
+  const deliveryRadios: { mode: NotificationDeliveryMode; tKey: TranslationKey }[] = [
+    { mode: "none", tKey: "settings.deliveryNone" },
+    { mode: "email", tKey: "settings.deliveryEmail" },
+    { mode: "slack", tKey: "settings.deliverySlack" },
+    { mode: "teams", tKey: "settings.deliveryTeams" },
+    { mode: "google_chat", tKey: "settings.deliveryGoogleChat" },
+  ];
 
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
       <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.integrationsDesc")}</p>
+
+      <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
+        <div>
+          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notificationDeliveryTitle")}</h4>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notificationDeliveryDesc")}</p>
+        </div>
+        <div className="space-y-2">
+          {deliveryRadios.map(({ mode, tKey }) => (
+            <label key={mode} className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="notification-delivery"
+                checked={deliveryMode === mode}
+                onChange={() => setDeliveryMode(mode)}
+                className="mt-1"
+              />
+              <span className="text-sm text-zinc-800 dark:text-slate-200">{t(tKey)}</span>
+            </label>
+          ))}
+        </div>
+        {(deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && (
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.deliveryWebhookUrl")}</label>
+            <input
+              type="url"
+              value={deliveryUrl}
+              onChange={(e) => setDeliveryUrl(e.target.value)}
+              placeholder={
+                deliveryMode === "slack"
+                  ? "https://hooks.slack.com/services/…"
+                  : deliveryMode === "teams"
+                    ? "https://…webhook.office.com/…"
+                    : "https://chat.googleapis.com/v1/spaces/…/messages?key=…"
+              }
+              className={inputCls}
+            />
+          </div>
+        )}
+        {deliveryMode === "email" && (
+          <p className="text-xs text-amber-700 dark:text-amber-400/90">{t("settings.deliverySmtpHint")}</p>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleSaveDelivery()}
+            disabled={
+              savingDelivery
+              || ((deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && !deliveryUrl.trim())
+            }
+            className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {savingDelivery ? t("settings.saving") : t("settings.deliverySave")}
+          </button>
+          {deliverySaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.deliverySaved")}</span>}
+        </div>
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-8">

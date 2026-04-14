@@ -45,6 +45,8 @@ export interface GoogleAccountPublic {
   calendars: GoogleCalendarEntry[];
 }
 
+export type NotificationDeliveryMode = "none" | "email" | "slack" | "teams" | "google_chat";
+
 export interface AuthMeResponse {
   uid: string;
   email: string;
@@ -63,6 +65,9 @@ export interface AuthMeResponse {
   emailOtp2faEnabled?: boolean;
   /** When true, TOTP users can request an email code at login if they lose their phone */
   totpEmailFallbackEnabled?: boolean;
+  /** Copies of in-app notifications (Paramètres → Intégrations) */
+  notificationDeliveryMode?: NotificationDeliveryMode;
+  notificationDeliveryWebhookUrl?: string | null;
 }
 
 export interface ActivityLogEntry {

@@ -7,9 +7,12 @@ export type WebhookEvent =
   | "task_declined"
   | "task_accepted"
   | "team_invite"
-  | "deadline_approaching";
+  | "deadline_approaching"
+  | "deadline_today"
+  | "comment_mention"
+  | "project_deleted";
 
-export type WebhookPlatform = "slack" | "discord" | "teams" | "custom";
+export type WebhookPlatform = "slack" | "discord" | "teams" | "google_chat" | "custom";
 
 export interface WebhookConfig {
   id: string;
