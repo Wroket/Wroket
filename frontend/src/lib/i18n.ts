@@ -1,4 +1,4 @@
-﻿export type Locale = "fr" | "en";
+export type Locale = "fr" | "en";
 
 const translations = {
   // ── App Shell / Header ──
@@ -263,6 +263,7 @@ const translations = {
   "todos.adding": { fr: "Ajout…", en: "Adding…" },
   "todos.add": { fr: "+ Ajouter", en: "+ Add" },
   "todos.titleLabel": { fr: "Intitulé", en: "Title" },
+  "todos.titleRequired": { fr: "Indiquez un intitulé pour la tâche.", en: "Enter a task title." },
   "todos.importanceLabel": { fr: "Importance", en: "Importance" },
   "todos.effortLabel": { fr: "Effort", en: "Effort" },
   "todos.deadlineLabel": { fr: "Échéance", en: "Deadline" },
@@ -1203,6 +1204,7 @@ const translations = {
   "toast.taskLoadError": { fr: "Impossible de charger la tâche", en: "Unable to load task" },
   "toast.taskUpdated": { fr: "Tâche mise à jour", en: "Task updated" },
   "toast.updateError": { fr: "Erreur lors de la mise à jour", en: "Update failed" },
+  "toast.notSignedIn": { fr: "Session requise pour cette action.", en: "You must be signed in." },
   "toast.deleteError": { fr: "Erreur lors de la suppression", en: "Delete failed" },
   "toast.declineError": { fr: "Erreur lors du refus", en: "Decline failed" },
   "toast.acceptError": { fr: "Erreur lors de l'acceptation", en: "Accept failed" },

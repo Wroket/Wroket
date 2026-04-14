@@ -214,6 +214,20 @@ export default function TodosPage() {
   const [undoing, setUndoing] = useState(false);
   const [mainView, setMainView] = useState<"list" | "cards" | "radar">("list");
   const [radarMode, setRadarMode] = useState<RadarMode>("eisenhower");
+  const [nowMs, setNowMs] = useState(Date.now);
+  useEffect(() => {
+    const tick = () => setNowMs(Date.now());
+    const id = setInterval(tick, 60_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+  const createInFlightRef = useRef(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
@@ -343,44 +357,102 @@ export default function TodosPage() {
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
+    if (createInFlightRef.current) return;
     setFormError(null);
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setFormError(t("todos.titleRequired"));
+      return;
+    }
+    if (!meUid) {
+      toast.error(t("toast.notSignedIn"));
+      return;
+    }
+
+    createInFlightRef.current = true;
     setSubmitting(true);
+
+    const tmpId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? `__tmp__${crypto.randomUUID()}`
+        : `__tmp__${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const now = new Date().toISOString();
+    const tmpTodo: Todo = {
+      id: tmpId,
+      userId: meUid,
+      parentId: null,
+      projectId: selectedProjectId,
+      phaseId: null,
+      assignedTo: assignedUser?.uid ?? null,
+      assignmentStatus: null,
+      title: trimmedTitle,
+      priority,
+      effort,
+      estimatedMinutes: null,
+      startDate: null,
+      deadline: deadline || null,
+      tags: [],
+      scheduledSlot: null,
+      suggestedSlot: null,
+      recurrence: null,
+      sortOrder: null,
+      status: "active",
+      statusChangedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setMyTodos((prev) => [tmpTodo, ...prev]);
+    setTitle("");
+    setDeadline("");
+    setPriority("medium");
+    setPriorityTouched(false);
+    setEffort("medium");
+    setEffortTouched(false);
+    setAssignEmail("");
+    setAssignedUser(null);
+    setAssignError(null);
+    setSelectedProjectId(null);
+
     try {
-      const todo = await createTodo({
-        title,
-        priority,
-        effort,
-        deadline: deadline || null,
-        projectId: selectedProjectId,
-        assignedTo: assignedUser?.uid ?? null,
+      const created = await createTodo({
+        title: tmpTodo.title,
+        priority: tmpTodo.priority,
+        effort: tmpTodo.effort,
+        deadline: tmpTodo.deadline,
+        projectId: tmpTodo.projectId,
+        assignedTo: tmpTodo.assignedTo,
       });
-      setMyTodos((prev) => [todo, ...prev]);
-      setJustCreatedId(todo.id);
+      setMyTodos((prev) => prev.map((t) => t.id === tmpId ? created : t));
+      setJustCreatedId(created.id);
       setTimeout(() => setJustCreatedId(null), 10000);
-      setTitle("");
-      setDeadline("");
-      setPriority("medium");
-      setPriorityTouched(false);
-      setEffort("medium");
-      setEffortTouched(false);
-      setAssignEmail("");
-      setAssignedUser(null);
-      setAssignError(null);
-      setSelectedProjectId(null);
     } catch (err) {
+      setMyTodos((prev) => prev.filter((t) => t.id !== tmpId));
       setFormError(err instanceof Error ? err.message : "Impossible de créer la tâche");
     } finally {
+      createInFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleStatusChange = useCallback(async (todo: Todo, newStatus: TodoStatus) => {
+    const previousStatus = todo.status;
+    const optimistic = { ...todo, status: newStatus };
+    replaceTodoInLists(optimistic);
     try {
-      const previousStatus = todo.status;
       const updated = await updateTodo(todo.id, { status: newStatus });
       replaceTodoInLists(updated);
       setLastAction({ todoId: todo.id, previousStatus });
     } catch {
+      const rollback = (prev: Todo[]) => {
+        const i = prev.findIndex((x) => x.id === todo.id);
+        if (i === -1) return prev;
+        if (prev[i].status !== newStatus) return prev;
+        return replaceTodoInArray(prev, todo);
+      };
+      setMyTodos(rollback);
+      setAssignedTodos(rollback);
       toast.error(t("toast.updateError"));
     }
   }, [toast, replaceTodoInLists, t]);
@@ -629,11 +701,11 @@ export default function TodosPage() {
   const deletedTodos = useMemo(() => advancedFiltered.filter((t) => t.status === "deleted" && !t.parentId), [advancedFiltered]);
 
   const grouped = useMemo<Record<Quadrant, Todo[]>>(() => ({
-    "do-first": activeTodos.filter((t) => classify(t) === "do-first"),
-    schedule: activeTodos.filter((t) => classify(t) === "schedule"),
-    delegate: activeTodos.filter((t) => classify(t) === "delegate"),
-    eliminate: activeTodos.filter((t) => classify(t) === "eliminate"),
-  }), [activeTodos]);
+    "do-first": activeTodos.filter((t) => classify(t, nowMs) === "do-first"),
+    schedule: activeTodos.filter((t) => classify(t, nowMs) === "schedule"),
+    delegate: activeTodos.filter((t) => classify(t, nowMs) === "delegate"),
+    eliminate: activeTodos.filter((t) => classify(t, nowMs) === "eliminate"),
+  }), [activeTodos, nowMs]);
 
   const { subtaskCounts, subtasksByParent } = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -702,8 +774,8 @@ export default function TodosPage() {
 
   const radarPriorityList = useMemo(() => {
     const source: Todo[] = filters.size === 0 ? activeTodos : listTodos;
-    return [...source].sort((a, b) => compareTodosForRadarList(a, b, radarMode));
-  }, [filters.size, activeTodos, listTodos, radarMode]);
+    return [...source].sort((a, b) => compareTodosForRadarList(a, b, radarMode, nowMs));
+  }, [filters.size, activeTodos, listTodos, radarMode, nowMs]);
 
   const activeQuadrantFilters = QUADRANT_KEYS.filter((k) => filters.has(k));
   const activeStatusFilters = STATUS_KEYS.filter((k) => filters.has(k));
@@ -1160,6 +1232,7 @@ export default function TodosPage() {
               allTodos={todos}
               sortCol={sortCol}
               sortDir={sortDir}
+              nowMs={nowMs}
               meUid={meUid}
               userDisplayName={userDisplayName}
               onSort={(col) => {
@@ -1203,7 +1276,7 @@ export default function TodosPage() {
                   ) : (
                     <div className="space-y-2">
                       {listTodos.map((todo) => (
-                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
+                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
                       ))}
                     </div>
                   )}
@@ -1213,7 +1286,7 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
@@ -1227,7 +1300,7 @@ export default function TodosPage() {
                         {activeStatusFilters.flatMap((f) =>
                           f === "completed" ? completedTodos : f === "cancelled" ? cancelledTodos : deletedTodos
                         ).map((todo) => (
-                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
+                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
                         ))}
                       </div>
                     </div>
@@ -1259,10 +1332,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
 
@@ -1274,10 +1347,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
                 </>
@@ -1310,7 +1383,7 @@ export default function TodosPage() {
                         eliminate: "bg-zinc-50 dark:bg-slate-800/40 border-zinc-200 dark:border-slate-700",
                       };
                       return priorityTodos.slice(0, 5).map((todo, i) => {
-                        const q = classify(todo);
+                        const q = classify(todo, nowMs);
                         const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
                         return (
                           <div
@@ -1422,6 +1495,7 @@ export default function TodosPage() {
                     userDisplayName={userDisplayName}
                     radarMode={radarMode}
                     onRadarModeChange={setRadarMode}
+                    nowMs={nowMs}
                   />
                 </div>
               </div>

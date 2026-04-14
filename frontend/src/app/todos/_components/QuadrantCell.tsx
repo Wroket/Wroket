@@ -25,6 +25,7 @@ export interface QuadrantCellProps {
   todoNoteIds?: Record<string, string>;
   onCreateNote?: (t: Todo) => void;
   justCreatedId?: string | null;
+  nowMs?: number;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   projects?: Project[];
@@ -47,6 +48,7 @@ export default function QuadrantCell({
   todoNoteIds = {},
   onCreateNote,
   justCreatedId,
+  nowMs,
   meUid,
   userDisplayName,
   projects = [],
@@ -105,6 +107,7 @@ export default function QuadrantCell({
                 <div key={todo.id}>
                   <TodoCard
                     todo={todo}
+                    nowMs={nowMs}
                     onComplete={onComplete}
                     onDelete={onDelete}
                     onCancel={onCancel}

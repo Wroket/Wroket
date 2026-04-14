@@ -48,6 +48,8 @@ export interface TaskListProps {
   justCreatedId?: string | null;
   commentCounts?: Record<string, number>;
   onReorder?: (orderedIds: string[]) => void;
+  /** Horodatage partagé avec le radar pour tri et badges de quadrant. */
+  nowMs?: number;
 }
 
 export default function TaskList({
@@ -73,9 +75,10 @@ export default function TaskList({
   justCreatedId,
   commentCounts = {},
   onReorder,
+  nowMs,
 }: TaskListProps) {
   const { t } = useLocale();
-  const sorted = useMemo(() => sortTodos(todos, sortCol, sortDir), [todos, sortCol, sortDir]);
+  const sorted = useMemo(() => sortTodos(todos, sortCol, sortDir, nowMs), [todos, sortCol, sortDir, nowMs]);
 
   const [displayOrder, setDisplayOrder] = useState<Todo[]>(sorted);
   useEffect(() => { setDisplayOrder(sorted); }, [sorted]);
@@ -162,6 +165,7 @@ export default function TaskList({
                     <SortableTaskRow
                       key={todo.id}
                       todo={todo}
+                      nowMs={nowMs}
                       isArchived={todo.status !== "active"}
                       meUid={meUid}
                       userDisplayName={userDisplayName}

@@ -18,6 +18,8 @@ import SubtaskSortableRows from "./SubtaskSortableRows";
 
 export interface SortableTaskRowProps {
   todo: Todo;
+  /** Horodatage partagé avec le radar pour le badge de quadrant. */
+  nowMs?: number;
   isArchived: boolean;
   meUid: string | null;
   userDisplayName: (uid: string) => string;
@@ -42,6 +44,7 @@ export interface SortableTaskRowProps {
 
 export default function SortableTaskRow({
   todo,
+  nowMs,
   isArchived,
   meUid,
   userDisplayName,
@@ -82,7 +85,7 @@ export default function SortableTaskRow({
   };
 
   const badge = PRIORITY_BADGES[todo.priority];
-  const qBadge = QUADRANT_BADGES[classify(todo)];
+  const qBadge = QUADRANT_BADGES[classify(todo, nowMs)];
   const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
   const subs = subtasksOf(todo.id);
 

@@ -34,6 +34,8 @@ interface TodoCardProps {
   userDisplayName?: (uid: string) => string;
   commentCount?: number;
   projects?: Project[];
+  /** Horodatage partagé avec le radar pour la barre de quadrant. */
+  nowMs?: number;
 }
 
 export default function TodoCard({
@@ -56,6 +58,7 @@ export default function TodoCard({
   userDisplayName,
   commentCount = 0,
   projects = [],
+  nowMs,
 }: TodoCardProps) {
   const { t } = useLocale();
   const badge = PRIORITY_BADGES[todo.priority];
@@ -69,7 +72,7 @@ export default function TodoCard({
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit?.(todo); } }}
       className="group bg-white dark:bg-slate-900/80 rounded border border-zinc-200 dark:border-slate-600/40 pl-1 pr-3 py-2.5 flex items-start gap-2 shadow-sm hover:shadow transition-shadow cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
     >
-      <div className={`w-1 self-stretch rounded-full shrink-0 ${QUADRANT_CONFIG[classify(todo)].accentBar}`} />
+      <div className={`w-1 self-stretch rounded-full shrink-0 ${QUADRANT_CONFIG[classify(todo, nowMs)].accentBar}`} />
       {todo.status !== "active" ? (
         <button
           onClick={() => onComplete(todo)}

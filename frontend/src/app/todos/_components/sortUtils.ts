@@ -33,13 +33,19 @@ export const PRIORITY_RANK: Record<Priority, number> = {
   high: 1, medium: 2, low: 3,
 };
 
-export function sortTodos(todos: Todo[], column: SortColumn, direction: SortDirection): Todo[] {
+export function sortTodos(
+  todos: Todo[],
+  column: SortColumn,
+  direction: SortDirection,
+  /** Horodatage partagé avec le radar (décroissance de l’urgence). */
+  nowMs?: number,
+): Todo[] {
   const sorted = [...todos];
   const dir = direction === "asc" ? 1 : -1;
   sorted.sort((a, b) => {
     switch (column) {
       case "classification":
-        return dir * (QUADRANT_RANK[classify(a)] - QUADRANT_RANK[classify(b)]);
+        return dir * (QUADRANT_RANK[classify(a, nowMs)] - QUADRANT_RANK[classify(b, nowMs)]);
       case "priority":
         return dir * (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
       case "deadline": {

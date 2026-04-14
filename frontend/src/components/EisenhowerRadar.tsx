@@ -59,6 +59,8 @@ interface Props {
   /** Si les deux sont fournis, le mode est contrôlé par le parent (ex. liste « Priorités » synchronisée). */
   radarMode?: RadarMode;
   onRadarModeChange?: (mode: RadarMode) => void;
+  /** Horodatage partagé pour le score decay (fourni par un ticker 60s dans le parent). */
+  nowMs?: number;
 }
 
 export default function EisenhowerRadar({
@@ -69,6 +71,7 @@ export default function EisenhowerRadar({
   compact,
   radarMode: radarModeProp,
   onRadarModeChange,
+  nowMs,
 }: Props) {
   const { t } = useLocale();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -81,17 +84,18 @@ export default function EisenhowerRadar({
   };
 
   const scoreById = useMemo(() => {
+    const now = nowMs ?? Date.now();
     const m = new Map<string, TaskScores>();
     for (const todo of todos) {
-      m.set(todo.id, computeTaskScores(todo));
+      m.set(todo.id, computeTaskScores(todo, now));
     }
     return m;
-  }, [todos]);
+  }, [todos, nowMs]);
 
   /** Fan-out nearby dots inside the same quadrant cell for readability */
   const spreadById = useMemo(() => {
     const items = todos.map((todo) => {
-      const scores = scoreById.get(todo.id) ?? computeTaskScores(todo);
+      const scores = scoreById.get(todo.id)!;
       const p = radarDotPlacement(todo.id, scores, radarMode);
       return { id: todo.id, left: p.left, bottom: p.bottom, quadrant: scores.quadrant };
     });
