@@ -143,7 +143,7 @@ const ADMIN_ITEM = {
   ),
 };
 
-const ADMIN_EMAILS = ["francois@broudeur.com"];
+const ADMIN_EMAILS = ["francois@broudeur.com", "team@wroket.com"];
 
 function NavLink({ href, icon, label, active, onClick }: { href: string; icon: ReactNode; label: string; active: boolean; onClick?: () => void }) {
   return (

@@ -48,7 +48,8 @@ steps:
       - '--max-instances'
       - '2'
       - '--update-env-vars'
-      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,ADMIN_EMAILS=francois@broudeur.com'
+      # ADMIN_EMAILS: comma in value escaped for gcloud --update-env-vars.
+      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,ADMIN_EMAILS=francois@broudeur.com\,team@wroket.com'
       # Required in production (server.ts): Calendar OAuth + Google SSO state signing. Create in Secret Manager if missing.
       - '--set-secrets'
       - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest'
