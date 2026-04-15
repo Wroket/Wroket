@@ -4,6 +4,12 @@ import { URL } from "url";
 
 import { getStore, scheduleSave } from "../persistence";
 import { ValidationError } from "../utils/errors";
+import {
+  escapeSlackMrkdwn,
+  normalizeNotificationData,
+  shouldUseRichLayout,
+  taskDeepLink,
+} from "./notificationFormatting";
 
 export type WebhookEvent =
   | "task_assigned"
@@ -134,6 +140,11 @@ interface WebhookPayload {
   timestamp: string;
 }
 
+function truncateDiscord(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
 /**
  * Format a payload for the target platform.
  * Slack uses Block Kit, Discord uses embeds, Teams uses Adaptive Cards, Google Chat uses `text`.
@@ -165,22 +176,116 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
     project_deleted: "🗑️",
   }[payload.event] ?? "🔔";
 
+  const ctx = normalizeNotificationData(payload.data);
+  const rich = shouldUseRichLayout(payload.data);
+  const deepLink = taskDeepLink(ctx.todoId);
+
   switch (platform) {
-    case "slack":
-      return {
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `${emoji} *${payload.title}*\n${payload.message}`,
+    case "slack": {
+      if (!rich) {
+        return {
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `${emoji} *${escapeSlackMrkdwn(payload.title)}*\n${escapeSlackMrkdwn(payload.message)}`,
+              },
             },
+          ],
+          attachments: [{ color, fallback: payload.message }],
+        };
+      }
+      const blocks: Record<string, unknown>[] = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `${emoji} *${escapeSlackMrkdwn(payload.title)}*`,
           },
-        ],
+        },
+      ];
+      const fields: { type: string; text: string }[] = [];
+      if (ctx.todoTitle) {
+        fields.push({ type: "mrkdwn", text: `*Tâche*\n${escapeSlackMrkdwn(ctx.todoTitle)}` });
+      }
+      if (ctx.actorEmail) {
+        fields.push({ type: "mrkdwn", text: `*Par*\n${escapeSlackMrkdwn(ctx.actorEmail)}` });
+      }
+      if (ctx.recipientEmail) {
+        fields.push({ type: "mrkdwn", text: `*Pour*\n${escapeSlackMrkdwn(ctx.recipientEmail)}` });
+      }
+      if (ctx.projectName) {
+        fields.push({ type: "mrkdwn", text: `*Projet*\n${escapeSlackMrkdwn(ctx.projectName)}` });
+      }
+      if (ctx.teamName) {
+        fields.push({ type: "mrkdwn", text: `*Équipe*\n${escapeSlackMrkdwn(ctx.teamName)}` });
+      }
+      if (fields.length > 0) {
+        blocks.push({ type: "section", fields });
+      }
+      if (ctx.commentPreview) {
+        const quoted = escapeSlackMrkdwn(ctx.commentPreview)
+          .split("\n")
+          .map((line) => `>${line || " "}`)
+          .join("\n");
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Commentaire*\n${quoted}`,
+          },
+        });
+      }
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: escapeSlackMrkdwn(payload.message),
+        },
+      });
+      if (deepLink) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `<${deepLink}|Ouvrir dans Wroket>`,
+          },
+        });
+      }
+      return {
+        blocks,
         attachments: [{ color, fallback: payload.message }],
       };
+    }
 
-    case "discord":
+    case "discord": {
+      if (!rich) {
+        return {
+          embeds: [
+            {
+              title: `${emoji} ${payload.title}`,
+              description: payload.message,
+              color: parseInt(color.replace("#", ""), 16),
+              timestamp: payload.timestamp,
+              footer: { text: "Wroket" },
+            },
+          ],
+        };
+      }
+      const discordFields: { name: string; value: string; inline: boolean }[] = [];
+      if (ctx.todoTitle) discordFields.push({ name: "Tâche", value: truncateDiscord(ctx.todoTitle, 1024), inline: true });
+      if (ctx.actorEmail) discordFields.push({ name: "Par", value: truncateDiscord(ctx.actorEmail, 1024), inline: true });
+      if (ctx.recipientEmail) discordFields.push({ name: "Pour", value: truncateDiscord(ctx.recipientEmail, 1024), inline: true });
+      if (ctx.projectName) discordFields.push({ name: "Projet", value: truncateDiscord(ctx.projectName, 1024), inline: true });
+      if (ctx.teamName) discordFields.push({ name: "Équipe", value: truncateDiscord(ctx.teamName, 1024), inline: true });
+      if (ctx.commentPreview) {
+        discordFields.push({
+          name: "Commentaire",
+          value: truncateDiscord(ctx.commentPreview, 1024),
+          inline: false,
+        });
+      }
       return {
         embeds: [
           {
@@ -189,11 +294,42 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
             color: parseInt(color.replace("#", ""), 16),
             timestamp: payload.timestamp,
             footer: { text: "Wroket" },
+            fields: discordFields.length > 0 ? discordFields : undefined,
+            url: deepLink,
           },
         ],
       };
+    }
 
-    case "teams":
+    case "teams": {
+      const body: Record<string, unknown>[] = [
+        { type: "TextBlock", text: `${emoji} ${payload.title}`, weight: "Bolder", size: "Medium" },
+      ];
+      if (rich) {
+        const facts: { title: string; value: string }[] = [];
+        if (ctx.todoTitle) facts.push({ title: "Tâche", value: ctx.todoTitle });
+        if (ctx.actorEmail) facts.push({ title: "Par", value: ctx.actorEmail });
+        if (ctx.recipientEmail) facts.push({ title: "Pour", value: ctx.recipientEmail });
+        if (ctx.projectName) facts.push({ title: "Projet", value: ctx.projectName });
+        if (ctx.teamName) facts.push({ title: "Équipe", value: ctx.teamName });
+        if (ctx.commentPreview) facts.push({ title: "Commentaire", value: ctx.commentPreview });
+        if (facts.length > 0) {
+          body.push({ type: "FactSet", facts });
+        }
+      }
+      body.push({ type: "TextBlock", text: payload.message, wrap: true });
+      if (deepLink) {
+        body.push({
+          type: "ActionSet",
+          actions: [
+            {
+              type: "Action.OpenUrl",
+              title: "Ouvrir dans Wroket",
+              url: deepLink,
+            },
+          ],
+        });
+      }
       return {
         type: "message",
         attachments: [
@@ -203,20 +339,32 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
               $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
               type: "AdaptiveCard",
               version: "1.4",
-              body: [
-                { type: "TextBlock", text: `${emoji} ${payload.title}`, weight: "Bolder", size: "Medium" },
-                { type: "TextBlock", text: payload.message, wrap: true },
-              ],
+              body,
             },
           },
         ],
       };
+    }
 
-    case "google_chat":
-      // Incoming webhooks: https://developers.google.com/chat/how-tasks/incoming-webhooks
+    case "google_chat": {
+      if (!rich) {
+        return {
+          text: `${emoji} *${payload.title}*\n\n${payload.message}`,
+        };
+      }
+      const lines: string[] = [`${emoji} *${payload.title}*`];
+      if (ctx.todoTitle) lines.push("", `*Tâche:* ${ctx.todoTitle}`);
+      if (ctx.actorEmail) lines.push(`*Par:* ${ctx.actorEmail}`);
+      if (ctx.recipientEmail) lines.push(`*Pour:* ${ctx.recipientEmail}`);
+      if (ctx.projectName) lines.push(`*Projet:* ${ctx.projectName}`);
+      if (ctx.teamName) lines.push(`*Équipe:* ${ctx.teamName}`);
+      if (ctx.commentPreview) lines.push("", `*Commentaire:* ${ctx.commentPreview}`);
+      lines.push("", payload.message);
+      if (deepLink) lines.push("", `Ouvrir dans Wroket : ${deepLink}`);
       return {
-        text: `${emoji} ${payload.title}\n\n${payload.message}`,
+        text: lines.join("\n"),
       };
+    }
 
     default:
       return payload;

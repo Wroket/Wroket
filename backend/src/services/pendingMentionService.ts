@@ -1,7 +1,9 @@
 import crypto from "crypto";
 
 import { findUserByEmail, findUserByUid, normalizeEmail } from "./authService";
+import { listComments } from "./commentService";
 import { createNotification } from "./notificationService";
+import { findTodoForUser } from "./todoService";
 import { getStore, scheduleSave } from "../persistence";
 
 export interface PendingCommentMention {
@@ -98,12 +100,22 @@ export function deliverPendingMentionsAfterCollaborationAccepted(inviterUid: str
 
   for (const p of toDeliver) {
     try {
+      const todoCtx = findTodoForUser(inviterUid, p.todoId);
+      const todoTitle = todoCtx?.todo.title ?? "Tâche";
+      const comments = listComments(p.todoId);
+      const c = comments.find((x) => x.id === p.commentId);
+      const preview = (c?.text ?? "").replace(/\s+/g, " ").trim().slice(0, 280);
       createNotification(
         user.uid,
         "comment_mention",
         "Mention dans un commentaire",
-        `${inviterLabel} vous a mentionné dans un commentaire`,
-        { todoId: p.todoId },
+        `${inviterLabel} vous a mentionné dans un commentaire sur « ${todoTitle} »`,
+        {
+          todoId: p.todoId,
+          todoTitle,
+          actorEmail: inviter?.email ?? "",
+          commentPreview: preview,
+        },
       );
     } catch (err) {
       console.warn("[pendingMentions] notification failed:", err);

@@ -8,6 +8,7 @@ export type {
   AuthMeResponse,
   ActivityLogEntry,
   NotificationDeliveryMode,
+  NotificationOutboundFrequency,
 } from "./core";
 
 export {

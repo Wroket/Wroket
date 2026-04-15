@@ -7,6 +7,8 @@ import {
   type WorkingHours,
   type ActivityLogEntry,
   type NotificationDeliveryMode,
+  type NotificationOutboundFrequency,
+  type NotificationType,
 } from "./core";
 
 interface LoginPayload {
@@ -303,6 +305,8 @@ export async function getMe(): Promise<AuthMeResponse> {
   return (await res.json()) as AuthMeResponse;
 }
 
+export type { NotificationOutboundFrequency, NotificationType };
+
 export async function updateProfile(payload: {
   firstName?: string;
   lastName?: string;
@@ -311,6 +315,10 @@ export async function updateProfile(payload: {
   skipNonWorkingDays?: boolean;
   notificationDeliveryMode?: NotificationDeliveryMode;
   notificationDeliveryWebhookUrl?: string | null;
+  notificationTypesDisabledInApp?: NotificationType[];
+  notificationTypesDisabledOutbound?: NotificationType[];
+  notificationOutboundFrequency?: NotificationOutboundFrequency;
+  notificationDigestHour?: number;
 }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PUT",

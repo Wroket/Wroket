@@ -43,7 +43,7 @@ async function deliverCollaborationInvite(inviter: AuthUser, inviteeEmailNormali
         "team_invite",
         "Invitation",
         `${inviterEmail} vous a invité à collaborer`,
-        { inviterEmail },
+        { inviterEmail, actorEmail: inviterEmail },
       );
     }
   } catch (err) {
@@ -145,7 +145,7 @@ export async function postAcceptCollaboration(req: AuthenticatedRequest, res: Re
       "task_accepted",
       "Collaboration acceptée",
       `${req.user!.email} a accepté votre invitation à collaborer`,
-      { acceptedByEmail: req.user!.email }
+      { acceptedByEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
     );
   } catch { /* ignore */ }
 
@@ -167,7 +167,7 @@ export async function postDeclineCollaboration(req: AuthenticatedRequest, res: R
       "task_declined",
       "Collaboration refusée",
       `${req.user!.email} a décliné votre invitation à collaborer`,
-      { declinedByEmail: req.user!.email }
+      { declinedByEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
     );
   } catch { /* ignore */ }
 
@@ -201,7 +201,7 @@ export async function postCreateTeam(req: AuthenticatedRequest, res: Response) {
           "team_invite",
           "Ajouté à une équipe",
           `${req.user!.email} vous a ajouté à l'équipe "${team.name}"`,
-          { teamId: team.id, teamName: team.name }
+          { teamId: team.id, teamName: team.name, actorEmail: req.user!.email ?? "" }
         );
       }
     }
@@ -229,7 +229,7 @@ export async function postAddMember(req: AuthenticatedRequest, res: Response) {
         "team_invite",
         "Ajouté à une équipe",
         `${req.user!.email} vous a ajouté à l'équipe "${team.name}"`,
-        { teamId: team.id, teamName: team.name }
+        { teamId: team.id, teamName: team.name, actorEmail: req.user!.email ?? "" }
       );
     }
   } catch (err) {
@@ -337,7 +337,7 @@ export async function postTransferOwnership(req: AuthenticatedRequest, res: Resp
         "team_invite",
         "Team ownership transferred",
         `You are now the owner of the team "${team.name}"`,
-        { teamId: team.id, teamName: team.name },
+        { teamId: team.id, teamName: team.name, actorEmail: req.user!.email ?? "" },
       );
     }
   } catch { /* ignore */ }

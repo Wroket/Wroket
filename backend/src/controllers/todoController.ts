@@ -51,9 +51,13 @@ function applyCommentMentions(
   todoId: string,
   commentId: string,
   emails: string[],
+  commentText: string,
 ): string[] {
   const mentionInviteNeeded: string[] = [];
   const actor = normalizeEmail(authorEmail ?? "");
+  const todoCtx = findTodoForUser(authorUid, todoId);
+  const todoTitle = todoCtx?.todo.title ?? "Tâche";
+  const preview = commentText.replace(/\s+/g, " ").trim().slice(0, 280);
   for (const email of emails) {
     if (email === actor) continue;
     if (isActiveCollaborator(authorUid, email)) {
@@ -63,8 +67,14 @@ function applyCommentMentions(
           mentioned.uid,
           "comment_mention",
           "Mention dans un commentaire",
-          `${authorEmail ?? "Quelqu'un"} vous a mentionné dans un commentaire`,
-          { todoId },
+          `${authorEmail ?? "Quelqu'un"} vous a mentionné dans un commentaire sur « ${todoTitle} »`,
+          {
+            todoId,
+            todoTitle,
+            actorEmail: authorEmail ?? "",
+            recipientEmail: mentioned.email,
+            commentPreview: preview,
+          },
         );
       }
     } else {
@@ -135,7 +145,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
         "task_assigned",
         "Tâche assignée",
         `${req.user!.email} vous a assigné la tâche "${todo.title}"`,
-        { todoId: todo.id, assignerEmail: req.user!.email }
+        { todoId: todo.id, todoTitle: todo.title, assignerEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
       );
     }
   } catch (err) {
@@ -176,7 +186,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_assigned",
         "Tâche réassignée",
         `${req.user!.email} vous a retiré de la tâche "${todo.title}"`,
-        { todoId: todo.id }
+        { todoId: todo.id, todoTitle: todo.title, actorEmail: req.user!.email ?? "" }
       );
     }
 
@@ -190,7 +200,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_assigned",
         "Tâche assignée",
         `${req.user!.email} vous a assigné la tâche "${todo.title}"`,
-        { todoId: todo.id, assignerEmail: req.user!.email }
+        { todoId: todo.id, todoTitle: todo.title, assignerEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
       );
     }
 
@@ -204,7 +214,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_declined",
         "Tâche refusée",
         `${req.user!.email} a refusé la tâche "${todo.title}"`,
-        { todoId: todo.id, declinerEmail: req.user!.email }
+        { todoId: todo.id, todoTitle: todo.title, declinerEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
       );
     }
 
@@ -218,7 +228,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_accepted",
         "Tâche acceptée",
         `${req.user!.email} a accepté la tâche "${todo.title}"`,
-        { todoId: todo.id, accepterEmail: req.user!.email }
+        { todoId: todo.id, todoTitle: todo.title, accepterEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
       );
     }
 
@@ -233,7 +243,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_completed",
         "Tâche archivée par l'assigné",
         `${req.user!.email} a archivé la tâche « ${todo.title} » (terminée)`,
-        { todoId: todo.id, assigneeEmail: req.user!.email }
+        { todoId: todo.id, todoTitle: todo.title, assigneeEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
       );
     }
 
@@ -248,7 +258,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_cancelled",
         "Tâche annulée par l'assigné",
         `${req.user!.email} a annulé la tâche « ${todo.title} »`,
-        { todoId: todo.id, assigneeEmail: req.user!.email }
+        { todoId: todo.id, todoTitle: todo.title, assigneeEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
       );
     }
 
@@ -262,7 +272,13 @@ export async function update(req: AuthenticatedRequest, res: Response) {
             "task_completed",
             "Tâche projet accomplie",
             `${req.user!.email} a terminé la tâche "${todo.title}" du projet "${project.name}"`,
-            { todoId: todo.id, projectId: project.id }
+            {
+              todoId: todo.id,
+              projectId: project.id,
+              todoTitle: todo.title,
+              projectName: project.name,
+              actorEmail: req.user!.email ?? "",
+            }
           );
         }
       }
@@ -328,7 +344,7 @@ export async function postComment(req: AuthenticatedRequest, res: Response) {
 
   let mentionInviteNeeded: string[] = [];
   try {
-    mentionInviteNeeded = applyCommentMentions(req.user!.uid, req.user!.email, todoId, comment.id, parseMentions(text));
+    mentionInviteNeeded = applyCommentMentions(req.user!.uid, req.user!.email, todoId, comment.id, parseMentions(text), text);
   } catch (err) {
     console.warn("[comment] mention notification failed:", err);
   }
@@ -366,6 +382,7 @@ export async function editCommentHandler(req: AuthenticatedRequest, res: Respons
       todoId,
       comment.id,
       newMentionsOnly(oldText, text),
+      text,
     );
   } catch (err) {
     console.warn("[comment] mention notification failed:", err);

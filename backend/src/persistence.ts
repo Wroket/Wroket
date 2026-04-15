@@ -34,6 +34,8 @@ const DOMAINS = [
   "pendingCommentMentions",
   /** Short-lived tokens for password/Google login when TOTP is enabled (multi-instance safe) */
   "pendingTwoFactor",
+  /** Outbound notification digest queue (hourly / daily delivery). */
+  "notifDigestQueue",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -56,6 +58,8 @@ export interface StoreData {
   pendingCommentMentions?: unknown[];
   /** Map token -> pending 2FA row (TOTP / email OTP / both) after primary auth */
   pendingTwoFactor?: Record<string, Record<string, unknown>>;
+  /** Per-user queue of outbound notifications pending digest flush */
+  notifDigestQueue?: Record<string, unknown[]>;
 }
 
 let cachedStore: StoreData = {};

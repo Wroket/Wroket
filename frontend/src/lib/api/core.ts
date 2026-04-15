@@ -46,6 +46,19 @@ export interface GoogleAccountPublic {
 }
 
 export type NotificationDeliveryMode = "none" | "email" | "slack" | "teams" | "google_chat";
+export type NotificationOutboundFrequency = "immediate" | "hourly_digest" | "daily_digest";
+
+export type NotificationType =
+  | "task_assigned"
+  | "task_completed"
+  | "task_cancelled"
+  | "task_declined"
+  | "task_accepted"
+  | "team_invite"
+  | "deadline_approaching"
+  | "deadline_today"
+  | "comment_mention"
+  | "project_deleted";
 
 export interface AuthMeResponse {
   uid: string;
@@ -68,6 +81,14 @@ export interface AuthMeResponse {
   /** Copies of in-app notifications (Paramètres → Intégrations) */
   notificationDeliveryMode?: NotificationDeliveryMode;
   notificationDeliveryWebhookUrl?: string | null;
+  /** Notification types suppressed entirely (neither in-app nor outbound). */
+  notificationTypesDisabledInApp?: NotificationType[];
+  /** Notification types suppressed from outbound only (in-app still shown). */
+  notificationTypesDisabledOutbound?: NotificationType[];
+  /** How often outbound notifications are flushed. Default: "immediate". */
+  notificationOutboundFrequency?: NotificationOutboundFrequency;
+  /** Local hour (0-23) at which the daily digest is sent. */
+  notificationDigestHour?: number;
 }
 
 export interface ActivityLogEntry {

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { escapeHtml } from "../utils/escapeHtml";
+import { normalizeNotificationData } from "./notificationFormatting";
 
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
@@ -339,11 +340,53 @@ export async function sendEmailOtpEmail(
 /**
  * In-app notification mirrored to the user's email (settings → notification channel).
  */
-export async function sendNotificationEmail(toEmail: string, title: string, message: string): Promise<void> {
+export async function sendNotificationEmail(
+  toEmail: string,
+  title: string,
+  message: string,
+  data?: Record<string, string>,
+): Promise<void> {
   const subject = `Wroket — ${title}`;
+  const ctx = normalizeNotificationData(data);
+  const detailRows: string[] = [];
+  if (ctx.todoTitle) {
+    detailRows.push(
+      `<tr><td style="padding:6px 12px 6px 0;color:#64748b;font-size:13px;vertical-align:top;width:96px">Tâche</td><td style="padding:6px 0;color:#334155;font-size:14px">${escapeHtml(ctx.todoTitle)}</td></tr>`,
+    );
+  }
+  if (ctx.actorEmail) {
+    detailRows.push(
+      `<tr><td style="padding:6px 12px 6px 0;color:#64748b;font-size:13px;vertical-align:top">Par</td><td style="padding:6px 0;color:#334155;font-size:14px">${escapeHtml(ctx.actorEmail)}</td></tr>`,
+    );
+  }
+  if (ctx.recipientEmail) {
+    detailRows.push(
+      `<tr><td style="padding:6px 12px 6px 0;color:#64748b;font-size:13px;vertical-align:top">Pour</td><td style="padding:6px 0;color:#334155;font-size:14px">${escapeHtml(ctx.recipientEmail)}</td></tr>`,
+    );
+  }
+  if (ctx.projectName) {
+    detailRows.push(
+      `<tr><td style="padding:6px 12px 6px 0;color:#64748b;font-size:13px;vertical-align:top">Projet</td><td style="padding:6px 0;color:#334155;font-size:14px">${escapeHtml(ctx.projectName)}</td></tr>`,
+    );
+  }
+  if (ctx.teamName) {
+    detailRows.push(
+      `<tr><td style="padding:6px 12px 6px 0;color:#64748b;font-size:13px;vertical-align:top">Équipe</td><td style="padding:6px 0;color:#334155;font-size:14px">${escapeHtml(ctx.teamName)}</td></tr>`,
+    );
+  }
+  if (ctx.commentPreview) {
+    detailRows.push(
+      `<tr><td style="padding:6px 12px 6px 0;color:#64748b;font-size:13px;vertical-align:top">Commentaire</td><td style="padding:6px 0;color:#334155;font-size:14px;font-style:italic">${escapeHtml(ctx.commentPreview)}</td></tr>`,
+    );
+  }
+  const detailsBlock =
+    detailRows.length > 0
+      ? `<table style="width:100%;border-collapse:collapse;margin:16px 0;padding:12px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">${detailRows.join("")}</table>`
+      : "";
   const html = `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${emailHeader()}
     <h2 style="color:#334155">${escapeHtml(title)}</h2>
+    ${detailsBlock}
     <p style="color:#475569;line-height:1.5">${escapeHtml(message)}</p>
     ${emailFooter()}
   </div>`;

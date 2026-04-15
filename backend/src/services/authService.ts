@@ -68,6 +68,9 @@ export interface GoogleAccountPublic {
 /** Where to send copies of in-app notifications (Paramètres → Intégrations). */
 export type NotificationDeliveryMode = "none" | "email" | "slack" | "teams" | "google_chat";
 
+/** How often to flush outbound notifications (email / Slack / Teams / Google Chat). */
+export type NotificationOutboundFrequency = "immediate" | "hourly_digest" | "daily_digest";
+
 export interface AuthUser {
   uid: string;
   email: string;
@@ -88,6 +91,14 @@ export interface AuthUser {
   notificationDeliveryMode: NotificationDeliveryMode;
   /** Required when mode is slack, teams, or google_chat */
   notificationDeliveryWebhookUrl: string | null;
+  /** Notification types suppressed entirely (neither in-app nor outbound). */
+  notificationTypesDisabledInApp: string[];
+  /** Notification types suppressed from outbound only (in-app still shown). */
+  notificationTypesDisabledOutbound: string[];
+  /** How often outbound notifications are sent. Default: "immediate". */
+  notificationOutboundFrequency: NotificationOutboundFrequency;
+  /** Local hour (0-23) at which the daily digest is sent. Uses workingHours.timezone. */
+  notificationDigestHour: number;
 }
 
 interface StoredUser {
@@ -127,6 +138,10 @@ interface StoredUser {
   totpEmailFallbackEnabled?: boolean;
   notificationDeliveryMode?: NotificationDeliveryMode;
   notificationDeliveryWebhookUrl?: string;
+  notificationTypesDisabledInApp?: string[];
+  notificationTypesDisabledOutbound?: string[];
+  notificationOutboundFrequency?: NotificationOutboundFrequency;
+  notificationDigestHour?: number;
   /** Pending enrollment / disable flows — email OTP verification */
   email2faEnrollHash?: string;
   email2faEnrollExpiresAt?: number;
@@ -222,6 +237,12 @@ function readNotificationDeliveryMode(user: StoredUser): NotificationDeliveryMod
   return "none";
 }
 
+function readNotificationOutboundFrequency(user: StoredUser): NotificationOutboundFrequency {
+  const f = user.notificationOutboundFrequency;
+  if (f === "immediate" || f === "hourly_digest" || f === "daily_digest") return f;
+  return "immediate";
+}
+
 function toAuthUser(user: StoredUser): AuthUser {
   const accounts = resolveGoogleAccounts(user);
   return {
@@ -242,6 +263,10 @@ function toAuthUser(user: StoredUser): AuthUser {
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
     notificationDeliveryMode: readNotificationDeliveryMode(user),
     notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl?.trim() || null,
+    notificationTypesDisabledInApp: Array.isArray(user.notificationTypesDisabledInApp) ? user.notificationTypesDisabledInApp : [],
+    notificationTypesDisabledOutbound: Array.isArray(user.notificationTypesDisabledOutbound) ? user.notificationTypesDisabledOutbound : [],
+    notificationOutboundFrequency: readNotificationOutboundFrequency(user),
+    notificationDigestHour: typeof user.notificationDigestHour === "number" ? Math.max(0, Math.min(23, Math.floor(user.notificationDigestHour))) : 8,
   };
 }
 
@@ -580,6 +605,10 @@ export interface UpdateProfileInput {
   skipNonWorkingDays?: boolean;
   notificationDeliveryMode?: NotificationDeliveryMode;
   notificationDeliveryWebhookUrl?: string | null;
+  notificationTypesDisabledInApp?: string[];
+  notificationTypesDisabledOutbound?: string[];
+  notificationOutboundFrequency?: NotificationOutboundFrequency;
+  notificationDigestHour?: number;
 }
 
 const HH_MM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -659,6 +688,25 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
     }
   }
 
+  if (input.notificationTypesDisabledInApp !== undefined) {
+    user.notificationTypesDisabledInApp = input.notificationTypesDisabledInApp.filter((t) => typeof t === "string").slice(0, 50);
+  }
+  if (input.notificationTypesDisabledOutbound !== undefined) {
+    user.notificationTypesDisabledOutbound = input.notificationTypesDisabledOutbound.filter((t) => typeof t === "string").slice(0, 50);
+  }
+  if (input.notificationOutboundFrequency !== undefined) {
+    const f = input.notificationOutboundFrequency;
+    if (f !== "immediate" && f !== "hourly_digest" && f !== "daily_digest") {
+      throw new ValidationError("notificationOutboundFrequency invalide");
+    }
+    user.notificationOutboundFrequency = f;
+  }
+  if (input.notificationDigestHour !== undefined) {
+    const h = Math.floor(Number(input.notificationDigestHour));
+    if (isNaN(h) || h < 0 || h > 23) throw new ValidationError("notificationDigestHour doit être entre 0 et 23");
+    user.notificationDigestHour = h;
+  }
+
   usersByUid.set(uid, user);
   persistUsers();
 
@@ -679,6 +727,27 @@ export function getNotificationDeliveryPrefs(uid: string): {
     mode: readNotificationDeliveryMode(user),
     webhookUrl: user.notificationDeliveryWebhookUrl?.trim() || null,
     email: user.email,
+  };
+}
+
+/**
+ * Per-type filter preferences for in-app and outbound notifications, plus outbound frequency.
+ */
+export function getNotificationFilterPrefs(uid: string): {
+  disabledInApp: string[];
+  disabledOutbound: string[];
+  frequency: NotificationOutboundFrequency;
+  digestHour: number;
+  timezone: string;
+} | null {
+  const user = usersByUid.get(uid);
+  if (!user) return null;
+  return {
+    disabledInApp: Array.isArray(user.notificationTypesDisabledInApp) ? user.notificationTypesDisabledInApp : [],
+    disabledOutbound: Array.isArray(user.notificationTypesDisabledOutbound) ? user.notificationTypesDisabledOutbound : [],
+    frequency: readNotificationOutboundFrequency(user),
+    digestHour: typeof user.notificationDigestHour === "number" ? Math.max(0, Math.min(23, Math.floor(user.notificationDigestHour))) : 8,
+    timezone: user.workingHours?.timezone ?? "Europe/Paris",
   };
 }
 

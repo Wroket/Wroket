@@ -1,5 +1,6 @@
 import { getStore } from "../persistence";
 import { createNotification, listNotifications } from "./notificationService";
+import { flushHourlyDigests, flushDailyDigests } from "./digestService";
 import { listAllTodos } from "./todoService";
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1h
@@ -38,12 +39,12 @@ function checkDeadlines(): void {
       if (deadlineStr === todayStr) {
         if (sentToday.has(`deadline_today:${todoId}`)) continue;
         createNotification(userId, "deadline_today", "Échéance aujourd'hui",
-          `La tâche "${title}" arrive à échéance aujourd'hui`, { todoId });
+          `La tâche "${title}" arrive à échéance aujourd'hui`, { todoId, todoTitle: title });
         sentToday.add(`deadline_today:${todoId}`);
       } else if (deadlineDate > now && deadlineDate <= in24h) {
         if (sentToday.has(`deadline_approaching:${todoId}`)) continue;
         createNotification(userId, "deadline_approaching", "Échéance proche",
-          `La tâche "${title}" arrive à échéance demain`, { todoId });
+          `La tâche "${title}" arrive à échéance demain`, { todoId, todoTitle: title });
         sentToday.add(`deadline_approaching:${todoId}`);
       }
     }
@@ -52,10 +53,16 @@ function checkDeadlines(): void {
 
 let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
+function runHourlyJobs(): void {
+  checkDeadlines();
+  try { flushHourlyDigests(); } catch (err) { console.warn("[reminders] hourly digest flush failed:", err); }
+  try { flushDailyDigests(new Date()); } catch (err) { console.warn("[reminders] daily digest flush failed:", err); }
+}
+
 export function startReminderJob(): void {
   console.log("[reminders] Démarrage du job de rappels (intervalle: 1h)");
-  checkDeadlines();
-  reminderTimer = setInterval(checkDeadlines, REMINDER_INTERVAL_MS);
+  runHourlyJobs();
+  reminderTimer = setInterval(runHourlyJobs, REMINDER_INTERVAL_MS);
   reminderTimer.unref();
 }
 

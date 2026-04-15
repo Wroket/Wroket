@@ -2,7 +2,8 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError } from "../utils/errors";
-import { getNotificationDeliveryPrefs } from "./authService";
+import { findUserByUid, getNotificationDeliveryPrefs, getNotificationFilterPrefs } from "./authService";
+import { enqueueDigest } from "./digestService";
 import { sendNotificationEmail } from "./emailService";
 import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
 
@@ -65,6 +66,28 @@ export function createNotification(
   message: string,
   data?: Record<string, string>
 ): Notification {
+  const filterPrefs = getNotificationFilterPrefs(userId);
+  if (filterPrefs?.disabledInApp.includes(type)) {
+    return {
+      id: "",
+      userId,
+      type,
+      title,
+      message,
+      read: true,
+      data,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const enriched: Record<string, string> = { ...(data ?? {}) };
+  const recipient = findUserByUid(userId);
+  if (recipient?.email && !enriched.recipientEmail) {
+    enriched.recipientEmail = recipient.email;
+  }
+  const payloadData: Record<string, string> | undefined =
+    Object.keys(enriched).length > 0 ? enriched : undefined;
+
   const notif: Notification = {
     id: crypto.randomUUID(),
     userId,
@@ -72,7 +95,7 @@ export function createNotification(
     title,
     message,
     read: false,
-    data,
+    data: payloadData,
     createdAt: new Date().toISOString(),
   };
   const list = getUserNotifications(userId);
@@ -81,13 +104,13 @@ export function createNotification(
   persist();
 
   try {
-    dispatchWebhooks(userId, type as WebhookEvent, title, message, data);
+    dispatchWebhooks(userId, type as WebhookEvent, title, message, payloadData);
   } catch (err) {
     console.warn("[notifications] webhook dispatch error:", err);
   }
 
   try {
-    deliverProfileOutbound(userId, type, title, message, data);
+    deliverProfileOutbound(userId, type, title, message, payloadData);
   } catch (err) {
     console.warn("[notifications] profile outbound error:", err);
   }
@@ -103,10 +126,19 @@ function deliverProfileOutbound(
   message: string,
   data?: Record<string, string>,
 ): void {
+  const filterPrefs = getNotificationFilterPrefs(userId);
+  if (filterPrefs?.disabledOutbound.includes(type)) return;
+
   const prefs = getNotificationDeliveryPrefs(userId);
   if (!prefs || prefs.mode === "none") return;
+
+  if (filterPrefs && filterPrefs.frequency !== "immediate") {
+    enqueueDigest(userId, type, title, message, data);
+    return;
+  }
+
   if (prefs.mode === "email") {
-    void sendNotificationEmail(prefs.email, title, message);
+    void sendNotificationEmail(prefs.email, title, message, data);
     return;
   }
   if (

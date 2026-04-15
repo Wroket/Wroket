@@ -34,7 +34,9 @@ import {
   type ActivityLogEntry,
   type Team,
   type NotificationDeliveryMode,
+  type NotificationOutboundFrequency,
 } from "@/lib/api";
+import type { NotificationType } from "@/lib/api/teams";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
 
@@ -1116,6 +1118,16 @@ function IntegrationsSection() {
   const [savingDelivery, setSavingDelivery] = useState(false);
   const [deliverySaved, setDeliverySaved] = useState(false);
 
+  const [disabledInApp, setDisabledInApp] = useState<NotificationType[]>([]);
+  const [disabledOutbound, setDisabledOutbound] = useState<NotificationType[]>([]);
+  const [savingTypes, setSavingTypes] = useState(false);
+  const [typesSaved, setTypesSaved] = useState(false);
+
+  const [outboundFrequency, setOutboundFrequency] = useState<NotificationOutboundFrequency>("immediate");
+  const [digestHour, setDigestHour] = useState(8);
+  const [savingFreq, setSavingFreq] = useState(false);
+  const [freqSaved, setFreqSaved] = useState(false);
+
   const [editId, setEditId] = useState<string | undefined>(undefined);
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
@@ -1134,6 +1146,10 @@ function IntegrationsSection() {
           setWebhooks(list);
           setDeliveryMode(me.notificationDeliveryMode ?? "none");
           setDeliveryUrl(me.notificationDeliveryWebhookUrl ?? "");
+          setDisabledInApp((me.notificationTypesDisabledInApp ?? []) as NotificationType[]);
+          setDisabledOutbound((me.notificationTypesDisabledOutbound ?? []) as NotificationType[]);
+          setOutboundFrequency(me.notificationOutboundFrequency ?? "immediate");
+          setDigestHour(me.notificationDigestHour ?? 8);
         }
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
@@ -1159,6 +1175,52 @@ function IntegrationsSection() {
     } finally {
       setSavingDelivery(false);
     }
+  };
+
+  const handleSaveTypes = async () => {
+    setSavingTypes(true);
+    setTypesSaved(false);
+    try {
+      await updateProfile({
+        notificationTypesDisabledInApp: disabledInApp,
+        notificationTypesDisabledOutbound: disabledOutbound,
+      });
+      setTypesSaved(true);
+      setTimeout(() => setTypesSaved(false), 4000);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error");
+    } finally {
+      setSavingTypes(false);
+    }
+  };
+
+  const handleSaveFrequency = async () => {
+    setSavingFreq(true);
+    setFreqSaved(false);
+    try {
+      await updateProfile({
+        notificationOutboundFrequency: outboundFrequency,
+        notificationDigestHour: digestHour,
+      });
+      setFreqSaved(true);
+      setTimeout(() => setFreqSaved(false), 4000);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error");
+    } finally {
+      setSavingFreq(false);
+    }
+  };
+
+  const toggleInApp = (type: NotificationType) => {
+    setDisabledInApp((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+  };
+
+  const toggleOutbound = (type: NotificationType) => {
+    setDisabledOutbound((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
   };
 
   const resetForm = () => {
@@ -1300,9 +1362,6 @@ function IntegrationsSection() {
             />
           </div>
         )}
-        {deliveryMode === "email" && (
-          <p className="text-xs text-amber-700 dark:text-amber-400/90">{t("settings.deliverySmtpHint")}</p>
-        )}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -1316,6 +1375,112 @@ function IntegrationsSection() {
             {savingDelivery ? t("settings.saving") : t("settings.deliverySave")}
           </button>
           {deliverySaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.deliverySaved")}</span>}
+        </div>
+      </div>
+
+      {/* ── Notification type filters ── */}
+      <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
+        <div>
+          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notifTypesTitle")}</h4>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notifTypesDesc")}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 pr-4">{t("settings.webhookEvents")}</th>
+                <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">{t("settings.notifColInApp")}</th>
+                <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">{t("settings.notifColOutbound")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-slate-700/50">
+              {ALL_EVENTS.map(({ key, tKey }) => {
+                const inAppEnabled = !disabledInApp.includes(key as NotificationType);
+                const outboundEnabled = !disabledOutbound.includes(key as NotificationType);
+                return (
+                  <tr key={key}>
+                    <td className="py-2 pr-4 text-zinc-800 dark:text-slate-200">{t(tKey)}</td>
+                    <td className="py-2 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={inAppEnabled}
+                        onChange={() => toggleInApp(key as NotificationType)}
+                        className="accent-emerald-600"
+                      />
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={outboundEnabled}
+                        disabled={!inAppEnabled}
+                        onChange={() => toggleOutbound(key as NotificationType)}
+                        className="accent-emerald-600 disabled:opacity-40"
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleSaveTypes()}
+            disabled={savingTypes}
+            className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {savingTypes ? t("settings.saving") : t("settings.notifTypesSave")}
+          </button>
+          {typesSaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.notifTypesSaved")}</span>}
+        </div>
+      </div>
+
+      {/* ── Outbound frequency ── */}
+      <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
+        <div>
+          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notifFrequencyTitle")}</h4>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notifFrequencyDesc")}</p>
+        </div>
+        <div className="space-y-2">
+          {(["immediate", "hourly_digest", "daily_digest"] as NotificationOutboundFrequency[]).map((freq) => (
+            <label key={freq} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="notif-frequency"
+                checked={outboundFrequency === freq}
+                onChange={() => setOutboundFrequency(freq)}
+              />
+              <span className="text-sm text-zinc-800 dark:text-slate-200">
+                {freq === "immediate" ? t("settings.freqImmediate") : freq === "hourly_digest" ? t("settings.freqHourly") : t("settings.freqDaily")}
+              </span>
+            </label>
+          ))}
+        </div>
+        {outboundFrequency === "daily_digest" && (
+          <div className="flex items-center gap-3 mt-1">
+            <label className="text-xs text-zinc-500 dark:text-slate-400 shrink-0">{t("settings.freqDailyHour")}</label>
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={digestHour}
+              onChange={(e) => setDigestHour(Math.max(0, Math.min(23, Number(e.target.value))))}
+              className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+            />
+            <span className="text-xs text-zinc-400 dark:text-slate-500">h</span>
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleSaveFrequency()}
+            disabled={savingFreq}
+            className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {savingFreq ? t("settings.saving") : t("settings.freqSave")}
+          </button>
+          {freqSaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.freqSaved")}</span>}
         </div>
       </div>
 

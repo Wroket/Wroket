@@ -144,7 +144,7 @@ export async function deleteUserData(uid: string): Promise<void> {
               "project_deleted",
               `Project "${projName}" deleted`,
               `${userName} deleted their account. The project "${projName}" and all its data have been removed.`,
-              { projectId: projId },
+              { projectId: projId, projectName: projName, actorEmail: userEmail },
             );
           }
         }
