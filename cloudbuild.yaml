@@ -44,9 +44,9 @@ steps:
       - '--cpu'
       - '1'
       - '--min-instances'
-      - '0'
+      - '1'
       - '--max-instances'
-      - '2'
+      - '1'
       # ADMIN_EMAILS omitted here (value contains commas) — applied in the next step via `services update`.
       - '--update-env-vars'
       - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback'

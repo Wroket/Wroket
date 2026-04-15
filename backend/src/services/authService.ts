@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-import { getStore, scheduleSave } from "../persistence";
+import { getStore, scheduleSave, flushNow } from "../persistence";
 import {
   buildKeyUri,
   createPendingTwoFactorToken,
@@ -329,6 +329,7 @@ function issueSessionToken(uid: string): LoginSuccess {
   const expiresAt = now + SESSION_TTL_MS;
   sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
   persistSessions();
+  void flushNow();
   return { ...toAuthUser(user), sessionToken };
 }
 
@@ -1097,6 +1098,7 @@ export function logout(cookies: string | undefined): void {
   if (token) {
     sessionsByToken.delete(token);
     persistSessions();
+    void flushNow();
   }
 }
 
