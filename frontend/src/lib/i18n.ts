@@ -1112,6 +1112,11 @@ const translations = {
   "tutorial.step2.desc": { fr: "Regroupez vos tâches par projet : tableau, Kanban ou Gantt. Une structure simple pour suivre l'avancement sans vous noyer dans les détails.", en: "Group tasks into projects: board, Kanban, or Gantt. A simple structure to track progress without overload." },
   "tutorial.step3.title": { fr: "Allez plus loin : agenda et import", en: "Go further: calendar and import" },
   "tutorial.step3.desc": { fr: "Connectez Google Calendar pour réserver des créneaux et ne laissez plus jamais une tâche au bas de la pile ! Importez vos tâches ou un projet pour repartir de ce que vous avez déjà.", en: "Connect Google Calendar to book time slots and stop letting tasks sink to the bottom of the pile. Import your tasks or a project to pick up where you left off." },
+  "tutorial.step4.title": { fr: "Travail d'équipe", en: "Teamwork" },
+  "tutorial.step4.desc": {
+    fr: "Créez une équipe, ou invitez des collaborateurs. Assignez des tâches, partagez vos projets et vos notes ; vos collègues seront informés en temps réel !",
+    en: "Create a team, or invite collaborators. Assign tasks, share your projects and notes; your colleagues will be informed in real time!",
+  },
 
   // ── Page help items ──
   "help.todos.views": { fr: "3 vues : Liste (drag & drop), Cartes (vue Radar) et Radar 360°", en: "3 views: List (drag & drop), Cards (radar view) and 360° Radar" },

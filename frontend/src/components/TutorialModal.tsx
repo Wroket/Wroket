@@ -18,6 +18,7 @@ const STEPS: TutorialStep[] = [
   { titleKey: "tutorial.step1.title", descKey: "tutorial.step1.desc", icon: "\u270f\ufe0f", color: "from-blue-500 to-indigo-600" },
   { titleKey: "tutorial.step2.title", descKey: "tutorial.step2.desc", icon: "\ud83d\udcc1", color: "from-amber-500 to-orange-600" },
   { titleKey: "tutorial.step3.title", descKey: "tutorial.step3.desc", icon: "\ud83d\udcc5", color: "from-sky-500 to-blue-600" },
+  { titleKey: "tutorial.step4.title", descKey: "tutorial.step4.desc", icon: "\ud83d\udc65", color: "from-emerald-500 to-teal-600" },
 ];
 
 interface TutorialModalProps {
