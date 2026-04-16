@@ -17,6 +17,7 @@ export type NotificationType =
   | "deadline_approaching"
   | "deadline_today"
   | "comment_mention"
+  | "note_mention"
   | "project_deleted";
 
 export interface Notification {

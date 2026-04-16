@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getNotes,
+  getSharedNotes,
   createNoteApi,
   updateNoteApi,
   deleteNoteApi,
@@ -87,7 +88,11 @@ export function useOfflineNotes() {
     };
   }, []);
 
-  const mergeServerNotes = useCallback((serverNotes: Note[]) => {
+  /**
+   * Merge server own-notes with local cache, persist to localStorage, and return the array.
+   * Does NOT call setNotes so the caller can combine with shared notes first.
+   */
+  const mergeOwnNotes = useCallback((serverNotes: Note[]): Note[] => {
     const local = readLocal();
     const merged = new Map<string, Note>();
     for (const n of serverNotes) merged.set(n.id, n);
@@ -102,13 +107,15 @@ export function useOfflineNotes() {
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
     writeLocal(result);
-    setNotes(result);
     return result;
   }, []);
 
   const fetchAndSync = useCallback(async () => {
     try {
-      const serverNotes = await getNotes();
+      const [serverNotes, sharedNotes] = await Promise.all([
+        getNotes(),
+        getSharedNotes().catch((): Note[] => []),
+      ]);
       const dirtyIds = getDirtyIds();
       const deletedIds = getDeletedIds();
 
@@ -127,20 +134,22 @@ export function useOfflineNotes() {
           setSyncing(true);
           const synced = await syncNotesApi(dirtyNotes);
           clearDirty();
-          mergeServerNotes(synced);
+          const ownNotes = mergeOwnNotes(synced);
+          setNotes(sortNotes([...ownNotes, ...sharedNotes]));
           return;
         }
       }
 
       clearDirty();
-      mergeServerNotes(serverNotes);
+      const ownNotes = mergeOwnNotes(serverNotes);
+      setNotes(sortNotes([...ownNotes, ...sharedNotes]));
     } catch {
       const local = readLocal();
       if (local.length > 0) setNotes(local);
     } finally {
       setSyncing(false);
     }
-  }, [mergeServerNotes]);
+  }, [mergeOwnNotes]);
 
   useEffect(() => {
     fetchAndSync().finally(() => setLoading(false));
@@ -212,6 +221,7 @@ export function useOfflineNotes() {
     projectId?: string | null;
     shared?: boolean;
     teamId?: string | null;
+    sharedWithEmail?: string | null;
   }) => {
     const now = new Date().toISOString();
 
@@ -224,6 +234,22 @@ export function useOfflineNotes() {
       if (updates.teamId === null || updates.teamId === "") {
         raw.teamId = undefined;
       }
+      // Team share clears individual share in local state
+      if (updates.shared === true) {
+        raw.sharedWithUid = undefined;
+        raw.sharedWithEmail = undefined;
+      }
+      // Individual share: clear team share in local state
+      if (updates.sharedWithEmail !== undefined) {
+        if (updates.sharedWithEmail === null) {
+          raw.sharedWithUid = undefined;
+          raw.sharedWithEmail = undefined;
+        } else {
+          raw.shared = undefined;
+          raw.teamId = undefined;
+          raw.sharedWithEmail = updates.sharedWithEmail;
+        }
+      }
       return raw as Note;
     };
 
@@ -234,13 +260,17 @@ export function useOfflineNotes() {
 
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
 
-    const hasSharing = updates.shared !== undefined || updates.teamId !== undefined;
+    const hasSharing =
+      updates.shared !== undefined ||
+      updates.teamId !== undefined ||
+      updates.sharedWithEmail !== undefined;
     if (hasSharing && online) {
-      const sp: { shared?: boolean; teamId?: string } = {};
+      const sp: { shared?: boolean; teamId?: string; sharedWithEmail?: string | null } = {};
       if (updates.shared !== undefined) sp.shared = updates.shared;
       if (updates.teamId !== undefined) {
         sp.teamId = updates.teamId === null || updates.teamId === "" ? undefined : updates.teamId;
       }
+      if (updates.sharedWithEmail !== undefined) sp.sharedWithEmail = updates.sharedWithEmail;
       updateNoteApi(id, sp).catch(() => markDirty([id]));
     } else if (hasSharing && !online) {
       markDirty([id]);
@@ -249,6 +279,7 @@ export function useOfflineNotes() {
     const rest: Record<string, unknown> = { ...updates };
     delete rest.shared;
     delete rest.teamId;
+    delete rest.sharedWithEmail;
     const restKeys = Object.keys(rest).filter((k) => rest[k] !== undefined);
     if (restKeys.length === 0) return;
 

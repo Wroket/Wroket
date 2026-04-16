@@ -10,7 +10,7 @@ import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, getTodos, createTodo, lookupUser, exportNotes, importNotesFile, getTeams } from "@/lib/api";
+import { getProjects, getTodos, createTodo, lookupUser, exportNotes, importNotesFile, getTeams, getMe } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 
 function NotesPageInner() {
@@ -24,6 +24,8 @@ function NotesPageInner() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [currentUid, setCurrentUid] = useState<string | null>(null);
+  const [collabEmailInput, setCollabEmailInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
@@ -31,9 +33,11 @@ function NotesPageInner() {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
     getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
     getTeams().then(setTeams).catch(() => setTeams([]));
+    getMe().then((me) => setCurrentUid(me.uid)).catch(() => {});
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
+  const isSharedNote = !!(selected && currentUid && selected.userId !== currentUid);
 
   const filtered = search
     ? notes.filter((n) => {
@@ -47,6 +51,8 @@ function NotesPageInner() {
   const handleNew = useCallback(() => {
     const id = addNote();
     setSelectedId(id);
+    setTagInput("");
+    setCollabEmailInput("");
     setMobileShowEditor(true);
     setTimeout(() => titleRef.current?.focus(), 50);
   }, [addNote]);
@@ -56,6 +62,8 @@ function NotesPageInner() {
   const handleSelect = useCallback((note: Note) => {
     setSelectedId(note.id);
     setDeleteConfirm(null);
+    setTagInput("");
+    setCollabEmailInput("");
     setMobileShowEditor(true);
   }, []);
 
@@ -321,49 +329,72 @@ function NotesPageInner() {
                   ref={titleRef}
                   type="text"
                   value={selected.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
+                  onChange={(e) => !isSharedNote && handleTitleChange(e.target.value)}
+                  readOnly={isSharedNote}
                   placeholder={t("notes.untitled")}
-                  className="flex-1 text-lg font-semibold text-zinc-900 dark:text-slate-100 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600"
+                  className={`flex-1 text-lg font-semibold text-zinc-900 dark:text-slate-100 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 ${isSharedNote ? "cursor-default" : ""}`}
                 />
-                <button
-                  type="button"
-                  onClick={() => togglePin(selected.id)}
-                  className={`p-1.5 rounded transition-colors ${
-                    selected.pinned
-                      ? "text-amber-500 bg-amber-50 dark:bg-amber-900/20"
-                      : "text-zinc-400 dark:text-slate-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                  }`}
-                  title={selected.pinned ? t("notes.unpin") : t("notes.pin")}
-                >
-                  <svg className="w-4 h-4" fill={selected.pinned ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                  </svg>
-                </button>
-                {deleteConfirm === selected.id ? (
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={handleDelete} className="rounded bg-red-500 text-white text-xs px-2 py-1 font-medium hover:bg-red-600">
-                      {t("notes.delete")}
-                    </button>
-                    <button type="button" onClick={() => setDeleteConfirm(null)} className="text-xs text-zinc-500 dark:text-slate-400 px-2 py-1 hover:underline">
-                      {t("edit.cancel")}
-                    </button>
-                  </div>
-                ) : (
+                {isSharedNote && (
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded px-1.5 py-0.5">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {t("notes.sharedReadOnly")}
+                  </span>
+                )}
+                {!isSharedNote && (
                   <button
                     type="button"
-                    onClick={() => setDeleteConfirm(selected.id)}
-                    className="p-1.5 rounded text-zinc-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title={t("notes.delete")}
+                    onClick={() => togglePin(selected.id)}
+                    className={`p-1.5 rounded transition-colors ${
+                      selected.pinned
+                        ? "text-amber-500 bg-amber-50 dark:bg-amber-900/20"
+                        : "text-zinc-400 dark:text-slate-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                    }`}
+                    title={selected.pinned ? t("notes.unpin") : t("notes.pin")}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    <svg className="w-4 h-4" fill={selected.pinned ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                     </svg>
                   </button>
                 )}
+                {!isSharedNote && (
+                  deleteConfirm === selected.id ? (
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={handleDelete} className="rounded bg-red-500 text-white text-xs px-2 py-1 font-medium hover:bg-red-600">
+                        {t("notes.delete")}
+                      </button>
+                      <button type="button" onClick={() => setDeleteConfirm(null)} className="text-xs text-zinc-500 dark:text-slate-400 px-2 py-1 hover:underline">
+                        {t("edit.cancel")}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirm(selected.id)}
+                      className="p-1.5 rounded text-zinc-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      title={t("notes.delete")}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )
+                )}
               </div>
 
-              {/* Metadata panel: tags, project, task */}
+              {/* Metadata panel: tags, sharing, linked task */}
               <div className="px-4 py-2 border-b border-zinc-100 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-800/30 space-y-2 shrink-0">
+                {/* Shared-by banner for notes received from others */}
+                {isSharedNote && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-indigo-700 dark:text-indigo-300">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>{t("notes.sharedBy")} {selected.sharedWithEmail ?? selected.userId}</span>
+                  </div>
+                )}
+
                 {/* Tags */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <svg className="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -372,65 +403,119 @@ function NotesPageInner() {
                   {(selected.tags ?? []).map((tag) => (
                     <span key={tag} className="inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
                       {tag}
-                      <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
+                      {!isSharedNote && (
+                        <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
+                      )}
                     </span>
                   ))}
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
-                      if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
-                        handleRemoveTag(selected.tags![selected.tags!.length - 1]);
-                      }
-                    }}
-                    placeholder={t("notes.addTag")}
-                    className="flex-1 min-w-[80px] bg-transparent text-[11px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
-                  />
-                </div>
-
-                {/* Partage équipe */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-100 dark:border-slate-800/80">
-                  <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
-                  {teams.length === 0 ? (
-                    <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("notes.teamShareNoTeams")}</p>
-                  ) : (
-                    <>
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] text-zinc-700 dark:text-slate-300">
-                        <input
-                          type="checkbox"
-                          className="rounded border-zinc-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
-                          checked={!!selected.shared && !!selected.teamId}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const first = teams[0];
-                              if (first) saveNote(selected.id, { shared: true, teamId: first.id });
-                            } else {
-                              saveNote(selected.id, { shared: false });
-                            }
-                          }}
-                        />
-                        {t("notes.shareWith")}
-                      </label>
-                      <select
-                        value={selected.teamId ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (!v) saveNote(selected.id, { shared: false });
-                          else saveNote(selected.id, { shared: true, teamId: v });
-                        }}
-                        disabled={!selected.shared}
-                        className="text-[11px] rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[200px] disabled:opacity-50"
-                        title={t("notes.selectTeam")}
-                      >
-                        {teams.map((tm) => (
-                          <option key={tm.id} value={tm.id}>{tm.name}</option>
-                        ))}
-                      </select>
-                    </>
+                  {!isSharedNote && (
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
+                        if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
+                          handleRemoveTag(selected.tags![selected.tags!.length - 1]);
+                        }
+                      }}
+                      placeholder={t("notes.addTag")}
+                      className="flex-1 min-w-[80px] bg-transparent text-[11px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
+                    />
                   )}
                 </div>
+
+                {/* Sharing — only for own notes */}
+                {!isSharedNote && (
+                  <>
+                    {/* Team share */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-100 dark:border-slate-800/80">
+                      <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
+                      {teams.length === 0 ? (
+                        <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("notes.teamShareNoTeams")}</p>
+                      ) : (
+                        <>
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] text-zinc-700 dark:text-slate-300">
+                            <input
+                              type="checkbox"
+                              className="rounded border-zinc-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                              checked={!!selected.shared && !!selected.teamId}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const first = teams[0];
+                                  if (first) saveNote(selected.id, { shared: true, teamId: first.id, sharedWithEmail: null });
+                                } else {
+                                  saveNote(selected.id, { shared: false });
+                                }
+                              }}
+                            />
+                            {t("notes.shareWith")}
+                          </label>
+                          <select
+                            value={selected.teamId ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (!v) saveNote(selected.id, { shared: false });
+                              else saveNote(selected.id, { shared: true, teamId: v, sharedWithEmail: null });
+                            }}
+                            disabled={!selected.shared}
+                            className="text-[11px] rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[200px] disabled:opacity-50"
+                            title={t("notes.selectTeam")}
+                          >
+                            {teams.map((tm) => (
+                              <option key={tm.id} value={tm.id}>{tm.name}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Collaborator share */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-100 dark:border-slate-800/80">
+                      <span className="text-[10px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.collaboratorShareSection")}</span>
+                      {selected.sharedWithEmail ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] text-zinc-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded px-1.5 py-0.5">
+                            {selected.sharedWithEmail}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => saveNote(selected.id, { sharedWithEmail: null })}
+                            className="text-[10px] text-red-500 hover:text-red-600 hover:underline"
+                          >
+                            {t("notes.removeCollaboratorShare")}
+                          </button>
+                        </div>
+                      ) : (
+                        <form
+                          className="flex items-center gap-1.5 flex-1 min-w-0"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const email = collabEmailInput.trim();
+                            if (!email) return;
+                            saveNote(selected.id, { sharedWithEmail: email, shared: false });
+                            setCollabEmailInput("");
+                          }}
+                        >
+                          <input
+                            type="email"
+                            value={collabEmailInput}
+                            onChange={(e) => setCollabEmailInput(e.target.value)}
+                            placeholder={t("notes.collaboratorEmail")}
+                            className="flex-1 min-w-0 text-[11px] rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-800 dark:text-slate-200 px-2 py-1 outline-none focus:border-indigo-400"
+                          />
+                          <button
+                            type="submit"
+                            disabled={!collabEmailInput.trim()}
+                            className="shrink-0 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-2 py-1 transition-colors"
+                          >
+                            {t("notes.shareWithCollaborator")}
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {selected.todoId && (() => {
                   const linkedTask = todos.find((td) => td.id === selected.todoId);
@@ -451,18 +536,21 @@ function NotesPageInner() {
                 <textarea
                   ref={contentRef}
                   value={selected.content}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                  placeholder={t("notes.contentPlaceholder")}
-                  className="w-full h-full resize-none px-6 py-4 text-sm text-zinc-800 dark:text-slate-200 bg-white dark:bg-slate-900 border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 leading-relaxed font-mono"
-                  spellCheck
+                  onChange={(e) => !isSharedNote && handleContentChange(e.target.value)}
+                  readOnly={isSharedNote}
+                  placeholder={isSharedNote ? undefined : t("notes.contentPlaceholder")}
+                  className={`w-full h-full resize-none px-6 py-4 text-sm text-zinc-800 dark:text-slate-200 bg-white dark:bg-slate-900 border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 leading-relaxed font-mono ${isSharedNote ? "cursor-default" : ""}`}
+                  spellCheck={!isSharedNote}
                 />
-                <SlashCommandMenu
-                  textareaRef={contentRef}
-                  content={selected.content}
-                  onContentChange={handleContentChange}
-                  projects={projects}
-                  onCreateTask={handleSlashCreateTask}
-                />
+                {!isSharedNote && (
+                  <SlashCommandMenu
+                    textareaRef={contentRef}
+                    content={selected.content}
+                    onContentChange={handleContentChange}
+                    projects={projects}
+                    onCreateTask={handleSlashCreateTask}
+                  />
+                )}
               </div>
 
               {/* Footer */}

@@ -721,6 +721,12 @@ const translations = {
   "notes.selectTeam": { fr: "Choisir l'équipe", en: "Choose team" },
   "notes.sharedBy": { fr: "Partagé par", en: "Shared by" },
   "notes.private": { fr: "Privée", en: "Private" },
+  "notes.sharedReadOnly": { fr: "Note partagée (lecture seule)", en: "Shared note (read-only)" },
+  "notes.collaboratorShareSection": { fr: "Collaborateur", en: "Collaborator" },
+  "notes.collaboratorEmail": { fr: "Email du collaborateur", en: "Collaborator email" },
+  "notes.shareWithCollaborator": { fr: "Partager", en: "Share" },
+  "notes.removeCollaboratorShare": { fr: "Retirer l'accès", en: "Remove access" },
+  "notes.collaboratorSharedWith": { fr: "Partagé avec", en: "Shared with" },
 
   // ── Slash Commands ──
   "slash.commands": { fr: "Commandes", en: "Commands" },

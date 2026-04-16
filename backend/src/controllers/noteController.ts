@@ -14,6 +14,9 @@ import {
   CreateNoteInput,
   UpdateNoteInput,
 } from "../services/noteService";
+import { newMentionsOnly } from "../services/commentService";
+import { createNotification } from "../services/notificationService";
+import { findUserByEmail } from "../services/authService";
 import { ValidationError } from "../utils/errors";
 
 const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
@@ -78,6 +81,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
 
 export async function update(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
+  const uid = req.user!.uid;
   const body = req.body ?? {};
   if (body.title !== undefined && typeof body.title !== "string") {
     throw new ValidationError("title doit être une chaîne");
@@ -106,8 +110,38 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   if (body.shared !== undefined && typeof body.shared !== "boolean") {
     throw new ValidationError("shared doit être un booléen");
   }
+  if (
+    body.sharedWithEmail !== undefined &&
+    body.sharedWithEmail !== null &&
+    typeof body.sharedWithEmail !== "string"
+  ) {
+    throw new ValidationError("sharedWithEmail doit être une chaîne ou null");
+  }
+
+  // Capture current content for mention diff (before update)
+  const existingNote = getNote(uid, id);
+  const oldContent = existingNote.content;
+
   const input = body as UpdateNoteInput;
-  const note = updateNote(req.user!.uid, id, input);
+  const note = updateNote(uid, id, input);
+
+  // Detect and notify new @email mentions in content
+  if (typeof body.content === "string") {
+    const freshMentions = newMentionsOnly(oldContent, body.content);
+    for (const email of freshMentions) {
+      const mentioned = findUserByEmail(email);
+      if (mentioned && mentioned.uid !== uid) {
+        createNotification(
+          mentioned.uid,
+          "note_mention",
+          "Mention dans une note",
+          `${req.user!.email} vous a mentionné dans la note « ${note.title} »`,
+          { noteId: id, noteTitle: note.title },
+        );
+      }
+    }
+  }
+
   res.status(200).json(note);
 }
 

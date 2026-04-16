@@ -12,6 +12,10 @@ export interface Note {
   projectId?: string | null;
   shared?: boolean;
   teamId?: string;
+  /** UID of a specific collaborator this note is directly shared with. */
+  sharedWithUid?: string;
+  /** Resolved email of the collaborator (for display). */
+  sharedWithEmail?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +75,7 @@ export async function updateNoteApi(id: string, input: {
   projectId?: string | null;
   shared?: boolean;
   teamId?: string;
+  sharedWithEmail?: string | null;
 }): Promise<Note> {
   const res = await fetch(`${API_BASE_URL}/notes/${id}`, {
     method: "PUT",

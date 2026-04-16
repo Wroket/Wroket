@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { getTeam, getTeamRole } from "./teamService";
+import { normalizeEmail, findUserByEmail } from "./authService";
 
 export interface Note {
   id: string;
@@ -16,6 +17,10 @@ export interface Note {
   projectId?: string;
   shared?: boolean;
   teamId?: string;
+  /** UID of a specific collaborator this note is directly shared with. */
+  sharedWithUid?: string;
+  /** Resolved email of the collaborator (stored for display, derived from sharedWithUid). */
+  sharedWithEmail?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +47,8 @@ export interface UpdateNoteInput {
   projectId?: string | null;
   shared?: boolean;
   teamId?: string;
+  /** Set to an email to share directly with one collaborator; null to remove. */
+  sharedWithEmail?: string | null;
 }
 
 const notesByUser = new Map<string, Map<string, Note>>();
@@ -178,6 +185,26 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
     validateSharing(userId, wantShared, wantTeamId);
     note.shared = wantShared && wantTeamId ? true : undefined;
     note.teamId = wantShared && wantTeamId ? wantTeamId : undefined;
+    // Team share is mutually exclusive with individual share
+    if (note.shared) {
+      note.sharedWithUid = undefined;
+      note.sharedWithEmail = undefined;
+    }
+  }
+
+  if (input.sharedWithEmail !== undefined) {
+    if (input.sharedWithEmail === null || input.sharedWithEmail.trim() === "") {
+      note.sharedWithUid = undefined;
+      note.sharedWithEmail = undefined;
+    } else {
+      const target = findUserByEmail(input.sharedWithEmail);
+      if (!target) throw new ValidationError("Utilisateur introuvable");
+      note.sharedWithUid = target.uid;
+      note.sharedWithEmail = normalizeEmail(input.sharedWithEmail);
+      // Individual share is mutually exclusive with team share
+      note.shared = undefined;
+      note.teamId = undefined;
+    }
   }
 
   note.updatedAt = new Date().toISOString();
@@ -260,15 +287,19 @@ export function detachNotesFromTodoIds(userId: string, todoIds: ReadonlySet<stri
   if (changed) persist();
 }
 
-/** Returns notes shared by other users with teams the current user belongs to. */
+/** Returns notes shared with the current user (via team or direct collaborator share). */
 export function listSharedNotes(uid: string, userEmail: string): Note[] {
   const store = getStore();
   const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
+  const normEmail = normalizeEmail(userEmail);
 
   const userTeamIds: string[] = [];
   for (const [teamId, team] of Object.entries(teamStore)) {
     const members = (team.members as Array<{ email: string }>) ?? [];
-    if (team.ownerUid === uid || members.some((m) => m.email === userEmail)) {
+    if (
+      team.ownerUid === uid ||
+      members.some((m) => normalizeEmail(m.email) === normEmail)
+    ) {
       userTeamIds.push(teamId);
     }
   }
@@ -278,7 +309,9 @@ export function listSharedNotes(uid: string, userEmail: string): Note[] {
   for (const [noteOwnerUid, userNotes] of Object.entries(noteStore)) {
     if (noteOwnerUid === uid) continue;
     for (const note of Object.values(userNotes)) {
-      if (note.shared && note.teamId && userTeamIds.includes(note.teamId)) {
+      const teamShared = note.shared && note.teamId && userTeamIds.includes(note.teamId);
+      const directShared = note.sharedWithUid === uid;
+      if (teamShared || directShared) {
         shared.push(note);
       }
     }
