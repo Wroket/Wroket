@@ -10,7 +10,6 @@ import {
 } from "../services/notificationService";
 import { findTodoForUser } from "../services/todoService";
 import { canViewNote } from "../services/noteService";
-import { findUserByUid } from "../services/authService";
 
 /** Refresh quoted task titles in messages from the current todo (read-only; not persisted). */
 function replaceTodoTitleInMessage(message: string, prev: string, cur: string): string {
@@ -49,12 +48,18 @@ export async function list(req: AuthenticatedRequest, res: Response) {
   let notifications = enrichNotificationsForDisplay(uid, raw);
 
   // For note_mention notifications, flag those whose note is no longer accessible
-  notifications = notifications.map((n) => {
-    if (n.type !== "note_mention" || !n.data?.noteId) return n;
-    const accessible = canViewNote(uid, userEmail, n.data.noteId);
-    if (accessible) return n;
-    return { ...n, data: { ...n.data, noteAccessible: "false" } };
-  });
+  if (userEmail) {
+    notifications = notifications.map((n) => {
+      if (n.type !== "note_mention" || !n.data?.noteId) return n;
+      try {
+        const accessible = canViewNote(uid, userEmail, n.data.noteId);
+        if (accessible) return n;
+        return { ...n, data: { ...n.data, noteAccessible: "false" } };
+      } catch {
+        return n;
+      }
+    });
+  }
 
   res.status(200).json(notifications);
 }

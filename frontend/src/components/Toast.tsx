@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 
@@ -52,14 +52,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [dismiss],
   );
 
-  const toast: ToastAPI = {
-    success: (m) => add(m, "success"),
-    error: (m) => add(m, "error"),
-    info: (m) => add(m, "info"),
-  };
+  const toast: ToastAPI = useMemo(
+    () => ({
+      success: (m) => add(m, "success"),
+      error: (m) => add(m, "error"),
+      info: (m) => add(m, "info"),
+    }),
+    [add],
+  );
+
+  const contextValue = useMemo(() => ({ toast }), [toast]);
 
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
         {toasts.map((item) => (
