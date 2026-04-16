@@ -16,6 +16,8 @@ export interface Note {
   sharedWithUid?: string;
   /** Resolved email of the collaborator (for display). */
   sharedWithEmail?: string;
+  /** Email of the note owner — populated by the server for shared notes (display only). */
+  ownerEmail?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -11,6 +11,7 @@ import {
   updateNote,
   deleteNote,
   syncNotes,
+  shareNoteWithUser,
   CreateNoteInput,
   UpdateNoteInput,
 } from "../services/noteService";
@@ -131,6 +132,8 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     for (const email of freshMentions) {
       const mentioned = findUserByEmail(email);
       if (mentioned && mentioned.uid !== uid) {
+        // Auto-share the note so the mentioned user can actually open it
+        shareNoteWithUser(uid, id, mentioned.uid, email);
         createNotification(
           mentioned.uid,
           "note_mention",

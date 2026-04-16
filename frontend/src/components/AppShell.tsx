@@ -173,8 +173,13 @@ function timeAgo(iso: string, t: (k: import("@/lib/i18n").TranslationKey) => str
   return `${days} ${t("notif.daysAgo")}`;
 }
 
-/** Deep-link to a task when the notification carries todoId (matches /notifications page). */
-function taskNotifOpenHref(notif: AppNotification): string {
+/** Deep-link for a notification in the panel. Returns null when the target is no longer accessible. */
+function taskNotifOpenHref(notif: AppNotification): string | null {
+  // note_mention: link to the note if still accessible
+  if (notif.type === "note_mention") {
+    if (notif.data?.noteAccessible === "false") return null;
+    return notif.data?.noteId ? `/notes?id=${encodeURIComponent(notif.data.noteId)}` : "/notes";
+  }
   const taskId = notif.data?.todoId;
   if (
     taskId &&
@@ -660,30 +665,23 @@ export default function AppShell({ children }: AppShellProps) {
                                 <span className="text-[10px] text-zinc-400 dark:text-slate-500 tabular-nums">
                                   {timeAgo(notif.createdAt, t)}
                                 </span>
-                                {notif.type !== "team_invite" && (
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      await handleMarkRead(notif.id);
-                                      setNotifOpen(false);
-                                      if (
-                                        notif.type === "task_assigned" ||
-                                        notif.type === "task_completed" ||
-                                        notif.type === "task_cancelled" ||
-                                        notif.type === "task_declined" ||
-                                        notif.type === "task_accepted" ||
-                                        notif.type === "deadline_approaching" ||
-                                        notif.type === "deadline_today" ||
-                                        notif.type === "comment_mention"
-                                      ) {
-                                        window.location.href = taskNotifOpenHref(notif);
-                                      }
-                                    }}
-                                    className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline shrink-0"
-                                  >
-                                    {t("notif.open")}
-                                  </button>
-                                )}
+                                {notif.type !== "team_invite" && (() => {
+                                  const href = taskNotifOpenHref(notif);
+                                  if (!href) return null;
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        await handleMarkRead(notif.id);
+                                        setNotifOpen(false);
+                                        router.push(href);
+                                      }}
+                                      className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+                                    >
+                                      {t("notif.open")}
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               {notif.type === "team_invite" && notif.data?.inviterEmail && (
                                 <div className="flex flex-wrap gap-2 pt-0.5">

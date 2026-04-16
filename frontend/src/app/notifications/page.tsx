@@ -26,6 +26,7 @@ const NOTIF_ICON: Record<string, { icon: string; bg: string }> = {
   deadline_approaching: { icon: "⏰", bg: "bg-amber-100 dark:bg-amber-900/30" },
   deadline_today: { icon: "🔴", bg: "bg-red-100 dark:bg-red-900/30" },
   comment_mention: { icon: "💬", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
+  note_mention: { icon: "📝", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
 };
 
 function timeAgo(iso: string, t: (k: TranslationKey) => string): string {
@@ -49,7 +50,12 @@ function formatDate(iso: string, locale: string): string {
   });
 }
 
-function notifHref(notif: AppNotification): string {
+function notifHref(notif: AppNotification): string | null {
+  // note_mention: deep-link to the note (if still accessible)
+  if (notif.type === "note_mention") {
+    if (notif.data?.noteAccessible === "false") return null;
+    return notif.data?.noteId ? `/notes?id=${encodeURIComponent(notif.data.noteId)}` : "/notes";
+  }
   const taskId = notif.data?.todoId;
   if (
     taskId &&
@@ -266,17 +272,21 @@ export default function NotificationsPage() {
                         </svg>
                       </button>
                     )}
-                    {notif.type !== "team_invite" && (
-                      <Link
-                        href={notifHref(notif)}
-                        onClick={() => { if (!notif.read) handleMarkRead(notif.id); }}
-                        className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                      </Link>
-                    )}
+                    {notif.type !== "team_invite" && (() => {
+                      const href = notifHref(notif);
+                      if (!href) return null;
+                      return (
+                        <Link
+                          href={href}
+                          onClick={() => { if (!notif.read) handleMarkRead(notif.id); }}
+                          className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                        </Link>
+                      );
+                    })()}
                   </div>
                 </div>
               );

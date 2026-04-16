@@ -51,6 +51,7 @@ export type NotificationOutboundFrequency = "immediate" | "hourly_digest" | "dai
 export type NotificationType =
   | "task_assigned"
   | "task_completed"
+  | "note_mention"
   | "task_cancelled"
   | "task_declined"
   | "task_accepted"

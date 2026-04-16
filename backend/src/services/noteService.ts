@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { getTeam, getTeamRole } from "./teamService";
-import { normalizeEmail, findUserByEmail } from "./authService";
+import { normalizeEmail, findUserByEmail, findUserByUid } from "./authService";
 
 export interface Note {
   id: string;
@@ -21,6 +21,8 @@ export interface Note {
   sharedWithUid?: string;
   /** Resolved email of the collaborator (stored for display, derived from sharedWithUid). */
   sharedWithEmail?: string;
+  /** Owner email — populated at read time by listSharedNotes for display; not persisted. */
+  ownerEmail?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +117,8 @@ function validateSharing(userId: string, shared?: boolean, teamId?: string): voi
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function createNote(userId: string, input: CreateNoteInput): Note {
   const title = (input.title ?? "").trim();
   if (title.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
@@ -130,9 +134,16 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
 
   validateSharing(userId, shared, teamId);
 
+  // Use client-provided id when valid (prevents duplicate on offline/sync flow)
+  const clientId = input.id && UUID_RE.test(input.id) ? input.id : undefined;
+  // If client id already exists for this user, return existing note (idempotent create)
+  if (clientId && getUserNotes(userId).has(clientId)) {
+    return getUserNotes(userId).get(clientId)!;
+  }
+
   const now = new Date().toISOString();
   const note: Note = {
-    id: crypto.randomUUID(),
+    id: clientId ?? crypto.randomUUID(),
     userId,
     title: title || "Sans titre",
     content,
@@ -308,14 +319,42 @@ export function listSharedNotes(uid: string, userEmail: string): Note[] {
   const shared: Note[] = [];
   for (const [noteOwnerUid, userNotes] of Object.entries(noteStore)) {
     if (noteOwnerUid === uid) continue;
+    const ownerEmail = findUserByUid(noteOwnerUid)?.email ?? noteOwnerUid;
     for (const note of Object.values(userNotes)) {
       const teamShared = note.shared && note.teamId && userTeamIds.includes(note.teamId);
       const directShared = note.sharedWithUid === uid;
       if (teamShared || directShared) {
-        shared.push(note);
+        // ownerEmail is a display-only field, not persisted
+        shared.push({ ...note, ownerEmail });
       }
     }
   }
 
   return shared.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+/**
+ * Auto-share a note with a collaborator when they are @mentioned.
+ * No-op if the note already has a team share or individual share set.
+ */
+export function shareNoteWithUser(
+  ownerUid: string,
+  noteId: string,
+  recipientUid: string,
+  recipientEmail: string,
+): void {
+  const note = getUserNotes(ownerUid).get(noteId);
+  if (!note) return;
+  if (note.shared || note.sharedWithUid) return; // Don't override existing sharing
+  note.sharedWithUid = recipientUid;
+  note.sharedWithEmail = normalizeEmail(recipientEmail);
+  note.updatedAt = new Date().toISOString();
+  persist();
+}
+
+/** Returns true if the user can view the note (own or shared). */
+export function canViewNote(uid: string, userEmail: string, noteId: string): boolean {
+  if (getUserNotes(uid).has(noteId)) return true;
+  const sharedNotes = listSharedNotes(uid, userEmail);
+  return sharedNotes.some((n) => n.id === noteId);
 }
