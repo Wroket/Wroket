@@ -3,10 +3,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import ConfirmDialog from "@/components/ConfirmDialog";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import { useToast } from "@/components/Toast";
-import { exportProjectData, getProjects, getTeams, updateProject, type Project, type Team } from "@/lib/api";
+import {
+  deleteProjectApi,
+  exportProjectData,
+  getProjects,
+  getTeams,
+  updateProject,
+  type Project,
+  type Team,
+} from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+
+type ProjectArchiveConfirm =
+  | { kind: "restore"; project: Project }
+  | { kind: "delete"; project: Project }
+  | { kind: "purge-all"; ids: string[] }
+  | null;
+
+const archiveActionBtnBase =
+  "inline-flex items-center justify-center rounded border px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap";
 
 export default function ArchivedProjectsPanel() {
   const { t } = useLocale();
@@ -15,6 +33,7 @@ export default function ArchivedProjectsPanel() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectConfirm, setProjectConfirm] = useState<ProjectArchiveConfirm>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +67,7 @@ export default function ArchivedProjectsPanel() {
     return teamById.get(teamId)?.name ?? "—";
   };
 
-  const restoreProject = async (project: Project) => {
+  const runRestoreProject = async (project: Project) => {
     try {
       const updated = await updateProject(project.id, { status: "active" });
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -56,6 +75,39 @@ export default function ArchivedProjectsPanel() {
     } catch {
       toast.error(t("toast.restoreError"));
     }
+  };
+
+  const runDeleteArchivedProject = async (project: Project) => {
+    try {
+      await deleteProjectApi(project.id);
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      toast.success(t("archives.projectsRemoved").replace("{count}", "1"));
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  };
+
+  const runDeleteAllArchivedProjects = async (ids: string[]) => {
+    try {
+      for (const id of ids) {
+        await deleteProjectApi(id);
+      }
+      setProjects((prev) => prev.filter((p) => !ids.includes(p.id)));
+      toast.success(t("archives.projectsRemoved").replace("{count}", String(ids.length)));
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  };
+
+  const handleProjectConfirm = () => {
+    const c = projectConfirm;
+    setProjectConfirm(null);
+    if (!c) return;
+    void (async () => {
+      if (c.kind === "restore") await runRestoreProject(c.project);
+      else if (c.kind === "delete") await runDeleteArchivedProject(c.project);
+      else if (c.kind === "purge-all") await runDeleteAllArchivedProjects(c.ids);
+    })();
   };
 
   const exportArchivedProjects = useCallback(
@@ -91,7 +143,21 @@ export default function ArchivedProjectsPanel() {
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.projects")}</h1>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.projectsIntro")}</p>
         </div>
-        <div className="shrink-0 flex justify-end">
+        <div className="shrink-0 flex flex-wrap justify-end gap-2">
+          {archivedRootProjects.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                setProjectConfirm({
+                  kind: "purge-all",
+                  ids: archivedRootProjects.map((p) => p.id),
+                })
+              }
+              className="rounded border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+            >
+              {t("archives.emptyProjects")}
+            </button>
+          )}
           <ExportImportDropdown
             exportCsv={() => exportArchivedProjects("csv")}
             exportJson={() => exportArchivedProjects("json")}
@@ -119,22 +185,59 @@ export default function ArchivedProjectsPanel() {
                 >
                   {project.name}
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => restoreProject(project)}
-                  className="text-zinc-400 hover:text-blue-500 transition-colors shrink-0"
-                  title={t("projects.restore")}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
               </div>
               <p className="text-[10px] text-zinc-400 mt-1">{teamLabel(project.teamId)}</p>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setProjectConfirm({ kind: "restore", project })}
+                  className={`${archiveActionBtnBase} border-blue-500 dark:border-blue-400 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40`}
+                >
+                  {t("archives.restore")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProjectConfirm({ kind: "delete", project })}
+                  className={`${archiveActionBtnBase} border-red-500 dark:border-red-500/80 bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
+                >
+                  {t("archives.deleteForever")}
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={projectConfirm !== null}
+        title={
+          projectConfirm == null
+            ? ""
+            : projectConfirm.kind === "restore"
+              ? t("archives.confirmRestoreProjectTitle")
+              : projectConfirm.kind === "delete"
+                ? t("archives.confirmDeleteProjectTitle")
+                : t("archives.confirmPurgeProjectsTitle")
+        }
+        message={
+          projectConfirm == null
+            ? ""
+            : projectConfirm.kind === "restore"
+              ? t("archives.confirmRestoreProjectMessage").replace("{name}", projectConfirm.project.name)
+              : projectConfirm.kind === "delete"
+                ? t("archives.deleteProjectConfirm")
+                : t("archives.emptyProjectsConfirm").replace(
+                    "{count}",
+                    String(projectConfirm.ids.length),
+                  )
+        }
+        variant={projectConfirm?.kind === "restore" ? "info" : "danger"}
+        confirmLabel={
+          projectConfirm?.kind === "restore" ? t("archives.restore") : t("archives.deleteForever")
+        }
+        onCancel={() => setProjectConfirm(null)}
+        onConfirm={handleProjectConfirm}
+      />
     </div>
   );
 }

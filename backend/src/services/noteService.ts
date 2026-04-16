@@ -244,6 +244,22 @@ export function listNotesByTodo(userId: string, todoId: string): Note[] {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
+/** Unlink notes from tasks that are permanently removed (keeps note content in the library). */
+export function detachNotesFromTodoIds(userId: string, todoIds: ReadonlySet<string>): void {
+  if (todoIds.size === 0) return;
+  const map = getUserNotes(userId);
+  let changed = false;
+  const now = new Date().toISOString();
+  for (const note of map.values()) {
+    if (note.todoId && todoIds.has(note.todoId)) {
+      note.todoId = undefined;
+      note.updatedAt = now;
+      changed = true;
+    }
+  }
+  if (changed) persist();
+}
+
 /** Returns notes shared by other users with teams the current user belongs to. */
 export function listSharedNotes(uid: string, userEmail: string): Note[] {
   const store = getStore();

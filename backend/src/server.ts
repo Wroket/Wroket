@@ -42,6 +42,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS?.trim()) {
+    console.error("[server] ALLOWED_ORIGINS is required in production (CORS for the web app origin)");
+    process.exit(1);
+  }
+
+  const useLocal = process.env.USE_LOCAL_STORE === "true";
+  if (process.env.NODE_ENV === "production" && !useLocal && !process.env.GOOGLE_CLOUD_PROJECT?.trim()) {
+    console.error("[server] GOOGLE_CLOUD_PROJECT is required in production when not using USE_LOCAL_STORE=true");
+    process.exit(1);
+  }
+
   const { default: app } = await import("./app");
   const { startReminderJob } = await import("./services/reminderService");
 

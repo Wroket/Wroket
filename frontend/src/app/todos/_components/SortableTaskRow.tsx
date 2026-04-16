@@ -95,7 +95,7 @@ export default function SortableTaskRow({
         ref={setNodeRef}
         style={style}
         {...attributes}
-        onDoubleClick={(e) => { e.preventDefault(); onEdit(todo); }}
+        onClick={(e) => { e.preventDefault(); onEdit(todo); }}
         className={`border-b border-zinc-100 dark:border-slate-800 last:border-b-0 group hover:bg-zinc-50/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none ${
           isArchived ? "opacity-50" : ""
         }`}
@@ -104,6 +104,7 @@ export default function SortableTaskRow({
           <button
             type="button"
             {...listeners}
+            onClick={(e) => e.stopPropagation()}
             className="inline-flex items-center justify-center w-6 h-6 rounded text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 cursor-grab active:cursor-grabbing transition-colors"
             aria-label={t("a11y.reorderRow")}
             title={t("a11y.dragReorderHint")}
@@ -118,7 +119,8 @@ export default function SortableTaskRow({
         <td className="px-4 py-3">
           {isArchived ? (
             <button
-              onClick={() => onComplete(todo)}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onComplete(todo); }}
               title={t("todos.reactivate")}
               className="inline-flex items-center gap-1 rounded border border-green-300 dark:border-green-700 px-2 py-1 text-[11px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors"
             >
@@ -144,6 +146,7 @@ export default function SortableTaskRow({
               onCreateNote={onCreateNote}
               hasLinkedNote={hasLinkedNote}
               justCreatedId={justCreatedId}
+              isolatePointerEvents
             />
           )}
         </td>

@@ -52,6 +52,8 @@ export {
   createTodo,
   updateTodo,
   deleteTodo,
+  deleteArchivedTodoPermanently,
+  purgeAllArchivedTodos,
   reorderTodos,
   exportTasksCsv,
   exportTasks,

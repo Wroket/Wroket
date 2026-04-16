@@ -22,16 +22,16 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - [x] **Profil utilisateur** — Prénom, nom, email ; affiché dans le header
 - [x] **CRUD Tâches** — Créer, lister, modifier, supprimer (soft delete)
 - [x] **Priorité & Effort** — 3 niveaux chacun (haute/moyenne/basse, lourd/moyen/léger)
-- [x] **Deadline & classification** — Classification Eisenhower dynamique (date + importance + effort)
+- [x] **Deadline & classification** — Classification dynamique (vue Radar : date + importance + effort)
 - [x] **Sous-tâches** — Tâches imbriquées (1 niveau), gestion via modal et inline
-- [x] **Matrice Eisenhower (Cards)** — Vue visuelle en 4 quadrants avec cartes, limite 5 + expand
+- [x] **Vue Radar (Cards)** — Vue visuelle en 4 quadrants avec cartes, limite 5 + expand
 - [x] **Vue Radar (Gartner)** — Scatter plot + liste priorités (12 max), tooltips
 - [x] **Vue Liste** — Tableau triable, filtres quadrant/statut, multi-select quadrants, exclusivité statuts
 - [x] **Filtres catégories** — Faire, Planifier, Expédier, Différer, Accomplies, Annulées, Supprimées
 - [x] **Undo** — Bouton "Annuler dernière action"
 - [x] **Édition inline** — Double-clic → modal d'édition complète
 - [x] **Dark mode** — Toggle light/dark, palette slate/bleu foncé
-- [x] **Dashboard** — Statistiques, résumé Eisenhower, tâches urgentes, bilan hebdomadaire, notifications récentes
+- [x] **Dashboard** — Statistiques, résumé vue Radar, tâches urgentes, bilan hebdomadaire, notifications récentes
 - [x] **Navigation sidebar** — Accueil, Tâches (sous-menu Mes tâches / Déléguées), Projets, Équipes, Paramètres
 - [x] **i18n** — Français / Anglais, persistance locale, sélecteur dans Paramètres
 - [x] **Paramètres** — Mon profil (prénom, nom), Langues
@@ -62,7 +62,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
   - Respect du champ `startDate` comme borne inférieure
   - Les tâches haute priorité/deadline proche réservent les premiers créneaux, les basse priorité sont reportées
 - [x] **Intégration Google Calendar** — OAuth2 natif (fetch), lecture/écriture agenda Google, token auto-refresh
-- [x] **Agenda** — Vue calendrier semaine, fusion événements Wroket (code couleur Eisenhower) + Google Calendar, double-clic sur tâche Wroket pour édition directe (modale TaskEditModal + refresh automatique)
+- [x] **Agenda** — Vue calendrier semaine, fusion événements Wroket (code couleur quadrants Radar) + Google Calendar, double-clic sur tâche Wroket pour édition directe (modale TaskEditModal + refresh automatique)
 - [x] **Responsive mobile** — Viewport meta, sidebar hamburger, tableaux scrollables, badges wrap, bouton edit tactile
 - [x] **Branding Wroket** — Identité visuelle (fusée + checkmark), palette Slate + Emerald, icône app, logo bicolore
 - [x] **Page Notifications** — Page dédiée `/notifications` avec filtres (tous/lus/non-lus), actions par type
@@ -88,7 +88,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/code`, `/warning` dans l'éditeur de notes
 - [x] **Aide contextuelle notes** — Bouton ampoule avec liste des commandes et info hors ligne
 - [x] **Timezone utilisateur** — Détection automatique du fuseau horaire navigateur, auto-correction des profils UTC, dropdown dans les paramètres avec alerte de désynchronisation
-- [x] **Page d'accueil** — Landing page marketing bilingue FR/EN : hero avec mini-visuel interactif (tags, slots planifiés), 6 flip cards avec icônes SVG et previews (Eisenhower, Agenda multi-comptes, Notes, Kanban, Collaboration, Notifications), CTA, footer
+- [x] **Page d'accueil** — Landing page marketing bilingue FR/EN : hero avec mini-visuel interactif (tags, slots planifiés), 6 flip cards avec icônes SVG et previews (Vue Radar, Agenda multi-comptes, Notes, Kanban, Collaboration, Notifications), CTA, footer
 - [x] **Tutoriel mis à jour** — 7 étapes exhaustives (tâches, vues, projets/Kanban, agenda, notes, équipes, démarrage)
 - [x] **Aide contextuelle par page** — Bouton ampoule (PageHelpButton) avec popup portal sur chaque page (Dashboard, Tâches, Projets, Agenda, Notes, Paramètres), puces des features disponibles
 - [x] **Favicon Wroket** — Logo Wroket (fond blanc) dans les onglets navigateur (icon.png + apple-icon.png)

@@ -3,7 +3,7 @@ import { Router } from "express";
 import multer from "multer";
 
 import {
-  archived, assigned, create, list, remove, update, getComments, postComment, removeComment, editCommentHandler,
+  archived, assigned, create, list, remove, purgeAllArchived, update, getComments, postComment, removeComment, editCommentHandler,
   toggleReactionHandler, commentCounts, exportTodos, importTodos, previewTaskImport, confirmTaskImport, taskActivity, reorderTodos,
 } from "../controllers/todoController";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -18,6 +18,7 @@ todoRoutes.use(noStoreCache);
 todoRoutes.get("/", list);
 todoRoutes.get("/assigned", assigned);
 todoRoutes.get("/archived", archived);
+todoRoutes.delete("/archived/all", purgeAllArchived);
 todoRoutes.get("/comment-counts", commentCounts);
 todoRoutes.get("/export", exportTodos);
 todoRoutes.post("/import/preview", upload.single("file"), previewTaskImport);

@@ -99,6 +99,11 @@ export interface AuthUser {
   notificationOutboundFrequency: NotificationOutboundFrequency;
   /** Local hour (0-23) at which the daily digest is sent. Uses workingHours.timezone. */
   notificationDigestHour: number;
+  /**
+   * Days before archived tasks (completed / cancelled / deleted) are permanently removed.
+   * 0 = never auto-delete. Default when unset: 30.
+   */
+  archivedTaskRetentionDays: number;
 }
 
 interface StoredUser {
@@ -142,6 +147,8 @@ interface StoredUser {
   notificationTypesDisabledOutbound?: string[];
   notificationOutboundFrequency?: NotificationOutboundFrequency;
   notificationDigestHour?: number;
+  /** 0 = never purge archived tasks; 1–365 = days until permanent removal (default applied when unset). */
+  archivedTaskRetentionDays?: number;
   /** Pending enrollment / disable flows — email OTP verification */
   email2faEnrollHash?: string;
   email2faEnrollExpiresAt?: number;
@@ -243,6 +250,23 @@ function readNotificationOutboundFrequency(user: StoredUser): NotificationOutbou
   return "immediate";
 }
 
+function readArchivedTaskRetentionDays(user: StoredUser): number {
+  const d = user.archivedTaskRetentionDays;
+  if (d === 0) return 0;
+  if (typeof d === "number" && Number.isFinite(d)) {
+    const n = Math.floor(d);
+    if (n === 0) return 0;
+    if (n >= 1 && n <= 365) return n;
+  }
+  return 30;
+}
+
+/** Retention for purge jobs: same rules as {@link readArchivedTaskRetentionDays}. */
+export function getArchivedTaskRetentionDaysForPurge(uid: string): number {
+  const u = usersByUid.get(uid);
+  return u ? readArchivedTaskRetentionDays(u) : 30;
+}
+
 function toAuthUser(user: StoredUser): AuthUser {
   const accounts = resolveGoogleAccounts(user);
   return {
@@ -267,6 +291,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     notificationTypesDisabledOutbound: Array.isArray(user.notificationTypesDisabledOutbound) ? user.notificationTypesDisabledOutbound : [],
     notificationOutboundFrequency: readNotificationOutboundFrequency(user),
     notificationDigestHour: typeof user.notificationDigestHour === "number" ? Math.max(0, Math.min(23, Math.floor(user.notificationDigestHour))) : 8,
+    archivedTaskRetentionDays: readArchivedTaskRetentionDays(user),
   };
 }
 
@@ -610,6 +635,7 @@ export interface UpdateProfileInput {
   notificationTypesDisabledOutbound?: string[];
   notificationOutboundFrequency?: NotificationOutboundFrequency;
   notificationDigestHour?: number;
+  archivedTaskRetentionDays?: number;
 }
 
 const HH_MM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -706,6 +732,13 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
     const h = Math.floor(Number(input.notificationDigestHour));
     if (isNaN(h) || h < 0 || h > 23) throw new ValidationError("notificationDigestHour doit être entre 0 et 23");
     user.notificationDigestHour = h;
+  }
+  if (input.archivedTaskRetentionDays !== undefined) {
+    const d = Math.floor(Number(input.archivedTaskRetentionDays));
+    if (isNaN(d) || (d !== 0 && (d < 1 || d > 365))) {
+      throw new ValidationError("archivedTaskRetentionDays doit être 0 (désactivé) ou entre 1 et 365");
+    }
+    user.archivedTaskRetentionDays = d;
   }
 
   usersByUid.set(uid, user);
@@ -976,7 +1009,7 @@ export async function requestEmail2faEnrollment(uid: string, locale: "fr" | "en"
   if (user.emailOtp2faEnabled) {
     throw new AppError(400, "La 2FA par email est déjà activée");
   }
-  const code = (100000 + Math.floor(Math.random() * 900000)).toString();
+  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
   user.email2faEnrollHash = crypto.createHash("sha256").update(code).digest("hex");
   user.email2faEnrollExpiresAt = Date.now() + EMAIL_OTP_ENROLL_TTL_MS;
   usersByUid.set(uid, user);
@@ -1019,7 +1052,7 @@ export async function requestDisableEmail2faOtp(uid: string, locale: "fr" | "en"
   if (!user.emailOtp2faEnabled) {
     throw new AppError(400, "La 2FA par email n'est pas activée");
   }
-  const code = (100000 + Math.floor(Math.random() * 900000)).toString();
+  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
   user.email2faDisableHash = crypto.createHash("sha256").update(code).digest("hex");
   user.email2faDisableExpiresAt = Date.now() + EMAIL_OTP_ENROLL_TTL_MS;
   usersByUid.set(uid, user);

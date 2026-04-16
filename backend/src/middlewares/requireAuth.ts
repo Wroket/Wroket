@@ -18,7 +18,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     logger.error("[requireAuth] unexpected error", {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ message: "Erreur serveur" });
+    next(err);
   }
 }
 

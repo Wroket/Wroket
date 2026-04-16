@@ -3,10 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthContext";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
 import { useToast } from "@/components/Toast";
-import { exportTasks, getArchivedTodos, updateTodo, type Priority, type Todo, type TodoStatus } from "@/lib/api";
+import {
+  deleteArchivedTodoPermanently,
+  exportTasks,
+  getArchivedTodos,
+  purgeAllArchivedTodos,
+  updateTodo,
+  type Priority,
+  type Todo,
+  type TodoStatus,
+} from "@/lib/api";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { displayTodoTitle } from "@/lib/todoDisplay";
@@ -31,6 +41,15 @@ function safeEffort(e: Todo["effort"] | undefined): "light" | "medium" | "heavy"
   return e && VALID_EFFORTS.has(e as "light" | "medium" | "heavy") ? e : "medium";
 }
 
+type TaskArchiveConfirm =
+  | { kind: "restore"; todo: Todo }
+  | { kind: "delete"; todo: Todo }
+  | { kind: "purge-all" }
+  | null;
+
+const archiveActionBtnBase =
+  "inline-flex items-center justify-center rounded border px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap";
+
 export default function ArchivedTasksPanel() {
   const { t } = useLocale();
   const { user } = useAuth();
@@ -43,6 +62,7 @@ export default function ArchivedTasksPanel() {
   const [taskFilter, setTaskFilter] = useState<TodoStatus | "all">("all");
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [taskConfirm, setTaskConfirm] = useState<TaskArchiveConfirm>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +106,12 @@ export default function ArchivedTasksPanel() {
     return c;
   }, [todos]);
 
-  const restoreTask = async (todo: Todo) => {
+  const ownedArchivedTaskCount = useMemo(
+    () => todos.filter((td) => td.userId === meUid).length,
+    [todos, meUid],
+  );
+
+  const runRestoreTask = async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { status: "active" });
       setTodos((prev) => prev.filter((td) => td.id !== updated.id));
@@ -94,6 +119,39 @@ export default function ArchivedTasksPanel() {
     } catch {
       toast.error(t("toast.restoreError"));
     }
+  };
+
+  const runPermanentDeleteTask = async (todo: Todo) => {
+    if (!meUid || todo.userId !== meUid) return;
+    try {
+      await deleteArchivedTodoPermanently(todo.id);
+      setRefreshKey((k) => k + 1);
+      toast.success(t("archives.taskDeletedForever"));
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  };
+
+  const runPurgeAllMine = async () => {
+    if (!meUid || ownedArchivedTaskCount === 0) return;
+    try {
+      const { removed } = await purgeAllArchivedTodos();
+      setRefreshKey((k) => k + 1);
+      toast.success(t("archives.purgeDone").replace("{count}", String(removed)));
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  };
+
+  const handleTaskConfirm = () => {
+    const c = taskConfirm;
+    setTaskConfirm(null);
+    if (!c) return;
+    void (async () => {
+      if (c.kind === "restore") await runRestoreTask(c.todo);
+      else if (c.kind === "delete") await runPermanentDeleteTask(c.todo);
+      else if (c.kind === "purge-all") await runPurgeAllMine();
+    })();
   };
 
   const formatDate = (iso: string | undefined) => {
@@ -120,7 +178,16 @@ export default function ArchivedTasksPanel() {
             {t("archives.tasksPrivacy")}
           </p>
         </div>
-        <div className="shrink-0 flex justify-end">
+        <div className="shrink-0 flex flex-wrap justify-end gap-2">
+          {ownedArchivedTaskCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setTaskConfirm({ kind: "purge-all" })}
+              className="rounded border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+            >
+              {t("archives.emptyMine")}
+            </button>
+          )}
           <ExportImportDropdown
             exportCsv={() => exportTasks("csv", { archivedOnly: true })}
             exportJson={() => exportTasks("json", { archivedOnly: true })}
@@ -171,7 +238,7 @@ export default function ArchivedTasksPanel() {
                 <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">{t("table.priority")}</th>
                 <th className="text-left px-4 py-3 font-medium hidden md:table-cell">{t("table.status")}</th>
                 <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">{t("archives.statusDateColumn")}</th>
-                <th className="text-right px-4 py-3 font-medium w-24" />
+                <th className="text-right px-4 py-3 font-medium min-w-[10rem]">{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -217,13 +284,24 @@ export default function ArchivedTasksPanel() {
                       <span className="text-xs text-zinc-400 dark:text-slate-500">{formatDate(todo.statusChangedAt)}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => restoreTask(todo)}
-                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-                      >
-                        {t("archives.restore")}
-                      </button>
+                      <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end sm:gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setTaskConfirm({ kind: "restore", todo })}
+                          className={`${archiveActionBtnBase} border-blue-500 dark:border-blue-400 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40`}
+                        >
+                          {t("archives.restore")}
+                        </button>
+                        {meUid && todo.userId === meUid && (
+                          <button
+                            type="button"
+                            onClick={() => setTaskConfirm({ kind: "delete", todo })}
+                            className={`${archiveActionBtnBase} border-red-500 dark:border-red-500/80 bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
+                          >
+                            {t("archives.deleteForever")}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -232,6 +310,37 @@ export default function ArchivedTasksPanel() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={taskConfirm !== null}
+        title={
+          taskConfirm == null
+            ? ""
+            : taskConfirm.kind === "restore"
+              ? t("archives.confirmRestoreTaskTitle")
+              : taskConfirm.kind === "delete"
+                ? t("archives.confirmDeleteTaskTitle")
+                : t("archives.confirmPurgeTasksTitle")
+        }
+        message={
+          taskConfirm == null
+            ? ""
+            : taskConfirm.kind === "restore"
+              ? t("archives.confirmRestoreTaskMessage").replace(
+                  "{title}",
+                  displayTodoTitle(taskConfirm.todo.title, t("todos.untitled")),
+                )
+              : taskConfirm.kind === "delete"
+                ? t("archives.deleteForeverConfirm")
+                : t("archives.emptyMineConfirm").replace("{count}", String(ownedArchivedTaskCount))
+        }
+        variant={taskConfirm?.kind === "restore" ? "info" : "danger"}
+        confirmLabel={
+          taskConfirm?.kind === "restore" ? t("archives.restore") : t("archives.deleteForever")
+        }
+        onCancel={() => setTaskConfirm(null)}
+        onConfirm={handleTaskConfirm}
+      />
     </div>
   );
 }

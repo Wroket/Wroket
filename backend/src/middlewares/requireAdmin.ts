@@ -2,6 +2,7 @@ import { NextFunction, Response } from "express";
 
 import { AuthenticatedRequest } from "../controllers/authController";
 import { isAdmin } from "../services/adminService";
+import { logger } from "../utils/logger";
 
 /**
  * Route-level middleware that rejects non-admin users with 403.
@@ -25,7 +26,7 @@ export function requireAdmin(
   const email = req.user?.email;
   const granted = email ? isAdmin(email) : false;
   if (!granted) {
-    console.warn("[requireAdmin] denied for email=%s", email ?? "(none)");
+    logger.warn("[requireAdmin] denied", { email: email ?? "(none)" });
   }
   if (!req.user || !granted) {
     res.status(403).json({ message: "Accès refusé" });

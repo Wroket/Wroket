@@ -64,10 +64,18 @@ export function getActivityLog(filters?: {
   entityType?: string;
   limit?: number;
   offset?: number;
+  /** ISO timestamp — keep entries with createdAt >= this instant (rolling window). */
+  since?: string;
 }): { entries: ActivityLogEntry[]; total: number } {
   let filtered = activityLog;
   if (filters?.userId) filtered = filtered.filter((e) => e.userId === filters.userId);
   if (filters?.entityType) filtered = filtered.filter((e) => e.entityType === filters.entityType);
+  if (filters?.since) {
+    const sinceMs = new Date(filters.since).getTime();
+    if (!Number.isNaN(sinceMs)) {
+      filtered = filtered.filter((e) => new Date(e.createdAt).getTime() >= sinceMs);
+    }
+  }
   const total = filtered.length;
   const offset = filters?.offset ?? 0;
   const limit = filters?.limit ?? 50;

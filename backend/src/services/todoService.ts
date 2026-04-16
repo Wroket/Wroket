@@ -1,7 +1,10 @@
 import crypto from "crypto";
 
 import { getStore, scheduleTodoShardPersist, todoShardIndex, flushNow } from "../persistence";
-import { findUserByUid, DEFAULT_WORKING_HOURS } from "./authService";
+import { findUserByUid, DEFAULT_WORKING_HOURS, getArchivedTaskRetentionDaysForPurge } from "./authService";
+import { purgeAttachmentsForTodoIds } from "./attachmentService";
+import { removeCommentsForTodos } from "./commentService";
+import { detachNotesFromTodoIds } from "./noteService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
@@ -327,6 +330,55 @@ export function isArchived(todo: Todo): boolean {
   return todo.status !== "active";
 }
 
+function collectArchivedTodoIdsPastRetention(todos: Map<string, Todo>, retentionDays: number): string[] {
+  if (retentionDays <= 0) return [];
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const toPurge = new Set<string>();
+  for (const [id, todo] of todos) {
+    if (!isArchived(todo)) continue;
+    const t = new Date(todo.statusChangedAt).getTime();
+    if (Number.isNaN(t) || t >= cutoff) continue;
+    toPurge.add(id);
+  }
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [id, todo] of todos) {
+      if (toPurge.has(id)) continue;
+      if (todo.parentId && toPurge.has(todo.parentId)) {
+        toPurge.add(id);
+        grew = true;
+      }
+    }
+  }
+  return [...toPurge];
+}
+
+/**
+ * Permanently removes archived todos past the user's retention setting (attachments, comments, task rows).
+ * Does not purge other users' tasks when called with a single owner uid.
+ */
+export async function purgeArchivedTodosPastRetentionForUser(userId: string): Promise<number> {
+  const days = getArchivedTaskRetentionDaysForPurge(userId);
+  if (days <= 0) return 0;
+  const todos = getUserTodos(userId);
+  const ids = collectArchivedTodoIdsPastRetention(todos, days);
+  if (ids.length === 0) return 0;
+  const idSet = new Set(ids);
+  purgeAttachmentsForTodoIds(ids);
+  removeCommentsForTodos(ids);
+  detachNotesFromTodoIds(userId, idSet);
+  await hardRemoveTodosByIds(ids);
+  console.log("[todos] %d tâche(s) archivée(s) purgée(s) (rétention %d j., utilisateur %s)", ids.length, days, userId);
+  return ids.length;
+}
+
+async function purgeArchivedTodosPastRetentionAllUsers(): Promise<void> {
+  for (const uid of todosByUser.keys()) {
+    await purgeArchivedTodosPastRetentionForUser(uid);
+  }
+}
+
 /**
  * Archived todos for the signed-in user only (their datastore).
  * Personal tasks (no project) are always included. Tasks linked to a project are included
@@ -417,6 +469,67 @@ export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConve
   if (ownersToPersist.size > 0) {
     await persistTodos(...ownersToPersist);
   }
+}
+
+/** All todos in `todos` whose parent chain reaches `rootId` (including `rootId`). */
+function collectDescendantTodoIds(todos: Map<string, Todo>, rootId: string): string[] {
+  const ids = new Set<string>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [id, todo] of todos) {
+      if (ids.has(id)) continue;
+      if (todo.parentId && ids.has(todo.parentId)) {
+        ids.add(id);
+        grew = true;
+      }
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Permanently removes an archived todo (and its subtasks) from the owner’s store.
+ * Assignees cannot purge tasks they do not own.
+ */
+export async function permanentlyRemoveArchivedTodo(userId: string, todoId: string): Promise<Todo[]> {
+  const own = getUserTodos(userId);
+  const todo = own.get(todoId);
+  if (!todo) throw new NotFoundError("Tâche introuvable");
+  if (!isArchived(todo)) {
+    throw new ValidationError("Seules les tâches archivées peuvent être supprimées définitivement");
+  }
+  const chainIds = collectDescendantTodoIds(own, todoId);
+  const snapshots = chainIds.map((id) => own.get(id)!).filter(Boolean);
+  purgeAttachmentsForTodoIds(chainIds);
+  removeCommentsForTodos(chainIds);
+  detachNotesFromTodoIds(userId, new Set(chainIds));
+  await hardRemoveTodosByIds(chainIds);
+  return snapshots;
+}
+
+/**
+ * Permanently removes every archived todo visible in {@link listArchivedTodos} for this user (plus subtasks in the same chains).
+ */
+export async function permanentlyRemoveAllArchivedTodosOwned(userId: string, userEmail: string): Promise<Todo[]> {
+  const archivedVisible = listArchivedTodos(userId, userEmail);
+  if (archivedVisible.length === 0) return [];
+  const own = getUserTodos(userId);
+  const allIds = new Set<string>();
+  for (const t of archivedVisible) {
+    if (!own.has(t.id)) continue;
+    for (const id of collectDescendantTodoIds(own, t.id)) {
+      allIds.add(id);
+    }
+  }
+  if (allIds.size === 0) return [];
+  const snapshots = [...allIds].map((id) => own.get(id)!).filter(Boolean);
+  const idList = [...allIds];
+  purgeAttachmentsForTodoIds(idList);
+  removeCommentsForTodos(idList);
+  detachNotesFromTodoIds(userId, allIds);
+  await hardRemoveTodosByIds(idList);
+  return snapshots;
 }
 
 /** Permanently remove todos from the store (used when root tasks become phases). */
@@ -931,26 +1044,10 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   return todo;
 }
 
-const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
 setInterval(() => {
-  let cleaned = 0;
-  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
-  todosByUser.forEach((todos) => {
-    for (const [id, todo] of todos) {
-      if (todo.status === "deleted" && new Date(todo.statusChangedAt).getTime() < cutoff) {
-        todos.delete(id);
-        ownerIndex.delete(id);
-        cleaned++;
-      }
-    }
+  void purgeArchivedTodosPastRetentionAllUsers().catch((err) => {
+    console.error("[todos] échec purge tâches archivées:", err);
   });
-  if (cleaned > 0) {
-    void persistTodos().catch((err) => {
-      console.error("[todos] échec persistance après purge tombstones:", err);
-    });
-    console.log("[todos] %d tombstone(s) purgée(s) (> 30 jours)", cleaned);
-  }
 }, 6 * 60 * 60 * 1000).unref();
 
 export async function deleteTodo(userId: string, todoId: string): Promise<Todo> {

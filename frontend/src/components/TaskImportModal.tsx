@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { confirmTaskImport, previewTaskImport, type TaskImportPreviewResult } from "@/lib/api";
+import { downloadTaskImportTemplateCsv, downloadTaskImportTemplateJson } from "@/lib/importTemplates";
 import { useToast } from "./Toast";
 
 interface Props {
@@ -80,9 +81,27 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
         className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-sm font-semibold text-zinc-800 dark:text-slate-100 px-4 py-3 border-b border-zinc-200 dark:border-slate-600">
-          {t("import.tasksPreviewTitle")}
-        </h3>
+        <div className="px-4 py-3 border-b border-zinc-200 dark:border-slate-600 space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-800 dark:text-slate-100">
+            {t("import.tasksPreviewTitle")}
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => downloadTaskImportTemplateCsv()}
+              className="text-[11px] font-medium text-slate-600 dark:text-slate-400 rounded border border-zinc-200 dark:border-slate-600 px-2 py-1 hover:bg-zinc-50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+              {t("import.sampleTasksCsv")}
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTaskImportTemplateJson()}
+              className="text-[11px] font-medium text-slate-600 dark:text-slate-400 rounded border border-zinc-200 dark:border-slate-600 px-2 py-1 hover:bg-zinc-50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+              {t("import.sampleTasksJson")}
+            </button>
+          </div>
+        </div>
         <div className="p-4 overflow-y-auto text-sm text-zinc-700 dark:text-slate-300 space-y-3">
           <p className="text-xs text-zinc-500 dark:text-slate-400 break-all">{file.name}</p>
           {loading && <p>{t("import.previewLoading")}</p>}

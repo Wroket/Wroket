@@ -26,7 +26,7 @@ export interface TaskIconToolbarProps {
   /** Passe à SlotPicker (vue cartes / détails). */
   suggestedSlot?: Todo["suggestedSlot"];
   /**
-   * Cartes et radar : évite que les clics sur la barre d’actions remontent au conteneur (double-clic édition).
+   * Cartes, liste et radar : évite que les clics sur la barre d’actions remontent au conteneur (ouverture édition au clic).
    */
   isolatePointerEvents?: boolean;
   className?: string;

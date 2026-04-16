@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -21,8 +21,10 @@ import {
 } from "@dnd-kit/sortable";
 
 import AppShell from "@/components/AppShell";
+import DashboardImportModal from "@/components/DashboardImportModal";
 import PageHelpButton from "@/components/PageHelpButton";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import TaskImportModal from "@/components/TaskImportModal";
 import { useToast } from "@/components/Toast";
 import {
   createProject,
@@ -52,6 +54,7 @@ interface ProjectListViewProps {
   locale: string;
   loadProjects: () => Promise<unknown>;
   onSelectProject: (project: Project) => void;
+  onTaskImportSuccess?: () => void;
 }
 
 export default function ProjectListView({
@@ -64,7 +67,9 @@ export default function ProjectListView({
   locale,
   loadProjects,
   onSelectProject,
+  onTaskImportSuccess,
 }: ProjectListViewProps) {
+  const router = useRouter();
   const { toast } = useToast();
 
   const [showCreate, setShowCreate] = useState(false);
@@ -74,6 +79,8 @@ export default function ProjectListView({
   const [useTemplate, setUseTemplate] = useState(true);
   const [creating, setCreating] = useState(false);
 
+  const [importChoiceOpen, setImportChoiceOpen] = useState(false);
+  const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; action: () => void } | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
@@ -461,7 +468,16 @@ export default function ProjectListView({
               </svg>
               <span className="hidden sm:inline">{t("todos.undo")}</span>
             </button>
-            <Link href="/projects/import" className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.import")}</Link>
+            <button
+              type="button"
+              onClick={() => setImportChoiceOpen(true)}
+              className="inline-flex items-center gap-2 rounded border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <svg className="w-4 h-4 shrink-0 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              {t("dashboard.importData")}
+            </button>
             <button onClick={() => setShowCreate(true)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("projects.create")}</button>
           </div>
         </div>
@@ -698,6 +714,22 @@ export default function ProjectListView({
         )}
 
         <ConfirmDialog open={!!confirm} title={confirm?.title ?? ""} message={confirm?.message ?? ""} onConfirm={() => confirm?.action()} onCancel={() => setConfirm(null)} variant="danger" />
+
+        <DashboardImportModal
+          open={importChoiceOpen}
+          onClose={() => setImportChoiceOpen(false)}
+          onTasksFile={(f) => setTaskImportFile(f)}
+          onImportProject={() => router.push("/projects/import")}
+        />
+        <TaskImportModal
+          file={taskImportFile}
+          open={taskImportFile !== null}
+          onClose={() => setTaskImportFile(null)}
+          onSuccess={() => {
+            if (onTaskImportSuccess) onTaskImportSuccess();
+            else void loadProjects();
+          }}
+        />
       </div>
     </AppShell>
   );

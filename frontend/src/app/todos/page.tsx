@@ -46,6 +46,7 @@ import {
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
+import { getEffectiveDueDay, hasNoEffectiveDue } from "@/lib/effectiveDue";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
 import {
@@ -240,6 +241,13 @@ export default function TodosPage() {
   const assignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  useEffect(() => {
+    return () => {
+      if (assignLookupTimer.current) clearTimeout(assignLookupTimer.current);
+      if (editAssignLookupTimer.current) clearTimeout(editAssignLookupTimer.current);
+    };
+  }, []);
+
   const openEdit = (todo: Todo) => {
     setEditingTodo(todo);
     setEditForm({
@@ -265,14 +273,19 @@ export default function TodosPage() {
   const openEditRef = useRef(openEdit);
   openEditRef.current = openEdit;
 
-  const consumedTaskFromUrl = useRef(false);
+  const lastOpenedTaskFromUrl = useRef<string | null>(null);
   useEffect(() => {
-    if (loading || consumedTaskFromUrl.current) return;
+    if (loading) return;
     const taskId = searchParams.get("task");
-    if (!taskId) return;
-    consumedTaskFromUrl.current = true;
+    if (!taskId) {
+      lastOpenedTaskFromUrl.current = null;
+      return;
+    }
+    if (lastOpenedTaskFromUrl.current === taskId) return;
     const todo = todos.find((t) => t.id === taskId);
-    if (todo) openEditRef.current(todo);
+    if (!todo) return;
+    lastOpenedTaskFromUrl.current = taskId;
+    openEditRef.current(todo);
     router.replace("/todos", { scroll: false });
   }, [loading, todos, searchParams, router]);
 
@@ -678,14 +691,15 @@ export default function TodosPage() {
 
       if (filterDeadline !== "all") {
         if (filterDeadline === "none") {
-          if (t.deadline) return false;
-        } else if (!t.deadline) {
-          return false;
+          // Task matches "no deadline" only when it has neither a deadline nor a slot.
+          if (!hasNoEffectiveDue(t)) return false;
         } else {
-          const dl = new Date(t.deadline);
-          if (filterDeadline === "today" && dl > endOfToday) return false;
-          if (filterDeadline === "week" && dl > endOfWeek) return false;
-          if (filterDeadline === "overdue" && dl >= now) return false;
+          // For all other deadline filters, use the effective due day (min of deadline and slot).
+          const dueDay = getEffectiveDueDay(t);
+          if (!dueDay) return false;
+          if (filterDeadline === "today" && dueDay > endOfToday) return false;
+          if (filterDeadline === "week" && dueDay > endOfWeek) return false;
+          if (filterDeadline === "overdue" && dueDay >= now) return false;
         }
       }
 
@@ -937,8 +951,137 @@ export default function TodosPage() {
           )}
         </form>
 
-        {/* ── Filters panel (collapsible) ── */}
-        <div className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+        {/* ── Main view (List / Cards / Radar) ── */}
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
+                {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
+              </h2>
+              <PageHelpButton
+                title={t("todos.listTitle")}
+                items={[
+                  { text: t("help.todos.dnd") },
+                  { text: t("help.todos.edit") },
+                  { text: t("help.todos.attachments") },
+                  { text: t("help.todos.comments") },
+                  { text: t("help.todos.export") },
+                ]}
+              />
+              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
+                {(["all", "personal", "assigned", "delegated"] as TaskScope[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setScope(s)}
+                    className={`px-3 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+                      scope === s
+                        ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
+                        : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
+                    } ${s !== "all" ? "border-l border-zinc-200 dark:border-slate-600" : ""}`}
+                  >
+                    {t(`scope.${s}`)}
+                    <span className={`text-[10px] rounded-full px-1.5 py-0.5 leading-none font-bold ${
+                      scope === s
+                        ? "bg-white/20 text-white"
+                        : "bg-zinc-100 dark:bg-slate-700 text-zinc-400 dark:text-slate-500"
+                    }`}>
+                      {scopeCounts[s]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={!lastAction || undoing}
+                title={t("todos.undoTitle")}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  lastAction
+                    ? "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                    : "border-zinc-100 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 text-zinc-300 dark:text-slate-600 cursor-not-allowed"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
+                </svg>
+                <span className="hidden sm:inline">{t("todos.undo")}</span>
+              </button>
+              <span className="text-sm text-zinc-400 hidden sm:inline">
+                {mainView === "list"
+                  ? `${listTodos.length} ${listTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
+                  : `${activeTodos.length} ${activeTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
+                }
+                {filters.size > 0 ? ` (${[...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")})` : ""}
+              </span>
+              <ExportImportDropdown
+                exportCsv={() => exportTasks("csv")}
+                exportJson={() => exportTasks("json")}
+                onImportFile={(f) => setTaskImportFile(f)}
+                templateCsv={'title,status,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,assignedTo\nMy task,active,medium,medium,,2025-06-01,2025-06-15,"tag1, tag2",,,'}
+                templateJson={JSON.stringify([{ title: "My task", status: "active", priority: "medium", effort: "medium", deadline: "2025-06-15", tags: ["tag1"] }], null, 2)}
+              />
+              <TaskImportModal
+                file={taskImportFile}
+                open={taskImportFile !== null}
+                onClose={() => setTaskImportFile(null)}
+                onSuccess={bumpRefresh}
+              />
+              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setMainView("list")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                    mainView === "list"
+                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
+                      : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                  {t("view.list")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMainView("cards")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
+                    mainView === "cards"
+                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
+                      : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                  {t("view.cards")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMainView("radar")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
+                    mainView === "radar"
+                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
+                      : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="3" />
+                    <circle cx="5" cy="8" r="2" />
+                    <circle cx="18" cy="6" r="2" />
+                    <circle cx="7" cy="17" r="2" />
+                    <circle cx="17" cy="16" r="2" />
+                  </svg>
+                  {t("view.radar")}
+                </button>
+              </div>
+            </div>
+          </div>
+
+        {/* ── Filters panel (collapsible) — below task list toolbar, above table/matrix ── */}
+        <div className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden mb-4">
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((v) => !v)}
@@ -1096,135 +1239,6 @@ export default function TodosPage() {
             </div>
           )}
         </div>
-
-        {/* ── Main view (List / Cards / Radar) ── */}
-        <div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
-                {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
-              </h2>
-              <PageHelpButton
-                title={t("todos.listTitle")}
-                items={[
-                  { text: t("help.todos.dnd") },
-                  { text: t("help.todos.edit") },
-                  { text: t("help.todos.attachments") },
-                  { text: t("help.todos.comments") },
-                  { text: t("help.todos.export") },
-                ]}
-              />
-              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
-                {(["all", "personal", "assigned", "delegated"] as TaskScope[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setScope(s)}
-                    className={`px-3 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
-                      scope === s
-                        ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
-                        : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
-                    } ${s !== "all" ? "border-l border-zinc-200 dark:border-slate-600" : ""}`}
-                  >
-                    {t(`scope.${s}`)}
-                    <span className={`text-[10px] rounded-full px-1.5 py-0.5 leading-none font-bold ${
-                      scope === s
-                        ? "bg-white/20 text-white"
-                        : "bg-zinc-100 dark:bg-slate-700 text-zinc-400 dark:text-slate-500"
-                    }`}>
-                      {scopeCounts[s]}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={!lastAction || undoing}
-                title={t("todos.undoTitle")}
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  lastAction
-                    ? "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                    : "border-zinc-100 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 text-zinc-300 dark:text-slate-600 cursor-not-allowed"
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
-                </svg>
-                <span className="hidden sm:inline">{t("todos.undo")}</span>
-              </button>
-              <span className="text-sm text-zinc-400 hidden sm:inline">
-                {mainView === "list"
-                  ? `${listTodos.length} ${listTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
-                  : `${activeTodos.length} ${activeTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
-                }
-                {filters.size > 0 ? ` (${[...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")})` : ""}
-              </span>
-              <ExportImportDropdown
-                exportCsv={() => exportTasks("csv")}
-                exportJson={() => exportTasks("json")}
-                onImportFile={(f) => setTaskImportFile(f)}
-                templateCsv={'title,status,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,assignedTo\nMy task,active,medium,medium,,2025-06-01,2025-06-15,"tag1, tag2",,,'}
-                templateJson={JSON.stringify([{ title: "My task", status: "active", priority: "medium", effort: "medium", deadline: "2025-06-15", tags: ["tag1"] }], null, 2)}
-              />
-              <TaskImportModal
-                file={taskImportFile}
-                open={taskImportFile !== null}
-                onClose={() => setTaskImportFile(null)}
-                onSuccess={bumpRefresh}
-              />
-              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setMainView("list")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                    mainView === "list"
-                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
-                      : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                  {t("view.list")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMainView("cards")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
-                    mainView === "cards"
-                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
-                      : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                  </svg>
-                  {t("view.cards")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMainView("radar")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
-                    mainView === "radar"
-                      ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
-                      : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="12" cy="12" r="3" />
-                    <circle cx="5" cy="8" r="2" />
-                    <circle cx="18" cy="6" r="2" />
-                    <circle cx="7" cy="17" r="2" />
-                    <circle cx="17" cy="16" r="2" />
-                  </svg>
-                  {t("view.radar")}
-                </button>
-              </div>
-            </div>
-          </div>
 
           {mainView === "list" ? (
             <TaskList
@@ -1388,7 +1402,7 @@ export default function TodosPage() {
                         return (
                           <div
                             key={todo.id}
-                            onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
+                            onClick={(e) => { e.preventDefault(); openEdit(todo); }}
                             className={`group/card flex items-start gap-2 rounded border px-2.5 py-2 cursor-pointer select-none ${CARD_BG[q]}`}
                           >
                             <span className="text-xs font-bold text-zinc-400 dark:text-slate-500 pt-0.5 w-4 text-right shrink-0 tabular-nums">
@@ -1496,6 +1510,7 @@ export default function TodosPage() {
                     radarMode={radarMode}
                     onRadarModeChange={setRadarMode}
                     nowMs={nowMs}
+                    onEditTask={openEdit}
                   />
                 </div>
               </div>

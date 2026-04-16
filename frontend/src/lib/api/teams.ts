@@ -34,12 +34,12 @@ export async function getCollaborators(): Promise<Collaborator[]> {
 }
 
 /** Emails of collaborators + team members; server returns [] until query has at least 3 characters. */
-export async function getEmailSuggestions(query: string): Promise<string[]> {
+export async function getEmailSuggestions(query: string, opts?: { signal?: AbortSignal }): Promise<string[]> {
   const q = query.trim();
   if (q.length < 3) return [];
   const res = await fetch(
     `${API_BASE_URL}/teams/email-suggestions?q=${encodeURIComponent(q)}`,
-    { method: "GET", credentials: "include" },
+    { method: "GET", credentials: "include", signal: opts?.signal },
   );
   if (!res.ok) return [];
   const body = (await res.json()) as { emails?: string[] };

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import fs from "fs";
+import { writeFile } from "fs/promises";
 import path from "path";
 
 import { getStore, scheduleSave } from "../persistence";
@@ -59,11 +60,11 @@ function resolveAndGuard(fileName: string): string {
   return resolved;
 }
 
-export function addAttachment(
+export async function addAttachment(
   todoId: string,
   userId: string,
   file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
-): Attachment {
+): Promise<Attachment> {
   if (file.size > MAX_FILE_SIZE) throw new ValidationError("Fichier trop volumineux (max 5 Mo)");
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) throw new ValidationError("Type de fichier non autorisé");
 
@@ -76,7 +77,7 @@ export function addAttachment(
   const storedName = `${crypto.randomUUID()}${ext}`;
   const filePath = resolveAndGuard(storedName);
 
-  fs.writeFileSync(filePath, file.buffer);
+  await writeFile(filePath, file.buffer);
 
   const attachment: Attachment = {
     id: crypto.randomUUID(),
@@ -125,4 +126,23 @@ export function deleteAttachment(todoId: string, attachmentId: string, userId: s
   list.splice(idx, 1);
   store[todoId] = list;
   persist();
+}
+
+/** Remove every attachment row and file for the given todo ids (e.g. permanent archive purge). */
+export function purgeAttachmentsForTodoIds(todoIds: string[]): void {
+  if (todoIds.length === 0) return;
+  const store = getAttachmentStore();
+  let changed = false;
+  for (const todoId of todoIds) {
+    const list = store[todoId];
+    if (!list?.length) continue;
+    for (const a of list) {
+      try {
+        fs.unlinkSync(resolveAndGuard(a.storedName));
+      } catch { /* file may already be gone */ }
+    }
+    delete store[todoId];
+    changed = true;
+  }
+  if (changed) persist();
 }

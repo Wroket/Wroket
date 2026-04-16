@@ -169,7 +169,7 @@ export function prepareEmailOtpForPending(token: string): { code: string; uid: s
   if (row.lastEmailOtpSentAt && now - row.lastEmailOtpSentAt < EMAIL_OTP_RESEND_COOLDOWN_MS) {
     throw new AppError(429, "Attendez une minute avant un nouvel envoi");
   }
-  const code = (100000 + Math.floor(Math.random() * 900000)).toString();
+  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
   const hash = crypto.createHash("sha256").update(code).digest("hex");
   row.emailOtpHash = hash;
   row.emailOtpExpiresAt = now + EMAIL_OTP_TTL_MS;

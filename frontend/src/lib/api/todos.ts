@@ -139,6 +139,30 @@ export async function deleteTodo(id: string): Promise<Todo> {
   return todo;
 }
 
+/** Permanently removes an archived task (and its subtasks) from the owner’s store. */
+export async function deleteArchivedTodoPermanently(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/todos/${encodeURIComponent(id)}?permanent=1`, {
+    ...apiFetchDefaults,
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de supprimer la tâche définitivement"));
+  }
+  broadcastTodosMutated();
+}
+
+/** Permanently removes every archived task you own (same scope as the archive list for your account). */
+export async function purgeAllArchivedTodos(): Promise<{ removed: number }> {
+  const res = await fetch(`${API_BASE_URL}/todos/archived/all`, { ...apiFetchDefaults, method: "DELETE" });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de vider l’archive"));
+  }
+  broadcastTodosMutated();
+  return (await res.json()) as { removed: number };
+}
+
 export async function reorderTodos(todoIds: string[]): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/todos/reorder`, {
     ...apiFetchDefaults,

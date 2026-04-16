@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   logout,
@@ -173,8 +173,37 @@ function timeAgo(iso: string, t: (k: import("@/lib/i18n").TranslationKey) => str
   return `${days} ${t("notif.daysAgo")}`;
 }
 
+/** Deep-link to a task when the notification carries todoId (matches /notifications page). */
+function taskNotifOpenHref(notif: AppNotification): string {
+  const taskId = notif.data?.todoId;
+  if (
+    taskId &&
+    (notif.type === "task_assigned" ||
+      notif.type === "task_completed" ||
+      notif.type === "task_cancelled" ||
+      notif.type === "task_declined" ||
+      notif.type === "task_accepted" ||
+      notif.type === "comment_mention" ||
+      notif.type === "deadline_approaching" ||
+      notif.type === "deadline_today")
+  ) {
+    return `/todos?task=${encodeURIComponent(taskId)}`;
+  }
+  if (
+    notif.type === "task_assigned" ||
+    notif.type === "task_completed" ||
+    notif.type === "task_cancelled" ||
+    notif.type === "task_declined" ||
+    notif.type === "task_accepted"
+  ) {
+    return "/todos";
+  }
+  return "/todos";
+}
+
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useLocale();
   const { toast } = useToast();
   const { user: me, loading } = useAuth();
@@ -192,7 +221,12 @@ export default function AppShell({ children }: AppShellProps) {
   const helpMenuRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const unreadNotifications = useMemo(() => notifications.filter((n) => !n.read), [notifications]);
+  const [notifTimeTick, setNotifTimeTick] = useState(0);
+  const panelNotifications = useMemo(
+    () =>
+      [...notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 20),
+    [notifications, notifTimeTick],
+  );
   const notifRef = useRef<HTMLDivElement>(null);
 
   const toggleDarkMode = useCallback(() => {
@@ -228,10 +262,6 @@ export default function AppShell({ children }: AppShellProps) {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
-    if (me?.email) localStorage.setItem("wroket-login-email", me.email);
-  }, [me]);
-
-  useEffect(() => {
     let cancelled = false;
     const fetchCount = async () => {
       try {
@@ -256,6 +286,12 @@ export default function AppShell({ children }: AppShellProps) {
   }, [notifOpen]);
 
   useEffect(() => {
+    if (!notifOpen) return;
+    const id = window.setInterval(() => setNotifTimeTick((x) => x + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [notifOpen]);
+
+  useEffect(() => {
     if (!helpMenuOpen) return;
     const close = (e: MouseEvent) => {
       if (helpMenuRef.current && !helpMenuRef.current.contains(e.target as Node)) {
@@ -266,15 +302,22 @@ export default function AppShell({ children }: AppShellProps) {
     return () => document.removeEventListener("mousedown", close);
   }, [helpMenuOpen]);
 
-  const openNotifPanel = async () => {
-    setNotifOpen((prev) => !prev);
-    if (!notifOpen) {
-      try {
-        const list = await getNotifications();
-        setNotifications(list);
-      } catch { toast.error(t("toast.loadError")); }
+  const refreshNotificationList = useCallback(async () => {
+    try {
+      const list = await getNotifications();
+      setNotifications(list);
+      setUnreadCount(list.filter((n) => !n.read).length);
+    } catch {
+      toast.error(t("toast.loadError"));
     }
-  };
+  }, [toast, t]);
+
+  const openNotifPanel = useCallback(() => {
+    setNotifOpen((prev) => {
+      if (!prev) void refreshNotificationList();
+      return !prev;
+    });
+  }, [refreshNotificationList]);
 
   const handleMarkRead = async (id: string) => {
     try {
@@ -301,9 +344,13 @@ export default function AppShell({ children }: AppShellProps) {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchAbortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -330,16 +377,20 @@ export default function AppShell({ children }: AppShellProps) {
     }
     setSearchLoading(true);
     searchDebounceRef.current = setTimeout(async () => {
+      searchAbortRef.current?.abort();
+      const ac = new AbortController();
+      searchAbortRef.current = ac;
       try {
         const q = value.trim();
         const [results, contacts] = await Promise.all([
-          globalSearch(value),
-          q.length >= 3 ? getEmailSuggestions(q) : Promise.resolve([] as string[]),
+          globalSearch(value, { signal: ac.signal }),
+          q.length >= 3 ? getEmailSuggestions(q, { signal: ac.signal }) : Promise.resolve([] as string[]),
         ]);
         setSearchResults(results);
         setSearchContactEmails(contacts);
         setSearchOpen(true);
-      } catch {
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         setSearchResults([]);
         setSearchContactEmails([]);
         toast.error(t("toast.loadError"));
@@ -366,15 +417,22 @@ export default function AppShell({ children }: AppShellProps) {
     setSearchQuery("");
     setSearchResults([]);
     setMobileSearchOpen(false);
-    if (result.type === "todo") window.location.href = `/todos?edit=${result.id}`;
-    else if (result.type === "project") window.location.href = `/projects/${result.id}`;
-    else if (result.type === "note") window.location.href = `/notes?id=${result.id}`;
-  }, []);
+    if (result.type === "todo") router.push(`/todos?edit=${encodeURIComponent(result.id)}`);
+    else if (result.type === "project") router.push(`/projects/${encodeURIComponent(result.id)}`);
+    else if (result.type === "note") router.push(`/notes?id=${encodeURIComponent(result.id)}`);
+  }, [router]);
 
   const [shareOpen, setShareOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [shareSending, setShareSending] = useState(false);
   const [shareResult, setShareResult] = useState<"success" | "error" | null>(null);
+  const shareCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shareCloseTimerRef.current) clearTimeout(shareCloseTimerRef.current);
+    };
+  }, []);
 
   const handleShareInvite = async () => {
     if (!shareEmail.includes("@")) return;
@@ -384,7 +442,8 @@ export default function AppShell({ children }: AppShellProps) {
       await shareInviteApi(shareEmail);
       setShareResult("success");
       setShareEmail("");
-      setTimeout(() => { setShareOpen(false); setShareResult(null); }, 2000);
+      if (shareCloseTimerRef.current) clearTimeout(shareCloseTimerRef.current);
+      shareCloseTimerRef.current = setTimeout(() => { setShareOpen(false); setShareResult(null); }, 2000);
     } catch {
       setShareResult("error");
     } finally {
@@ -572,18 +631,29 @@ export default function AppShell({ children }: AppShellProps) {
                     )}
                   </div>
                   <div className="overflow-y-auto flex-1">
-                    {unreadNotifications.length === 0 ? (
+                    {panelNotifications.length === 0 ? (
                       <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("notif.empty")}</p>
                     ) : (
-                      unreadNotifications.slice(0, 20).map((notif) => (
+                      panelNotifications.map((notif) => (
                         <div
                           key={notif.id}
-                          className="w-full text-left px-3 py-2.5 border-b border-zinc-50 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-950/20"
+                          className={`w-full text-left px-3 py-2.5 border-b border-zinc-50 dark:border-slate-800 ${
+                            notif.read
+                              ? "bg-white dark:bg-slate-900/80"
+                              : "bg-blue-50/50 dark:bg-blue-950/20"
+                          }`}
                         >
                           <div className="flex items-start gap-2.5">
-                            <div className="w-2 h-2 rounded-full mt-2 shrink-0 bg-blue-500" aria-hidden />
+                            <div
+                              className={`w-2 h-2 rounded-full mt-2 shrink-0 ${notif.read ? "bg-zinc-300 dark:bg-slate-600" : "bg-blue-500"}`}
+                              aria-hidden
+                            />
                             <div className="flex-1 min-w-0 space-y-1.5">
-                              <p className="text-sm text-zinc-800 dark:text-slate-200 leading-snug break-words line-clamp-5">
+                              <p
+                                className={`text-sm leading-snug break-words line-clamp-5 ${
+                                  notif.read ? "text-zinc-600 dark:text-slate-400" : "text-zinc-800 dark:text-slate-200 font-medium"
+                                }`}
+                              >
                                 {notif.message}
                               </p>
                               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -601,9 +671,12 @@ export default function AppShell({ children }: AppShellProps) {
                                         notif.type === "task_completed" ||
                                         notif.type === "task_cancelled" ||
                                         notif.type === "task_declined" ||
-                                        notif.type === "task_accepted"
+                                        notif.type === "task_accepted" ||
+                                        notif.type === "deadline_approaching" ||
+                                        notif.type === "deadline_today" ||
+                                        notif.type === "comment_mention"
                                       ) {
-                                        window.location.href = "/todos";
+                                        window.location.href = taskNotifOpenHref(notif);
                                       }
                                     }}
                                     className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline shrink-0"
@@ -719,7 +792,7 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
             <button
               onClick={() => { setShareOpen(true); setShareResult(null); }}
-              className="rounded border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 p-2 sm:px-4 sm:py-2 text-sm text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors"
               aria-label={t("app.share")}
             >
               <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1179,7 +1252,7 @@ export default function AppShell({ children }: AppShellProps) {
               <button
                 onClick={handleShareInvite}
                 disabled={shareSending || !shareEmail.includes("@")}
-                className="flex-1 rounded-lg bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {shareSending ? t("app.share.sending") : t("app.share.send")}
               </button>

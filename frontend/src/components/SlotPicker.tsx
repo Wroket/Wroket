@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   getTaskSlots,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
+import { formatScheduledSlotLabel } from "@/lib/slotFormat";
 
 export interface SlotPickerProps {
   todoId: string;
@@ -30,11 +32,19 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  /** After creating a task, show schedule UI as a centered modal; manual opens use the anchored popover. */
+  const [presentation, setPresentation] = useState<"popover" | "modal">("popover");
   const autoOpenedRef = useRef(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (autoOpen && !autoOpenedRef.current && !scheduledSlot) {
       autoOpenedRef.current = true;
+      setPresentation("modal");
       setOpen(true);
       fetchSlots();
     }
@@ -92,6 +102,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   }, [todoId]);
 
   const handleOpen = () => {
+    setPresentation("popover");
     computePosition();
     setOpen(true);
     setRescheduleMode(false);
@@ -169,51 +180,52 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   useEffect(() => {
     if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
     };
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
-    return () => { document.removeEventListener("mousedown", handleClick); document.removeEventListener("keydown", handleKey); };
-  }, [open]);
+    if (presentation === "popover") {
+      const handleClick = (e: MouseEvent) => {
+        if (ref.current && !ref.current.contains(e.target as Node)) {
+          setOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClick);
+      return () => {
+        document.removeEventListener("mousedown", handleClick);
+        document.removeEventListener("keydown", handleKey);
+      };
+    }
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open, presentation]);
 
-  const formatSlotBadge = (slot: ScheduledSlot): string => {
-    const d = new Date(slot.start);
-    const day = d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
-    const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-    return `📅 ${day}, ${time}`;
-  };
+  const formatSlotBadge = (slot: ScheduledSlot): string => `📅 ${formatScheduledSlotLabel(slot)}`;
 
-  return (
-    <div ref={ref} className="relative inline-flex">
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); handleOpen(); }}
-        title={t("schedule.title")}
-        aria-expanded={open}
-        className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors"
-      >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </button>
+  const panelShellClass =
+    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-xl w-72 max-w-[min(100vw-2rem,18rem)]";
 
-      {open && (
-        <div
-          ref={popoverRef}
-          style={popoverStyle}
-          className="bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-xl w-72"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-4 py-3 border-b border-zinc-100 dark:border-slate-700">
-            <h4 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-2">
-              {t("schedule.title")}
-            </h4>
+  const renderScheduleBody = () => (
+    <>
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-slate-700">
+        <div className="flex items-start justify-between gap-2">
+          <h4 id="slot-picker-dialog-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100 flex-1 min-w-0">
+            {t("schedule.title")}
+          </h4>
+          {presentation === "modal" && (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="shrink-0 whitespace-nowrap rounded border border-zinc-200 dark:border-slate-600 px-2 py-1 text-[11px] font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+              aria-label={t("schedule.notNow")}
+            >
+              {t("schedule.notNow")}
+            </button>
+          )}
+        </div>
             {(!scheduledSlot || rescheduleMode) && (
-              <div className="flex gap-1">
+              <div className="flex gap-1 mt-2">
                 <button
                   type="button"
                   onClick={() => setMode("suggested")}
@@ -444,20 +456,69 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
               </div>
             )}
           </div>
-        </div>
+    </>
+  );
+
+  const scheduleTriggerClass = scheduledSlot
+    ? "w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors"
+    : "w-6 h-6 rounded flex items-center justify-center border border-blue-200/90 dark:border-blue-500/35 bg-blue-50/90 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 dark:hover:border-blue-400 transition-colors ring-1 ring-inset ring-blue-200/50 dark:ring-blue-400/20";
+
+  return (
+    <>
+      <div ref={ref} className="relative inline-flex">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+          title={t("schedule.title")}
+          aria-expanded={open}
+          className={scheduleTriggerClass}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </button>
+
+        {open && presentation === "popover" && (
+          <div
+            ref={popoverRef}
+            style={popoverStyle}
+            className={panelShellClass}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderScheduleBody()}
+          </div>
+        )}
+      </div>
+      {mounted && open && presentation === "modal" && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="slot-picker-dialog-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+            aria-label={t("cancel")}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className={`relative z-[1] max-h-[90vh] overflow-y-auto ${panelShellClass}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderScheduleBody()}
+          </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
 export function ScheduledSlotBadge({ slot }: { slot: ScheduledSlot }) {
-  const d = new Date(slot.start);
-  const day = d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-
   return (
     <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 shrink-0 whitespace-nowrap">
-      📅 {day}, {time}
+      📅 {formatScheduledSlotLabel(slot)}
     </span>
   );
 }

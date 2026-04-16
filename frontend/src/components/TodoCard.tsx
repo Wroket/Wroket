@@ -68,7 +68,7 @@ export default function TodoCard({
     <div
       tabIndex={0}
       role="button"
-      onDoubleClick={(e) => { e.preventDefault(); onEdit?.(todo); }}
+      onClick={(e) => { e.preventDefault(); onEdit?.(todo); }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit?.(todo); } }}
       className="group bg-white dark:bg-slate-900/80 rounded border border-zinc-200 dark:border-slate-600/40 pl-1 pr-3 py-2.5 flex items-start gap-2 shadow-sm hover:shadow transition-shadow cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
     >

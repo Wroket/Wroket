@@ -30,6 +30,7 @@ import {
   requestDisableEmail2faOtp as requestDisableEmail2faOtpService,
   disableEmailOtp2fa as disableEmailOtp2faService,
 } from "../services/authService";
+import { purgeArchivedTodosPastRetentionForUser } from "../services/todoService";
 import {
   getPendingTwoFactorMethods,
   prepareEmailOtpForPending,
@@ -417,6 +418,7 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
     notificationDeliveryMode: user.notificationDeliveryMode,
     notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl,
+    archivedTaskRetentionDays: user.archivedTaskRetentionDays,
   });
 }
 
@@ -468,9 +470,10 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     return;
   }
 
-  const { firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays, notificationDeliveryMode, notificationDeliveryWebhookUrl } = req.body as {
+  const { firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays, notificationDeliveryMode, notificationDeliveryWebhookUrl, archivedTaskRetentionDays } = req.body as {
     firstName?: unknown; lastName?: unknown; effortMinutes?: unknown; workingHours?: unknown; skipNonWorkingDays?: unknown;
     notificationDeliveryMode?: unknown; notificationDeliveryWebhookUrl?: unknown;
+    archivedTaskRetentionDays?: unknown;
   };
   if (firstName !== undefined && typeof firstName !== "string") {
     throw new ValidationError("Prénom invalide");
@@ -515,6 +518,18 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     else throw new ValidationError("notificationDeliveryWebhookUrl invalide");
   }
 
+  let validatedArchivedRetention: number | undefined;
+  if (archivedTaskRetentionDays !== undefined) {
+    if (typeof archivedTaskRetentionDays !== "number" || !Number.isFinite(archivedTaskRetentionDays)) {
+      throw new ValidationError("archivedTaskRetentionDays invalide");
+    }
+    const d = Math.floor(archivedTaskRetentionDays);
+    if (d !== 0 && (d < 1 || d > 365)) {
+      throw new ValidationError("archivedTaskRetentionDays doit être 0 (désactivé) ou entre 1 et 365");
+    }
+    validatedArchivedRetention = d;
+  }
+
   const updated = await updateProfileService(user.uid, {
     firstName: firstName as string | undefined,
     lastName: lastName as string | undefined,
@@ -523,7 +538,13 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     skipNonWorkingDays: skipNonWorkingDays !== undefined ? !!skipNonWorkingDays : undefined,
     notificationDeliveryMode: notificationDeliveryMode !== undefined ? notificationDeliveryMode as NotificationDeliveryMode : undefined,
     notificationDeliveryWebhookUrl: validatedWebhookUrl,
+    archivedTaskRetentionDays: validatedArchivedRetention,
   });
+  if (validatedArchivedRetention !== undefined) {
+    void purgeArchivedTodosPastRetentionForUser(user.uid).catch((err) => {
+      console.warn("[auth] purge archive après mise à jour profil:", err);
+    });
+  }
   res.status(200).json(updated);
 }
 
@@ -563,9 +584,15 @@ export async function myDeleteAccount(req: Request, res: Response) {
 export async function myActivity(req: Request, res: Response) {
   const user = (req as AuthenticatedRequest).user;
   if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
-  const { limit, offset } = req.query as Record<string, string | undefined>;
-  const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 50, 200) : 50;
+  const { limit, offset, days } = req.query as Record<string, string | undefined>;
+  const parsedDays = days ? Math.min(Math.max(parseInt(days, 10) || 0, 0), 90) : 0;
+  let since: string | undefined;
+  if (parsedDays > 0) {
+    since = new Date(Date.now() - parsedDays * 24 * 60 * 60 * 1000).toISOString();
+  }
+  const maxLimit = since ? 500 : 200;
+  const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 50, maxLimit) : since ? 200 : 50;
   const parsedOffset = Math.max(0, offset ? parseInt(offset, 10) || 0 : 0);
-  const result = getActivityLog({ userId: user.uid, limit: parsedLimit, offset: parsedOffset });
+  const result = getActivityLog({ userId: user.uid, limit: parsedLimit, offset: parsedOffset, since });
   res.status(200).json(result);
 }

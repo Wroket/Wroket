@@ -319,6 +319,7 @@ export async function updateProfile(payload: {
   notificationTypesDisabledOutbound?: NotificationType[];
   notificationOutboundFrequency?: NotificationOutboundFrequency;
   notificationDigestHour?: number;
+  archivedTaskRetentionDays?: number;
 }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PUT",
@@ -376,10 +377,13 @@ export async function deleteMyAccount(confirmation: string): Promise<void> {
 export async function getMyActivity(params?: {
   limit?: number;
   offset?: number;
+  /** Rolling window: only entries from the last N days (server-side filter). */
+  days?: number;
 }): Promise<{ entries: ActivityLogEntry[]; total: number }> {
   const qs = new URLSearchParams();
   if (params?.limit) qs.set("limit", String(params.limit));
   if (params?.offset) qs.set("offset", String(params.offset));
+  if (params?.days != null) qs.set("days", String(params.days));
   const res = await fetch(`${API_BASE_URL}/auth/my-activity?${qs.toString()}`, { credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger l'historique");
   return res.json();
@@ -393,9 +397,15 @@ export interface SearchResult {
   status?: string;
 }
 
-export async function globalSearch(query: string): Promise<SearchResult[]> {
+export async function globalSearch(
+  query: string,
+  opts?: { signal?: AbortSignal },
+): Promise<SearchResult[]> {
   if (query.length < 2) return [];
-  const res = await fetch(`${API_BASE_URL}/auth/search?q=${encodeURIComponent(query)}`, { credentials: "include" });
+  const res = await fetch(`${API_BASE_URL}/auth/search?q=${encodeURIComponent(query)}`, {
+    credentials: "include",
+    signal: opts?.signal,
+  });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur de recherche"));

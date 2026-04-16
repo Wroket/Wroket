@@ -373,7 +373,7 @@ export default function AgendaPage() {
 
   // ── Task editing ──
 
-  const handleDoubleClickEvent = async (ev: CalendarEvent) => {
+  const openWroketTaskFromCalendarEvent = async (ev: CalendarEvent) => {
     if (ev.source !== "wroket") return;
     try {
       const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
@@ -662,7 +662,11 @@ export default function AgendaPage() {
                                   : "text-zinc-800 dark:text-slate-200"
                               }`}
                               style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
-                              onDoubleClick={() => handleDoubleClickEvent(ev)}
+                              onClick={
+                                isWroket
+                                  ? () => { void openWroketTaskFromCalendarEvent(ev); }
+                                  : undefined
+                              }
                               title={isWroket ? `${ev.summary}\n${t("agenda.bookedFromWroket")}` : undefined}
                             >
                               <div className="truncate leading-tight">
@@ -748,7 +752,14 @@ export default function AgendaPage() {
                                   ? `${ev.summary} — ${qc.icon} ${qc.label}\n${t("agenda.bookedFromWroket")}`
                                   : googleTitle
                               }
-                              onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
+                              onClick={
+                                isWroket
+                                  ? (e) => {
+                                      e.stopPropagation();
+                                      void openWroketTaskFromCalendarEvent(ev);
+                                    }
+                                  : undefined
+                              }
                             >
                               <div className="text-xs font-semibold truncate leading-snug">
                                 {ev.delegated ? "← " : ""}{isWroket && qc ? `${qc.icon} ` : ""}{ev.recurring ? "↻ " : ""}{ev.summary}
@@ -836,7 +847,14 @@ export default function AgendaPage() {
                                   : "text-zinc-700 dark:text-slate-300"
                               }`}
                               style={!isWroket ? { borderLeftColor: acctColor, backgroundColor: hexToTintBg(acctColor, 0.18) } : undefined}
-                              onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickEvent(ev); }}
+                              onClick={
+                                isWroket
+                                  ? (e) => {
+                                      e.stopPropagation();
+                                      void openWroketTaskFromCalendarEvent(ev);
+                                    }
+                                  : undefined
+                              }
                               title={isWroket ? `${ev.summary}\n${t("agenda.bookedFromWroket")}` : ev.summary}
                             >
                               <span className="block truncate">{ev.delegated ? "← " : ""}{ev.recurring ? "↻ " : ""}{ev.summary}</span>

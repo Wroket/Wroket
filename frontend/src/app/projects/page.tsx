@@ -61,6 +61,11 @@ export default function ProjectsPage() {
     }
   }, [toast, t]);
 
+  const handleTaskImportSuccess = useCallback(() => {
+    void loadProjects();
+    refreshAllTodos();
+  }, [loadProjects, refreshAllTodos]);
+
   const selectProject = useCallback((project: Project | null) => {
     setSelectedProject(project);
     const params = new URLSearchParams(searchParams.toString());
@@ -128,6 +133,7 @@ export default function ProjectsPage() {
         locale={locale}
         loadProjects={loadProjects}
         teams={teams}
+        onTaskImportSuccess={handleTaskImportSuccess}
       />
     );
   }
@@ -143,6 +149,7 @@ export default function ProjectsPage() {
       locale={locale}
       loadProjects={loadProjects}
       onSelectProject={handleSelectProject}
+      onTaskImportSuccess={handleTaskImportSuccess}
     />
   );
 }

@@ -1,4 +1,5 @@
 import type { Effort, Priority, Todo } from "@/lib/api";
+import { getEffectiveDaysLeft } from "./effectiveDue";
 
 export type EisenhowerQuadrant = "do-first" | "schedule" | "delegate" | "eliminate";
 
@@ -42,10 +43,6 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function daysUntilDeadline(iso: string, now: number): number {
-  return (new Date(iso).getTime() - now) / (1000 * 60 * 60 * 24);
-}
-
 /**
  * Urgency from days left: logistic on log(d+1) for d >= 0; higher when overdue.
  */
@@ -59,7 +56,7 @@ function urgencyFromDaysLeft(d: number): number {
   return 100 / (1 + Math.exp((x - m) / s));
 }
 
-/** No deadline: urgency from priority + effort (matches legacy Eisenhower intent). */
+/** No deadline: urgency from priority + effort (matches legacy radar-quadrant intent). */
 function urgencyNoDeadline(priority: Priority, effort: Effort): number {
   const effortBonus: Record<Effort, number> = { light: 30, medium: 12, heavy: 0 };
   const priorityBonus: Record<Priority, number> = { high: 26, medium: 12, low: 8 };
@@ -74,17 +71,8 @@ function importanceRaw(priority: Priority, effort: Effort): number {
   return clamp(i, 0, 100);
 }
 
-/**
- * Bonus when a slot is booked soon (commitment increases perceived urgency).
- */
-function scheduledSlotUrgencyBonus(todo: Todo, now: number): number {
-  const slot = todo.scheduledSlot;
-  if (!slot?.start) return 0;
-  const start = new Date(slot.start).getTime();
-  const days = (start - now) / (1000 * 60 * 60 * 24);
-  if (days < 0 || days > 14) return 0;
-  return clamp(18 - days * 1.2, 0, 18);
-}
+// scheduledSlotUrgencyBonus has been folded into computeTaskScores via
+// getEffectiveDaysLeft, which takes the minimum of deadline and slot days.
 
 function delegatability(I: number, C: number): number {
   const lowI = (100 - I) / 100;
@@ -110,16 +98,15 @@ export function computeTaskScores(todo: Todo, nowMs: number = Date.now()): TaskS
   const C = EFFORT_LOAD[effort];
 
   let U: number;
-  let daysLeft: number | null = null;
+  // daysLeft uses the effective due (min of deadline day and slot instant)
+  // so radar urgency reflects whichever commitment comes first.
+  const daysLeft = getEffectiveDaysLeft(todo, nowMs);
 
-  if (todo.deadline) {
-    daysLeft = daysUntilDeadline(todo.deadline, nowMs);
+  if (daysLeft !== null) {
     U = urgencyFromDaysLeft(daysLeft);
   } else {
     U = urgencyNoDeadline(todo.priority, effort);
   }
-
-  U = clamp(U + scheduledSlotUrgencyBonus(todo, nowMs), 0, 100);
 
   const I = importanceRaw(todo.priority, effort);
   const D_del = delegatability(I, C);
@@ -184,7 +171,7 @@ function cmpTodoId(a: Todo, b: Todo): number {
 
 /**
  * Ordre de tri pour la colonne « Priorités » (vue radar) : aligné sur les axes du mode
- * ({@link radarXY}) — Eisenhower par quadrant puis U+I ; Pression par P ; ROI par R ; Charge × urgence par U puis C.
+ * ({@link radarXY}) — Vue Radar par quadrant puis U+I ; Pression par P ; ROI par R ; Charge × urgence par U puis C.
  */
 export function compareTodosForRadarList(a: Todo, b: Todo, mode: RadarMode, nowMs = Date.now()): number {
   const sA = computeTaskScores(a, nowMs);
@@ -252,7 +239,7 @@ const QUADRANT_BOUNDS: Record<
 
 /**
  * Places the dot inside the cell that matches `scores.quadrant`, so fill color and zone stay aligned.
- * Mode Eisenhower: U/I lerp inside the cell. Other modes: raw plot + mirror, then clamp to the same cell.
+ * Mode vue Radar (quadrants): U/I lerp inside the cell. Other modes: raw plot + mirror, then clamp to the same cell.
  */
 export function radarDotPlacement(
   todoId: string,

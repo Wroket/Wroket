@@ -59,6 +59,8 @@ import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 
 import PageHelpButton from "@/components/PageHelpButton";
+import DashboardImportModal from "@/components/DashboardImportModal";
+import TaskImportModal from "@/components/TaskImportModal";
 
 import GanttChart from "./GanttChart";
 import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
@@ -78,6 +80,7 @@ interface ProjectDetailViewProps {
   locale: string;
   loadProjects: () => Promise<unknown>;
   teams: Team[];
+  onTaskImportSuccess?: () => void;
 }
 
 export default function ProjectDetailView({
@@ -93,6 +96,7 @@ export default function ProjectDetailView({
   locale,
   loadProjects,
   teams,
+  onTaskImportSuccess,
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -187,6 +191,8 @@ export default function ProjectDetailView({
 
   const [detailTab, setDetailTab] = useState<DetailTab>("board");
   const [fullScreen, setFullScreen] = useState(false);
+  const [importChoiceOpen, setImportChoiceOpen] = useState(false);
+  const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -976,7 +982,7 @@ export default function ProjectDetailView({
       <div
         key={todo.id}
         className={`flex items-center gap-2 px-3 py-2 rounded border border-zinc-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-sm transition-all group/task select-none ${todo.status !== "active" ? "opacity-50" : ""}`}
-        onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}
+        onClick={(e) => { e.preventDefault(); openEdit(todo); }}
       >
         {numbering && (
           <span className="text-[10px] font-mono font-semibold text-zinc-400 dark:text-slate-500 shrink-0 w-8 text-right">{numbering}</span>
@@ -1150,13 +1156,25 @@ export default function ProjectDetailView({
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           {t("projects.backToList")}
         </button>
-        <button type="button" onClick={() => setFullScreen((f) => !f)} className="text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-slate-800" title={fullScreen ? "Normal" : "Full screen"}>
-          {fullScreen ? (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setImportChoiceOpen(true)}
+            className="inline-flex items-center gap-2 rounded border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+          >
+            <svg className="w-4 h-4 shrink-0 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            {t("dashboard.importData")}
+          </button>
+          <button type="button" onClick={() => setFullScreen((f) => !f)} className="text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-slate-800" title={fullScreen ? "Normal" : "Full screen"}>
+            {fullScreen ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+            )}
+          </button>
+        </div>
         </div>
 
         {/* Header */}
@@ -1590,7 +1608,7 @@ export default function ProjectDetailView({
                                 const subs = getSubtasks(todo.id);
                                 return (
                                   <DraggableKanbanCard key={todo.id} id={todo.id}>
-                                    <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group/card" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
+                                    <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group/card" onClick={(e) => { e.preventDefault(); openEdit(todo); }}>
                                       <div className="flex items-start gap-2">
                                         <button type="button" onClick={(e) => { e.stopPropagation(); handleTaskStatusChange(todo, "completed"); }} className="w-4 h-4 mt-0.5 rounded border border-zinc-300 dark:border-slate-600 flex items-center justify-center text-zinc-400 hover:border-green-500 hover:text-green-500 transition-colors shrink-0">
                                           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -1681,7 +1699,7 @@ export default function ProjectDetailView({
                                   <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.completed")}</p>
                                   {completed.map((todo) => (
                                     <DraggableKanbanCard key={todo.id} id={todo.id}>
-                                      <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-60 cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
+                                      <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-60 cursor-grab active:cursor-grabbing" onClick={(e) => { e.preventDefault(); openEdit(todo); }}>
                                         <div className="flex items-center gap-2">
                                           <button type="button" onClick={() => handleTaskStatusChange(todo, "active")} className="w-4 h-4 rounded bg-green-500 border border-green-500 flex items-center justify-center text-white shrink-0">
                                             <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -1698,7 +1716,7 @@ export default function ProjectDetailView({
                                   <p className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-slate-500 font-semibold px-1 mb-1">{t("filter.cancelled")}</p>
                                   {other.map((todo) => (
                                     <DraggableKanbanCard key={todo.id} id={todo.id}>
-                                      <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-40 cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
+                                      <div className="bg-white/60 dark:bg-slate-900/50 rounded-md border border-zinc-100 dark:border-slate-800 p-2 mb-1.5 opacity-40 cursor-grab active:cursor-grabbing" onClick={(e) => { e.preventDefault(); openEdit(todo); }}>
                                         <span className="text-sm line-through text-zinc-400 dark:text-slate-500 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
                                       </div>
                                     </DraggableKanbanCard>
@@ -1730,7 +1748,7 @@ export default function ProjectDetailView({
                               const dl = deadlineLabel(todo.deadline, t);
                               return (
                                 <DraggableKanbanCard key={todo.id} id={todo.id}>
-                                  <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing" onDoubleClick={(e) => { e.preventDefault(); openEdit(todo); }}>
+                                  <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-2.5 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing" onClick={(e) => { e.preventDefault(); openEdit(todo); }}>
                                     <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
                                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                                       <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
@@ -2090,6 +2108,22 @@ export default function ProjectDetailView({
           onCancel={() => setTaskToDelete(null)}
           onDeleteAndPromote={() => executeDeleteTask("promote")}
           onDeleteAll={() => executeDeleteTask("deleteAll")}
+        />
+
+        <DashboardImportModal
+          open={importChoiceOpen}
+          onClose={() => setImportChoiceOpen(false)}
+          onTasksFile={(f) => setTaskImportFile(f)}
+          onImportProject={() => router.push("/projects/import")}
+        />
+        <TaskImportModal
+          file={taskImportFile}
+          open={taskImportFile !== null}
+          onClose={() => setTaskImportFile(null)}
+          onSuccess={() => {
+            onTaskImportSuccess?.();
+            void refreshProject(selectedProject.id);
+          }}
         />
       </div>
     </AppShell>

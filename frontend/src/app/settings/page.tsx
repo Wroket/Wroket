@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -39,6 +40,7 @@ import {
 import type { NotificationType } from "@/lib/api/teams";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
+import { useToast } from "@/components/Toast";
 
 const DAY_KEYS: TranslationKey[] = [
   "settings.whMon",
@@ -207,6 +209,7 @@ function SettingsContent() {
 
 function ProfileSection() {
   const { t } = useLocale();
+  const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -238,7 +241,7 @@ function ProfileSection() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : t("login.error"));
+      toast.error(err instanceof Error ? err.message : t("login.error"));
     } finally {
       setSaving(false);
     }
@@ -288,6 +291,7 @@ function ProfileSection() {
 
 function SecuritySection() {
   const { t } = useLocale();
+  const [totpQrDataUrl, setTotpQrDataUrl] = useState("");
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [disableNeedsPassword, setDisableNeedsPassword] = useState(true);
   const [loadingMe, setLoadingMe] = useState(true);
@@ -337,6 +341,22 @@ function SecuritySection() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!pairing?.otpauthUrl) {
+      setTotpQrDataUrl("");
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(pairing.otpauthUrl, { width: 200, margin: 1, errorCorrectionLevel: "M" })
+      .then((url) => {
+        if (!cancelled) setTotpQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setTotpQrDataUrl("");
+      });
+    return () => { cancelled = true; };
+  }, [pairing?.otpauthUrl]);
 
   const startEmailEnroll = async () => {
     setError(null);
@@ -493,10 +513,6 @@ function SecuritySection() {
     }
   };
 
-  const qrSrc = pairing
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pairing.otpauthUrl)}`
-    : "";
-
   if (loadingMe) {
     return (
       <div className="space-y-6">
@@ -624,8 +640,12 @@ function SecuritySection() {
         <div className="space-y-4 rounded border border-zinc-200 dark:border-slate-700 p-4">
           <p className="text-sm text-zinc-700 dark:text-slate-300">{t("settings.security2faScan")}</p>
           <div className="flex justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrSrc} alt="" className="rounded border border-zinc-200 dark:border-slate-600 bg-white p-2" width={200} height={200} />
+            {totpQrDataUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={totpQrDataUrl} alt="" className="rounded border border-zinc-200 dark:border-slate-600 bg-white p-2" width={200} height={200} />
+            ) : (
+              <div className="w-[200px] h-[200px] rounded border border-zinc-200 dark:border-slate-600 bg-zinc-50 dark:bg-slate-800/50 animate-pulse" aria-hidden />
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.security2faSecret")}</label>
@@ -837,6 +857,7 @@ function LanguagesSection() {
 
 function TasksSection() {
   const { t } = useLocale();
+  const { toast } = useToast();
   const [light, setLight] = useState(10);
   const [medium, setMedium] = useState(30);
   const [heavy, setHeavy] = useState(60);
@@ -857,6 +878,9 @@ function TasksSection() {
   const [whSaved, setWhSaved] = useState(false);
   const [tzMismatch, setTzMismatch] = useState(false);
   const [skipNonWorkingDays, setSkipNonWorkingDays] = useState(false);
+  const [archiveRetentionDays, setArchiveRetentionDays] = useState(30);
+  const [arSaving, setArSaving] = useState(false);
+  const [arSaved, setArSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -876,6 +900,12 @@ function TasksSection() {
           }
         }
         setSkipNonWorkingDays(!!me.skipNonWorkingDays);
+        const ar = me.archivedTaskRetentionDays;
+        if (typeof ar === "number" && (ar === 0 || (ar >= 1 && ar <= 365))) {
+          setArchiveRetentionDays(ar);
+        } else {
+          setArchiveRetentionDays(30);
+        }
       } catch { /* auth handled by AppShell */ }
     })();
     return () => { cancelled = true; };
@@ -889,7 +919,7 @@ function TasksSection() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error");
+      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
     } finally {
       setSaving(false);
     }
@@ -903,9 +933,23 @@ function TasksSection() {
       setWhSaved(true);
       setTimeout(() => setWhSaved(false), 2000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error");
+      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
     } finally {
       setWhSaving(false);
+    }
+  };
+
+  const handleArchiveRetentionSave = async () => {
+    setArSaving(true);
+    setArSaved(false);
+    try {
+      await updateProfile({ archivedTaskRetentionDays: archiveRetentionDays });
+      setArSaved(true);
+      setTimeout(() => setArSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+    } finally {
+      setArSaving(false);
     }
   };
 
@@ -1000,7 +1044,7 @@ function TasksSection() {
                   onClick={() => toggleDay(dayVal)}
                   className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                     active
-                      ? "bg-emerald-600 text-white dark:bg-emerald-700 dark:text-white shadow-sm"
+                      ? "bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-100 shadow-sm hover:bg-slate-800 dark:hover:bg-slate-500"
                       : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900"
                   }`}
                 >
@@ -1082,6 +1126,45 @@ function TasksSection() {
           />
         </button>
       </div>
+
+      {/* ── Archived tasks retention ── */}
+      <hr className="border-zinc-200 dark:border-slate-700" />
+      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.archiveRetentionTitle")}</h3>
+      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.archiveRetentionDesc")}</p>
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.archiveRetentionLabel")}</label>
+          <input
+            type="number"
+            min={0}
+            max={365}
+            step={1}
+            value={archiveRetentionDays}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (e.target.value === "") {
+                setArchiveRetentionDays(0);
+                return;
+              }
+              if (Number.isNaN(v)) return;
+              setArchiveRetentionDays(Math.max(0, Math.min(365, Math.floor(v))));
+            }}
+            className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
+          />
+          <p className="text-xs text-zinc-400 dark:text-slate-500 mt-1">{t("settings.archiveRetentionHint")}</p>
+        </div>
+        <div className="flex items-center gap-3 pt-2 sm:pt-0">
+          <button
+            type="button"
+            onClick={handleArchiveRetentionSave}
+            disabled={arSaving}
+            className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
+          >
+            {arSaving ? t("settings.saving") : t("settings.save")}
+          </button>
+          {arSaved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1109,6 +1192,7 @@ const PLATFORMS: { key: WebhookPlatform; label: string }[] = [
 
 function IntegrationsSection() {
   const { t } = useLocale();
+  const { toast } = useToast();
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -1171,7 +1255,7 @@ function IntegrationsSection() {
       setDeliverySaved(true);
       setTimeout(() => setDeliverySaved(false), 4000);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error");
+      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
     } finally {
       setSavingDelivery(false);
     }
@@ -1188,7 +1272,7 @@ function IntegrationsSection() {
       setTypesSaved(true);
       setTimeout(() => setTypesSaved(false), 4000);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error");
+      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
     } finally {
       setSavingTypes(false);
     }
@@ -1205,7 +1289,7 @@ function IntegrationsSection() {
       setFreqSaved(true);
       setTimeout(() => setFreqSaved(false), 4000);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error");
+      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
     } finally {
       setSavingFreq(false);
     }
@@ -1266,7 +1350,7 @@ function IntegrationsSection() {
       }
       resetForm();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error");
+      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
     } finally {
       setSaving(false);
     }
@@ -1722,6 +1806,28 @@ const ENTITY_ICONS: Record<string, string> = {
   todo: "📋", project: "📁", team: "👥", note: "📝", comment: "💬", user: "👤",
 };
 
+const ENTITY_TYPE_LABELS: Record<string, { fr: string; en: string }> = {
+  todo: { fr: "Tâche", en: "Task" },
+  project: { fr: "Projet", en: "Project" },
+  team: { fr: "Équipe", en: "Team" },
+  note: { fr: "Note", en: "Note" },
+  comment: { fr: "Commentaire", en: "Comment" },
+  user: { fr: "Compte", en: "Account" },
+};
+
+function activityDetailsLabel(e: ActivityLogEntry): string | null {
+  const d = e.details;
+  if (!d || typeof d !== "object") return null;
+  const rec = d as Record<string, unknown>;
+  if (typeof rec.title === "string" && rec.title.trim()) return rec.title.trim();
+  if (typeof rec.name === "string" && rec.name.trim()) return rec.name.trim();
+  if (Array.isArray(rec.titles)) {
+    const parts = rec.titles.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+    if (parts.length) return parts.join(", ");
+  }
+  return null;
+}
+
 function HistorySection() {
   const { t, locale } = useLocale();
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
@@ -1730,7 +1836,7 @@ function HistorySection() {
 
   const load = async (offset = 0) => {
     try {
-      const result = await getMyActivity({ limit: 30, offset });
+      const result = await getMyActivity({ limit: 100, offset, days: 7 });
       if (offset === 0) {
         setEntries(result.entries);
       } else {
@@ -1745,8 +1851,11 @@ function HistorySection() {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.historyTitle")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.historyDesc")}</p>
+      <div>
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.historyTitle")}</h3>
+        <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.historyDesc")}</p>
+        <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mt-2">{t("settings.historyTimeRange")}</p>
+      </div>
       {loading ? (
         <p className="text-sm text-zinc-400 dark:text-slate-500">{t("loading")}</p>
       ) : entries.length === 0 ? (
@@ -1754,22 +1863,39 @@ function HistorySection() {
       ) : (
         <>
           <div className="border border-zinc-200 dark:border-slate-700 rounded-md divide-y divide-zinc-200 dark:divide-slate-700 max-h-[500px] overflow-y-auto">
-            {entries.map((e) => (
-              <div key={e.id} className="px-4 py-3 flex items-start gap-3">
-                <span className="text-base shrink-0 mt-0.5">{ENTITY_ICONS[e.entityType] ?? "📌"}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-zinc-800 dark:text-slate-200">
-                    <span className="font-medium">{ACTION_LABELS[e.action]?.[locale] ?? e.action}</span>
-                    {" — "}
-                    <span className="text-zinc-600 dark:text-slate-400">{e.entityType}</span>
-                    {e.details?.title ? <span className="text-zinc-500 dark:text-slate-500"> &quot;{String(e.details.title)}&quot;</span> : null}
-                  </p>
-                  <p className="text-xs text-zinc-400 dark:text-slate-500 mt-0.5">
-                    {new Date(e.createdAt).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </p>
+            {entries.map((e) => {
+              const nameLabel = activityDetailsLabel(e);
+              const entityKind = ENTITY_TYPE_LABELS[e.entityType]?.[locale] ?? e.entityType;
+              const bulkCount =
+                e.entityId === "archive-all" && typeof e.details?.count === "number" ? e.details.count : null;
+              return (
+                <div key={e.id} className="px-4 py-3 flex items-start gap-3">
+                  <span className="text-base shrink-0 mt-0.5">{ENTITY_ICONS[e.entityType] ?? "📌"}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-zinc-800 dark:text-slate-200">
+                      <span className="font-medium">{ACTION_LABELS[e.action]?.[locale] ?? e.action}</span>
+                      <span className="text-zinc-500 dark:text-slate-500"> · {entityKind}</span>
+                      {nameLabel ? (
+                        <>
+                          <span className="text-zinc-400 dark:text-slate-500"> — </span>
+                          <span className="font-medium text-zinc-900 dark:text-slate-100 break-words">{nameLabel}</span>
+                        </>
+                      ) : null}
+                      {bulkCount != null ? (
+                        <span className="text-zinc-500 dark:text-slate-400 text-xs font-normal">
+                          {" "}
+                          ({bulkCount}{" "}
+                          {bulkCount > 1 ? (locale === "fr" ? "tâches" : "tasks") : locale === "fr" ? "tâche" : "task"})
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-zinc-400 dark:text-slate-500 mt-0.5">
+                      {new Date(e.createdAt).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {entries.length < total && (
             <button type="button" onClick={() => load(entries.length)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
@@ -1784,6 +1910,7 @@ function HistorySection() {
 
 function AdminSection() {
   const { t, locale } = useLocale();
+  const { toast } = useToast();
   const [exporting, setExporting] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -1809,7 +1936,7 @@ function AdminSection() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
     } finally { setExporting(false); }
   };
 

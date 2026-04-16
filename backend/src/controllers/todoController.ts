@@ -9,6 +9,7 @@ import {
   listAssignedToMe,
   listArchivedTodos,
   listArchivedTodosAssignedToMe,
+  purgeArchivedTodosPastRetentionForUser,
   updateTodo,
   findTodoForUser,
   canAccessTodo,
@@ -16,6 +17,9 @@ import {
   listProjectTodos,
   CreateTodoInput,
   UpdateTodoInput,
+  permanentlyRemoveArchivedTodo,
+  permanentlyRemoveAllArchivedTodosOwned,
+  type Todo,
 } from "../services/todoService";
 import {
   listComments,
@@ -98,6 +102,7 @@ export async function assigned(req: AuthenticatedRequest, res: Response) {
 export async function archived(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
+  await purgeArchivedTodosPastRetentionForUser(uid);
   const own = listArchivedTodos(uid, email);
   const asAssignee = listArchivedTodosAssignedToMe(uid, email);
   const byId = new Map<string, (typeof own)[number]>();
@@ -133,7 +138,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     tags,
   });
   try {
-    logActivity(req.user!.uid, req.user!.email ?? "", "create", "todo", todo.id, { todoId: todo.id });
+    logActivity(req.user!.uid, req.user!.email ?? "", "create", "todo", todo.id, { todoId: todo.id, title: todo.title });
   } catch (err) {
     console.warn("[todo.create] activity log failed:", err);
   }
@@ -288,15 +293,67 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   }
 
   try {
-    logActivity(req.user!.uid, req.user!.email ?? "", "update", "todo", todo.id, { todoId: todo.id });
+    logActivity(req.user!.uid, req.user!.email ?? "", "update", "todo", todo.id, { todoId: todo.id, title: todo.title });
   } catch (err) {
     console.warn("[todo.update] activity log failed:", err);
   }
   res.status(200).json(todoToClientJson(todo));
 }
 
+function scheduleCalendarCleanupForSnapshots(todos: Todo[]): void {
+  for (const todo of todos) {
+    if (
+      todo.scheduledSlot &&
+      new Date(todo.scheduledSlot.start).getTime() > Date.now()
+    ) {
+      deleteGoogleCalendarEventForTodo(todo).catch((err) => {
+        console.warn("[todo] Google Calendar event cleanup failed:", err);
+      });
+    }
+  }
+}
+
+export async function purgeAllArchived(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  const snapshots = await permanentlyRemoveAllArchivedTodosOwned(uid, email);
+  scheduleCalendarCleanupForSnapshots(snapshots);
+  try {
+    const rootTitles = snapshots
+      .filter((s) => !s.parentId)
+      .map((s) => s.title)
+      .filter((x) => typeof x === "string" && x.trim())
+      .slice(0, 20);
+    logActivity(uid, email, "delete", "todo", "archive-all", { count: snapshots.length, titles: rootTitles });
+  } catch (err) {
+    console.warn("[todo.purgeAllArchived] activity log failed:", err);
+  }
+  res.status(200).json({ removed: snapshots.length });
+}
+
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
+  const permanent =
+    typeof req.query.permanent === "string" &&
+    (req.query.permanent === "1" || req.query.permanent.toLowerCase() === "true");
+
+  if (permanent) {
+    const snapshots = await permanentlyRemoveArchivedTodo(req.user!.uid, id);
+    scheduleCalendarCleanupForSnapshots(snapshots);
+    try {
+      const root = snapshots.find((s) => s.id === id);
+      logActivity(req.user!.uid, req.user!.email ?? "", "delete", "todo", id, {
+        todoId: id,
+        permanent: true,
+        title: root?.title ?? "",
+      });
+    } catch (err) {
+      console.warn("[todo.remove permanent] activity log failed:", err);
+    }
+    res.status(204).end();
+    return;
+  }
+
   let todo = await deleteTodo(req.user!.uid, id);
 
   if (
@@ -310,7 +367,7 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   }
 
   try {
-    logActivity(req.user!.uid, req.user!.email ?? "", "delete", "todo", todo.id, { todoId: todo.id });
+    logActivity(req.user!.uid, req.user!.email ?? "", "delete", "todo", todo.id, { todoId: todo.id, title: todo.title });
   } catch (err) {
     console.warn("[todo.remove] activity log failed:", err);
   }

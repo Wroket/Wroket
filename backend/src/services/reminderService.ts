@@ -2,12 +2,78 @@ import { getStore } from "../persistence";
 import { createNotification, listNotifications } from "./notificationService";
 import { flushHourlyDigests, flushDailyDigests } from "./digestService";
 import { listAllTodos } from "./todoService";
+import type { Todo } from "./todoService";
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1h
 
 /**
- * Scans all active todos for upcoming deadlines and creates
+ * Effective-due helpers (backend mirror of frontend effectiveDue.ts).
+ *
+ * Rules mirror the frontend: the earlier of deadline day and slot start wins.
+ * "Today" is checked at local-calendar-day granularity; "approaching" uses the
+ * raw ISO instant so a slot starting at 09:00 tomorrow triggers the reminder.
+ */
+
+/** Local YYYY-MM-DD string for an ISO instant (server's local TZ). */
+function toLocalDateStr(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Whether the todo qualifies for a "deadline_today" notification.
+ * True when the effective due day (min of deadline day and slot day) == todayStr.
+ */
+function isEffectiveDueToday(todo: Todo, todayStr: string): boolean {
+  const days: string[] = [];
+  if (todo.deadline) {
+    const d = new Date(todo.deadline);
+    if (!isNaN(d.getTime())) days.push(d.toISOString().split("T")[0]);
+  }
+  if (todo.scheduledSlot?.start) {
+    const d = new Date(todo.scheduledSlot.start);
+    if (!isNaN(d.getTime())) days.push(toLocalDateStr(todo.scheduledSlot.start));
+  }
+  // Effective day = min of available days; matches today if any candidate == todayStr
+  // and none is earlier (we want the soonest to be today).
+  if (days.length === 0) return false;
+  const earliest = days.sort()[0];
+  return earliest === todayStr;
+}
+
+/**
+ * Whether the todo qualifies for a "deadline_approaching" notification.
+ * True when the effective due instant falls in (now, now + 24h], i.e. the
+ * soonest commitment is coming up tomorrow.
+ */
+function isEffectiveDueApproaching(todo: Todo, now: Date, in24h: Date): boolean {
+  const instants: number[] = [];
+  if (todo.deadline) {
+    const d = new Date(todo.deadline);
+    if (!isNaN(d.getTime())) instants.push(d.getTime());
+  }
+  if (todo.scheduledSlot?.start) {
+    const d = new Date(todo.scheduledSlot.start);
+    if (!isNaN(d.getTime())) instants.push(d.getTime());
+  }
+  if (instants.length === 0) return false;
+  const earliest = Math.min(...instants);
+  return earliest > now.getTime() && earliest <= in24h.getTime();
+}
+
+/**
+ * Scans all active todos for upcoming deadlines or booked slots and creates
  * in-app notifications. Runs once per hour.
+ *
+ * A task with only a scheduledSlot (no calendar deadline) now triggers
+ * reminders on the same rules as deadline-only tasks:
+ *   - slot day == today  → "deadline_today"
+ *   - slot start in next 24 h → "deadline_approaching"
+ * When both exist the earlier commitment drives the trigger (consistent with
+ * frontend effective-due helpers).
  */
 function checkDeadlines(): void {
   const store = getStore();
@@ -24,24 +90,20 @@ function checkDeadlines(): void {
         .map((n) => `${n.type}:${n.data!.todoId}`),
     );
 
-    // Use in-memory todos from todoService (hydrated list).
     for (const todo of listAllTodos(userId)) {
       if (todo.status !== "active") continue;
-      if (!todo.deadline) continue;
+      // Skip tasks with no commitment at all.
+      if (!todo.deadline && !todo.scheduledSlot?.start) continue;
 
-      const deadlineDate = new Date(todo.deadline);
-      if (isNaN(deadlineDate.getTime())) continue;
-
-      const deadlineStr = deadlineDate.toISOString().split("T")[0];
       const title = todo.title;
       const todoId = todo.id;
 
-      if (deadlineStr === todayStr) {
+      if (isEffectiveDueToday(todo, todayStr)) {
         if (sentToday.has(`deadline_today:${todoId}`)) continue;
         createNotification(userId, "deadline_today", "Échéance aujourd'hui",
           `La tâche "${title}" arrive à échéance aujourd'hui`, { todoId, todoTitle: title });
         sentToday.add(`deadline_today:${todoId}`);
-      } else if (deadlineDate > now && deadlineDate <= in24h) {
+      } else if (isEffectiveDueApproaching(todo, now, in24h)) {
         if (sentToday.has(`deadline_approaching:${todoId}`)) continue;
         createNotification(userId, "deadline_approaching", "Échéance proche",
           `La tâche "${title}" arrive à échéance demain`, { todoId, todoTitle: title });

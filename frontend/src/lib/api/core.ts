@@ -89,6 +89,8 @@ export interface AuthMeResponse {
   notificationOutboundFrequency?: NotificationOutboundFrequency;
   /** Local hour (0-23) at which the daily digest is sent. */
   notificationDigestHour?: number;
+  /** Days before archived tasks are permanently removed; 0 = never. Default 30. */
+  archivedTaskRetentionDays?: number;
 }
 
 export interface ActivityLogEntry {

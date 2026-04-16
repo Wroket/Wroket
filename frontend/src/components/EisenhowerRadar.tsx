@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type CSSProperties } from "react";
 import type { Todo } from "@/lib/api";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import {
@@ -13,6 +13,7 @@ import {
   type TaskScores,
 } from "@/lib/taskScores";
 import { deadlineLabel } from "@/lib/deadlineUtils";
+import { formatScheduledSlotLabel } from "@/lib/slotFormat";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
 import { PRIORITY_BADGES, SUBTASK_BADGE_CLS, type Quadrant } from "@/lib/todoConstants";
@@ -31,6 +32,9 @@ const DOT_COLORS: Record<Quadrant, string> = {
   delegate: "bg-amber-400",
   eliminate: "bg-zinc-400",
 };
+
+/** Lets the pointer cross the gap between the dot and the tooltip without closing it. */
+const HOVER_TOOLTIP_LEAVE_MS = 220;
 
 const RADAR_MODES: { id: RadarMode; labelKey: TranslationKey; helpKey: TranslationKey }[] = [
   { id: "eisenhower", labelKey: "matrix.radarModeEisenhower", helpKey: "matrix.radarModeEisenhowerDesc" },
@@ -61,6 +65,8 @@ interface Props {
   onRadarModeChange?: (mode: RadarMode) => void;
   /** Horodatage partagé pour le score decay (fourni par un ticker 60s dans le parent). */
   nowMs?: number;
+  /** When set, clicking the dot or the hover card opens edit (e.g. TaskEditModal) without navigating. */
+  onEditTask?: (todo: Todo) => void;
 }
 
 export default function EisenhowerRadar({
@@ -72,9 +78,37 @@ export default function EisenhowerRadar({
   radarMode: radarModeProp,
   onRadarModeChange,
   nowMs,
+  onEditTask,
 }: Props) {
   const { t } = useLocale();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHoverClear = useCallback(() => {
+    if (hoverClearTimerRef.current) {
+      clearTimeout(hoverClearTimerRef.current);
+      hoverClearTimerRef.current = null;
+    }
+  }, []);
+  const scheduleHoverClear = useCallback(() => {
+    cancelHoverClear();
+    hoverClearTimerRef.current = setTimeout(() => {
+      hoverClearTimerRef.current = null;
+      setHoveredId(null);
+    }, HOVER_TOOLTIP_LEAVE_MS);
+  }, [cancelHoverClear]);
+  const pinHover = useCallback(
+    (id: string) => {
+      cancelHoverClear();
+      setHoveredId(id);
+    },
+    [cancelHoverClear],
+  );
+  useEffect(
+    () => () => {
+      cancelHoverClear();
+    },
+    [cancelHoverClear],
+  );
   const [internalRadarMode, setInternalRadarMode] = useState<RadarMode>("eisenhower");
   const isControlled = radarModeProp !== undefined && onRadarModeChange !== undefined;
   const radarMode = isControlled ? radarModeProp : internalRadarMode;
@@ -200,6 +234,7 @@ export default function EisenhowerRadar({
             const isHovered = hoveredId === todo.id;
             const badge = PRIORITY_BADGES[todo.priority];
             const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+            const bookingLabel = todo.scheduledSlot ? formatScheduledSlotLabel(todo.scheduledSlot) : null;
             const dotR = radarDotRadiusPx(scores.C, !!compact);
             const ring = radarRingVisual(scores, q);
             const ringR = dotR + ring.ringPaddingPx;
@@ -217,10 +252,10 @@ export default function EisenhowerRadar({
                   bottom: `${y}%`,
                   transform: "translate(-50%, 50%)",
                 }}
-                onMouseEnter={() => setHoveredId(todo.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                onFocus={() => setHoveredId(todo.id)}
-                onBlur={() => setHoveredId(null)}
+                onMouseEnter={() => pinHover(todo.id)}
+                onMouseLeave={scheduleHoverClear}
+                onFocus={() => pinHover(todo.id)}
+                onBlur={scheduleHoverClear}
               >
                 <div
                   className="relative"
@@ -264,6 +299,24 @@ export default function EisenhowerRadar({
                         : "hover:scale-125"
                     } focus-visible:z-10 focus-visible:scale-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-400 dark:focus-visible:outline-zinc-500 focus-visible:outline-offset-[3px]`}
                     style={{ width: dotR * 2, height: dotR * 2 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onEditTask) {
+                        cancelHoverClear();
+                        setHoveredId(null);
+                        onEditTask(todo);
+                      }
+                    }}
+                    onKeyDown={(e: KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (onEditTask) {
+                          cancelHoverClear();
+                          setHoveredId(null);
+                          onEditTask(todo);
+                        }
+                      }
+                    }}
                   />
                 </div>
 
@@ -275,10 +328,22 @@ export default function EisenhowerRadar({
                     badge={badge}
                     quadrant={q}
                     dl={dl}
+                    bookingLabel={bookingLabel}
                     subtaskCount={subtaskCounts[todo.id] ?? 0}
                     meUid={meUid}
                     userDisplayName={userDisplayName}
                     t={t}
+                    onMouseEnter={() => pinHover(todo.id)}
+                    onMouseLeave={scheduleHoverClear}
+                    onEditTaskClick={
+                      onEditTask
+                        ? () => {
+                            cancelHoverClear();
+                            setHoveredId(null);
+                            onEditTask(todo);
+                          }
+                        : undefined
+                    }
                   />
                 )}
               </div>
@@ -297,10 +362,14 @@ function Tooltip({
   badge,
   quadrant,
   dl,
+  bookingLabel,
   subtaskCount = 0,
   meUid,
   userDisplayName,
   t,
+  onMouseEnter,
+  onMouseLeave,
+  onEditTaskClick,
 }: {
   x: number;
   y: number;
@@ -308,20 +377,24 @@ function Tooltip({
   badge: { label: string; tKey: TranslationKey; cls: string };
   quadrant: Quadrant;
   dl: { text: string; cls: string } | null;
+  bookingLabel: string | null;
   subtaskCount?: number;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   t: (key: TranslationKey) => string;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onEditTaskClick?: () => void;
 }) {
   const showBelow = y > 75;
   const alignRight = x > 75;
   const alignLeft = x < 25;
 
-  const verticalStyle: React.CSSProperties = showBelow
+  const verticalStyle: CSSProperties = showBelow
     ? { top: "calc(100% + 10px)" }
     : { bottom: "calc(100% + 10px)" };
 
-  const horizontalStyle: React.CSSProperties = alignRight
+  const horizontalStyle: CSSProperties = alignRight
     ? { right: -8 }
     : alignLeft
       ? { left: -8 }
@@ -329,10 +402,41 @@ function Tooltip({
 
   const arrowPosition = alignRight ? "right-3" : alignLeft ? "left-3" : "left-1/2 -translate-x-1/2";
 
+  const stopBubble = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+  };
+
+  const interactive = !!onEditTaskClick;
+
   return (
     <div
-      className="absolute z-50 bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-none radar-tooltip"
+      role={interactive ? "button" : "tooltip"}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? t("matrix.radarClickToEdit") : undefined}
+      title={interactive ? t("matrix.radarClickToEdit") : undefined}
+      className={`absolute z-50 bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 rounded shadow-xl px-4 py-3 text-xs w-56 pointer-events-auto select-text radar-tooltip ${
+        interactive ? "cursor-pointer hover:bg-slate-600 dark:hover:bg-slate-500/90" : "cursor-default"
+      }`}
       style={{ ...verticalStyle, ...horizontalStyle }}
+      onPointerDown={stopBubble}
+      onMouseDown={stopBubble}
+      onClick={(e) => {
+        stopBubble(e);
+        onEditTaskClick?.();
+      }}
+      onKeyDown={
+        interactive
+          ? (e: KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                onEditTaskClick?.();
+              }
+            }
+          : undefined
+      }
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <p className="font-semibold text-sm mb-1.5">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
       <div className="flex flex-wrap items-center gap-1.5 mb-1">
@@ -352,6 +456,15 @@ function Tooltip({
           </span>
         )}
       </div>
+      {bookingLabel && bookingLabel !== "—" && (
+        <p className="mt-2 pt-2 border-t border-white/15 text-[11px] text-slate-100/95 leading-snug">
+          <span className="font-medium text-slate-200">{t("schedule.booked")}:</span>{" "}
+          <span className="whitespace-nowrap">
+            {"\uD83D\uDCC5 "}
+            {bookingLabel}
+          </span>
+        </p>
+      )}
       <div
         className={`absolute ${arrowPosition} w-0 h-0 ${showBelow ? "bottom-full" : "top-full"}`}
         style={{

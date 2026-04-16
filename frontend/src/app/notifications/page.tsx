@@ -50,6 +50,20 @@ function formatDate(iso: string, locale: string): string {
 }
 
 function notifHref(notif: AppNotification): string {
+  const taskId = notif.data?.todoId;
+  if (
+    taskId &&
+    (notif.type === "task_assigned" ||
+      notif.type === "task_completed" ||
+      notif.type === "task_cancelled" ||
+      notif.type === "task_declined" ||
+      notif.type === "task_accepted" ||
+      notif.type === "comment_mention" ||
+      notif.type === "deadline_approaching" ||
+      notif.type === "deadline_today")
+  ) {
+    return `/todos?task=${encodeURIComponent(taskId)}`;
+  }
   if (
     notif.type === "task_assigned" ||
     notif.type === "task_completed" ||
@@ -58,9 +72,6 @@ function notifHref(notif: AppNotification): string {
     notif.type === "task_accepted" ||
     notif.type === "comment_mention"
   ) {
-    if (notif.type === "comment_mention" && notif.data?.todoId) {
-      return `/todos?task=${encodeURIComponent(notif.data.todoId)}`;
-    }
     return "/todos";
   }
   if (notif.type === "team_invite") return "/teams";

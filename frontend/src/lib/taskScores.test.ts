@@ -76,7 +76,7 @@ describe("radarDotPlacement", () => {
     eliminate: { l0: 54, l1: 94, b0: 6, b1: 46 },
   } as const;
 
-  it("eisenhower: dot stays in the visual cell of scores.quadrant", () => {
+  it("radar view mode: dot stays in the visual cell of scores.quadrant", () => {
     const now = new Date("2026-06-15T12:00:00.000Z").getTime();
     const deadline = new Date("2026-06-01T12:00:00.000Z").toISOString();
     const todo = baseTodo({ id: "radar-1", priority: "high", effort: "light", deadline });
@@ -90,7 +90,7 @@ describe("radarDotPlacement", () => {
     expect(p.bottom).toBeLessThanOrEqual(b.b1);
   });
 
-  it("eisenhower: delegate dot is not in do-first box", () => {
+  it("radar view mode: delegate dot is not in do-first box", () => {
     const todo = baseTodo({ id: "radar-2", priority: "low", effort: "light", deadline: null });
     const s = computeTaskScores(todo);
     expect(s.quadrant).toBe("delegate");

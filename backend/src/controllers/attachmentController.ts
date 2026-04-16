@@ -10,7 +10,7 @@ export async function uploadAttachment(req: AuthenticatedRequest, res: Response)
   if (!canAccessTodo(req.user!.uid, todoId)) throw new ForbiddenError("Accès refusé");
   const file = req.file;
   if (!file) { res.status(400).json({ message: "Aucun fichier fourni" }); return; }
-  const attachment = addAttachment(todoId, req.user!.uid, file);
+  const attachment = await addAttachment(todoId, req.user!.uid, file);
   res.status(201).json(attachment);
 }
 

@@ -5,7 +5,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { TranslationKey } from "@/lib/i18n";
 
-const STORAGE_KEY = "wroket-tutorial-seen";
+const STORAGE_KEY = "wroket-tutorial-v2-seen";
 
 interface TutorialStep {
   titleKey: TranslationKey;
@@ -15,13 +15,9 @@ interface TutorialStep {
 }
 
 const STEPS: TutorialStep[] = [
-  { titleKey: "tutorial.step1.title", descKey: "tutorial.step1.desc", icon: "✏️", color: "from-blue-500 to-indigo-600" },
-  { titleKey: "tutorial.step2.title", descKey: "tutorial.step2.desc", icon: "👁️", color: "from-violet-500 to-purple-600" },
-  { titleKey: "tutorial.step3.title", descKey: "tutorial.step3.desc", icon: "📁", color: "from-amber-500 to-orange-600" },
-  { titleKey: "tutorial.step4.title", descKey: "tutorial.step4.desc", icon: "📅", color: "from-sky-500 to-blue-600" },
-  { titleKey: "tutorial.step5.title", descKey: "tutorial.step5.desc", icon: "📝", color: "from-teal-500 to-cyan-600" },
-  { titleKey: "tutorial.step6.title", descKey: "tutorial.step6.desc", icon: "👥", color: "from-emerald-500 to-teal-600" },
-  { titleKey: "tutorial.step7.title", descKey: "tutorial.step7.desc", icon: "🚀", color: "from-rose-500 to-pink-600" },
+  { titleKey: "tutorial.step1.title", descKey: "tutorial.step1.desc", icon: "\u270f\ufe0f", color: "from-blue-500 to-indigo-600" },
+  { titleKey: "tutorial.step2.title", descKey: "tutorial.step2.desc", icon: "\ud83d\udcc1", color: "from-amber-500 to-orange-600" },
+  { titleKey: "tutorial.step3.title", descKey: "tutorial.step3.desc", icon: "\ud83d\udcc5", color: "from-sky-500 to-blue-600" },
 ];
 
 interface TutorialModalProps {
@@ -91,21 +87,18 @@ export default function TutorialModal({ open, onClose }: TutorialModalProps) {
         {/* Icon area */}
         <div className={`bg-gradient-to-br ${current.color} px-6 py-8 text-center`}>
           <span className="text-5xl block mb-3">{current.icon}</span>
-          <h2 className="text-xl font-bold text-white">
-            {step === 0 && step === 0 ? t("tutorial.title") : t(current.titleKey)}
-          </h2>
-          {step === 0 && (
-            <p className="text-white/70 text-sm mt-1">{t(current.titleKey)}</p>
+          {step === 0 ? (
+            <>
+              <h2 className="text-xl font-bold text-white">{t("tutorial.title")}</h2>
+              <p className="text-white/90 text-base font-semibold mt-2">{t(current.titleKey)}</p>
+            </>
+          ) : (
+            <h2 className="text-xl font-bold text-white">{t(current.titleKey)}</h2>
           )}
         </div>
 
         {/* Content */}
         <div className="px-6 py-5">
-          {step > 0 && (
-            <h3 className="text-base font-semibold text-zinc-800 dark:text-slate-200 mb-2">
-              {t(current.titleKey)}
-            </h3>
-          )}
           <p className="text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">
             {t(current.descKey)}
           </p>

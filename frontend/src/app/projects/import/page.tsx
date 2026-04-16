@@ -8,14 +8,7 @@ import { useToast } from "@/components/Toast";
 import AppShell from "@/components/AppShell";
 import { uploadCsvPreview, confirmCsvImport, getTeams } from "@/lib/api";
 import type { ImportPreview, Team } from "@/lib/api";
-
-const CSV_TEMPLATE = `phase,task_title,priority,effort,deadline,start_date,assignee_email,tags
-Conception,Design wireframes,high,medium,2026-05-01,2026-04-15,,design,ui
-Conception,Maquettes Figma,medium,heavy,2026-05-10,,,design
-Développement,API endpoints,high,heavy,2026-06-01,2026-05-10,,backend,api
-Développement,Frontend pages,medium,heavy,2026-06-15,2026-05-15,,frontend
-Tests,Unit tests,medium,light,2026-06-20,,,tests
-Tests,E2E tests,low,medium,2026-06-25,,,tests`;
+import { downloadProjectImportTemplateCsv } from "@/lib/importTemplates";
 
 export default function ImportPage() {
   const { t } = useLocale();
@@ -76,13 +69,7 @@ export default function ImportPage() {
   };
 
   const handleDownloadTemplate = () => {
-    const blob = new Blob([CSV_TEMPLATE], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "wroket-import-template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadProjectImportTemplateCsv();
   };
 
   const inputClass = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
