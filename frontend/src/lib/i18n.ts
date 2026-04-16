@@ -319,6 +319,7 @@ const translations = {
   "dashboard.late": { fr: "En retard", en: "Late" },
   "dashboard.manageTasks": { fr: "Gérer mes tâches", en: "Manage my tasks" },
   "dashboard.connectCalendar": { fr: "Connecter mon Agenda", en: "Connect my calendar" },
+  "dashboard.collaborate": { fr: "Collaborer", en: "Collaborate" },
   "dashboard.importData": { fr: "Importer mes données", en: "Import my data" },
   "dashboard.importModalTitle": { fr: "Que souhaitez-vous importer ?", en: "What would you like to import?" },
   "dashboard.importModalHint": { fr: "Tâches (CSV ou JSON) ou un nouveau projet (CSV).", en: "Tasks (CSV or JSON) or a new project (CSV)." },
@@ -810,6 +811,13 @@ const translations = {
   "teamDash.tasks": { fr: "tâches", en: "tasks" },
   "teamDash.select": { fr: "Choisir une équipe", en: "Select a team" },
   "teamDash.noTasks": { fr: "Aucune tâche active", en: "No active tasks" },
+  "teamDash.sharedNotes": { fr: "Notes partagées", en: "Shared notes" },
+  "teamDash.sharedNotesHint": { fr: "Ouvrir les notes (partage équipe ou collaborateur)", en: "Open notes (team or collaborator sharing)" },
+  "teamDash.teamProjectTasks": { fr: "Tâches des projets d'équipe", en: "Team project tasks" },
+  "teamDash.viewOnlyHint": {
+    fr: "Lecture seule : seul le propriétaire de la tâche ou la personne assignée peut la modifier.",
+    en: "Read-only: only the task owner or assignee can edit this task.",
+  },
 
   // ── Reminders ──
   "notif.deadline_approaching": { fr: "Échéance proche", en: "Deadline approaching" },

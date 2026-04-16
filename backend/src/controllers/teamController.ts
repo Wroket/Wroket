@@ -22,6 +22,7 @@ import {
   listKnownContactEmails,
   filterContactEmailsByQuery,
 } from "../services/teamService";
+import { listActiveProjectIdsForTeam } from "../services/projectService";
 import { listTodosForUsers } from "../services/todoService";
 import { createNotification } from "../services/notificationService";
 import { findUserByEmail, findUserByUid, type AuthUser } from "../services/authService";
@@ -281,7 +282,10 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
     if (u) memberUids.push(u.uid);
   }
 
-  const todos = listTodosForUsers(memberUids);
+  const teamProjectIds = listActiveProjectIdsForTeam(teamId);
+  const allMemberTodos = listTodosForUsers(memberUids);
+  /** Only tasks attached to an active team project — exclude members' personal tasks. */
+  const todos = allMemberTodos.filter((t) => t.projectId && teamProjectIds.has(t.projectId));
 
   const ownerUser = findUserByUid(team.ownerUid);
   const memberMap: Record<string, string> = {};

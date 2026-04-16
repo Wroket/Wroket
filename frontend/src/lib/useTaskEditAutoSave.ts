@@ -44,8 +44,10 @@ export function useTaskEditAutoSave(options: {
   onSaved: (updated: Todo) => void;
   onError?: (message: string) => void;
   debounceMs?: number;
+  /** When false, no debounced save (e.g. read-only preview). Default true. */
+  enabled?: boolean;
 }): { saving: boolean; syncBaseline: () => void; flush: () => Promise<void> } {
-  const { editingTodo, editForm, onSaved, onError, debounceMs = 550 } = options;
+  const { editingTodo, editForm, onSaved, onError, debounceMs = 550, enabled = true } = options;
   const baselineRef = useRef("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const formRef = useRef(editForm);
@@ -72,6 +74,7 @@ export function useTaskEditAutoSave(options: {
   }, [editingTodo?.id]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!editingTodo) return;
     if (!formRef.current.title.trim()) return;
 
@@ -107,9 +110,10 @@ export function useTaskEditAutoSave(options: {
     }, debounceMs);
 
     return () => clearTimeout(timerRef.current);
-  }, [editForm, editingTodo, debounceMs, onSaved, onError]);
+  }, [editForm, editingTodo, debounceMs, onSaved, onError, enabled]);
 
   const flush = useCallback(async () => {
+    if (!enabled) return;
     if (!editingTodo) return;
     const form = formRef.current;
     if (!form.title.trim()) return;
@@ -134,7 +138,7 @@ export function useTaskEditAutoSave(options: {
       inFlightRef.current -= 1;
       if (inFlightRef.current <= 0) setSaving(false);
     }
-  }, [editingTodo, onSaved, onError]);
+  }, [editingTodo, onSaved, onError, enabled]);
 
   return { saving, syncBaseline, flush };
 }

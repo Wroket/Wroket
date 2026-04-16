@@ -71,6 +71,8 @@ export interface TaskEditModalProps {
   onPersistTags?: (tags: string[]) => Promise<void>;
   /** After comments are added or removed (e.g. refresh global comment counts in list views). */
   onTodoCommentsChanged?: (todoId: string) => void;
+  /** Read-only preview (no edits; team dashboard when user is not owner/assignee). */
+  viewOnly?: boolean;
 }
 
 export default function TaskEditModal({
@@ -96,6 +98,7 @@ export default function TaskEditModal({
   onSuggestedSlotChange,
   onPersistTags,
   onTodoCommentsChanged,
+  viewOnly = false,
 }: TaskEditModalProps) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -383,6 +386,12 @@ export default function TaskEditModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
+        {viewOnly && (
+          <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            {t("teamDash.viewOnlyHint")}
+          </p>
+        )}
+        <div className={viewOnly ? "pointer-events-none select-none" : undefined}>
         <button
           type="button"
           onClick={() => setDetailsOpen((v) => !v)}
@@ -991,8 +1000,10 @@ export default function TaskEditModal({
           </div>
         )}
 
+        </div>
+
         <div className="flex items-center mt-5">
-          {!todo.parentId && onOpenSubtasks && (
+          {!todo.parentId && onOpenSubtasks && !viewOnly && (
             <button
               type="button"
               onClick={() => onOpenSubtasks(todo)}
@@ -1009,25 +1020,27 @@ export default function TaskEditModal({
             {saving && (
               <span className="text-xs text-zinc-400 dark:text-slate-500">{t("edit.saving")}</span>
             )}
-            <button
-              type="button"
-              onClick={() => void onClose()}
-              className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              {t("edit.cancel")}
-            </button>
+            {!viewOnly && (
+              <button
+                type="button"
+                onClick={() => void onClose()}
+                className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                {t("edit.cancel")}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void onClose()}
               disabled={!form.title.trim()}
               className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
             >
-              {t("edit.done")}
+              {viewOnly ? t("a11y.close") : t("edit.done")}
             </button>
           </div>
         </div>
-        </div>
       </div>
+    </div>
     </div>
   );
 }

@@ -277,6 +277,17 @@ export function canManageProjectAccess(uid: string, userEmail: string, project: 
 /**
  * Returns projects the user can access (personal owner, or team ACL / governance).
  */
+/** Active project IDs linked to a team (shared / team workspace). */
+export function listActiveProjectIdsForTeam(teamId: string): Set<string> {
+  const ids = new Set<string>();
+  for (const p of projectsById.values()) {
+    if (p.teamId === teamId && p.status === "active") {
+      ids.add(p.id);
+    }
+  }
+  return ids;
+}
+
 export function listProjects(uid: string, userEmail: string): Project[] {
   const results: Project[] = [];
   for (const p of projectsById.values()) {
