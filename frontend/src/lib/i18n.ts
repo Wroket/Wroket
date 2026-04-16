@@ -54,6 +54,7 @@ const translations = {
   "nav.archiveTasks": { fr: "Tâches", en: "Tasks" },
   "nav.archiveProjects": { fr: "Projets", en: "Projects" },
   "nav.archiveTeams": { fr: "Équipes", en: "Teams" },
+  "nav.archiveNotes": { fr: "Notes", en: "Notes" },
   "nav.projects": { fr: "Mes projets", en: "My projects" },
   "nav.teams": { fr: "Collaboration", en: "Collaboration" },
   "nav.myTeams": { fr: "Mes équipes", en: "My teams" },

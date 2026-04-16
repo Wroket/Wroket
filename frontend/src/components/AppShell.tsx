@@ -73,6 +73,7 @@ const ARCHIVE_NAV = {
     { tKey: "nav.archiveTasks", href: "/archive/tasks" },
     { tKey: "nav.archiveProjects", href: "/archive/projects" },
     { tKey: "nav.archiveTeams", href: "/archive/teams" },
+    { tKey: "nav.archiveNotes", href: "/archive/notes" },
   ],
 };
 
@@ -470,13 +471,13 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-100 dark:bg-slate-950 transition-colors">
+    <div className="min-h-screen flex flex-col bg-zinc-100 dark:bg-slate-950 transition-colors">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:rounded focus:bg-slate-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white">
         {t("a11y.skipToContent")}
       </a>
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
+      <header className="sticky top-0 z-50 shrink-0 bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
         <div className="px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -821,8 +822,9 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
         <nav
           aria-label={t("a11y.mainNavigation")}
-          className={`absolute inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 py-4 px-3 flex flex-col gap-1 overflow-y-auto transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+          className={`absolute inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 flex flex-col h-full min-h-0 overflow-hidden transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
         >
+          <div className="flex-1 min-h-0 overflow-y-auto py-4 px-3 flex flex-col gap-1">
           {NAV_ITEMS.slice(0, 1).map((item) => (
             <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
           ))}
@@ -971,18 +973,21 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             )}
           </div>
-          <hr className="border-zinc-200 dark:border-slate-700 my-2" />
-          <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
-          {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
-            <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} onClick={closeMobileMenu} />
-          )}
+          </div>
+          <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+            <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
+            {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
+              <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} onClick={closeMobileMenu} />
+            )}
+          </div>
         </nav>
       </div>
 
-      <div className="flex">
-        {/* ── Desktop Sidebar: sticky below header so it stays visible while scrolling main -- */}
-        <aside className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:self-start md:sticky md:top-[4.5rem] md:max-h-[calc(100vh-4.5rem)] md:overflow-y-auto bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700">
-          <nav aria-label={t("a11y.mainNavigation")} className="flex flex-col py-4 px-3 gap-1">
+      <div className="flex flex-1 min-h-0">
+        {/* ── Desktop Sidebar: full viewport height below header; main nav scrolls; settings pinned at bottom -- */}
+        <aside className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:sticky md:top-[4.5rem] md:h-[calc(100vh-4.5rem)] md:min-h-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700">
+          <nav aria-label={t("a11y.mainNavigation")} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto py-4 px-3 flex flex-col gap-1">
             {NAV_ITEMS.slice(0, 1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
             ))}
@@ -1127,11 +1132,13 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <hr className="border-zinc-200 dark:border-slate-700 my-2" />
-            <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
-            {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
-              <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} />
-            )}
+            </div>
+            <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+              <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
+              {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
+                <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} />
+              )}
+            </div>
           </nav>
         </aside>
 
