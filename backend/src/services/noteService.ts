@@ -23,6 +23,8 @@ export interface Note {
   sharedWithEmail?: string;
   /** Owner email — populated at read time by listSharedNotes for display; not persisted. */
   ownerEmail?: string;
+  /** Set when the note is in `archivedNotes` (soft delete). */
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +56,7 @@ export interface UpdateNoteInput {
 }
 
 const notesByUser = new Map<string, Map<string, Note>>();
+const archivedNotesByUser = new Map<string, Map<string, Note>>();
 
 function persist(): void {
   const obj: Record<string, Record<string, Note>> = {};
@@ -64,6 +67,17 @@ function persist(): void {
   const store = getStore();
   store.notes = obj;
   scheduleSave("notes");
+}
+
+function persistArchived(): void {
+  const obj: Record<string, Record<string, Note>> = {};
+  archivedNotesByUser.forEach((notes, uid) => {
+    obj[uid] = {};
+    notes.forEach((note, id) => { obj[uid][id] = note; });
+  });
+  const store = getStore();
+  store.archivedNotes = obj;
+  scheduleSave("archivedNotes");
 }
 
 (function hydrate() {
@@ -82,11 +96,36 @@ function persist(): void {
   }
 })();
 
+(function hydrateArchived() {
+  const store = getStore();
+  if (store.archivedNotes) {
+    let count = 0;
+    for (const [uid, notes] of Object.entries(store.archivedNotes)) {
+      const map = new Map<string, Note>();
+      for (const [id, note] of Object.entries(notes as Record<string, Note>)) {
+        map.set(id, note);
+        count++;
+      }
+      archivedNotesByUser.set(uid, map);
+    }
+    if (count > 0) console.log("[notes] %d archived note(s) chargée(s)", count);
+  }
+})();
+
 function getUserNotes(userId: string): Map<string, Note> {
   let map = notesByUser.get(userId);
   if (!map) {
     map = new Map();
     notesByUser.set(userId, map);
+  }
+  return map;
+}
+
+function getUserArchivedNotes(userId: string): Map<string, Note> {
+  let map = archivedNotesByUser.get(userId);
+  if (!map) {
+    map = new Map();
+    archivedNotesByUser.set(userId, map);
   }
   return map;
 }
@@ -139,6 +178,11 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
   // If client id already exists for this user, return existing note (idempotent create)
   if (clientId && getUserNotes(userId).has(clientId)) {
     return getUserNotes(userId).get(clientId)!;
+  }
+  // Same UUID was soft-deleted: allow a fresh note with that id (offline sync / recreate)
+  if (clientId && getUserArchivedNotes(userId).has(clientId)) {
+    getUserArchivedNotes(userId).delete(clientId);
+    persistArchived();
   }
 
   const now = new Date().toISOString();
@@ -223,11 +267,45 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
   return note;
 }
 
+/** Soft-delete: moves the note to `archivedNotes` (Firestore: `store/archivedNotes`). */
 export function deleteNote(userId: string, noteId: string): void {
   const map = getUserNotes(userId);
-  if (!map.has(noteId)) throw new NotFoundError("Note introuvable");
+  const note = map.get(noteId);
+  if (!note) throw new NotFoundError("Note introuvable");
+  const now = new Date().toISOString();
   map.delete(noteId);
+  const archived: Note = { ...note, archivedAt: now, updatedAt: now };
+  getUserArchivedNotes(userId).set(noteId, archived);
   persist();
+  persistArchived();
+}
+
+export function listArchivedNotes(userId: string): Note[] {
+  const notes = Array.from(getUserArchivedNotes(userId).values());
+  return notes.sort(
+    (a, b) =>
+      new Date(b.archivedAt ?? b.updatedAt).getTime() - new Date(a.archivedAt ?? a.updatedAt).getTime(),
+  );
+}
+
+export function restoreArchivedNote(userId: string, noteId: string): Note {
+  const arch = getUserArchivedNotes(userId);
+  const note = arch.get(noteId);
+  if (!note) throw new NotFoundError("Note introuvable");
+  arch.delete(noteId);
+  const now = new Date().toISOString();
+  const restored: Note = { ...note, archivedAt: undefined, updatedAt: now };
+  getUserNotes(userId).set(noteId, restored);
+  persist();
+  persistArchived();
+  return restored;
+}
+
+export function permanentlyDeleteArchivedNote(userId: string, noteId: string): void {
+  const arch = getUserArchivedNotes(userId);
+  if (!arch.has(noteId)) throw new NotFoundError("Note introuvable");
+  arch.delete(noteId);
+  persistArchived();
 }
 
 /**
@@ -251,6 +329,9 @@ export function syncNotes(userId: string, incoming: Array<{ id: string; title: s
         existing.updatedAt = item.updatedAt;
       }
     } else {
+      if (getUserArchivedNotes(userId).has(item.id)) {
+        continue;
+      }
       const note: Note = {
         id: item.id,
         userId,

@@ -29,10 +29,8 @@ import { useToast } from "@/components/Toast";
 import {
   createProject,
   updateProject,
-  deleteProjectApi,
   reorderProjects,
   getProject as fetchProject,
-  getProjectTodos,
 } from "@/lib/api";
 
 import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";
@@ -262,9 +260,21 @@ export default function ProjectListView({
 
   const toggleExpand = (id: string) => setExpandedProjects((prev) => {
     const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     return next;
   });
+
+  const closeCreateModal = useCallback(() => {
+    if (createName.trim() || createDesc.trim()) {
+      if (!window.confirm(t("projects.discardChanges"))) return;
+    }
+    setShowCreate(false);
+    setCreateName("");
+    setCreateDesc("");
+    setCreateTeamId(null);
+    setUseTemplate(true);
+  }, [createName, createDesc, t]);
 
   const handleCreate = async () => {
     if (!createName.trim() || creating) return;
@@ -304,13 +314,14 @@ export default function ProjectListView({
 
   const handleDelete = (project: Project) => {
     setConfirm({
-      title: t("projects.delete"),
-      message: project.name,
+      title: t("projects.archive"),
+      message: `« ${project.name} » — ${t("projects.confirmArchiveHint")}`,
       action: async () => {
         setConfirm(null);
         try {
-          await deleteProjectApi(project.id);
-          setProjects((prev) => prev.filter((p) => p.id !== project.id));
+          const updated = await updateProject(project.id, { status: "archived" });
+          setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+          setLastAction({ type: "archive", projectId: project.id, previousStatus: "active" });
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Error");
         }
@@ -515,7 +526,7 @@ export default function ProjectListView({
                         <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-amber-500 transition-colors" title={t("projects.archive")}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(project); }} className="text-zinc-400 hover:text-red-500 transition-colors" title={t("projects.delete")}>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(project); }} className="text-zinc-400 hover:text-amber-600 transition-colors" title={t("projects.archive")}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
@@ -614,7 +625,7 @@ export default function ProjectListView({
                               <button onClick={async (e) => { e.stopPropagation(); try { const updated = await updateProject(child.id, { parentProjectId: null }); setProjects((prev) => prev.map((p) => p.id === updated.id ? updated : p)); } catch { loadProjects(); } }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 transition-colors" title={t("projects.promoteToRoot")}>
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                               </button>
-                              <button onClick={(e) => { e.stopPropagation(); handleDelete(child); }} className="text-zinc-300 dark:text-slate-600 hover:text-red-500 transition-colors">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(child); }} className="text-zinc-300 dark:text-slate-600 hover:text-amber-600 transition-colors" title={t("projects.archive")}>
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
@@ -678,7 +689,7 @@ export default function ProjectListView({
 
         {/* Create project modal */}
         {showCreate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (createName.trim() || createDesc.trim()) { if (!window.confirm(t("projects.discardChanges"))) return; } setShowCreate(false); setCreateName(""); setCreateDesc(""); setCreateTeamId(null); }}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeCreateModal}>
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.create")}</h3>
               <div className="space-y-3">
@@ -706,14 +717,24 @@ export default function ProjectListView({
                 </label>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => setShowCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
-                <button onClick={handleCreate} disabled={!createName.trim() || creating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeCreateModal();
+                  }}
+                  className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {t("projects.cancel")}
+                </button>
+                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
               </div>
             </div>
           </div>
         )}
 
-        <ConfirmDialog open={!!confirm} title={confirm?.title ?? ""} message={confirm?.message ?? ""} onConfirm={() => confirm?.action()} onCancel={() => setConfirm(null)} variant="danger" />
+        <ConfirmDialog open={!!confirm} title={confirm?.title ?? ""} message={confirm?.message ?? ""} onConfirm={() => confirm?.action()} onCancel={() => setConfirm(null)} variant="warning" confirmLabel={t("projects.archive")} />
 
         <DashboardImportModal
           open={importChoiceOpen}

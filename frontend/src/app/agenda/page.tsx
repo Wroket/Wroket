@@ -49,7 +49,7 @@ export default function AgendaPage() {
   const { t, locale } = useLocale();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { resolveUser, displayName, cache: userCache } = useUserLookup();
+  const { resolveUser, displayName, cacheRef: userCacheRef } = useUserLookup();
   type ViewMode = "day" | "week" | "month";
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -396,7 +396,7 @@ export default function AgendaPage() {
       setEditAssignEmail("");
       setEditAssignedUser(null);
       setEditAssignError(null);
-      if (todo.assignedTo && !userCache[todo.assignedTo]) {
+      if (todo.assignedTo && !userCacheRef.current[todo.assignedTo]) {
         resolveUser(todo.assignedTo);
       }
     } catch {

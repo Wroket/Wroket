@@ -16,7 +16,6 @@ import { arrayMove } from "@dnd-kit/sortable";
 
 import AppShell from "@/components/AppShell";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
-import ConfirmDialog from "@/components/ConfirmDialog";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
@@ -64,7 +63,7 @@ import TaskImportModal from "@/components/TaskImportModal";
 
 import GanttChart from "./GanttChart";
 import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
-import { formatMins, TEMPLATE_PHASES } from "./types";
+import { formatMins } from "./types";
 import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab, Team } from "./types";
 
 interface ProjectDetailViewProps {
@@ -100,10 +99,10 @@ export default function ProjectDetailView({
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const { resolveUser, displayName, cache } = useUserLookup();
+  const { resolveUser, displayName, cacheRef } = useUserLookup();
   const meUid = user?.uid ?? null;
   const canConvertToSubproject = !selectedProject.parentProjectId;
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [, setCollaborators] = useState<Collaborator[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
 
@@ -122,11 +121,11 @@ export default function ProjectDetailView({
   useEffect(() => {
     const uids = new Set<string>();
     for (const td of projectTodos) {
-      if (td.assignedTo && !cache[td.assignedTo]) uids.add(td.assignedTo);
-      if (td.userId && td.userId !== meUid && !cache[td.userId]) uids.add(td.userId);
+      if (td.assignedTo && !cacheRef.current[td.assignedTo]) uids.add(td.assignedTo);
+      if (td.userId && td.userId !== meUid && !cacheRef.current[td.userId]) uids.add(td.userId);
     }
     uids.forEach((uid) => resolveUser(uid));
-  }, [projectTodos, meUid, cache, resolveUser]);
+  }, [projectTodos, meUid, cacheRef, resolveUser]);
 
   useEffect(() => {
     const id = selectedProject.id;
@@ -236,7 +235,6 @@ export default function ProjectDetailView({
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
 
-  const [confirm, setConfirm] = useState<{ title: string; message: string; action: () => void } | null>(null);
   const [phaseToDelete, setPhaseToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showCreateSub, setShowCreateSub] = useState(false);
   const [subName, setSubName] = useState("");
@@ -284,8 +282,8 @@ export default function ProjectDetailView({
   }, [projectTodos]);
   const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
 
-  const effortDefaults = user?.effortMinutes ?? { light: 15, medium: 30, heavy: 60 };
   const timeByPhase = useMemo(() => {
+    const effortDefaults = user?.effortMinutes ?? { light: 15, medium: 30, heavy: 60 };
     const resolveMinutes = (td: Todo): number =>
       td.estimatedMinutes ?? effortDefaults[td.effort ?? "medium"] ?? 30;
     const map = new Map<string, number>();
@@ -298,7 +296,7 @@ export default function ProjectDetailView({
       map.set(key, (map.get(key) ?? 0) + mins);
     }
     return { byPhase: map, total };
-  }, [projectTodos, effortDefaults]);
+  }, [projectTodos, user?.effortMinutes]);
 
   const completionStats = useMemo(() => {
     const parents = projectTodos.filter((td) => !td.parentId);
@@ -431,14 +429,14 @@ export default function ProjectDetailView({
     }
   };
 
-  const handleMoveTaskToPhase = async (taskId: string, phaseId: string | null) => {
+  const handleMoveTaskToPhase = useCallback(async (taskId: string, phaseId: string | null) => {
     try {
       const updated = await updateTodo(taskId, { phaseId });
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
-  };
+  }, [toast, setProjectTodos]);
 
   const handleKanbanDragStart = useCallback((event: DragStartEvent) => {
     setDraggedTodoId(String(event.active.id));
@@ -567,7 +565,7 @@ export default function ProjectDetailView({
         toast.error(err instanceof Error ? err.message : "Error");
       }
     }
-  }, [findPhaseForTask, orderedPhases, tasksByPhase, setProjectTodos, toast]);
+  }, [findPhaseForTask, orderedPhases, tasksByPhase, setProjectTodos, toast, selectedProject, setSelectedProject]);
 
   const openEdit = (todo: Todo) => {
     setEditingTodo(todo);
@@ -586,7 +584,7 @@ export default function ProjectDetailView({
     setEditAssignEmail("");
     setEditAssignedUser(null);
     setEditAssignError(null);
-    if (todo.assignedTo && !cache[todo.assignedTo]) {
+    if (todo.assignedTo && !cacheRef.current[todo.assignedTo]) {
       resolveUser(todo.assignedTo);
     }
   };
@@ -596,7 +594,7 @@ export default function ProjectDetailView({
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
       setEditingTodo(updated);
     },
-    [],
+    [setProjectTodos],
   );
 
   const { saving: editAutoSaving, syncBaseline, flush } = useTaskEditAutoSave({
@@ -947,24 +945,6 @@ export default function ProjectDetailView({
     }
   };
 
-  const handleDelete = (project: Project) => {
-    setConfirm({
-      title: t("projects.delete"),
-      message: project.name,
-      action: async () => {
-        setConfirm(null);
-        try {
-          const { deleteProjectApi } = await import("@/lib/api");
-          await deleteProjectApi(project.id);
-          setProjects((prev) => prev.filter((p) => p.id !== project.id));
-          if (selectedProject.id === project.id) setSelectedProject(null);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Error");
-        }
-      },
-    });
-  };
-
   const teamName = (teamId: string | null) => {
     if (!teamId) return t("projects.personal");
     return teams.find((tm) => tm.id === teamId)?.name ?? t("projects.personal");
@@ -1131,23 +1111,6 @@ export default function ProjectDetailView({
 
   let taskCounter = 0;
 
-  const renderTaskWithSubtasks = (todo: Todo) => {
-    if (todo.parentId) return null;
-    taskCounter++;
-    const parentNum = String(taskCounter);
-    const subs = getSubtasks(todo.id);
-    return (
-      <div key={todo.id}>
-        {renderTaskRow(todo, parentNum)}
-        {subs.length > 0 && (
-          <div className="ml-6 pl-3 border-l-2 border-zinc-200 dark:border-slate-700 space-y-1 mt-1 mb-1">
-            {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <AppShell>
       <div className={`${fullScreen ? "" : "max-w-[1200px]"} mx-auto space-y-4`}>
@@ -1184,8 +1147,18 @@ export default function ProjectDetailView({
               <input value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
               <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" />
               <div className="flex gap-2">
-                <button onClick={handleSaveEdit} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("settings.save")}</button>
-                <button onClick={() => setEditing(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
+                <button type="button" onClick={handleSaveEdit} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">{t("settings.save")}</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    setEditName(selectedProject.name);
+                    setEditDesc(selectedProject.description ?? "");
+                  }}
+                  className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {t("projects.cancel")}
+                </button>
               </div>
             </div>
           ) : (
@@ -2025,15 +1998,6 @@ export default function ProjectDetailView({
           onDeleteSubtask={(sub) => handleDeleteTask(sub)}
           onPromoteSubtask={handlePromoteSubtask}
           onReorderSubtasks={handleReorderSubtasks}
-        />
-
-        <ConfirmDialog
-          open={!!confirm}
-          title={confirm?.title ?? ""}
-          message={confirm?.message ?? ""}
-          onConfirm={() => confirm?.action()}
-          onCancel={() => setConfirm(null)}
-          variant="danger"
         />
 
         {phaseToDelete && (() => {

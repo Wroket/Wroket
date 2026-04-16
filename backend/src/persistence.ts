@@ -30,7 +30,7 @@ export function todoShardDocId(shardIndex: number): string {
 
 const DOMAINS = [
   "users", "notifications", "collaborators",
-  "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "activityLog", "attachments",
+  "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "archivedNotes", "activityLog", "attachments",
   "pendingCommentMentions",
   /** Short-lived tokens for password/Google login when TOTP is enabled (multi-instance safe) */
   "pendingTwoFactor",
@@ -52,6 +52,8 @@ export interface StoreData {
   inviteLog?: unknown[];
   comments?: Record<string, unknown[]>;
   notes?: Record<string, Record<string, unknown>>;
+  /** Soft-deleted notes (same shape as `notes`), document `store/archivedNotes` in Firestore. */
+  archivedNotes?: Record<string, Record<string, unknown>>;
   activityLog?: unknown[];
   attachments?: Record<string, unknown[]>;
   /** Queued comment_mention notifications until invitee accepts collaboration */

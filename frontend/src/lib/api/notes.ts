@@ -20,6 +20,8 @@ export interface Note {
   ownerEmail?: string;
   createdAt: string;
   updatedAt: string;
+  /** Present when the note is listed from the archive (soft-deleted). */
+  archivedAt?: string;
 }
 
 export async function getNotes(): Promise<Note[]> {
@@ -92,6 +94,26 @@ export async function updateNoteApi(id: string, input: {
 export async function deleteNoteApi(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/notes/${id}`, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error("Impossible de supprimer la note");
+}
+
+export async function getArchivedNotes(): Promise<Note[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/archived`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les notes archivées");
+  return res.json();
+}
+
+export async function restoreArchivedNoteApi(id: string): Promise<Note> {
+  const res = await fetch(`${API_BASE_URL}/notes/archived/${id}/restore`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de restaurer la note");
+  return res.json();
+}
+
+export async function purgeArchivedNoteApi(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/notes/archived/${id}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de supprimer la note définitivement");
 }
 
 export async function syncNotesApi(notes: Array<{

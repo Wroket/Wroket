@@ -1,22 +1,22 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
-import ExportImportDropdown from "@/components/ExportImportDropdown";
 import PageHelpButton from "@/components/PageHelpButton";
 import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, getTodos, createTodo, lookupUser, exportNotes, importNotesFile, getTeams, getMe } from "@/lib/api";
+import { getProjects, getTodos, createTodo, lookupUser, getTeams, getMe } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 
 function NotesPageInner() {
   const { t } = useLocale();
   const searchParams = useSearchParams();
-  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload } = useOfflineNotes();
+  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin } = useOfflineNotes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -28,6 +28,7 @@ function NotesPageInner() {
   const [collabEmailInput, setCollabEmailInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
   useEffect(() => {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
@@ -58,8 +59,6 @@ function NotesPageInner() {
     setMobileShowEditor(true);
     setTimeout(() => titleRef.current?.focus(), 50);
   }, [addNote]);
-
-  const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
   const handleSelect = useCallback((note: Note) => {
     setSelectedId(note.id);
@@ -98,15 +97,17 @@ function NotesPageInner() {
   }, [deleteConfirm, removeNote, selectedId, notes]);
 
   useEffect(() => {
-    const idParam = searchParams.get("id");
-    if (idParam && notes.some((n) => n.id === idParam)) {
-      setSelectedId(idParam);
-      setMobileShowEditor(true);
-      return;
-    }
-    if (notes.length > 0 && !selectedId) {
-      setSelectedId(notes[0].id);
-    }
+    void Promise.resolve().then(() => {
+      const idParam = searchParams.get("id");
+      if (idParam && notes.some((n) => n.id === idParam)) {
+        setSelectedId(idParam);
+        setMobileShowEditor(true);
+        return;
+      }
+      if (notes.length > 0 && !selectedId) {
+        setSelectedId(notes[0].id);
+      }
+    });
   }, [notes, selectedId, searchParams]);
 
   useEffect(() => {
@@ -177,18 +178,11 @@ function NotesPageInner() {
         <div className={`w-full md:w-72 shrink-0 border-r border-zinc-200 dark:border-slate-700 flex flex-col bg-zinc-50 dark:bg-slate-900/50 ${mobileShowEditor ? "hidden md:flex" : "flex"}`}>
           {/* Header */}
           <div className="p-3 border-b border-zinc-200 dark:border-slate-700 space-y-2">
-            <div className="flex items-center justify-between">
-              <h1 className="text-lg font-bold text-zinc-900 dark:text-slate-100">
+            <div className="flex flex-nowrap items-center justify-between gap-2 min-w-0">
+              <h1 className="text-lg font-bold text-zinc-900 dark:text-slate-100 whitespace-nowrap shrink-0">
                 {t("notes.title")}
               </h1>
-              <div className="flex items-center gap-1.5 relative">
-                <ExportImportDropdown
-                  exportCsv={() => exportNotes("csv")}
-                  exportJson={() => exportNotes("json")}
-                  onImport={async (file) => { const r = await importNotesFile(file); await reload(); return r; }}
-                  templateCsv={'title,content,folder,tags\nMy note,Content here,General,"tag1, tag2"'}
-                  templateJson={JSON.stringify([{ title: "My note", content: "Content here", folder: "General", tags: ["tag1"] }], null, 2)}
-                />
+              <div className="flex items-center gap-1.5 shrink-0">
                 <PageHelpButton
                   title={t("notes.title")}
                   items={[
@@ -200,6 +194,12 @@ function NotesPageInner() {
                     { text: t("help.notes.offline") },
                   ]}
                 />
+                <Link
+                  href="/archive/notes"
+                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                >
+                  {t("notes.archivedShort")}
+                </Link>
                 <button
                   type="button"
                   onClick={handleNew}

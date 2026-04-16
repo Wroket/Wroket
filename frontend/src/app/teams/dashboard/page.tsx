@@ -93,7 +93,11 @@ export default function TeamDashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedTeamId) loadDashboard(selectedTeamId);
+    if (!selectedTeamId) return;
+    const id = selectedTeamId;
+    void Promise.resolve().then(() => {
+      void loadDashboard(id);
+    });
   }, [selectedTeamId, loadDashboard]);
 
   useEffect(() => {
@@ -207,11 +211,12 @@ export default function TeamDashboardPage() {
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
             {t("teamDash.title")}
           </h1>
-          {teams.length > 1 && (
+          {teams.length > 0 && (
             <select
               value={selectedTeamId ?? ""}
               onChange={(e) => setSelectedTeamId(e.target.value)}
-              className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
+              aria-label={t("teamDash.select")}
+              className="min-w-[12rem] rounded-lg border-2 border-indigo-300 dark:border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/40 px-3 py-2.5 text-sm font-semibold text-indigo-950 dark:text-indigo-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-500"
             >
               {teams.map((team) => (
                 <option key={team.id} value={team.id}>

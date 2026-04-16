@@ -16,12 +16,7 @@ const LocaleContext = createContext<LocaleContextValue>({
 });
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("fr");
-
-  useEffect(() => {
-    const stored = initLocale();
-    setLocaleState(stored);
-  }, []);
+  const [locale, setLocaleState] = useState<Locale>(() => initLocale());
 
   const changeLocale = useCallback((l: Locale) => {
     setGlobalLocale(l);

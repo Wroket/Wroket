@@ -141,6 +141,10 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - [x] **Notes simplifiées** — Suppression du sélecteur projet sur les notes ; une note est soit autonome, soit liée en lecture seule à une tâche/sous-tâche (créée depuis celle-ci)
 - [x] **Renommage navigation** — "Collaboration > Collaboration" renommé en "Mes équipes", "Dashboard équipe" renommé en "Tableau de bord"
 - [x] **Export / import tâches (JSON & CSV)** — Export JSON enrichi côté API ; import avec prévisualisation (`POST /todos/import/preview`) et confirmation (`POST /todos/import/confirm`), service `taskImportService` ; menu `ExportImportDropdown` + flux sur la page Tâches
+- [x] **Archives notes (soft delete)** — Supprimer une note l’archive côté serveur (`store/archivedNotes` / domaine `archivedNotes`), plus suppression définitive immédiate ; API `GET /notes/archived`, `POST /notes/archived/:id/restore`, `DELETE /notes/archived/:id` ; page `/archive/notes` (liste, restaurer, supprimer définitivement)
+- [x] **Projets — archivage depuis la liste** — L’action de suppression archive le projet (`status: archived`) pour qu’il apparaisse dans Archives › Projets ; confirmation « Archiver » ; corbeille liste / détail alignées sur l’archive plutôt que `DELETE` projet
+- [x] **UX — projets, équipes, bloc-notes** — Annuler fiable sur la modal de création projet ; sélecteur d’équipe plus visible sur `/teams/dashboard` ; en-tête notes : titre sur une ligne avec Aide + lien « Annulé » (archives) + nouvelle note, retrait du menu Données du header (import/export CSV/JSON rappelé dans l’aide / paramètres)
+- [x] **Qualité ESLint (règles React)** — Passage `eslint --max-warnings 0` : effets sans `setState` synchrone problématique, refs (`SlashCommandMenu`, `useUserLookup` → `cacheRef`), pureté radar, deps hooks ajustées
 
 ## Expérience utilisateur & attractivité
 

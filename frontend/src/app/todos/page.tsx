@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
-import ConfirmDialog from "@/components/ConfirmDialog";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -50,9 +49,7 @@ import { getEffectiveDueDay, hasNoEffectiveDue } from "@/lib/effectiveDue";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
 import {
-  QUADRANT_CONFIG,
   PRIORITY_BADGES,
-  SUBTASK_BADGE_CLS,
   type Quadrant,
   type FilterKey,
   type SortColumn,
@@ -64,7 +61,7 @@ import { useTodoListSync } from "@/lib/useTodoListSync";
 import { compareTodosForRadarList, type RadarMode } from "@/lib/taskScores";
 import type { TranslationKey } from "@/lib/i18n";
 
-import { FILTER_BUTTONS, QUADRANT_BADGES, sortTodos } from "./_components/sortUtils";
+import { FILTER_BUTTONS, QUADRANT_BADGES } from "./_components/sortUtils";
 
 const RADAR_MODE_LABEL_KEYS: Record<RadarMode, TranslationKey> = {
   eisenhower: "matrix.radarModeEisenhower",
@@ -105,7 +102,7 @@ export default function TodosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const meUid = user?.uid ?? null;
-  const { resolveUser, displayName: userDisplayName, cache: userCache } = useUserLookup();
+  const { resolveUser, displayName: userDisplayName, cacheRef: userCacheRef } = useUserLookup();
   const { toast } = useToast();
 
   const [myTodos, setMyTodos] = useState<Todo[]>([]);
@@ -196,8 +193,8 @@ export default function TodosPage() {
   const [assignedUser, setAssignedUser] = useState<AuthMeResponse | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [, setCollaborators] = useState<Collaborator[]>([]);
+  const [, setTeams] = useState<Team[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
@@ -265,7 +262,7 @@ export default function TodosPage() {
     setEditAssignEmail("");
     setEditAssignedUser(null);
     setEditAssignError(null);
-    if (todo.assignedTo && !userCache[todo.assignedTo]) {
+    if (todo.assignedTo && !userCacheRef.current[todo.assignedTo]) {
       resolveUser(todo.assignedTo);
     }
   };
@@ -618,7 +615,7 @@ export default function TodosPage() {
     } catch {
       toast.error(t("toast.reorderError"));
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const handleNoteAction = useCallback(async (todo: Todo) => {
     const existingNoteId = todoNoteIds[todo.id];
@@ -756,23 +753,6 @@ export default function TodosPage() {
 
   const QUADRANT_KEYS: Quadrant[] = ["do-first", "schedule", "delegate", "eliminate"];
   const STATUS_KEYS: FilterKey[] = ["completed", "cancelled", "deleted"];
-
-  const toggleFilter = (key: FilterKey) => {
-    setFilters((prev) => {
-      const next = new Set(prev);
-      const isStatus = STATUS_KEYS.includes(key);
-
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        if (isStatus) {
-          for (const sk of STATUS_KEYS) next.delete(sk);
-        }
-        next.add(key);
-      }
-      return next;
-    });
-  };
 
   const listTodos = useMemo(() => {
     if (filters.size === 0) return activeTodos;

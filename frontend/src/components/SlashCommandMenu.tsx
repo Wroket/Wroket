@@ -81,11 +81,18 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
   const [projectSearch, setProjectSearch] = useState("");
 
   const slashStartRef = useRef(slashStart);
-  slashStartRef.current = slashStart;
   const contentRef = useRef(content);
-  contentRef.current = content;
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    slashStartRef.current = slashStart;
+  }, [slashStart]);
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => setMounted(true));
+  }, []);
 
   const commands: SlashCommand[] = useMemo(() =>
     COMMAND_DEFS.map((def) => ({
@@ -106,7 +113,9 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
     );
   }, [query, commands]);
 
-  useEffect(() => { setSelectedIndex(0); }, [query]);
+  useEffect(() => {
+    void Promise.resolve().then(() => setSelectedIndex(0));
+  }, [query]);
 
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -186,7 +195,7 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
       insertText(`❌ ${t("slash.task.error")} : "${taskTitle.trim()}"`);
     }
     setTaskCreating(false);
-  }, [taskTitle, taskPriority, taskDeadline, taskProject, taskAssign, onCreateTask, insertText]);
+  }, [taskTitle, taskPriority, taskDeadline, taskProject, taskAssign, onCreateTask, insertText, t]);
 
   const handleAssign = useCallback(() => {
     if (!assignEmail.trim()) return;
@@ -296,7 +305,9 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
   }, [open, closeMenu]);
 
   useEffect(() => {
-    if (open && !activePanel) setMenuPos(computeMenuPosition());
+    void Promise.resolve().then(() => {
+      if (open && !activePanel) setMenuPos(computeMenuPosition());
+    });
   }, [open, slashStart, computeMenuPosition, activePanel]);
 
   if (!mounted || !open) return null;

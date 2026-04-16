@@ -252,20 +252,17 @@ function WroketLogo() {
 
 export default function LandingPage() {
   const { t, locale, setLocale } = useLocale();
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() =>
+    typeof window !== "undefined" && localStorage.getItem("wroket-dark") === "1",
+  );
 
   useEffect(() => {
-    const stored = localStorage.getItem("wroket-dark");
-    if (stored === "1") {
-      setDark(true);
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   const toggleDark = () => {
     setDark((prev) => {
       const next = !prev;
-      document.documentElement.classList.toggle("dark", next);
       localStorage.setItem("wroket-dark", next ? "1" : "0");
       return next;
     });

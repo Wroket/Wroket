@@ -10,6 +10,9 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  listArchivedNotes,
+  restoreArchivedNote,
+  permanentlyDeleteArchivedNote,
   syncNotes,
   shareNoteWithUser,
   CreateNoteInput,
@@ -151,6 +154,22 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   deleteNote(req.user!.uid, id);
+  res.status(200).json({ ok: true });
+}
+
+export async function listArchived(req: AuthenticatedRequest, res: Response) {
+  res.status(200).json(listArchivedNotes(req.user!.uid));
+}
+
+export async function restoreArchived(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const note = restoreArchivedNote(req.user!.uid, id);
+  res.status(200).json(note);
+}
+
+export async function purgeArchived(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  permanentlyDeleteArchivedNote(req.user!.uid, id);
   res.status(200).json({ ok: true });
 }
 

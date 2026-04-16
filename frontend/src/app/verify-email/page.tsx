@@ -17,8 +17,10 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     if (!token) {
-      setStatus("error");
-      setErrorMsg(t("verify.error"));
+      void Promise.resolve().then(() => {
+        setStatus("error");
+        setErrorMsg(t("verify.error"));
+      });
       return;
     }
 

@@ -151,10 +151,12 @@ export default function SubtaskModal({
 
   useEffect(() => {
     if (!parent) return;
-    setTitle("");
-    setPriority("medium");
-    setEffort("medium");
-    setDeadline("");
+    void Promise.resolve().then(() => {
+      setTitle("");
+      setPriority("medium");
+      setEffort("medium");
+      setDeadline("");
+    });
   }, [parent]);
 
   useEffect(() => {

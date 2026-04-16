@@ -85,7 +85,7 @@ export default function TaskEditModal({
   onAssignEmailChange,
   assignedUser,
   assignError,
-  onAssignLookup,
+  onAssignLookup: _onAssignLookup,
   onClearAssign,
   userDisplayName,
   onOpenSubtasks,
@@ -100,6 +100,7 @@ export default function TaskEditModal({
   onTodoCommentsChanged,
   viewOnly = false,
 }: TaskEditModalProps) {
+  void _onAssignLookup;
   const { t } = useLocale();
   const { toast } = useToast();
   const trapRef = useFocusTrap(!!todo);
@@ -142,7 +143,7 @@ export default function TaskEditModal({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [reactionPickerCommentId, setReactionPickerCommentId] = useState<string | null>(null);
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [, setMentionQuery] = useState<string | null>(null);
   const [mentionResults, setMentionResults] = useState<Collaborator[]>([]);
   const [mentionIdx, setMentionIdx] = useState(0);
   const [allCollaborators, setAllCollaborators] = useState<Collaborator[]>([]);

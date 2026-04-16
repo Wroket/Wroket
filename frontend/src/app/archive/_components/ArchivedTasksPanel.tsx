@@ -66,7 +66,9 @@ export default function ArchivedTasksPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    void Promise.resolve().then(() => {
+      if (!cancelled) setLoading(true);
+    });
     getArchivedTodos()
       .then((data) => {
         if (!cancelled) setTodos(data);

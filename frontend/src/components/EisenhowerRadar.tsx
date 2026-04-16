@@ -118,7 +118,8 @@ export default function EisenhowerRadar({
   };
 
   const scoreById = useMemo(() => {
-    const now = nowMs ?? Date.now();
+    // "Now" for scoring; when not controlled, wall-clock time is intentional for overdue / due-soon.
+    const now = nowMs ?? Date.now(); // eslint-disable-line react-hooks/purity -- time-dependent layout
     const m = new Map<string, TaskScores>();
     for (const todo of todos) {
       m.set(todo.id, computeTaskScores(todo, now));

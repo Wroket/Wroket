@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type MutableRefObject } from "react";
 
 import { lookupUserByUid } from "./api";
 
@@ -15,7 +15,11 @@ export interface CachedUser {
  * Uses `useRef` instead of `useState` for the cache to avoid re-render loops
  * (the resolveUser callback would otherwise depend on the cache state it updates).
  */
-export function useUserLookup() {
+export function useUserLookup(): {
+  resolveUser: (uid: string) => Promise<void>;
+  displayName: (uid: string) => string;
+  cacheRef: MutableRefObject<Record<string, CachedUser>>;
+} {
   const cacheRef = useRef<Record<string, CachedUser>>({});
   const [, forceUpdate] = useState(0);
 
@@ -40,5 +44,5 @@ export function useUserLookup() {
     return u.email;
   }, []);
 
-  return { resolveUser, displayName, cache: cacheRef.current };
+  return { resolveUser, displayName, cacheRef };
 }

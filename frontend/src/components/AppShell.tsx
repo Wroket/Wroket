@@ -230,7 +230,8 @@ export default function AppShell({ children }: AppShellProps) {
   const panelNotifications = useMemo(
     () =>
       [...notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 20),
-    [notifications, notifTimeTick],
+    // notifTimeTick: periodic refresh so relative times in the panel stay current
+    [notifications, notifTimeTick], // eslint-disable-line react-hooks/exhaustive-deps -- tick intentionally busts memo
   );
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -475,7 +476,7 @@ export default function AppShell({ children }: AppShellProps) {
       </a>
 
       {/* ── Header ── */}
-      <header className="bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
+      <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
         <div className="px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -979,8 +980,8 @@ export default function AppShell({ children }: AppShellProps) {
       </div>
 
       <div className="flex">
-        {/* ── Desktop Sidebar ── */}
-        <aside className="hidden md:flex flex-col w-56 shrink-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 min-h-[calc(100vh-65px)]">
+        {/* ── Desktop Sidebar: sticky below header so it stays visible while scrolling main -- */}
+        <aside className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:self-start md:sticky md:top-[4.5rem] md:max-h-[calc(100vh-4.5rem)] md:overflow-y-auto bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700">
           <nav aria-label={t("a11y.mainNavigation")} className="flex flex-col py-4 px-3 gap-1">
             {NAV_ITEMS.slice(0, 1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />

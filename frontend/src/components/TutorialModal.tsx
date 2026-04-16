@@ -33,7 +33,7 @@ export function useTutorial() {
     if (typeof window === "undefined") return;
     const seen = localStorage.getItem(STORAGE_KEY);
     if (!seen) {
-      setShowTutorial(true);
+      void Promise.resolve().then(() => setShowTutorial(true));
     }
   }, []);
 
@@ -53,7 +53,7 @@ export default function TutorialModal({ open, onClose }: TutorialModalProps) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    if (open) setStep(0);
+    if (open) void Promise.resolve().then(() => setStep(0));
   }, [open]);
 
   useEffect(() => {

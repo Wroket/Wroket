@@ -629,6 +629,10 @@ const translations = {
   "projects.backToList": { fr: "Retour aux projets", en: "Back to projects" },
   "projects.active": { fr: "Actif", en: "Active" },
   "projects.archived": { fr: "Archivé", en: "Archived" },
+  "projects.confirmArchiveHint": {
+    fr: "Le projet sera déplacé dans les archives (récupérable depuis Archives › Projets).",
+    en: "The project will be moved to the archive (recoverable from Archive › Projects).",
+  },
   "projects.project": { fr: "Projet", en: "Project" },
   "projects.noProject": { fr: "Sans projet", en: "No project" },
   "teams.title": { fr: "Mes équipes", en: "My teams" },
@@ -728,6 +732,14 @@ const translations = {
   "notes.shareWithCollaborator": { fr: "Partager", en: "Share" },
   "notes.removeCollaboratorShare": { fr: "Retirer l'accès", en: "Remove access" },
   "notes.collaboratorSharedWith": { fr: "Partagé avec", en: "Shared with" },
+  "notes.archivedShort": { fr: "Annulé", en: "Archived" },
+  "notes.archiveTitle": { fr: "Notes archivées", en: "Archived notes" },
+  "notes.archiveSubtitle": { fr: "Notes supprimées — restauration ou suppression définitive", en: "Deleted notes — restore or delete permanently" },
+  "notes.archiveEmpty": { fr: "Aucune note archivée", en: "No archived notes" },
+  "notes.restored": { fr: "Note restaurée", en: "Note restored" },
+  "notes.purge": { fr: "Supprimer définitivement", en: "Delete permanently" },
+  "notes.purgeConfirm": { fr: "Supprimer définitivement cette note ?", en: "Permanently delete this note?" },
+  "notes.archivedAt": { fr: "Archivée le", en: "Archived on" },
 
   // ── Slash Commands ──
   "slash.commands": { fr: "Commandes", en: "Commands" },
@@ -1147,7 +1159,10 @@ const translations = {
   "help.notes.slash": { fr: "Tapez / dans l'éditeur : /task, /assign, /deadline, /project, /date, /time, /code, /warning", en: "Type / in the editor: /task, /assign, /deadline, /project, /date, /time, /code, /warning" },
   "help.notes.folders": { fr: "Organisez vos notes en dossiers", en: "Organize your notes in folders" },
   "help.notes.tags": { fr: "Ajoutez des tags pour catégoriser vos notes", en: "Add tags to categorize your notes" },
-  "help.notes.export": { fr: "Export Markdown ; import/export CSV ou JSON (modèles dans le menu)", en: "Markdown export; CSV/JSON import & export (templates in the menu)" },
+  "help.notes.export": {
+    fr: "Export / import CSV ou JSON depuis Paramètres › Données ; export Markdown possible aussi.",
+    en: "CSV/JSON import & export under Settings › Data; Markdown export is also available.",
+  },
   "help.notes.sharing": {
     fr: "Partage équipe : cochez « Partager avec l'équipe », choisissez l'équipe — les membres peuvent consulter la note. Les notes liées à une tâche ou un projet restent aussi liées à ce contexte.",
     en: "Team sharing: check Share with team, pick a team — members can read the note. Notes linked to a task or project stay tied to that context too.",

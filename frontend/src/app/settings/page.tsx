@@ -143,7 +143,7 @@ export default function SettingsPage() {
 }
 
 function SettingsContent() {
-  const { t, locale, setLocale: changeLocale } = useLocale();
+  const { t } = useLocale();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [active, setActive] = useState<Section>(
@@ -1847,7 +1847,11 @@ function HistorySection() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      void load();
+    });
+  }, []);
 
   return (
     <div className="space-y-6">
