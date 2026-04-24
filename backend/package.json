@@ -10,6 +10,9 @@
     "migrate:todos-shards": "npm run build && node -r dotenv/config dist/scripts/migrateTodosShards.js",
     "migrate:strip-encryption": "npm run build && node -r dotenv/config dist/scripts/migrateStripEncryption.js",
     "reconcile:todo-titles-from-restore": "npm run build && node -r dotenv/config dist/scripts/reconcileTodoTitlesFromRestore.js",
+    "cleanup:orphan-attachments": "npm run build && node -r dotenv/config dist/scripts/cleanupOrphanAttachments.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "npm run test --prefix ../e2e"
   },
   "keywords": [],
@@ -18,6 +21,7 @@
   "type": "commonjs",
   "dependencies": {
     "@google-cloud/firestore": "^8.3.0",
+    "@google-cloud/storage": "^7.19.0",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -36,6 +40,7 @@
     "@types/node": "^25.5.0",
     "@types/nodemailer": "^7.0.11",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
   }
 }

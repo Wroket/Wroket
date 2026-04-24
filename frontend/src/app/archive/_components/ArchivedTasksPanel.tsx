@@ -91,22 +91,32 @@ export default function ArchivedTasksPanel() {
     uids.forEach((uid) => resolveUser(uid));
   }, [todos, resolveUser]);
 
+  const archivedIds = useMemo(() => new Set(todos.map((td) => td.id)), [todos]);
+
+  // Treat an archived subtask as a root if its parent isn't itself in the archive
+  // list (parent still active, or parent already purged). Otherwise the subtask
+  // would be completely invisible.
+  const isDisplayRoot = (td: Todo): boolean =>
+    !td.parentId || !archivedIds.has(td.parentId);
+
   const filteredTasks = useMemo(() => {
     const list = taskFilter === "all" ? todos : todos.filter((td) => td.status === taskFilter);
-    return list.filter((td) => !td.parentId);
-  }, [todos, taskFilter]);
+    return list.filter(isDisplayRoot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todos, taskFilter, archivedIds]);
 
   const taskCounts = useMemo(() => {
     const c = { all: 0, completed: 0, cancelled: 0, deleted: 0 };
     for (const td of todos) {
-      if (td.parentId) continue;
+      if (!isDisplayRoot(td)) continue;
       c.all++;
       if (td.status === "completed") c.completed++;
       else if (td.status === "cancelled") c.cancelled++;
       else if (td.status === "deleted") c.deleted++;
     }
     return c;
-  }, [todos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todos, archivedIds]);
 
   const ownedArchivedTaskCount = useMemo(
     () => todos.filter((td) => td.userId === meUid).length,
@@ -256,6 +266,14 @@ export default function ArchivedTasksPanel() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className="text-zinc-600 dark:text-slate-300 line-through opacity-70">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
+                        {todo.parentId && (
+                          <span
+                            className="text-[9px] font-medium text-purple-600 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300 px-1.5 py-0.5 rounded"
+                            title={t("archives.subtaskBadgeTitle")}
+                          >
+                            ↳ {t("archives.subtaskBadge")}
+                          </span>
+                        )}
                         {subtasks.length > 0 && (
                           <span className="text-[9px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">
                             {subtasks.length} ↳

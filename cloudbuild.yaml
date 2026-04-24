@@ -49,7 +49,7 @@ steps:
       - '1'
       # ADMIN_EMAILS omitted here (value contains commas) — applied in the next step via `services update`.
       - '--update-env-vars'
-      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback'
+      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs'
       # Required in production (server.ts): Calendar OAuth + Google SSO state signing. Create in Secret Manager if missing.
       - '--set-secrets'
       - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest'

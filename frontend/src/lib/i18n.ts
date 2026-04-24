@@ -92,6 +92,11 @@ const translations = {
   "archives.teamsExportEmpty": { fr: "Aucune équipe à exporter", en: "No teams to export" },
   "archives.exportProjectsEmpty": { fr: "Aucun projet archivé à exporter", en: "No archived projects to export" },
   "archives.statusDateColumn": { fr: "Date (statut)", en: "Status date" },
+  "archives.subtaskBadge": { fr: "sous-tâche", en: "subtask" },
+  "archives.subtaskBadgeTitle": {
+    fr: "Sous-tâche archivée — la tâche parente n'est pas dans les archives (encore active ou purgée).",
+    en: "Archived subtask — its parent isn't in the archive list (still active or already purged).",
+  },
   "archives.deleteForever": { fr: "Supprimer définitivement", en: "Delete permanently" },
   "archives.deleteForeverConfirm": {
     fr: "Supprimer définitivement cette tâche et ses sous-tâches ? Cette action est irréversible.",

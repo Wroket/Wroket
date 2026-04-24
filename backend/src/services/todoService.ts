@@ -365,7 +365,7 @@ export async function purgeArchivedTodosPastRetentionForUser(userId: string): Pr
   const ids = collectArchivedTodoIdsPastRetention(todos, days);
   if (ids.length === 0) return 0;
   const idSet = new Set(ids);
-  purgeAttachmentsForTodoIds(ids);
+  await purgeAttachmentsForTodoIds(ids);
   removeCommentsForTodos(ids);
   detachNotesFromTodoIds(userId, idSet);
   await hardRemoveTodosByIds(ids);
@@ -381,20 +381,15 @@ async function purgeArchivedTodosPastRetentionAllUsers(): Promise<void> {
 
 /**
  * Archived todos for the signed-in user only (their datastore).
- * Personal tasks (no project) are always included. Tasks linked to a project are included
- * only if the user can still access that project (same rule as elsewhere — no exposure
- * of project-linked items after losing team/project access).
+ *
+ * The owner always sees their own archived tasks, regardless of the linked project's
+ * current state. Filtering on project access applies only to the cross-user assignee
+ * list ({@link listArchivedTodosAssignedToMe}) — otherwise a user could lose sight of
+ * their own completed work after a project is deleted or a team membership changes.
  */
-export function listArchivedTodos(userId: string, userEmail: string): Todo[] {
-  const email = userEmail.trim().toLowerCase();
+export function listArchivedTodos(userId: string): Todo[] {
   return listAllTodos(userId)
     .filter(isArchived)
-    .filter((t) => {
-      if (!t.projectId) return true;
-      const p = getProjectById(t.projectId);
-      if (!p) return false;
-      return canAccessProject(userId, email, p);
-    })
     .sort((a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime());
 }
 
@@ -501,7 +496,7 @@ export async function permanentlyRemoveArchivedTodo(userId: string, todoId: stri
   }
   const chainIds = collectDescendantTodoIds(own, todoId);
   const snapshots = chainIds.map((id) => own.get(id)!).filter(Boolean);
-  purgeAttachmentsForTodoIds(chainIds);
+  await purgeAttachmentsForTodoIds(chainIds);
   removeCommentsForTodos(chainIds);
   detachNotesFromTodoIds(userId, new Set(chainIds));
   await hardRemoveTodosByIds(chainIds);
@@ -511,8 +506,8 @@ export async function permanentlyRemoveArchivedTodo(userId: string, todoId: stri
 /**
  * Permanently removes every archived todo visible in {@link listArchivedTodos} for this user (plus subtasks in the same chains).
  */
-export async function permanentlyRemoveAllArchivedTodosOwned(userId: string, userEmail: string): Promise<Todo[]> {
-  const archivedVisible = listArchivedTodos(userId, userEmail);
+export async function permanentlyRemoveAllArchivedTodosOwned(userId: string, _userEmail: string): Promise<Todo[]> {
+  const archivedVisible = listArchivedTodos(userId);
   if (archivedVisible.length === 0) return [];
   const own = getUserTodos(userId);
   const allIds = new Set<string>();
@@ -525,7 +520,7 @@ export async function permanentlyRemoveAllArchivedTodosOwned(userId: string, use
   if (allIds.size === 0) return [];
   const snapshots = [...allIds].map((id) => own.get(id)!).filter(Boolean);
   const idList = [...allIds];
-  purgeAttachmentsForTodoIds(idList);
+  await purgeAttachmentsForTodoIds(idList);
   removeCommentsForTodos(idList);
   detachNotesFromTodoIds(userId, allIds);
   await hardRemoveTodosByIds(idList);

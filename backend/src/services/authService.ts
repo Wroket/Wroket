@@ -250,6 +250,8 @@ function readNotificationOutboundFrequency(user: StoredUser): NotificationOutbou
   return "immediate";
 }
 
+const DEFAULT_ARCHIVED_TASK_RETENTION_DAYS = 90;
+
 function readArchivedTaskRetentionDays(user: StoredUser): number {
   const d = user.archivedTaskRetentionDays;
   if (d === 0) return 0;
@@ -258,13 +260,13 @@ function readArchivedTaskRetentionDays(user: StoredUser): number {
     if (n === 0) return 0;
     if (n >= 1 && n <= 365) return n;
   }
-  return 30;
+  return DEFAULT_ARCHIVED_TASK_RETENTION_DAYS;
 }
 
 /** Retention for purge jobs: same rules as {@link readArchivedTaskRetentionDays}. */
 export function getArchivedTaskRetentionDaysForPurge(uid: string): number {
   const u = usersByUid.get(uid);
-  return u ? readArchivedTaskRetentionDays(u) : 30;
+  return u ? readArchivedTaskRetentionDays(u) : DEFAULT_ARCHIVED_TASK_RETENTION_DAYS;
 }
 
 function toAuthUser(user: StoredUser): AuthUser {

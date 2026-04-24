@@ -103,7 +103,7 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
   await purgeArchivedTodosPastRetentionForUser(uid);
-  const own = listArchivedTodos(uid, email);
+  const own = listArchivedTodos(uid);
   const asAssignee = listArchivedTodosAssignedToMe(uid, email);
   const byId = new Map<string, (typeof own)[number]>();
   for (const t of own) byId.set(t.id, t);
@@ -480,12 +480,11 @@ export async function exportTodos(req: AuthenticatedRequest, res: Response) {
   const includeArchived = req.query.include === "archived";
   const archivedOnly = req.query.scope === "archived-only";
   const uid = req.user!.uid;
-  const email = req.user!.email ?? "";
 
   const todos = archivedOnly
-    ? listArchivedTodos(uid, email)
+    ? listArchivedTodos(uid)
     : includeArchived
-      ? [...listTodos(uid), ...listArchivedTodos(uid, email)]
+      ? [...listTodos(uid), ...listArchivedTodos(uid)]
       : listTodos(uid);
 
   const fileBase = archivedOnly ? "wroket-tasks-archived" : includeArchived ? "wroket-tasks-all" : "wroket-tasks";
