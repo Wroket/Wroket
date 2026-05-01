@@ -277,61 +277,61 @@ export default function ProjectListView({
     setTemplateId("basic");
   }, [createName, createDesc, t]);
 
+  const resetCreateForm = useCallback(() => {
+    setCreateName("");
+    setCreateDesc("");
+    setCreateTeamId(null);
+    setTemplateId("basic");
+  }, []);
+
   const handleCreate = async () => {
     if (!createName.trim() || creating) return;
     setCreating(true);
-    let createdProjectId: string | null = null;
     try {
-      let project = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
-      createdProjectId = project.id;
-      const template = templateId !== "none" ? PROJECT_TEMPLATES.find((t) => t.id === templateId) : null;
-      if (template) {
-        const lang = locale === "fr" ? "fr" : "en";
-        const { createPhase, createTodo } = await import("@/lib/api");
-        for (const phaseDef of template.phases) {
-          const phase = await createPhase(project.id, { name: phaseDef.name[lang], startDate: null, endDate: null });
-          for (const [taskIndex, taskDef] of phaseDef.tasks.entries()) {
-            const parentTodo = await createTodo({
-              title: taskDef.title[lang],
+      const created = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
+      setProjects((prev) => [created, ...prev]);
+      setShowCreate(false);
+      resetCreateForm();
+      setCreating(false);
+
+      const template = templateId !== "none" ? PROJECT_TEMPLATES.find((tpl) => tpl.id === templateId) : null;
+      if (!template) return;
+
+      const lang = locale === "fr" ? "fr" : "en";
+      const { createPhase, createTodo } = await import("@/lib/api");
+      for (const phaseDef of template.phases) {
+        const phase = await createPhase(created.id, { name: phaseDef.name[lang], startDate: null, endDate: null });
+        for (const [taskIndex, taskDef] of phaseDef.tasks.entries()) {
+          const parentTodo = await createTodo({
+            title: taskDef.title[lang],
+            priority: "medium",
+            projectId: created.id,
+            phaseId: phase.id,
+            sortOrder: (taskIndex + 1) * 100,
+          });
+          for (const [subIndex, subDef] of taskDef.subtasks.entries()) {
+            await createTodo({
+              title: subDef.title[lang],
               priority: "medium",
-              projectId: project.id,
+              projectId: created.id,
               phaseId: phase.id,
-              sortOrder: (taskIndex + 1) * 100,
+              parentId: parentTodo.id,
+              sortOrder: (taskIndex + 1) * 100 + (subIndex + 1),
             });
-            for (const [subIndex, subDef] of taskDef.subtasks.entries()) {
-              await createTodo({
-                title: subDef.title[lang],
-                priority: "medium",
-                projectId: project.id,
-                phaseId: phase.id,
-                parentId: parentTodo.id,
-                sortOrder: (taskIndex + 1) * 100 + (subIndex + 1),
-              });
-            }
           }
         }
-        try {
-          project = await fetchProject(project.id);
-        } catch {
-          // Keep successful creation UX even if the final refresh call fails.
-        }
       }
-      setProjects((prev) => [project, ...prev]);
-      setShowCreate(false);
-      setCreateName("");
-      setCreateDesc("");
-      setCreateTeamId(null);
-      setTemplateId("basic");
+      try {
+        const refreshed = await fetchProject(created.id);
+        setProjects((prev) => prev.map((p) => (p.id === refreshed.id ? refreshed : p)));
+      } catch {
+        // Keep optimistic project card when refresh fails.
+      }
     } catch (err) {
-      if (createdProjectId) {
-        try {
-          await deleteProjectApi(createdProjectId);
-        } catch {
-          // If rollback fails, we still surface the original error.
-        }
-      }
       toast.error(err instanceof Error ? err.message : "Error");
-    } finally { setCreating(false); }
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleArchiveRestore = async (project: Project) => {
