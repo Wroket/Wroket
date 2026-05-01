@@ -34,7 +34,7 @@ import {
 } from "@/lib/api";
 
 import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";
-import { formatMins, getHealthConfig, TEMPLATE_PHASES } from "./types";
+import { formatMins, getHealthConfig, PROJECT_TEMPLATES } from "./types";
 import type { Project, Team, Todo, TranslationKey, ProjectHealth } from "./types";
 
 type ProjectUndoAction =
@@ -74,7 +74,7 @@ export default function ProjectListView({
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createTeamId, setCreateTeamId] = useState<string | null>(null);
-  const [useTemplate, setUseTemplate] = useState(true);
+  const [templateId, setTemplateId] = useState<string>("software");
   const [creating, setCreating] = useState(false);
 
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
@@ -273,7 +273,7 @@ export default function ProjectListView({
     setCreateName("");
     setCreateDesc("");
     setCreateTeamId(null);
-    setUseTemplate(true);
+    setTemplateId("software");
   }, [createName, createDesc, t]);
 
   const handleCreate = async () => {
@@ -281,11 +281,29 @@ export default function ProjectListView({
     setCreating(true);
     try {
       let project = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
-      if (useTemplate) {
+      const template = templateId !== "none" ? PROJECT_TEMPLATES.find((t) => t.id === templateId) : null;
+      if (template) {
         const lang = locale === "fr" ? "fr" : "en";
-        const { createPhase } = await import("@/lib/api");
-        for (const tpl of TEMPLATE_PHASES) {
-          await createPhase(project.id, { name: tpl.name[lang], startDate: null, endDate: null });
+        const { createPhase, createTodo } = await import("@/lib/api");
+        for (const phaseDef of template.phases) {
+          const phase = await createPhase(project.id, { name: phaseDef.name[lang], startDate: null, endDate: null });
+          for (const taskDef of phaseDef.tasks) {
+            const parentTodo = await createTodo({
+              title: taskDef.title[lang],
+              priority: "medium",
+              projectId: project.id,
+              phaseId: phase.id,
+            });
+            for (const subDef of taskDef.subtasks) {
+              await createTodo({
+                title: subDef.title[lang],
+                priority: "medium",
+                projectId: project.id,
+                phaseId: phase.id,
+                parentId: parentTodo.id,
+              });
+            }
+          }
         }
         project = await fetchProject(project.id);
       }
@@ -294,7 +312,7 @@ export default function ProjectListView({
       setCreateName("");
       setCreateDesc("");
       setCreateTeamId(null);
-      setUseTemplate(true);
+      setTemplateId("software");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally { setCreating(false); }
@@ -708,13 +726,27 @@ export default function ProjectListView({
                     {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
                   </select>
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer group">
-                  <input type="checkbox" checked={useTemplate} onChange={(e) => setUseTemplate(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500 dark:bg-slate-800" />
-                  <div>
-                    <span className="text-sm font-medium text-zinc-700 dark:text-slate-300 group-hover:text-zinc-900 dark:group-hover:text-slate-100 transition-colors">{t("projects.useTemplate")}</span>
-                    <p className="text-[11px] text-zinc-400 dark:text-slate-500 mt-0.5 leading-snug">{t("projects.templateStandard")}</p>
-                  </div>
-                </label>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.useTemplate")}</label>
+                  <select
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="none">{t("projects.templateNone")}</option>
+                    {PROJECT_TEMPLATES.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.label[locale === "fr" ? "fr" : "en"]}
+                      </option>
+                    ))}
+                  </select>
+                  {templateId !== "none" && (() => {
+                    const tpl = PROJECT_TEMPLATES.find((t) => t.id === templateId);
+                    if (!tpl) return null;
+                    const lang = locale === "fr" ? "fr" : "en";
+                    return <p className="text-[11px] text-zinc-400 dark:text-slate-500 mt-1 leading-snug">{tpl.description[lang]}</p>;
+                  })()}
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button

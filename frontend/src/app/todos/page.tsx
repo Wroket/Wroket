@@ -42,6 +42,7 @@ import {
   Collaborator,
   Team,
 } from "@/lib/api";
+import { createTaskMeet } from "@/lib/api/calendar";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -537,7 +538,7 @@ export default function TodosPage() {
 
   const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
 
-  const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; deadline: string }) => {
+  const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; startDate: string; deadline: string }) => {
     if (!subtaskParent) return;
     setSubtaskSubmitting(true);
     try {
@@ -545,6 +546,7 @@ export default function TodosPage() {
         title: data.title,
         priority: data.priority,
         effort: data.effort,
+        startDate: data.startDate || null,
         deadline: data.deadline || null,
         parentId: subtaskParent.id,
       });
@@ -608,6 +610,27 @@ export default function TodosPage() {
   const handleScheduleUpdate = useCallback((updated: Todo) => {
     replaceTodoInLists(updated);
   }, [replaceTodoInLists]);
+
+  const [meetLoadingId, setMeetLoadingId] = useState<string | null>(null);
+  const handleMeet = useCallback(async (todo: Todo) => {
+    const url = todo.scheduledSlot?.meetingUrl;
+    if (url) { window.open(url, "_blank", "noopener"); return; }
+    setMeetLoadingId(todo.id);
+    try {
+      const updated = await createTaskMeet(todo.id);
+      replaceTodoInLists(updated);
+      const meetUrl = updated.scheduledSlot?.meetingUrl;
+      if (meetUrl) {
+        await navigator.clipboard.writeText(meetUrl).catch(() => null);
+        toast.success(t("meet.created"));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(msg.toLowerCase().includes("connect") ? t("meet.errorNoGoogle") : t("meet.error"));
+    } finally {
+      setMeetLoadingId(null);
+    }
+  }, [replaceTodoInLists, toast, t]);
 
   const handleReorder = useCallback(async (orderedIds: string[]) => {
     try {
@@ -1246,6 +1269,8 @@ export default function TodosPage() {
               onAccept={handleAccept}
               projects={projects}
               onScheduleUpdate={handleScheduleUpdate}
+              onMeet={handleMeet}
+              meetLoadingId={meetLoadingId}
               onCreateNote={handleNoteAction}
               todoNoteIds={todoNoteIds}
               onReorderSubtasks={handleReorderSubtasks}

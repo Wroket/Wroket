@@ -196,6 +196,11 @@ function getStorage(): AttachmentStorage {
   return storageInstance;
 }
 
+/** Exposed for note attachments to share the same configured storage singleton. */
+export function __getStorage(): AttachmentStorage {
+  return getStorage();
+}
+
 // Exposed for tests only — resets the memoized storage so tests can inject envs.
 export function __resetAttachmentStorageForTests(): void {
   storageInstance = null;

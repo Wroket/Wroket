@@ -32,6 +32,10 @@ export interface TaskIconToolbarProps {
   className?: string;
   /** Vue radar : grille 4×2 (4 icônes par ligne) à droite. */
   variant?: "default" | "radar";
+  /** Create / join a Google Meet for this task. */
+  onMeet?: (t: Todo) => void;
+  /** Currently creating a Meet (spinner). */
+  meetLoading?: boolean;
 }
 
 /**
@@ -57,6 +61,8 @@ export default function TaskIconToolbar({
   isolatePointerEvents = false,
   className = "",
   variant = "default",
+  onMeet,
+  meetLoading = false,
 }: TaskIconToolbarProps) {
   const { t } = useLocale();
 
@@ -198,6 +204,25 @@ export default function TaskIconToolbar({
           <svg className="w-3 h-3" fill={hasLinkedNote ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
+        </button>
+      )}
+      {!todo.parentId && onMeet && (
+        <button
+          type="button"
+          onClick={wrap(() => onMeet(todo))}
+          title={todo.scheduledSlot?.meetingUrl ? t("meet.joinMeet") : t("meet.createMeet")}
+          disabled={meetLoading}
+          className={`w-6 h-6 rounded flex items-center justify-center border transition-colors ${
+            todo.scheduledSlot?.meetingUrl
+              ? "border-emerald-300 dark:border-emerald-700 text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
+              : "border-transparent text-zinc-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400"
+          }`}
+        >
+          {meetLoading ? (
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20 10 10 0 000-20v4z" /></svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.862v6.276a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          )}
         </button>
       )}
       <button

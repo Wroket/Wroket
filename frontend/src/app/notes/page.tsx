@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
+import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
+import NoteToolbar from "@/components/NoteToolbar";
 import PageHelpButton from "@/components/PageHelpButton";
 import SlashCommandMenu from "@/components/SlashCommandMenu";
 import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
@@ -533,6 +535,15 @@ function NotesPageInner() {
                 })()}
               </div>
 
+              {/* Formatting toolbar */}
+              {!isSharedNote && (
+                <NoteToolbar
+                  textareaRef={contentRef}
+                  content={selected.content}
+                  onContentChange={handleContentChange}
+                />
+              )}
+
               {/* Content area */}
               <div className="flex-1 overflow-y-auto relative">
                 <textarea
@@ -554,6 +565,13 @@ function NotesPageInner() {
                   />
                 )}
               </div>
+
+              {/* Attachments panel */}
+              <NoteAttachmentsPanel
+                noteId={selected.id}
+                todoId={selected.todoId}
+                isOwner={selected.userId === currentUid}
+              />
 
               {/* Footer */}
               <div className="px-4 py-1.5 border-t border-zinc-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-zinc-400 dark:text-slate-500 bg-white dark:bg-slate-900 shrink-0">

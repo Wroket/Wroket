@@ -18,6 +18,8 @@ export interface ScheduledSlot {
   start: string;
   end: string;
   calendarEventId: string | null;
+  meetingUrl?: string | null;
+  meetingProvider?: "google-meet" | null;
 }
 
 export interface SuggestedSlot {

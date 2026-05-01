@@ -642,7 +642,7 @@ export default function ProjectDetailView({
 
   const openSubtaskModal = (todo: Todo) => setSubtaskParent(todo);
 
-  const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; deadline: string }) => {
+  const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; startDate: string; deadline: string }) => {
     if (!subtaskParent) return;
     setSubtaskSubmitting(true);
     try {
@@ -650,6 +650,7 @@ export default function ProjectDetailView({
         title: data.title,
         priority: data.priority,
         effort: data.effort,
+        startDate: data.startDate || null,
         deadline: data.deadline || null,
         parentId: subtaskParent.id,
         projectId: selectedProject.id,

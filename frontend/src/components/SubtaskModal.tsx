@@ -32,6 +32,7 @@ export interface SubtaskModalProps {
     title: string;
     priority: Priority;
     effort: Effort;
+    startDate: string;
     deadline: string;
   }) => void;
   creating: boolean;
@@ -140,6 +141,7 @@ export default function SubtaskModal({
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [effort, setEffort] = useState<Effort>("medium");
+  const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
 
   void onDeleteSubtask;
@@ -155,6 +157,7 @@ export default function SubtaskModal({
       setTitle("");
       setPriority("medium");
       setEffort("medium");
+      setStartDate("");
       setDeadline("");
     });
   }, [parent]);
@@ -172,10 +175,11 @@ export default function SubtaskModal({
 
   const handleSubmit = () => {
     if (!title.trim()) return;
-    onCreateSubtask({ title, priority, effort, deadline });
+    onCreateSubtask({ title, priority, effort, startDate, deadline });
     setTitle("");
     setPriority("medium");
     setEffort("medium");
+    setStartDate("");
     setDeadline("");
   };
 
@@ -243,7 +247,7 @@ export default function SubtaskModal({
             autoFocus
             className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
           />
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as Priority)}
@@ -262,14 +266,30 @@ export default function SubtaskModal({
               <option value="medium">{t("effort.medium")}</option>
               <option value="heavy">{t("effort.heavy")}</option>
             </select>
-            <input
-              type="date"
-              value={deadline}
-              min={new Date().toISOString().split("T")[0]}
-              onChange={(e) => setDeadline(e.target.value)}
-              max={parent.deadline || undefined}
-              className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
-            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-zinc-400 dark:text-slate-500">{t("subtask.startDate")}</label>
+              <input
+                type="date"
+                value={startDate}
+                min={parent.startDate || new Date().toISOString().split("T")[0]}
+                max={deadline || parent.deadline || undefined}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-zinc-400 dark:text-slate-500">{t("subtask.deadline")}</label>
+              <input
+                type="date"
+                value={deadline}
+                min={startDate || parent.startDate || new Date().toISOString().split("T")[0]}
+                onChange={(e) => setDeadline(e.target.value)}
+                max={parent.deadline || undefined}
+                className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+              />
+            </div>
           </div>
         </div>
 

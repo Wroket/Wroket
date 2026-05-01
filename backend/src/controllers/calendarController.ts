@@ -32,6 +32,7 @@ import {
   listGoogleCalendarEvents,
   listGoogleCalendarListForAccount,
   createGoogleCalendarEvent,
+  createGoogleMeetEvent,
   deleteGoogleCalendarEvent,
   deleteGoogleCalendarEventForTodo,
   patchGoogleCalendarEvent,
@@ -506,4 +507,96 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
 
   setGoogleAccountCalendars(uid, accountId, entries);
   res.status(200).json({ message: "OK", calendars: entries });
+}
+
+/**
+ * POST /calendar/meet/:todoId
+ * Creates a Google Calendar event with a Meet conference attached and stores
+ * the join URL on the task's scheduledSlot. If the task has no slot yet, a
+ * 1-hour window starting now is used as a placeholder; the user can reschedule
+ * via the agenda.
+ */
+export async function createMeet(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.todoId as string;
+  const uid = req.user!.uid;
+
+  if (!getGoogleCalendarTokens(uid)) {
+    throw new ValidationError("Compte Google Calendar non connecté. Connectez-le dans les paramètres.");
+  }
+
+  const found = findTodoForUser(uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
+
+  if (todo.scheduledSlot?.meetingUrl) {
+    // Already has a Meet link — return the current slot without creating a duplicate.
+    res.status(200).json(todoToClientJson(todo));
+    return;
+  }
+
+  const user = findUserByUid(uid);
+  const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+
+  // Use existing slot times if present, otherwise default to now + 1 h.
+  const existingStart = todo.scheduledSlot?.start;
+  const existingEnd = todo.scheduledSlot?.end;
+  const now = new Date();
+  const slotStart = existingStart ?? now.toISOString();
+  const slotEnd = existingEnd ?? new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+
+  // Delete any existing plain calendar event before replacing with Meet one.
+  const existingEventId = todo.scheduledSlot?.calendarEventId;
+  if (existingEventId) {
+    await deleteGoogleCalendarEvent(uid, existingEventId).catch(() => null);
+  }
+
+  const result = await createGoogleMeetEvent(uid, todo.title, slotStart, slotEnd, tz);
+  if (!result) {
+    throw new ValidationError("Impossible de créer le meeting Google Meet. Vérifiez vos permissions Google Calendar.");
+  }
+
+  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
+    scheduledSlot: {
+      start: slotStart,
+      end: slotEnd,
+      calendarEventId: result.eventId,
+      bookedByUid: uid,
+      meetingUrl: result.meetingUrl,
+      meetingProvider: "google-meet",
+    },
+  });
+
+  res.status(200).json(todoToClientJson(updated));
+}
+
+/**
+ * DELETE /calendar/meet/:todoId
+ * Removes the meeting URL from the task slot. Deletes the Google Calendar event
+ * if one was associated. The slot itself (start/end) is preserved if it existed
+ * independently before the Meet was created.
+ */
+export async function clearMeet(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.todoId as string;
+  const uid = req.user!.uid;
+
+  const found = findTodoForUser(uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
+
+  if (todo.scheduledSlot?.calendarEventId) {
+    await deleteGoogleCalendarEventForTodo(todo).catch(() => null);
+  }
+
+  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
+    scheduledSlot: todo.scheduledSlot
+      ? {
+          ...todo.scheduledSlot,
+          calendarEventId: null,
+          meetingUrl: null,
+          meetingProvider: null,
+        }
+      : null,
+  });
+
+  res.status(200).json(todoToClientJson(updated));
 }

@@ -157,3 +157,80 @@ export async function importNotesFile(file: File): Promise<{ created: number; er
   if (!res.ok) throw new Error("Import failed");
   return res.json();
 }
+
+// ---- Note Attachments ----
+
+export interface NoteAttachment {
+  id: string;
+  noteId: string;
+  ownerUid: string;
+  originalName: string;
+  storageKey: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface NoteAttachmentsResponse {
+  noteAttachments: NoteAttachment[];
+  taskAttachments: Array<{
+    id: string;
+    todoId: string;
+    userId: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+    createdAt: string;
+  }>;
+}
+
+export async function getNoteAttachments(noteId: string): Promise<NoteAttachmentsResponse> {
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/attachments`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les pièces jointes");
+  return res.json();
+}
+
+export async function uploadNoteAttachment(
+  noteId: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ attachment?: NoteAttachment; taskAttachmentId?: string; linkedToTaskId?: string }> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const xhr = new XMLHttpRequest();
+    xhr.withCredentials = true;
+    xhr.open("POST", `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/attachments`);
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      });
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        const msg = (() => { try { return JSON.parse(xhr.responseText)?.message; } catch { return null; } })();
+        reject(new Error(msg ?? "Erreur lors de l'upload"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Erreur réseau"));
+    xhr.send(fd);
+  });
+}
+
+export function getNoteAttachmentDownloadUrl(noteId: string, attachmentId: string): string {
+  return `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/attachments/${encodeURIComponent(attachmentId)}`;
+}
+
+export function getTaskAttachmentViaNoteUrl(noteId: string, todoId: string, attachmentId: string): string {
+  return `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/task-attachments/${encodeURIComponent(todoId)}/${encodeURIComponent(attachmentId)}`;
+}
+
+export async function deleteNoteAttachment(noteId: string, attachmentId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!res.ok) throw new Error("Impossible de supprimer la pièce jointe");
+}

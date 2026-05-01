@@ -19,6 +19,10 @@ export interface ScheduledSlot {
   calendarEventId: string | null;
   /** Set when booking: Google event lives on this user’s primary calendar (owner or assignee). */
   bookedByUid?: string;
+  /** Google Meet join URL when a meeting was created from this task. */
+  meetingUrl?: string | null;
+  /** Provider that created the meeting — currently only google-meet. */
+  meetingProvider?: "google-meet" | null;
 }
 
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly";

@@ -30,7 +30,7 @@ export function todoShardDocId(shardIndex: number): string {
 
 const DOMAINS = [
   "users", "notifications", "collaborators",
-  "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "archivedNotes", "activityLog", "attachments",
+  "teams", "projects", "sessions", "webhooks", "inviteLog", "comments", "notes", "archivedNotes", "activityLog", "attachments", "noteAttachments",
   "pendingCommentMentions",
   /** Short-lived tokens for password/Google login when TOTP is enabled (multi-instance safe) */
   "pendingTwoFactor",
@@ -56,6 +56,8 @@ export interface StoreData {
   archivedNotes?: Record<string, Record<string, unknown>>;
   activityLog?: unknown[];
   attachments?: Record<string, unknown[]>;
+  /** Note-namespace file attachment metadata (note not linked to a task). */
+  noteAttachments?: Record<string, unknown[]>;
   /** Queued comment_mention notifications until invitee accepts collaboration */
   pendingCommentMentions?: unknown[];
   /** Map token -> pending 2FA row (TOTP / email OTP / both) after primary auth */

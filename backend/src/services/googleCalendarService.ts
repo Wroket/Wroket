@@ -307,6 +307,73 @@ export async function createGoogleCalendarEvent(
 }
 
 /**
+ * Create a Google Calendar event with a Google Meet conference attached.
+ * Uses `conferenceDataVersion=1` to instruct the API to generate a Meet link.
+ * Returns `{ eventId, meetingUrl }` on success, or `null` on failure.
+ */
+export async function createGoogleMeetEvent(
+  uid: string,
+  summary: string,
+  start: string,
+  end: string,
+  timezone?: string,
+  description: string = WROKET_CALENDAR_BOOKING_NOTE,
+): Promise<{ eventId: string; meetingUrl: string } | null> {
+  const accessToken = await getValidAccessToken(uid);
+  if (!accessToken) return null;
+
+  const tz = timezone || "UTC";
+  // A client-generated idempotency key. Using crypto.randomUUID() is fine here
+  // since this function is called at most once per user action.
+  const requestId = Math.random().toString(36).slice(2);
+
+  try {
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary,
+          description,
+          start: { dateTime: start, timeZone: tz },
+          end: { dateTime: end, timeZone: tz },
+          conferenceData: {
+            createRequest: {
+              requestId,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        }),
+      },
+    );
+
+    if (!res.ok) return null;
+    const data = await res.json() as {
+      id: string;
+      conferenceData?: {
+        entryPoints?: Array<{ entryPointType: string; uri: string }>;
+        hangoutLink?: string;
+      };
+    };
+
+    const videoEntry = data.conferenceData?.entryPoints?.find(
+      (ep) => ep.entryPointType === "video",
+    );
+    const meetingUrl =
+      videoEntry?.uri ?? data.conferenceData?.hangoutLink ?? null;
+
+    if (!data.id || !meetingUrl) return null;
+    return { eventId: data.id, meetingUrl };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Update an existing event (PATCH): same event id, new time/title.
  * Returns true if Google accepted the update.
  */

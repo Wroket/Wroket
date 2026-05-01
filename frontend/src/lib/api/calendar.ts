@@ -111,3 +111,32 @@ export async function disconnectGoogleAccount(accountId: string): Promise<void> 
   });
   if (!res.ok) throw new Error("Erreur de déconnexion");
 }
+
+/**
+ * Create a Google Meet conference for the given task.
+ * Returns the updated Todo (with meetingUrl set on scheduledSlot).
+ */
+export async function createTaskMeet(todoId: string): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/calendar/meet/${encodeURIComponent(todoId)}`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const msg = await res.json().then((d: { message?: string }) => d.message).catch(() => null);
+    throw new Error(msg ?? "Impossible de créer le meeting");
+  }
+  return res.json() as Promise<Todo>;
+}
+
+/**
+ * Remove the Google Meet conference from the given task.
+ * Returns the updated Todo.
+ */
+export async function clearTaskMeet(todoId: string): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/calendar/meet/${encodeURIComponent(todoId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de supprimer le meeting");
+  return res.json() as Promise<Todo>;
+}

@@ -42,6 +42,8 @@ export interface TaskListProps {
   onAccept: (t: Todo) => void;
   projects?: Project[];
   onScheduleUpdate?: (todo: Todo) => void;
+  onMeet?: (todo: Todo) => void;
+  meetLoadingId?: string | null;
   onCreateNote?: (todo: Todo) => void;
   todoNoteIds?: Record<string, string>;
   onReorderSubtasks?: (orderedIds: string[]) => void;
@@ -69,6 +71,8 @@ export default function TaskList({
   onAccept,
   projects = [],
   onScheduleUpdate,
+  onMeet,
+  meetLoadingId,
   onCreateNote,
   todoNoteIds = {},
   onReorderSubtasks,
@@ -177,6 +181,8 @@ export default function TaskList({
                       onDecline={onDecline}
                       onAccept={onAccept}
                       onScheduleUpdate={onScheduleUpdate}
+                      onMeet={onMeet}
+                      meetLoadingId={meetLoadingId}
                       onCreateNote={onCreateNote}
                       hasLinkedNote={!!todoNoteIds[todo.id]}
                       onReorderSubtasks={onReorderSubtasks}

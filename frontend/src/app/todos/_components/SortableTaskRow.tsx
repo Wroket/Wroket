@@ -31,6 +31,8 @@ export interface SortableTaskRowProps {
   onDecline: (t: Todo) => void;
   onAccept: (t: Todo) => void;
   onScheduleUpdate?: (todo: Todo) => void;
+  onMeet?: (todo: Todo) => void;
+  meetLoadingId?: string | null;
   onCreateNote?: (todo: Todo) => void;
   hasLinkedNote?: boolean;
   onReorderSubtasks?: (orderedIds: string[]) => void;
@@ -56,6 +58,8 @@ export default function SortableTaskRow({
   onDecline,
   onAccept,
   onScheduleUpdate,
+  onMeet,
+  meetLoadingId,
   onCreateNote,
   hasLinkedNote = false,
   justCreatedId,
@@ -138,6 +142,8 @@ export default function SortableTaskRow({
               onComplete={onComplete}
               onSubtask={onSubtask}
               onScheduleUpdate={onScheduleUpdate}
+              onMeet={onMeet}
+              meetLoading={meetLoadingId === todo.id}
               onCancel={onCancel}
               onDecline={onDecline}
               onAccept={onAccept}
