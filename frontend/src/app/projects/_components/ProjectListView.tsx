@@ -31,6 +31,7 @@ import {
   updateProject,
   reorderProjects,
   getProject as fetchProject,
+  deleteProjectApi,
 } from "@/lib/api";
 
 import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";
@@ -279,8 +280,10 @@ export default function ProjectListView({
   const handleCreate = async () => {
     if (!createName.trim() || creating) return;
     setCreating(true);
+    let createdProjectId: string | null = null;
     try {
       let project = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
+      createdProjectId = project.id;
       const template = templateId !== "none" ? PROJECT_TEMPLATES.find((t) => t.id === templateId) : null;
       if (template) {
         const lang = locale === "fr" ? "fr" : "en";
@@ -307,7 +310,11 @@ export default function ProjectListView({
             }
           }
         }
-        project = await fetchProject(project.id);
+        try {
+          project = await fetchProject(project.id);
+        } catch {
+          // Keep successful creation UX even if the final refresh call fails.
+        }
       }
       setProjects((prev) => [project, ...prev]);
       setShowCreate(false);
@@ -316,6 +323,13 @@ export default function ProjectListView({
       setCreateTeamId(null);
       setTemplateId("basic");
     } catch (err) {
+      if (createdProjectId) {
+        try {
+          await deleteProjectApi(createdProjectId);
+        } catch {
+          // If rollback fails, we still surface the original error.
+        }
+      }
       toast.error(err instanceof Error ? err.message : "Error");
     } finally { setCreating(false); }
   };

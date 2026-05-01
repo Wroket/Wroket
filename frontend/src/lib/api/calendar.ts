@@ -104,6 +104,14 @@ export async function saveAccountCalendars(accountId: string, calendars: GoogleC
   if (!res.ok) throw new Error("Impossible de sauvegarder");
 }
 
+export interface CreateTaskMeetPayload {
+  start?: string;
+  end?: string;
+  attendees?: string[];
+  summary?: string;
+  description?: string;
+}
+
 export async function disconnectGoogleAccount(accountId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/calendar/google/disconnect/${encodeURIComponent(accountId)}`, {
     method: "DELETE",
@@ -116,9 +124,11 @@ export async function disconnectGoogleAccount(accountId: string): Promise<void> 
  * Create a Google Meet conference for the given task.
  * Returns the updated Todo (with meetingUrl set on scheduledSlot).
  */
-export async function createTaskMeet(todoId: string): Promise<Todo> {
+export async function createTaskMeet(todoId: string, payload?: CreateTaskMeetPayload): Promise<Todo> {
   const res = await fetch(`${API_BASE_URL}/calendar/meet/${encodeURIComponent(todoId)}`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload ?? {}),
     credentials: "include",
   });
   if (!res.ok) {

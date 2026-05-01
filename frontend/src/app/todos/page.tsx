@@ -42,7 +42,7 @@ import {
   Collaborator,
   Team,
 } from "@/lib/api";
-import { createTaskMeet } from "@/lib/api/calendar";
+import { createTaskMeet, getTaskSlots } from "@/lib/api/calendar";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -612,25 +612,107 @@ export default function TodosPage() {
   }, [replaceTodoInLists]);
 
   const [meetLoadingId, setMeetLoadingId] = useState<string | null>(null);
+  const [meetOptionsTodo, setMeetOptionsTodo] = useState<Todo | null>(null);
+  const [meetStart, setMeetStart] = useState("");
+  const [meetDuration, setMeetDuration] = useState(60);
+  const [meetSummary, setMeetSummary] = useState("");
+  const [meetDescription, setMeetDescription] = useState("");
+  const [meetInviteEmail, setMeetInviteEmail] = useState("");
+  const [meetInvitees, setMeetInvitees] = useState<string[]>([]);
+  const [meetSlotOptions, setMeetSlotOptions] = useState<Array<{ label: string; start: string; end: string }>>([]);
+  const [meetSlotLoading, setMeetSlotLoading] = useState(false);
+
+  const addMeetInvitee = useCallback((emailInput: string) => {
+    const email = emailInput.trim().toLowerCase();
+    if (!email || !email.includes("@") || email.length < 5) return;
+    setMeetInvitees((prev) => (prev.includes(email) ? prev : [...prev, email]));
+    setMeetInviteEmail("");
+  }, []);
+
+  const openMeetOptions = useCallback(async (todo: Todo) => {
+    setMeetOptionsTodo(todo);
+    setMeetInvitees([]);
+    setMeetInviteEmail("");
+    setMeetDescription("");
+    setMeetSummary(todo.title);
+    setMeetSlotOptions([]);
+
+    if (todo.scheduledSlot?.start && todo.scheduledSlot?.end) {
+      const startDate = new Date(todo.scheduledSlot.start);
+      const endDate = new Date(todo.scheduledSlot.end);
+      const durationMin = Math.max(15, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
+      setMeetStart(todo.scheduledSlot.start.slice(0, 16));
+      setMeetDuration(durationMin);
+      return;
+    }
+
+    setMeetSlotLoading(true);
+    try {
+      const data = await getTaskSlots(todo.id);
+      const slots = data.slots ?? [];
+      setMeetSlotOptions(slots.map((s) => ({ label: s.label, start: s.start, end: s.end })));
+      if (slots.length > 0) {
+        const start = slots[0]!.start;
+        const end = slots[0]!.end;
+        const durationMin = Math.max(15, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
+        setMeetStart(start.slice(0, 16));
+        setMeetDuration(durationMin);
+      } else {
+        const now = new Date();
+        const rounded = new Date(now.getTime() + 15 * 60000 - (now.getTime() % (15 * 60000)));
+        setMeetStart(rounded.toISOString().slice(0, 16));
+        setMeetDuration(60);
+      }
+    } catch {
+      const now = new Date();
+      const rounded = new Date(now.getTime() + 15 * 60000 - (now.getTime() % (15 * 60000)));
+      setMeetStart(rounded.toISOString().slice(0, 16));
+      setMeetDuration(60);
+    } finally {
+      setMeetSlotLoading(false);
+    }
+  }, []);
+
+  const closeMeetOptions = useCallback(() => {
+    setMeetOptionsTodo(null);
+    setMeetSlotOptions([]);
+    setMeetInvitees([]);
+    setMeetInviteEmail("");
+  }, []);
+
   const handleMeet = useCallback(async (todo: Todo) => {
     const url = todo.scheduledSlot?.meetingUrl;
     if (url) { window.open(url, "_blank", "noopener"); return; }
-    setMeetLoadingId(todo.id);
+    await openMeetOptions(todo);
+  }, [openMeetOptions]);
+
+  const handleCreateMeetWithOptions = useCallback(async () => {
+    if (!meetOptionsTodo || !meetStart) return;
+    setMeetLoadingId(meetOptionsTodo.id);
     try {
-      const updated = await createTaskMeet(todo.id);
+      const startIso = new Date(meetStart).toISOString();
+      const endIso = new Date(new Date(meetStart).getTime() + meetDuration * 60000).toISOString();
+      const updated = await createTaskMeet(meetOptionsTodo.id, {
+        start: startIso,
+        end: endIso,
+        attendees: meetInvitees,
+        summary: meetSummary.trim() || meetOptionsTodo.title,
+        description: meetDescription.trim() || undefined,
+      });
       replaceTodoInLists(updated);
       const meetUrl = updated.scheduledSlot?.meetingUrl;
       if (meetUrl) {
         await navigator.clipboard.writeText(meetUrl).catch(() => null);
         toast.success(t("meet.created"));
       }
+      closeMeetOptions();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       toast.error(msg.toLowerCase().includes("connect") ? t("meet.errorNoGoogle") : t("meet.error"));
     } finally {
       setMeetLoadingId(null);
     }
-  }, [replaceTodoInLists, toast, t]);
+  }, [meetOptionsTodo, meetStart, meetDuration, meetInvitees, meetSummary, meetDescription, replaceTodoInLists, toast, t, closeMeetOptions]);
 
   const handleReorder = useCallback(async (orderedIds: string[]) => {
     try {
@@ -1581,6 +1663,140 @@ export default function TodosPage() {
         onDeleteAndPromote={() => confirmDelete && executeDelete(confirmDelete, "promote")}
         onDeleteAll={() => confirmDelete && executeDelete(confirmDelete, "deleteAll")}
       />
+
+      {meetOptionsTodo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeMeetOptions}>
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100">{t("meet.optionsTitle")}</h3>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-slate-400 truncate">{displayTodoTitle(meetOptionsTodo.title, t("todos.untitled"))}</p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.summary")}</label>
+                <input
+                  value={meetSummary}
+                  onChange={(e) => setMeetSummary(e.target.value)}
+                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.slot")}</label>
+                {meetSlotLoading ? (
+                  <p className="text-xs text-zinc-400 dark:text-slate-500">{t("loading")}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {meetSlotOptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {meetSlotOptions.slice(0, 4).map((slot) => (
+                          <button
+                            key={`${slot.start}-${slot.end}`}
+                            type="button"
+                            onClick={() => {
+                              const durationMin = Math.max(15, Math.round((new Date(slot.end).getTime() - new Date(slot.start).getTime()) / 60000));
+                              setMeetStart(slot.start.slice(0, 16));
+                              setMeetDuration(durationMin);
+                            }}
+                            className="text-xs rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                          >
+                            {slot.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-zinc-400 dark:text-slate-500 mb-1">{t("meet.start")}</label>
+                        <input
+                          type="datetime-local"
+                          value={meetStart}
+                          onChange={(e) => setMeetStart(e.target.value)}
+                          className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-400 dark:text-slate-500 mb-1">{t("meet.duration")}</label>
+                        <select
+                          value={meetDuration}
+                          onChange={(e) => setMeetDuration(Number(e.target.value))}
+                          className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          <option value={30}>30 min</option>
+                          <option value={45}>45 min</option>
+                          <option value={60}>60 min</option>
+                          <option value={90}>90 min</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.invitees")}</label>
+                <div className="flex items-center gap-2">
+                  <ContactEmailSuggestInput
+                    value={meetInviteEmail}
+                    onChange={setMeetInviteEmail}
+                    placeholder={t("assign.placeholder")}
+                    inputClassName="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addMeetInvitee(meetInviteEmail)}
+                    className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-xs text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                  >
+                    {t("meet.addInvitee")}
+                  </button>
+                </div>
+                {meetInvitees.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {meetInvitees.map((email) => (
+                      <button
+                        key={email}
+                        type="button"
+                        onClick={() => setMeetInvitees((prev) => prev.filter((e) => e !== email))}
+                        className="text-[11px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                        title={t("notes.attachDelete")}
+                      >
+                        {email} ×
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.description")}</label>
+                <textarea
+                  value={meetDescription}
+                  onChange={(e) => setMeetDescription(e.target.value)}
+                  rows={3}
+                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeMeetOptions}
+                className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
+              >
+                {t("projects.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateMeetWithOptions}
+                disabled={!meetStart || meetLoadingId === meetOptionsTodo.id}
+                className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60"
+              >
+                {meetLoadingId === meetOptionsTodo.id ? "…" : t("meet.createAction")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

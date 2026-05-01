@@ -21,6 +21,7 @@ import {
   removeGoogleAccount,
   removeAllGoogleAccounts,
   setGoogleAccountCalendars,
+  getGoogleBookingTarget,
   type GoogleCalendarEntry,
 } from "../services/authService";
 import { NotFoundError, ValidationError } from "../utils/errors";
@@ -263,6 +264,8 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   if (tokens) {
     const user = findUserByUid(uid);
     const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+    const bookingTarget = getGoogleBookingTarget(uid);
+    const bookingCalendarId = bookingTarget?.calendarId ?? "primary";
     const existingEventId = todo.scheduledSlot?.calendarEventId ?? null;
     if (existingEventId) {
       const patched = await patchGoogleCalendarEvent(
@@ -272,11 +275,13 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
         start,
         end,
         tz,
+        undefined,
+        bookingCalendarId,
       );
       if (patched) {
         calendarEventId = existingEventId;
       } else {
-        await deleteGoogleCalendarEvent(uid, existingEventId);
+        await deleteGoogleCalendarEvent(uid, existingEventId, bookingCalendarId);
         calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
       }
     } else {
@@ -483,6 +488,7 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
     label: cal.summary,
     color: cal.backgroundColor,
     enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : !!cal.primary,
+    defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : !!cal.primary,
     primary: cal.primary ?? false,
   }));
 
@@ -503,6 +509,7 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
     label: String(c.label).substring(0, 100),
     color: String(c.color).substring(0, 20),
     enabled: !!c.enabled,
+    defaultForBooking: !!c.defaultForBooking,
   }));
 
   setGoogleAccountCalendars(uid, accountId, entries);
@@ -537,20 +544,60 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const user = findUserByUid(uid);
   const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
 
+  const body = (req.body ?? {}) as {
+    start?: string;
+    end?: string;
+    attendees?: string[];
+    summary?: string;
+    description?: string;
+  };
+
+  const requestStart = typeof body.start === "string" ? body.start : undefined;
+  const requestEnd = typeof body.end === "string" ? body.end : undefined;
+  if ((requestStart && !requestEnd) || (!requestStart && requestEnd)) {
+    throw new ValidationError("start et end doivent être fournis ensemble");
+  }
+  if (requestStart && requestEnd) {
+    const s = new Date(requestStart);
+    const e = new Date(requestEnd);
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || s >= e) {
+      throw new ValidationError("Plage horaire invalide");
+    }
+  }
+  const attendees = Array.isArray(body.attendees)
+    ? body.attendees
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim().toLowerCase())
+        .filter((v) => v.length > 0)
+        .slice(0, 50)
+    : [];
+  for (const email of attendees) {
+    if (!email.includes("@") || email.length < 5) {
+      throw new ValidationError("Un ou plusieurs invités ont un email invalide");
+    }
+  }
+  const summary = typeof body.summary === "string" && body.summary.trim().length > 0
+    ? body.summary.trim().slice(0, 200)
+    : todo.title;
+  const description = typeof body.description === "string" && body.description.trim().length > 0
+    ? body.description.trim().slice(0, 5000)
+    : undefined;
+
   // Use existing slot times if present, otherwise default to now + 1 h.
   const existingStart = todo.scheduledSlot?.start;
   const existingEnd = todo.scheduledSlot?.end;
   const now = new Date();
-  const slotStart = existingStart ?? now.toISOString();
-  const slotEnd = existingEnd ?? new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+  const slotStart = requestStart ?? existingStart ?? now.toISOString();
+  const slotEnd = requestEnd ?? existingEnd ?? new Date(now.getTime() + 60 * 60 * 1000).toISOString();
 
   // Delete any existing plain calendar event before replacing with Meet one.
   const existingEventId = todo.scheduledSlot?.calendarEventId;
   if (existingEventId) {
-    await deleteGoogleCalendarEvent(uid, existingEventId).catch(() => null);
+    const bookingTarget = getGoogleBookingTarget(uid);
+    await deleteGoogleCalendarEvent(uid, existingEventId, bookingTarget?.calendarId ?? "primary").catch(() => null);
   }
 
-  const result = await createGoogleMeetEvent(uid, todo.title, slotStart, slotEnd, tz);
+  const result = await createGoogleMeetEvent(uid, summary, slotStart, slotEnd, tz, description, attendees);
   if (!result) {
     throw new ValidationError("Impossible de créer le meeting Google Meet. Vérifiez vos permissions Google Calendar.");
   }

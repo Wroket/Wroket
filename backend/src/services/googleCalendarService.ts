@@ -3,6 +3,7 @@ import {
   setGoogleCalendarTokens,
   getGoogleAccountTokens,
   updateGoogleAccountTokens,
+  getGoogleBookingTarget,
   type GoogleCalendarTokens,
 } from "./authService";
 import type { Todo } from "./todoService";
@@ -274,15 +275,30 @@ export async function createGoogleCalendarEvent(
   end: string,
   timezone?: string,
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
+  target?: { accountId?: string; calendarId?: string },
 ): Promise<string | null> {
-  const accessToken = await getValidAccessToken(uid);
+  const preferred = target?.accountId && target?.calendarId
+    ? { accountId: target.accountId, calendarId: target.calendarId }
+    : getGoogleBookingTarget(uid);
+  const calendarId = target?.calendarId ?? preferred?.calendarId ?? "primary";
+
+  let accessToken: string | null = null;
+  if (target?.accountId) {
+    accessToken = await getValidAccessTokenForAccount(uid, target.accountId);
+  }
+  if (!accessToken && preferred?.accountId) {
+    accessToken = await getValidAccessTokenForAccount(uid, preferred.accountId);
+  }
+  if (!accessToken) {
+    accessToken = await getValidAccessToken(uid);
+  }
   if (!accessToken) return null;
 
   const tz = timezone || "UTC";
 
   try {
     const res = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
       {
         method: "POST",
         headers: {
@@ -318,8 +334,24 @@ export async function createGoogleMeetEvent(
   end: string,
   timezone?: string,
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
+  attendees?: string[],
+  target?: { accountId?: string; calendarId?: string },
 ): Promise<{ eventId: string; meetingUrl: string } | null> {
-  const accessToken = await getValidAccessToken(uid);
+  const preferred = target?.accountId && target?.calendarId
+    ? { accountId: target.accountId, calendarId: target.calendarId }
+    : getGoogleBookingTarget(uid);
+  const calendarId = target?.calendarId ?? preferred?.calendarId ?? "primary";
+
+  let accessToken: string | null = null;
+  if (target?.accountId) {
+    accessToken = await getValidAccessTokenForAccount(uid, target.accountId);
+  }
+  if (!accessToken && preferred?.accountId) {
+    accessToken = await getValidAccessTokenForAccount(uid, preferred.accountId);
+  }
+  if (!accessToken) {
+    accessToken = await getValidAccessToken(uid);
+  }
   if (!accessToken) return null;
 
   const tz = timezone || "UTC";
@@ -329,7 +361,7 @@ export async function createGoogleMeetEvent(
 
   try {
     const res = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1",
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
       {
         method: "POST",
         headers: {
@@ -341,6 +373,12 @@ export async function createGoogleMeetEvent(
           description,
           start: { dateTime: start, timeZone: tz },
           end: { dateTime: end, timeZone: tz },
+          attendees: Array.isArray(attendees)
+            ? attendees
+                .map((email) => email.trim())
+                .filter((email) => email.length > 0)
+                .map((email) => ({ email }))
+            : undefined,
           conferenceData: {
             createRequest: {
               requestId,
@@ -385,6 +423,7 @@ export async function patchGoogleCalendarEvent(
   end: string,
   timezone?: string,
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
+  calendarId: string = "primary",
 ): Promise<boolean> {
   const accessToken = await getValidAccessToken(uid);
   if (!accessToken) return false;
@@ -393,7 +432,7 @@ export async function patchGoogleCalendarEvent(
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
       {
         method: "PATCH",
         headers: {
@@ -420,13 +459,14 @@ export async function patchGoogleCalendarEvent(
 export async function deleteGoogleCalendarEvent(
   uid: string,
   eventId: string,
+  calendarId: string = "primary",
 ): Promise<boolean> {
   const accessToken = await getValidAccessToken(uid);
   if (!accessToken) return false;
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
       {
         method: "DELETE",
         headers: { Authorization: `Bearer ${accessToken}` },

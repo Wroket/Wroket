@@ -48,6 +48,7 @@ export interface GoogleCalendarEntry {
   label: string;
   color: string;
   enabled: boolean;
+  defaultForBooking?: boolean;
 }
 
 /** A connected Google account with its OAuth tokens and selected calendars */
@@ -1220,8 +1221,43 @@ export function setGoogleAccountCalendars(uid: string, accountId: string, calend
   const accounts = resolveGoogleAccounts(user);
   const account = accounts.find((a) => a.id === accountId);
   if (!account) throw new NotFoundError("Compte Google introuvable");
-  account.calendars = calendars;
+  // Normalize to a single booking default per account and keep it on an enabled calendar.
+  let chosenDefault: string | null = null;
+  for (const cal of calendars) {
+    if (cal.defaultForBooking) {
+      chosenDefault = cal.calendarId;
+      break;
+    }
+  }
+  account.calendars = calendars.map((cal, idx) => {
+    const enabled = !!cal.enabled;
+    const defaultForBooking = chosenDefault
+      ? cal.calendarId === chosenDefault && enabled
+      : idx === 0 && enabled;
+    return {
+      ...cal,
+      enabled,
+      defaultForBooking,
+    };
+  });
   persistUsers();
+}
+
+export function getGoogleBookingTarget(uid: string): { accountId: string; calendarId: string } | null {
+  const accounts = getGoogleAccounts(uid);
+  if (accounts.length === 0) return null;
+
+  for (const account of accounts) {
+    const selected = account.calendars.find((c) => c.enabled && c.defaultForBooking);
+    if (selected) return { accountId: account.id, calendarId: selected.calendarId };
+  }
+
+  for (const account of accounts) {
+    const firstEnabled = account.calendars.find((c) => c.enabled);
+    if (firstEnabled) return { accountId: account.id, calendarId: firstEnabled.calendarId };
+  }
+
+  return { accountId: accounts[0]!.id, calendarId: "primary" };
 }
 
 // Legacy compat wrappers (used by bookSlot/clearSlot for write operations on first account)

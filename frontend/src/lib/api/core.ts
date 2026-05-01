@@ -39,6 +39,7 @@ export interface GoogleCalendarEntry {
   color: string;
   enabled: boolean;
   primary?: boolean;
+  defaultForBooking?: boolean;
 }
 
 export interface GoogleAccountPublic {
