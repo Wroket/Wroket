@@ -174,7 +174,19 @@ export default function DashboardPage() {
   const personalTodos = useMemo(() => myTodos.filter((td) => !td.assignedTo || td.assignedTo === meUid), [myTodos, meUid]);
   const delegatedTodos = useMemo(() => myTodos.filter((td) => td.assignedTo && td.assignedTo !== meUid), [myTodos, meUid]);
 
-  const active = useMemo(() => personalTodos.filter((td) => td.status === "active" && !td.parentId), [personalTodos]);
+  const allTodosScope = useMemo(() => {
+    const seen = new Set<string>();
+    const all: Todo[] = [];
+    for (const td of [...personalTodos, ...assignedTodos, ...delegatedTodos]) {
+      if (seen.has(td.id)) continue;
+      seen.add(td.id);
+      all.push(td);
+    }
+    return all;
+  }, [personalTodos, assignedTodos, delegatedTodos]);
+
+  const rootTodosScope = useMemo(() => allTodosScope.filter((td) => !td.parentId), [allTodosScope]);
+  const active = useMemo(() => rootTodosScope.filter((td) => td.status === "active"), [rootTodosScope]);
 
   const radarSubtaskCounts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -269,7 +281,7 @@ export default function DashboardPage() {
     },
     [editingTodo, replaceTodoInLists, syncBaseline],
   );
-  const completed = useMemo(() => personalTodos.filter((td) => td.status === "completed" && !td.parentId), [personalTodos]);
+  const completed = useMemo(() => rootTodosScope.filter((td) => td.status === "completed"), [rootTodosScope]);
   const activeAssigned = useMemo(() => assignedTodos.filter((td) => td.status === "active" && !td.parentId), [assignedTodos]);
   const activeDelegated = useMemo(() => delegatedTodos.filter((td) => td.status === "active" && !td.parentId), [delegatedTodos]);
 
@@ -406,12 +418,42 @@ export default function DashboardPage() {
           <>
             {/* ── Stats cards ── */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label={t("dashboard.activeTasks")} value={active.length} accent="bg-blue-500" />
-              <StatCard label={t("dashboard.assignedCount")} value={activeAssigned.length} accent="bg-cyan-500" />
-              <StatCard label={t("dashboard.delegatedCount")} value={activeDelegated.length} accent="bg-amber-500" />
-              <StatCard label={t("dashboard.completed")} value={completed.length} accent="bg-green-500" />
-              <StatCard label={t("dashboard.completionRate")} value={`${completionRate}%`} accent="bg-violet-500" />
-              <StatCard label={t("dashboard.overdue")} value={overdueCount} accent="bg-red-500" />
+              <StatCard
+                label={t("dashboard.activeTasks")}
+                value={active.length}
+                accent="bg-blue-500"
+                scopeHint={t("dashboard.scopeAllNoSubtasks")}
+              />
+              <StatCard
+                label={t("dashboard.assignedCount")}
+                value={activeAssigned.length}
+                accent="bg-cyan-500"
+                scopeHint={t("dashboard.scopeAssignedNoSubtasks")}
+              />
+              <StatCard
+                label={t("dashboard.delegatedCount")}
+                value={activeDelegated.length}
+                accent="bg-amber-500"
+                scopeHint={t("dashboard.scopeDelegatedNoSubtasks")}
+              />
+              <StatCard
+                label={t("dashboard.completed")}
+                value={completed.length}
+                accent="bg-green-500"
+                scopeHint={t("dashboard.scopeAllNoSubtasks")}
+              />
+              <StatCard
+                label={t("dashboard.completionRate")}
+                value={`${completionRate}%`}
+                accent="bg-violet-500"
+                scopeHint={t("dashboard.scopeAllNoSubtasks")}
+              />
+              <StatCard
+                label={t("dashboard.overdue")}
+                value={overdueCount}
+                accent="bg-red-500"
+                scopeHint={t("dashboard.scopeAllNoSubtasks")}
+              />
             </div>
 
             {/* ── Quadrant summary (vue Radar) ── */}
@@ -718,13 +760,26 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string | number; accent: string }) {
+function StatCard({
+  label,
+  value,
+  accent,
+  scopeHint,
+}: {
+  label: string;
+  value: string | number;
+  accent: string;
+  scopeHint?: string;
+}) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 flex items-start gap-3">
       <div className={`w-2 h-10 rounded-full ${accent} shrink-0`} />
       <div>
         <p className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{value}</p>
         <p className="text-xs text-zinc-500 dark:text-slate-400">{label}</p>
+        {scopeHint && (
+          <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{scopeHint}</p>
+        )}
       </div>
     </div>
   );
