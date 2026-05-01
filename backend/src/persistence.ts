@@ -186,7 +186,15 @@ async function loadFromFirestore(): Promise<StoreData> {
   if (legacyHadUsers) {
     const legacyData = legacySnap.data()!.data as TodoBlob;
     for (const [userId, todos] of Object.entries(legacyData)) {
-      if (mergedTodos[userId] === undefined) {
+      const mergedBucket = mergedTodos[userId];
+      const mergedEmpty =
+        mergedBucket === undefined ||
+        (typeof mergedBucket === "object" && Object.keys(mergedBucket).length === 0);
+      const legacyNonEmpty =
+        typeof todos === "object" &&
+        todos !== null &&
+        Object.keys(todos).length > 0;
+      if (mergedEmpty || (legacyNonEmpty && mergedBucket === undefined)) {
         mergedTodos[userId] = todos;
       }
     }
