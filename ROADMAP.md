@@ -69,6 +69,83 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - Notes collaboratives temps réel (chantier lourd).
 - Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
 
+## Plan exécutable d'équipe (Q2 2026)
+
+### Cadence et gouvernance
+
+- **Sprints**: 1 semaine, revue priorités chaque lundi.
+- **Capacité cible**: 35 à 44 jours ouvrés (hors aléas externes Google/Stripe/Microsoft).
+- **Règle de livraison**: aucune feature marquée terminée sans validation `feature-completeness-gate`.
+- **Rituel**: go/no-go par lot sur Definition of Done (DoD) et checklist E2E.
+
+### Backlog exécutable (charge + deadlines)
+
+1. **Reliability Pack — Calendar & Meeting**  
+   - Charge: **7-9 jours**  
+   - Deadline cible: **2026-05-16**  
+   - Livrables: E2E prod multi-comptes/timezone/invités externes, runbook incident, tableau d'erreurs actionnables.
+2. **Reliability Pack — Todo Persistence**  
+   - Charge: **4-5 jours**  
+   - Deadline cible: **2026-05-23**  
+   - Livrables: drift checks automatisés, alerting, rollback documenté et testé.
+3. **Plan & Billing Core**  
+   - Charge: **12-15 jours**  
+   - Deadline cible: **2026-06-13**  
+   - Livrables: plans Free/Pro/Team, Stripe Checkout + webhooks, page `/pricing`.
+4. **Microsoft path (SSO + Outlook MVP)**  
+   - Charge: **8-10 jours**  
+   - Deadline cible: **2026-06-27**  
+   - Livrables: OAuth Microsoft, connecteur Outlook MVP, erreurs UX harmonisées.
+5. **Error UX Standard transverse**  
+   - Charge: **4-5 jours**  
+   - Deadline cible: **2026-07-04**  
+   - Livrables: taxonomie backend->frontend sur auth/agenda/meeting/import/collaboration.
+
+## Refonte UX (plan solide)
+
+### Objectif UX
+
+Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les parcours à forte valeur (tâches, agenda, collaboration), sans dégrader la stabilité produit.
+
+### Prérequis obligatoires
+
+- Inventaire des incohérences UI actuelles (composants, micro-copies, états vides, toasts).
+- Baseline de métriques UX (temps pour créer/planifier une tâche, taux d'erreurs user-facing, abandon sur flux meeting).
+- DoD UX commun: cohérence visuelle + accessibilité de base + messages actionnables + non-régression mobile/dark mode.
+
+### Lots UX (pré-requis, livrables, charge, deadlines)
+
+1. **UX-1 — Design system léger et cohérence cross-écrans**  
+   - Prérequis: inventaire des composants et tokens existants  
+   - Livrables: conventions boutons/formulaires/modales/tables, guide de micro-copies, check dark mode/mobiles  
+   - Charge: **4-5 jours**  
+   - Deadline: **2026-05-30**
+
+2. **UX-2 — Refonte parcours Tâches (création -> édition -> actions)**  
+   - Prérequis: UX-1 validé  
+   - Livrables: simplification TaskEditModal, feedback immédiat sur actions critiques, réduction friction assignation/projet/tags  
+   - Charge: **6-8 jours**  
+   - Deadline: **2026-06-13**
+
+3. **UX-3 — Refonte parcours Agenda & Meeting**  
+   - Prérequis: Reliability Pack Calendar & Meeting validé  
+   - Livrables: parcours meeting clarifié (création/rejoindre/état), lisibilité événements Wroket vs Google, erreurs guidées  
+   - Charge: **6-7 jours**  
+   - Deadline: **2026-06-20**
+
+4. **UX-4 — Refonte Collaboration (équipes, assignations, notifications)**  
+   - Prérequis: Error UX Standard  
+   - Livrables: notifications plus actionnables, statuts d'assignation explicites, cohérence équipe/projet/tâches  
+   - Charge: **5-6 jours**  
+   - Deadline: **2026-07-04**
+
+### Definition of Done UX
+
+- Parcours nominal validé desktop + mobile.
+- Cas d'erreur clés avec message actionnable.
+- Accessibilité ciblée (focus, contrastes, labels) validée sur les écrans touchés.
+- Aucun écart majeur visuel entre pages partageant les mêmes composants.
+
 ## Checklist E2E restante (features partiellement validées localement)
 
 - Meeting avec invités externes (comptes Google Workspace différents, politiques variées).
