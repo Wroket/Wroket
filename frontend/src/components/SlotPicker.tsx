@@ -110,14 +110,19 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   };
 
   const handleReschedule = async () => {
+    setOpen(false);
     setClearing(true);
     try {
       const updated = await clearTaskSlot(todoId);
       onCleared(updated);
       setRescheduleMode(true);
       setMode("suggested");
-      fetchSlots();
+      await fetchSlots();
+      setPresentation("modal");
+      setOpen(true);
     } catch {
+      setPresentation("modal");
+      setOpen(true);
       toast.error(t("toast.deleteError"));
     } finally {
       setClearing(false);
@@ -172,12 +177,14 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   };
 
   const handleClear = async () => {
+    setOpen(false);
     setClearing(true);
     try {
       const updated = await clearTaskSlot(todoId);
       onCleared(updated);
-      setOpen(false);
     } catch {
+      setPresentation("modal");
+      setOpen(true);
       toast.error(t("toast.deleteError"));
     } finally {
       setClearing(false);
@@ -469,21 +476,21 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     ? "w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors"
     : "w-6 h-6 rounded flex items-center justify-center border border-blue-200/90 dark:border-blue-500/35 bg-blue-50/90 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 dark:hover:border-blue-400 transition-colors ring-1 ring-inset ring-blue-200/50 dark:ring-blue-400/20";
 
-  const scheduleBusy = booking;
+  const slotMutationBusy = booking || clearing;
 
   return (
     <>
       <div ref={ref} className="relative inline-flex">
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); if (!scheduleBusy) handleOpen(); }}
+          onClick={(e) => { e.stopPropagation(); if (!slotMutationBusy) handleOpen(); }}
           title={t("schedule.title")}
           aria-expanded={open}
-          aria-busy={scheduleBusy}
-          disabled={scheduleBusy}
-          className={`${scheduleTriggerClass} ${scheduleBusy ? "opacity-90 cursor-wait" : ""}`}
+          aria-busy={slotMutationBusy}
+          disabled={slotMutationBusy}
+          className={`${scheduleTriggerClass} ${slotMutationBusy ? "opacity-90 cursor-wait" : ""}`}
         >
-          {scheduleBusy ? (
+          {slotMutationBusy ? (
             <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20 10 10 0 000-20v4z" />
