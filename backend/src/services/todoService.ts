@@ -26,6 +26,8 @@ export interface ScheduledSlot {
   bookingAccountId?: string | null;
   /** Google Meet join URL when a meeting was created from this task. */
   meetingUrl?: string | null;
+  /** Last known invitee list for the linked meeting event. */
+  meetingInvitees?: string[] | null;
   /** Provider that created the meeting — currently only google-meet. */
   meetingProvider?: "google-meet" | null;
 }
@@ -139,6 +141,9 @@ function normalizeScheduledSlotForCreate(slot: ScheduledSlot | null | undefined)
       slot.bookingAccountId === undefined || slot.bookingAccountId === null ? null : slot.bookingAccountId,
     bookedByUid: slot.bookedByUid,
     meetingUrl: slot.meetingUrl ?? null,
+    meetingInvitees: Array.isArray(slot.meetingInvitees)
+      ? slot.meetingInvitees.filter((v): v is string => typeof v === "string" && v.length > 0).slice(0, 50)
+      : null,
     meetingProvider: slot.meetingProvider ?? null,
   };
 }
@@ -1082,6 +1087,9 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
             : slot.bookingAccountId,
         bookedByUid: slot.bookedByUid,
         meetingUrl: slot.meetingUrl ?? null,
+        meetingInvitees: Array.isArray(slot.meetingInvitees)
+          ? slot.meetingInvitees.filter((v): v is string => typeof v === "string" && v.length > 0).slice(0, 50)
+          : null,
         meetingProvider: slot.meetingProvider ?? null,
       };
       const prev = todo.scheduledSlot;

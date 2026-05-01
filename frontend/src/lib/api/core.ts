@@ -21,6 +21,7 @@ export interface ScheduledSlot {
   bookingCalendarId?: string | null;
   bookingAccountId?: string | null;
   meetingUrl?: string | null;
+  meetingInvitees?: string[] | null;
   meetingProvider?: "google-meet" | null;
 }
 

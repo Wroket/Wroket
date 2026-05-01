@@ -210,7 +210,7 @@ export default function TaskIconToolbar({
         <button
           type="button"
           onClick={wrap(() => onMeet(todo))}
-          title={todo.scheduledSlot?.meetingUrl ? t("meet.joinMeet") : t("meet.createMeet")}
+          title={todo.scheduledSlot?.meetingUrl ? t("meet.editMeet") : t("meet.createMeet")}
           disabled={meetLoading}
           className={`w-6 h-6 rounded flex items-center justify-center border transition-colors ${
             todo.scheduledSlot?.meetingUrl

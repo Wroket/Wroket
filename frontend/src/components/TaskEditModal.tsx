@@ -73,6 +73,8 @@ export interface TaskEditModalProps {
   onTodoCommentsChanged?: (todoId: string) => void;
   /** Read-only preview (no edits; team dashboard when user is not owner/assignee). */
   viewOnly?: boolean;
+  /** Open the meeting management modal for this task. */
+  onManageMeet?: (todo: Todo) => void;
 }
 
 export default function TaskEditModal({
@@ -99,6 +101,7 @@ export default function TaskEditModal({
   onPersistTags,
   onTodoCommentsChanged,
   viewOnly = false,
+  onManageMeet,
 }: TaskEditModalProps) {
   void _onAssignLookup;
   const { t } = useLocale();
@@ -413,14 +416,25 @@ export default function TaskEditModal({
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{t("meet.scheduledIndicator")}</span>
-                <a
-                  href={todo.scheduledSlot.meetingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:opacity-80"
-                >
-                  {t("meet.joinMeet")}
-                </a>
+                <div className="flex items-center gap-2">
+                  {onManageMeet && (
+                    <button
+                      type="button"
+                      onClick={() => onManageMeet(todo)}
+                      className="rounded border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30"
+                    >
+                      {t("meet.editMeet")}
+                    </button>
+                  )}
+                  <a
+                    href={todo.scheduledSlot.meetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:opacity-80"
+                  >
+                    {t("meet.joinMeet")}
+                  </a>
+                </div>
               </div>
             </div>
           )}

@@ -38,6 +38,7 @@ import {
   deleteGoogleCalendarEventForTodo,
   patchGoogleCalendarEvent,
   mapGoogleMeetCreateError,
+  WROKET_CALENDAR_BOOKING_NOTE,
 } from "../services/googleCalendarService";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 
@@ -503,12 +504,13 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
 
   const available = await listGoogleCalendarListForAccount(uid, accountId);
   const savedMap = new Map(account.calendars.map((c) => [c.calendarId, c]));
+  const isPriorityAccount = accounts.length > 0 && accounts[0]?.id === accountId;
 
   const merged = available.map((cal) => ({
     calendarId: cal.id,
     label: cal.summary,
     color: cal.backgroundColor,
-    enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : !!cal.primary,
+    enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : (isPriorityAccount ? !!cal.primary : false),
     defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : false,
     canWriteBooking: savedMap.has(cal.id) ? savedMap.get(cal.id)!.canWriteBooking !== false : !!cal.canWriteBooking,
     primary: cal.primary ?? false,
@@ -657,6 +659,7 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
         bookingCalendarId: bookingTarget?.calendarId ?? "primary",
         bookingAccountId: bookingTarget?.accountId ?? null,
         meetingUrl: result.meetingUrl,
+        meetingInvitees: attendees,
         meetingProvider: "google-meet",
       },
     });
@@ -672,6 +675,83 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   } finally {
     meetCreationInFlight.delete(lockKey);
   }
+}
+
+/**
+ * PATCH /calendar/meet/:todoId
+ * Updates an existing Google Meet event linked to a task.
+ */
+export async function updateMeet(req: AuthenticatedRequest, res: Response) {
+  const todoId = req.params.todoId as string;
+  const uid = req.user!.uid;
+  const found = findTodoForUser(uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
+  if (!todo.scheduledSlot?.calendarEventId || !todo.scheduledSlot?.meetingUrl) {
+    throw new ValidationError("Aucune réunion existante à modifier.");
+  }
+
+  const body = (req.body ?? {}) as {
+    start?: string;
+    end?: string;
+    attendees?: string[];
+    summary?: string;
+    description?: string;
+  };
+  const requestStart = typeof body.start === "string" ? body.start : todo.scheduledSlot.start;
+  const requestEnd = typeof body.end === "string" ? body.end : todo.scheduledSlot.end;
+  if (!requestStart || !requestEnd) throw new ValidationError("Plage horaire invalide");
+  const s = new Date(requestStart);
+  const e = new Date(requestEnd);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || s >= e) {
+    throw new ValidationError("Plage horaire invalide");
+  }
+  const attendees = Array.isArray(body.attendees)
+    ? body.attendees
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim().toLowerCase())
+        .filter((v) => v.length > 0)
+        .slice(0, 50)
+    : (todo.scheduledSlot.meetingInvitees ?? []);
+  for (const email of attendees) {
+    if (!email.includes("@") || email.length < 5) {
+      throw new ValidationError("Un ou plusieurs invités ont un email invalide");
+    }
+  }
+
+  const summary = typeof body.summary === "string" && body.summary.trim().length > 0
+    ? body.summary.trim().slice(0, 200)
+    : todo.title;
+  const description = typeof body.description === "string" && body.description.trim().length > 0
+    ? body.description.trim().slice(0, 5000)
+    : WROKET_CALENDAR_BOOKING_NOTE;
+  const user = findUserByUid(uid);
+  const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+  const bookingCalendarId = todo.scheduledSlot.bookingCalendarId ?? getGoogleBookingTarget(uid)?.calendarId ?? "primary";
+  const bookingAccountId = todo.scheduledSlot.bookingAccountId ?? getGoogleBookingTarget(uid)?.accountId;
+  const ok = await patchGoogleCalendarEvent(
+    uid,
+    todo.scheduledSlot.calendarEventId,
+    summary,
+    requestStart,
+    requestEnd,
+    tz,
+    description,
+    bookingCalendarId,
+    bookingAccountId ?? undefined,
+    attendees,
+  );
+  if (!ok) throw new ValidationError("Impossible de modifier la réunion Google Meet.");
+
+  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
+    scheduledSlot: {
+      ...todo.scheduledSlot,
+      start: requestStart,
+      end: requestEnd,
+      meetingInvitees: attendees,
+    },
+  });
+  res.status(200).json(todoToClientJson(updated));
 }
 
 /**
@@ -700,6 +780,7 @@ export async function clearMeet(req: AuthenticatedRequest, res: Response) {
           bookingCalendarId: null,
           bookingAccountId: null,
           meetingUrl: null,
+          meetingInvitees: null,
           meetingProvider: null,
         }
       : null,

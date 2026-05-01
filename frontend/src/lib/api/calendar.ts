@@ -139,6 +139,20 @@ export async function createTaskMeet(todoId: string, payload?: CreateTaskMeetPay
   return res.json() as Promise<Todo>;
 }
 
+export async function updateTaskMeet(todoId: string, payload: CreateTaskMeetPayload): Promise<Todo> {
+  const res = await fetch(`${API_BASE_URL}/calendar/meet/${encodeURIComponent(todoId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const msg = await res.json().then((d: { message?: string }) => d.message).catch(() => null);
+    throw new Error(msg ?? "Impossible de modifier le meeting");
+  }
+  return res.json() as Promise<Todo>;
+}
+
 /**
  * Remove the Google Meet conference from the given task.
  * Returns the updated Todo.

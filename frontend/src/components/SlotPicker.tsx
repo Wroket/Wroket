@@ -126,20 +126,26 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const doBook = async (start: string, end: string, force?: boolean) => {
     setBooking(true);
+    // Optimistic close for better perceived responsiveness.
+    setOpen(false);
     try {
       const result = await bookTaskSlot(todoId, start, end, force);
       if (result.conflict && result.conflicts?.length) {
         setConflicts(result.conflicts);
         setPendingSlot({ start, end });
+        setPresentation("modal");
+        setOpen(true);
         return;
       }
       if (result.todo) {
         setConflicts([]);
         setPendingSlot(null);
         onBooked(result.todo);
-        setOpen(false);
+        toast.success(t("schedule.booked"));
       }
     } catch {
+      setPresentation("modal");
+      setOpen(true);
       toast.error(t("toast.updateError"));
     } finally {
       setBooking(false);

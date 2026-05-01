@@ -453,6 +453,7 @@ export async function patchGoogleCalendarEvent(
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
   calendarId: string = "primary",
   accountId?: string,
+  attendees?: string[],
 ): Promise<boolean> {
   let accessToken: string | null = null;
   if (accountId) {
@@ -466,22 +467,25 @@ export async function patchGoogleCalendarEvent(
   const tz = timezone || "UTC";
 
   try {
-    const res = await fetch(
+    const url = new URL(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          summary,
-          description,
-          start: { dateTime: start, timeZone: tz },
-          end: { dateTime: end, timeZone: tz },
-        }),
-      },
     );
+    url.searchParams.set("sendUpdates", "all");
+    const body: Record<string, unknown> = {
+      summary,
+      description,
+      start: { dateTime: start, timeZone: tz },
+      end: { dateTime: end, timeZone: tz },
+    };
+    if (attendees) body.attendees = attendees.map((email) => ({ email }));
+    const res = await fetch(url.toString(), {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
     if (!res.ok) {
       const details = await res.text().catch(() => "");
       console.error("[meet_patch_error]", JSON.stringify({ uid, eventId, calendarId, status: res.status, details }));

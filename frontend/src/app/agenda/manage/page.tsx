@@ -105,6 +105,30 @@ export default function ManageCalendarsPage() {
     );
   };
 
+  const setPriorityAccount = (accountId: string) => {
+    setAccounts((prev) => {
+      let targetCalendarId: string | null = null;
+      const target = prev.find((a) => a.id === accountId);
+      if (target?.cals) {
+        const writable = target.cals.find((c) => c.canWriteBooking !== false)
+          ?? target.cals[0];
+        targetCalendarId = writable?.calendarId ?? null;
+      }
+      if (!targetCalendarId) return prev;
+      return prev.map((a) => ({
+        ...a,
+        cals: a.cals?.map((c) => {
+          const selected = a.id === accountId && c.calendarId === targetCalendarId;
+          return {
+            ...c,
+            enabled: a.id === accountId ? c.enabled : false,
+            defaultForBooking: selected,
+          };
+        }),
+      }));
+    });
+  };
+
   const handleSave = async (accountId: string) => {
     const account = accounts.find((a) => a.id === accountId);
     if (!account?.cals) return;
@@ -159,6 +183,7 @@ export default function ManageCalendarsPage() {
           <div className="space-y-4">
             {accounts.map((account, idx) => {
               const acctColor = ACCOUNT_COLORS[idx % ACCOUNT_COLORS.length];
+              const isPriorityAccount = account.cals?.some((c) => !!c.defaultForBooking) ?? idx === 0;
               return (
                 <div key={account.id} className="bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg overflow-hidden">
                   {/* Account header */}
@@ -166,21 +191,39 @@ export default function ManageCalendarsPage() {
                     <div className="flex items-center gap-2.5">
                       <span className="w-3.5 h-3.5 rounded-full shrink-0 ring-2 ring-white dark:ring-slate-800" style={{ backgroundColor: acctColor }} />
                       <span className="text-sm font-semibold text-zinc-800 dark:text-slate-100">{account.email}</span>
+                      <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 ${
+                        isPriorityAccount
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-300"
+                      }`}>
+                        {isPriorityAccount ? t("agenda.priorityAccount") : t("agenda.readOnlyAccount")}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDisconnect(account.id)}
-                      className="rounded px-2.5 py-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                    >
-                      {t("agenda.disconnect")}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {!isPriorityAccount && (
+                        <button
+                          type="button"
+                          onClick={() => setPriorityAccount(account.id)}
+                          className="rounded px-2.5 py-1 text-xs text-blue-600 hover:text-blue-700 border border-blue-200 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950/30 transition-colors"
+                        >
+                          {t("agenda.setPriorityAccount")}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDisconnect(account.id)}
+                        className="rounded px-2.5 py-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                      >
+                        {t("agenda.disconnect")}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Calendar list */}
                   {account.cals && account.cals.length > 0 ? (
                     <div className="px-4 py-3 space-y-1">
                       <p className="text-[10px] text-zinc-400 dark:text-slate-500 uppercase tracking-wide font-semibold mb-2">{t("settings.calendarSelect")}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-2">{t("agenda.defaultBookingCalendarHint")}</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-2">{isPriorityAccount ? t("agenda.defaultBookingCalendarHint") : t("agenda.secondaryReadonlyHint")}</p>
                       {account.cals.map((cal) => (
                         <div
                           key={cal.calendarId}
@@ -190,6 +233,7 @@ export default function ManageCalendarsPage() {
                             type="checkbox"
                             checked={cal.enabled}
                             onChange={() => toggleCalendar(account.id, cal.calendarId)}
+                            disabled={!isPriorityAccount}
                             className="w-4 h-4 rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
                           />
                           <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.color }} />
@@ -200,10 +244,10 @@ export default function ManageCalendarsPage() {
                               name="booking-default-global"
                               checked={!!cal.defaultForBooking}
                               onChange={() => setDefaultBookingCalendar(account.id, cal.calendarId)}
-                              disabled={cal.canWriteBooking === false}
+                              disabled={!isPriorityAccount || cal.canWriteBooking === false}
                               className="w-3.5 h-3.5 border-zinc-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
                             />
-                            {cal.canWriteBooking === false ? t("agenda.readOnlyCalendar") : t("agenda.defaultBookingCalendar")}
+                            {!isPriorityAccount || cal.canWriteBooking === false ? t("agenda.readOnlyCalendar") : t("agenda.defaultBookingCalendar")}
                           </label>
                         </div>
                       ))}

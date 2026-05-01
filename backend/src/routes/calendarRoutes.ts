@@ -4,7 +4,7 @@ import {
   getSlots, bookSlot, clearSlot,
   googleAuthUrl, googleCallback, disconnectGoogle, getCalendarEvents,
   listCalendars, saveCalendarSelection,
-  createMeet, clearMeet,
+  createMeet, updateMeet, clearMeet,
 } from "../controllers/calendarController";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -23,6 +23,7 @@ calendarRoutes.get("/google/accounts/:accountId/calendars", listCalendars);
 calendarRoutes.put("/google/accounts/:accountId/calendars", saveCalendarSelection);
 calendarRoutes.get("/events", getCalendarEvents);
 calendarRoutes.post("/meet/:todoId", createMeet);
+calendarRoutes.patch("/meet/:todoId", updateMeet);
 calendarRoutes.delete("/meet/:todoId", clearMeet);
 
 export default calendarRoutes;

@@ -42,7 +42,7 @@ import {
   Collaborator,
   Team,
 } from "@/lib/api";
-import { createTaskMeet, getTaskSlots } from "@/lib/api/calendar";
+import { clearTaskMeet, createTaskMeet, getTaskSlots, updateTaskMeet } from "@/lib/api/calendar";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -688,7 +688,7 @@ export default function TodosPage() {
 
   const openMeetOptions = useCallback(async (todo: Todo) => {
     setMeetOptionsTodo(todo);
-    setMeetInvitees([]);
+    setMeetInvitees(todo.scheduledSlot?.meetingInvitees ?? []);
     setMeetInviteEmail("");
     setMeetDescription("");
     setMeetSummary(todo.title);
@@ -738,38 +738,70 @@ export default function TodosPage() {
   }, []);
 
   const handleMeet = useCallback(async (todo: Todo) => {
-    const url = todo.scheduledSlot?.meetingUrl;
-    if (url) { window.open(url, "_blank", "noopener"); return; }
     await openMeetOptions(todo);
   }, [openMeetOptions]);
 
   const handleCreateMeetWithOptions = useCallback(async () => {
     if (!meetOptionsTodo || !meetStart) return;
-    setMeetLoadingId(meetOptionsTodo.id);
+    const pendingTodo = meetOptionsTodo;
+    const pendingStart = meetStart;
+    const pendingDuration = meetDuration;
+    const pendingInvitees = [...meetInvitees];
+    const pendingSummary = meetSummary;
+    const pendingDescription = meetDescription;
+
+    // Close immediately for snappier UX and keep processing in background.
+    closeMeetOptions();
+    setMeetLoadingId(pendingTodo.id);
     try {
-      const startIso = wallTimeInZoneToIso(meetStart, userTimeZone);
-      const endIso = new Date(new Date(startIso).getTime() + meetDuration * 60000).toISOString();
-      const updated = await createTaskMeet(meetOptionsTodo.id, {
+      const startIso = wallTimeInZoneToIso(pendingStart, userTimeZone);
+      const endIso = new Date(new Date(startIso).getTime() + pendingDuration * 60000).toISOString();
+      const updater = pendingTodo.scheduledSlot?.meetingUrl ? updateTaskMeet : createTaskMeet;
+      const updated = await updater(pendingTodo.id, {
         start: startIso,
         end: endIso,
-        attendees: meetInvitees,
-        summary: meetSummary.trim() || meetOptionsTodo.title,
-        description: meetDescription.trim() || undefined,
+        attendees: pendingInvitees,
+        summary: pendingSummary.trim() || pendingTodo.title,
+        description: pendingDescription.trim() || undefined,
       });
       replaceTodoInLists(updated);
       const meetUrl = updated.scheduledSlot?.meetingUrl;
-      if (meetUrl) {
+      if (meetUrl && !pendingTodo.scheduledSlot?.meetingUrl) {
         await navigator.clipboard.writeText(meetUrl).catch(() => null);
         toast.success(t("meet.created"));
+      } else {
+        toast.success(t("meet.updated"));
       }
-      closeMeetOptions();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
+      // Reopen modal with previous values so user can adjust and retry quickly.
+      setMeetOptionsTodo(pendingTodo);
+      setMeetStart(pendingStart);
+      setMeetDuration(pendingDuration);
+      setMeetInvitees(pendingInvitees);
+      setMeetSummary(pendingSummary);
+      setMeetDescription(pendingDescription);
       toast.error(t(mapMeetErrorToMessageKey(msg)));
     } finally {
       setMeetLoadingId(null);
     }
   }, [meetOptionsTodo, meetStart, meetDuration, meetInvitees, meetSummary, meetDescription, replaceTodoInLists, toast, t, closeMeetOptions, userTimeZone]);
+
+  const handleClearMeetWithOptions = useCallback(async () => {
+    if (!meetOptionsTodo) return;
+    const pendingTodo = meetOptionsTodo;
+    closeMeetOptions();
+    setMeetLoadingId(pendingTodo.id);
+    try {
+      const updated = await clearTaskMeet(pendingTodo.id);
+      replaceTodoInLists(updated);
+      toast.success(t("meet.cancelled"));
+    } catch (err) {
+      toast.error(t(mapMeetErrorToMessageKey(err instanceof Error ? err.message : "")));
+    } finally {
+      setMeetLoadingId(null);
+    }
+  }, [meetOptionsTodo, closeMeetOptions, replaceTodoInLists, toast, t]);
 
   const handleReorder = useCallback(async (orderedIds: string[]) => {
     try {
@@ -1698,6 +1730,7 @@ export default function TodosPage() {
         onTodoCommentsChanged={() => {
           getCommentCounts().then(setCommentCounts).catch(() => {});
         }}
+        onManageMeet={editingTodo ? (() => openMeetOptions(editingTodo)) : undefined}
       />
 
       <SubtaskModal
@@ -1848,8 +1881,28 @@ export default function TodosPage() {
                 disabled={!meetStart || meetLoadingId === meetOptionsTodo.id}
                 className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60"
               >
-                {meetLoadingId === meetOptionsTodo.id ? "…" : t("meet.createAction")}
+                {meetLoadingId === meetOptionsTodo.id ? "…" : (meetOptionsTodo.scheduledSlot?.meetingUrl ? t("meet.updateAction") : t("meet.createAction"))}
               </button>
+              {meetOptionsTodo.scheduledSlot?.meetingUrl && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleClearMeetWithOptions}
+                    disabled={meetLoadingId === meetOptionsTodo.id}
+                    className="rounded border border-red-300 dark:border-red-700 px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-60"
+                  >
+                    {t("meet.cancelAction")}
+                  </button>
+                  <a
+                    href={meetOptionsTodo.scheduledSlot.meetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded border border-emerald-300 dark:border-emerald-700 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                  >
+                    {t("meet.joinMeet")}
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>
