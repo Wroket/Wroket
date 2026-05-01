@@ -146,6 +146,8 @@ export interface GoogleCalendarListItem {
   summary: string;
   backgroundColor: string;
   primary?: boolean;
+  accessRole?: string;
+  canWriteBooking?: boolean;
 }
 
 /**
@@ -179,6 +181,7 @@ async function fetchCalendarList(accessToken: string): Promise<GoogleCalendarLis
         summary?: string;
         backgroundColor?: string;
         primary?: boolean;
+        accessRole?: string;
       }>;
     };
     return (data.items ?? []).map((c) => ({
@@ -186,6 +189,8 @@ async function fetchCalendarList(accessToken: string): Promise<GoogleCalendarLis
       summary: c.summary ?? c.id,
       backgroundColor: c.backgroundColor ?? "#4285f4",
       primary: c.primary,
+      accessRole: c.accessRole,
+      canWriteBooking: c.accessRole === "owner" || c.accessRole === "writer",
     }));
   } catch {
     return [];
@@ -361,7 +366,7 @@ export async function createGoogleMeetEvent(
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
       {
         method: "POST",
         headers: {
@@ -389,7 +394,10 @@ export async function createGoogleMeetEvent(
       },
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const details = await res.text().catch(() => "");
+      throw new Error(`Google Meet create failed (${res.status}) on calendar ${calendarId}: ${details || "no details"}`);
+    }
     const data = await res.json() as {
       id: string;
       conferenceData?: {

@@ -96,7 +96,7 @@ export default function ManageCalendarsPage() {
               cals: a.cals?.map((c) => ({
                 ...c,
                 enabled: c.calendarId === calendarId ? true : c.enabled,
-                defaultForBooking: c.calendarId === calendarId,
+                defaultForBooking: c.calendarId === calendarId && c.canWriteBooking !== false,
               })),
             }
           : a,
@@ -199,9 +199,10 @@ export default function ManageCalendarsPage() {
                               name={`booking-default-${account.id}`}
                               checked={!!cal.defaultForBooking}
                               onChange={() => setDefaultBookingCalendar(account.id, cal.calendarId)}
+                              disabled={cal.canWriteBooking === false}
                               className="w-3.5 h-3.5 border-zinc-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
                             />
-                            {t("agenda.defaultBookingCalendar")}
+                            {cal.canWriteBooking === false ? t("agenda.readOnlyCalendar") : t("agenda.defaultBookingCalendar")}
                           </label>
                         </div>
                       ))}

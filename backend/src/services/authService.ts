@@ -49,6 +49,8 @@ export interface GoogleCalendarEntry {
   color: string;
   enabled: boolean;
   defaultForBooking?: boolean;
+  canWriteBooking?: boolean;
+  primary?: boolean;
 }
 
 /** A connected Google account with its OAuth tokens and selected calendars */
@@ -1224,19 +1226,25 @@ export function setGoogleAccountCalendars(uid: string, accountId: string, calend
   // Normalize to a single booking default per account and keep it on an enabled calendar.
   let chosenDefault: string | null = null;
   for (const cal of calendars) {
-    if (cal.defaultForBooking) {
+    if (cal.defaultForBooking && cal.canWriteBooking !== false) {
       chosenDefault = cal.calendarId;
       break;
     }
   }
+  if (!chosenDefault) {
+    const firstWritableEnabled = calendars.find((cal) => !!cal.enabled && cal.canWriteBooking !== false);
+    chosenDefault = firstWritableEnabled?.calendarId ?? null;
+  }
   account.calendars = calendars.map((cal, idx) => {
     const enabled = !!cal.enabled;
+    const canWriteBooking = cal.canWriteBooking !== false;
     const defaultForBooking = chosenDefault
-      ? cal.calendarId === chosenDefault && enabled
-      : idx === 0 && enabled;
+      ? cal.calendarId === chosenDefault && enabled && canWriteBooking
+      : idx === 0 && enabled && canWriteBooking;
     return {
       ...cal,
       enabled,
+      canWriteBooking,
       defaultForBooking,
     };
   });
@@ -1247,14 +1255,23 @@ export function getGoogleBookingTarget(uid: string): { accountId: string; calend
   const accounts = getGoogleAccounts(uid);
   if (accounts.length === 0) return null;
 
+  const isSystemCalendar = (calendarId: string): boolean => {
+    const id = calendarId.toLowerCase();
+    return id.includes("group.v.calendar.google.com") || id.includes("holiday") || id.includes("weeknum");
+  };
+  const isWritable = (cal: GoogleCalendarEntry): boolean =>
+    !!cal.enabled && cal.canWriteBooking !== false && !isSystemCalendar(cal.calendarId);
+
   for (const account of accounts) {
-    const selected = account.calendars.find((c) => c.enabled && c.defaultForBooking);
+    const selected = account.calendars.find((c) => c.defaultForBooking && isWritable(c));
     if (selected) return { accountId: account.id, calendarId: selected.calendarId };
   }
 
   for (const account of accounts) {
-    const firstEnabled = account.calendars.find((c) => c.enabled);
-    if (firstEnabled) return { accountId: account.id, calendarId: firstEnabled.calendarId };
+    const writablePrimary = account.calendars.find((c) => !!c.primary && isWritable(c));
+    if (writablePrimary) return { accountId: account.id, calendarId: writablePrimary.calendarId };
+    const firstWritable = account.calendars.find((c) => isWritable(c));
+    if (firstWritable) return { accountId: account.id, calendarId: firstWritable.calendarId };
   }
 
   return { accountId: accounts[0]!.id, calendarId: "primary" };

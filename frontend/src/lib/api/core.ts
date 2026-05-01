@@ -40,6 +40,7 @@ export interface GoogleCalendarEntry {
   enabled: boolean;
   primary?: boolean;
   defaultForBooking?: boolean;
+  canWriteBooking?: boolean;
 }
 
 export interface GoogleAccountPublic {

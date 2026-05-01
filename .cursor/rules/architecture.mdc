@@ -42,3 +42,7 @@ alwaysApply: true
 2. Pour modifier une env var en prod : `gcloud run services update wroket-api --region=europe-west1 --update-env-vars KEY=VALUE`
 3. Les déploiements se font via push sur `main` → Cloud Build
 4. Firestore est accessible uniquement via le SA `wroket-run`, pas via la VM
+
+## Vision produit E2E
+- Pour toute feature et tout déploiement, appliquer aussi `c:\\Wroket\\.cursor\\rules\\product-e2e.mdc`.
+- Cette règle architecture reste prioritaire sur le cadrage infra/prod; la validation E2E s'applique dans ce cadre.

@@ -1,0 +1,43 @@
+---
+description: Vision produit globale et validation E2E avant toute implémentation ou déploiement
+alwaysApply: true
+---
+
+# Vision complète + approche E2E
+
+## Objectif
+- Garantir qu'un agent ne traite jamais une demande en silo technique.
+- S'assurer que chaque feature et chaque déploiement améliorent concrètement l'expérience utilisateur.
+
+## Cadre d'analyse obligatoire
+Avant de conclure une implémentation, l'agent doit couvrir la chaîne complète:
+1. Interface utilisateur (pages, états, messages, i18n, accessibilité de base).
+2. API/backend (contrats, validations, autorisations, erreurs explicites).
+3. Persistance et données (lecture/écriture, migrations, compatibilité des données existantes).
+4. Exploitation et déploiement (variables d'environnement, CI/CD, impact prod, rollback réaliste).
+
+## Exigences d'implémentation
+- Ne jamais valider une feature sur la base d'un seul composant (UI seule ou backend seul).
+- Toujours vérifier les dépendances transverses pertinentes: auth, permissions, observabilité, i18n, gestion d'erreurs.
+- Toujours expliciter le bénéfice utilisateur attendu (gain concret, friction supprimée, fiabilité accrue).
+- Toujours signaler les risques résiduels et les limites connues.
+
+## Checklist E2E minimale avant "done"
+- Cas nominal de bout en bout validé (action utilisateur -> résultat visible attendu).
+- Cas permissions/accès validé (droits insuffisants, compte non connecté, etc.).
+- Cas erreur validé (message exploitable côté utilisateur et logs exploitables côté technique).
+- Régression critique vérifiée sur le parcours principal lié à la feature.
+
+## Exigences spécifiques déploiement
+- Tout déploiement doit inclure un contrôle post-deploy orienté parcours utilisateur critique.
+- Si une validation E2E réelle n'est pas exécutable immédiatement, l'agent doit:
+  - le dire explicitement,
+  - expliquer pourquoi,
+  - proposer la prochaine action vérifiable (commande, test, scénario concret).
+
+## Priorité et compatibilité des règles
+- Cette règle complète les règles existantes et ne les remplace pas.
+- En cas de tension, appliquer d'abord les règles de sécurité/données et d'architecture:
+  - `c:\\Wroket\\.cursor\\rules\\data-safety.mdc`
+  - `c:\\Wroket\\.cursor\\rules\\architecture.mdc`
+- L'approche E2E produit doit ensuite être appliquée dans ce cadre, sans contourner les garde-fous sécurité/données.

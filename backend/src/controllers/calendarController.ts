@@ -489,6 +489,7 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
     color: cal.backgroundColor,
     enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : !!cal.primary,
     defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : !!cal.primary,
+    canWriteBooking: savedMap.has(cal.id) ? savedMap.get(cal.id)!.canWriteBooking !== false : !!cal.canWriteBooking,
     primary: cal.primary ?? false,
   }));
 
@@ -510,6 +511,8 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
     color: String(c.color).substring(0, 20),
     enabled: !!c.enabled,
     defaultForBooking: !!c.defaultForBooking,
+    canWriteBooking: c.canWriteBooking !== false,
+    primary: !!c.primary,
   }));
 
   setGoogleAccountCalendars(uid, accountId, entries);
@@ -597,9 +600,15 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
     await deleteGoogleCalendarEvent(uid, existingEventId, bookingTarget?.calendarId ?? "primary").catch(() => null);
   }
 
-  const result = await createGoogleMeetEvent(uid, summary, slotStart, slotEnd, tz, description, attendees);
+  let result: { eventId: string; meetingUrl: string } | null = null;
+  try {
+    result = await createGoogleMeetEvent(uid, summary, slotStart, slotEnd, tz, description, attendees);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue Google Calendar";
+    throw new ValidationError(`Impossible de créer la réunion Google Meet. ${message}`);
+  }
   if (!result) {
-    throw new ValidationError("Impossible de créer le meeting Google Meet. Vérifiez vos permissions Google Calendar.");
+    throw new ValidationError("Impossible de créer la réunion Google Meet. Vérifiez les permissions d'écriture du calendrier par défaut.");
   }
 
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
