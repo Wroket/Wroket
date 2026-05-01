@@ -1,0 +1,30 @@
+---
+description: Gate de complétude produit pour éviter les features partielles
+alwaysApply: true
+---
+
+# Feature Completeness Gate
+
+## Principe
+- Ne jamais livrer une feature partiellement implémentée comme "terminée".
+- Toute nouvelle feature doit être challengée avant implémentation (impact user, cas limites, dépendances E2E).
+
+## Challenge obligatoire avant code
+- Vérifier le parcours complet: UI -> API -> persistance -> observabilité -> UX d'erreur.
+- Identifier explicitement les fonctionnalités liées (création, édition, suppression, permissions, états vides, régression).
+- Si une partie essentielle est manquante, ne pas conclure "done".
+
+## Gate de livraison
+- Une feature peut être considérée livrée seulement si:
+  1. le cas nominal fonctionne de bout en bout,
+  2. les cas d'erreur clés ont un message actionnable pour l'utilisateur,
+  3. les écrans/flux liés sont cohérents (pas de comportement partiel sur un écran seulement),
+  4. build/tests pertinents passent.
+
+## Interdictions
+- Interdit de pousser une feature "à moitié" sans la marquer explicitement comme partielle avec les limites et prochaines étapes.
+- Interdit de masquer une dette fonctionnelle critique sous un simple TODO non priorisé.
+
+## Format de restitution attendu
+- Expliquer ce qui est complet, ce qui ne l'est pas, et pourquoi.
+- Lister les risques résiduels et la checklist E2E restante si validation réelle impossible localement.

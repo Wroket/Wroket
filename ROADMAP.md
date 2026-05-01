@@ -16,6 +16,66 @@
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
+## Audit complétude (passe 2)
+
+**Date** : 2026-05-01  
+**Règle appliquée** : `feature-completeness-gate` (UI -> API -> persistance -> observabilité -> UX d'erreur -> non-régression).
+
+### Statut global des features `[x]`
+
+- **Complet** : socle auth/sécurité v1-v5, CRUD tâches/projets/équipes, vues principales, i18n, CI/CD, monitoring, 2FA, imports/exports majeurs.
+- **Partiel acceptable** : blocs riches fonctionnellement mais avec validation réelle limitée (notifications multicanal, partage notes/mentions, certains flux agenda multi-comptes).
+- **Partiel critique** : flux à fort impact prod qui exigent encore des garde-fous E2E réels (Meet/invitations externes selon politique Google Workspace, persistance tâches multi-modes et dérive de données en conditions extrêmes).
+
+### Triage complétude (Critique / Important / Nice-to-have)
+
+- **Critique**
+  - Fiabilité meeting Google (création/édition/suppression/invitations externes) avec validation réelle post-deploy.
+  - Cohérence persistance tâches (legacy/shards/v2) et surveillance continue des dérives.
+  - Normalisation des erreurs actionnables sur parcours critiques (agenda, collaboration, import).
+- **Important**
+  - Cohérence UX cross-écrans (même état meeting/tâche/projet/archives partout).
+  - Observabilité métier transverse (pas seulement logs techniques).
+  - Renforcement de couverture tests ciblés des flux multi-comptes et droits.
+- **Nice-to-have**
+  - Uniformisation fine des micro-copies et états vides.
+  - Polissage interactions secondaires (hover, tooltips, badges) hors parcours critiques.
+
+## Priorisation exécutable (Now / Next / Later)
+
+### Now (0-6 semaines)
+
+1. **Reliability Pack — Calendar & Meeting**
+   - DoD: création meeting idempotente, lifecycle complet vérifié, erreurs actionnables, checklist E2E prod exécutée.
+2. **Reliability Pack — Todo Persistence**
+   - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
+3. **Plan & Billing Core (P1)**
+   - DoD: plan gating Free/Pro/Team en prod + Stripe checkout + webhooks + `/pricing`.
+4. **Microsoft path (SSO + Outlook MVP)**
+   - DoD: OAuth Microsoft opérationnel + premier connecteur calendrier externe utilisable.
+5. **Error UX Standard**
+   - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
+
+### Next (6-12 semaines)
+
+- Push notifications (hors onglet) alignées avec préférences utilisateur.
+- Vue “Ma semaine” orientée charge et risques.
+- Templates/checklists de tâches réutilisables.
+- a11y ciblée des parcours les plus utilisés.
+
+### Later (12+ semaines)
+
+- Bots interactifs Slack/Discord et sync bidirectionnelle.
+- Notes collaboratives temps réel (chantier lourd).
+- Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
+
+## Checklist E2E restante (features partiellement validées localement)
+
+- Meeting avec invités externes (comptes Google Workspace différents, politiques variées).
+- Multi-comptes calendriers avec timezone utilisateur différente du navigateur.
+- Flux restauration/suppression archives en scénarios projet + sous-tâches.
+- Notifications multicanal (email/Slack/Teams/Chat) avec vérification de délivrabilité.
+
 ## Implémenté
 
 - [x] **Authentification** — Register, login, logout, sessions cookie, hachage bcrypt
@@ -147,6 +207,12 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - [x] **Projets — archivage depuis la liste** — L’action de suppression archive le projet (`status: archived`) pour qu’il apparaisse dans Archives › Projets ; confirmation « Archiver » ; corbeille liste / détail alignées sur l’archive plutôt que `DELETE` projet
 - [x] **UX — projets, équipes, bloc-notes** — Annuler fiable sur la modal de création projet ; sélecteur d’équipe plus visible sur `/teams/dashboard` ; en-tête notes : titre sur une ligne avec Aide + lien « Annulé » (archives) + nouvelle note, retrait du menu Données du header (import/export CSV/JSON rappelé dans l’aide / paramètres)
 - [x] **Qualité ESLint (règles React)** — Passage `eslint --max-warnings 0` : effets sans `setState` synchrone problématique, refs (`SlashCommandMenu`, `useUserLookup` → `cacheRef`), pureté radar, deps hooks ajustées
+- [x] **Google Meet — hardening V2 (idempotence + lifecycle)** — Anti-doublon sur `POST /calendar/meet/:todoId` (verrou in-flight), création/patch/suppression alignés sur le calendrier réellement lié (`bookingCalendarId`, `bookingAccountId`), suppression des événements fantômes
+- [x] **Google Meet — erreurs actionnables** — Mapping backend des erreurs Google (permissions, politique invités externes, calendrier invalide, invités rejetés) + toasts frontend guidant la correction
+- [x] **Google Meet — visibilité UI consolidée** — État explicite « réunion vidéo prévue » dans `TaskEditModal`, lien Meet visible/ouvrable dans l’agenda Wroket (jour/semaine/mois), cohérence d’affichage avec l’icône meeting de la liste tâches
+- [x] **Calendriers Google — défaut de booking global** — Sélection d’un unique calendrier par défaut inter-comptes (writable only), guardrails UI « lecture seule », fallback déterministe robuste en multi-comptes
+- [x] **Meet options — correction fuseau horaire** — Alignement des créneaux suggérés, des champs de la modale et de la création Google sur la timezone utilisateur Paramètres (évite les décalages UTC/local)
+- [x] **Observabilité meeting** — Logs structurés create/patch/delete Meet + tests backend ciblés (`googleCalendarService.test.ts`) pour fiabiliser le diagnostic production
 
 ## Expérience utilisateur & attractivité
 
