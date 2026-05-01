@@ -5,6 +5,7 @@ dotenv.config({ path: path.join(__dirname, "..", "..", ".env") });
 
 import { initStore } from "../persistence";
 import {
+  hydrateTodosFromLegacyStore,
   createTodo,
   updateTodo,
   listTodos,
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   }
 
   await initStore();
+  hydrateTodosFromLegacyStore();
 
   const marker = `canary-${Date.now()}`;
   const created = await createTodo(uid, email, {

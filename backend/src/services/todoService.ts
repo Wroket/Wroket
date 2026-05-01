@@ -278,8 +278,10 @@ async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
   }
 }
 
-(function hydrateTodos() {
+export function hydrateTodosFromLegacyStore(): void {
   const store = getStore();
+  todosByUser.clear();
+  ownerIndex.clear();
   if (store.todos) {
     let count = 0;
     for (const [userId, todos] of Object.entries(store.todos)) {
@@ -336,7 +338,12 @@ async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
     }
     console.log("[todos] %d tâche(s) chargée(s) depuis le fichier local", count);
   }
-})();
+}
+
+// Keep backward compatibility for runtime paths where store is already initialized before module import.
+if (getStore().todos) {
+  hydrateTodosFromLegacyStore();
+}
 
 export async function hydrateTodosFromV2IfNeeded(): Promise<void> {
   if (TODOS_STORAGE_MODE !== "v2") return;

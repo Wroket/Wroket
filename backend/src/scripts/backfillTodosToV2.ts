@@ -5,7 +5,7 @@ dotenv.config({ path: path.join(__dirname, "..", "..", ".env") });
 
 import { initStore } from "../persistence";
 import { getStore } from "../persistence";
-import { syncAllTodosToConfiguredStores } from "../services/todoService";
+import { hydrateTodosFromLegacyStore, syncAllTodosToConfiguredStores } from "../services/todoService";
 
 async function main(): Promise<void> {
   const mode = (process.env.TODOS_STORAGE_MODE ?? "legacy").trim().toLowerCase();
@@ -14,6 +14,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   await initStore();
+  hydrateTodosFromLegacyStore();
   const legacy = (getStore().todos ?? {}) as Record<string, Record<string, unknown>>;
   const owners = Object.keys(legacy);
   const total = owners.reduce((acc, uid) => acc + Object.keys(legacy[uid] ?? {}).length, 0);

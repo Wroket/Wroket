@@ -40,7 +40,8 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 
 async function main(): Promise<void> {
   await initStore();
-  const { hydrateTodosFromV2IfNeeded } = await import("./services/todoService");
+  const { hydrateTodosFromLegacyStore, hydrateTodosFromV2IfNeeded } = await import("./services/todoService");
+  hydrateTodosFromLegacyStore();
   await hydrateTodosFromV2IfNeeded();
 
   if (process.env.NODE_ENV === "production" && !process.env.OAUTH_STATE_SECRET?.trim()) {
