@@ -675,6 +675,19 @@ export default function AgendaPage() {
                               {isWroket && (
                                 <div className="text-[9px] opacity-80 truncate leading-tight mt-0.5">{t("agenda.bookedFromWroket")}</div>
                               )}
+                              {isWroket && ev.meetingUrl && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(ev.meetingUrl!, "_blank", "noopener");
+                                  }}
+                                  className="mt-0.5 text-[9px] underline underline-offset-2 opacity-90 hover:opacity-100"
+                                  title={t("meet.joinMeet")}
+                                >
+                                  {t("meet.joinMeet")}
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -766,6 +779,19 @@ export default function AgendaPage() {
                               </div>
                               {isWroket && (
                                 <div className="text-[9px] opacity-85 truncate leading-tight mt-0.5">{t("agenda.bookedFromWroket")}</div>
+                              )}
+                              {isWroket && ev.meetingUrl && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(ev.meetingUrl!, "_blank", "noopener");
+                                  }}
+                                  className="text-[9px] underline underline-offset-2 opacity-90 hover:opacity-100 mt-0.5"
+                                  title={t("meet.joinMeet")}
+                                >
+                                  {t("meet.joinMeet")}
+                                </button>
                               )}
                               {pos.height >= 44 && (
                                 <div className="text-[10px] opacity-80 mt-0.5 font-medium">
@@ -860,6 +886,19 @@ export default function AgendaPage() {
                               <span className="block truncate">{ev.delegated ? "← " : ""}{ev.recurring ? "↻ " : ""}{ev.summary}</span>
                               {isWroket && (
                                 <span className="block text-[8px] opacity-75 truncate leading-tight">{t("agenda.bookedFromWroket")}</span>
+                              )}
+                              {isWroket && ev.meetingUrl && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(ev.meetingUrl!, "_blank", "noopener");
+                                  }}
+                                  className="block text-[8px] underline underline-offset-2 opacity-90 hover:opacity-100"
+                                  title={t("meet.joinMeet")}
+                                >
+                                  {t("meet.joinMeet")}
+                                </button>
                               )}
                             </div>
                           );

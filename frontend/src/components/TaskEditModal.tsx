@@ -409,6 +409,21 @@ export default function TaskEditModal({
           </svg>
         </button>
         {detailsOpen && <div className="space-y-3">
+          {todo.scheduledSlot?.meetingUrl && (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{t("meet.scheduledIndicator")}</span>
+                <a
+                  href={todo.scheduledSlot.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:opacity-80"
+                >
+                  {t("meet.joinMeet")}
+                </a>
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
               {t("edit.titleField")}

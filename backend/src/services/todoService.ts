@@ -20,6 +20,10 @@ export interface ScheduledSlot {
   calendarEventId: string | null;
   /** Set when booking: Google event lives on this user’s primary calendar (owner or assignee). */
   bookedByUid?: string;
+  /** Calendar id where the external booking was created (Google Calendar). */
+  bookingCalendarId?: string | null;
+  /** Google account id used to create/manage the external booking. */
+  bookingAccountId?: string | null;
   /** Google Meet join URL when a meeting was created from this task. */
   meetingUrl?: string | null;
   /** Provider that created the meeting — currently only google-meet. */
@@ -129,6 +133,13 @@ function normalizeScheduledSlotForCreate(slot: ScheduledSlot | null | undefined)
     end: slot.end,
     calendarEventId:
       slot.calendarEventId === undefined || slot.calendarEventId === null ? null : slot.calendarEventId,
+    bookingCalendarId:
+      slot.bookingCalendarId === undefined || slot.bookingCalendarId === null ? null : slot.bookingCalendarId,
+    bookingAccountId:
+      slot.bookingAccountId === undefined || slot.bookingAccountId === null ? null : slot.bookingAccountId,
+    bookedByUid: slot.bookedByUid,
+    meetingUrl: slot.meetingUrl ?? null,
+    meetingProvider: slot.meetingProvider ?? null,
   };
 }
 
@@ -1061,6 +1072,17 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
           slot.calendarEventId === undefined || slot.calendarEventId === null
             ? null
             : slot.calendarEventId,
+        bookingCalendarId:
+          slot.bookingCalendarId === undefined || slot.bookingCalendarId === null
+            ? null
+            : slot.bookingCalendarId,
+        bookingAccountId:
+          slot.bookingAccountId === undefined || slot.bookingAccountId === null
+            ? null
+            : slot.bookingAccountId,
+        bookedByUid: slot.bookedByUid,
+        meetingUrl: slot.meetingUrl ?? null,
+        meetingProvider: slot.meetingProvider ?? null,
       };
       const prev = todo.scheduledSlot;
       if (

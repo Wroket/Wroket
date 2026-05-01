@@ -270,6 +270,23 @@ async function fetchEvents(
 /** Shown in Google Calendar (and mirrored in Wroket agenda). */
 export const WROKET_CALENDAR_BOOKING_NOTE = "Booked from Wroket";
 
+export function mapGoogleMeetCreateError(raw: string): string {
+  const msg = raw.toLowerCase();
+  if (msg.includes("forbiddenfornonorganizer")) {
+    return "Google refuse l'invitation des invités externes pour ce calendrier. Vérifiez la politique de partage de votre Google Workspace.";
+  }
+  if (msg.includes("insufficient") || msg.includes("\"code\":403") || msg.includes("not have permission")) {
+    return "Permissions Google Calendar insuffisantes pour créer la réunion sur ce calendrier.";
+  }
+  if (msg.includes("invalid attendees") || msg.includes("attendees")) {
+    return "Google a rejeté un ou plusieurs invités. Vérifiez les emails saisis.";
+  }
+  if (msg.includes("\"code\":404") || msg.includes("not found")) {
+    return "Calendrier Google introuvable. Vérifiez votre calendrier par défaut dans Mes Agendas.";
+  }
+  return "Erreur Google Calendar lors de la création de la réunion.";
+}
+
 /**
  * Create an event on Google Calendar.
  */
@@ -396,6 +413,7 @@ export async function createGoogleMeetEvent(
 
     if (!res.ok) {
       const details = await res.text().catch(() => "");
+      console.error("[meet_create_error]", JSON.stringify({ uid, calendarId, status: res.status, details }));
       throw new Error(`Google Meet create failed (${res.status}) on calendar ${calendarId}: ${details || "no details"}`);
     }
     const data = await res.json() as {
@@ -413,8 +431,10 @@ export async function createGoogleMeetEvent(
       videoEntry?.uri ?? data.conferenceData?.hangoutLink ?? null;
 
     if (!data.id || !meetingUrl) return null;
+    console.info("[meet_create_ok]", JSON.stringify({ uid, calendarId, eventId: data.id, hasAttendees: Array.isArray(attendees) && attendees.length > 0 }));
     return { eventId: data.id, meetingUrl };
-  } catch {
+  } catch (err) {
+    if (err instanceof Error) throw err;
     return null;
   }
 }
@@ -432,8 +452,15 @@ export async function patchGoogleCalendarEvent(
   timezone?: string,
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
   calendarId: string = "primary",
+  accountId?: string,
 ): Promise<boolean> {
-  const accessToken = await getValidAccessToken(uid);
+  let accessToken: string | null = null;
+  if (accountId) {
+    accessToken = await getValidAccessTokenForAccount(uid, accountId);
+  }
+  if (!accessToken) {
+    accessToken = await getValidAccessToken(uid);
+  }
   if (!accessToken) return false;
 
   const tz = timezone || "UTC";
@@ -455,7 +482,13 @@ export async function patchGoogleCalendarEvent(
         }),
       },
     );
-    return res.ok;
+    if (!res.ok) {
+      const details = await res.text().catch(() => "");
+      console.error("[meet_patch_error]", JSON.stringify({ uid, eventId, calendarId, status: res.status, details }));
+      return false;
+    }
+    console.info("[meet_patch_ok]", JSON.stringify({ uid, eventId, calendarId }));
+    return true;
   } catch {
     return false;
   }
@@ -468,8 +501,15 @@ export async function deleteGoogleCalendarEvent(
   uid: string,
   eventId: string,
   calendarId: string = "primary",
+  accountId?: string,
 ): Promise<boolean> {
-  const accessToken = await getValidAccessToken(uid);
+  let accessToken: string | null = null;
+  if (accountId) {
+    accessToken = await getValidAccessTokenForAccount(uid, accountId);
+  }
+  if (!accessToken) {
+    accessToken = await getValidAccessToken(uid);
+  }
   if (!accessToken) return false;
 
   try {
@@ -480,6 +520,10 @@ export async function deleteGoogleCalendarEvent(
         headers: { Authorization: `Bearer ${accessToken}` },
       },
     );
+    if (!res.ok && res.status !== 404) {
+      const details = await res.text().catch(() => "");
+      console.error("[meet_delete_error]", JSON.stringify({ uid, eventId, calendarId, status: res.status, details }));
+    }
     return res.ok || res.status === 404;
   } catch {
     return false;
@@ -493,6 +537,8 @@ export async function deleteGoogleCalendarEvent(
 export async function deleteGoogleCalendarEventForTodo(todo: Todo): Promise<void> {
   const eventId = todo.scheduledSlot?.calendarEventId;
   if (!eventId) return;
+  const calendarId = todo.scheduledSlot?.bookingCalendarId ?? "primary";
+  const bookingAccountId = todo.scheduledSlot?.bookingAccountId ?? undefined;
   const booked = todo.scheduledSlot?.bookedByUid;
   const candidates = [booked, todo.userId, todo.assignedTo].filter(
     (u): u is string => typeof u === "string" && u.length > 0
@@ -501,7 +547,7 @@ export async function deleteGoogleCalendarEventForTodo(todo: Todo): Promise<void
   for (const uid of candidates) {
     if (seen.has(uid)) continue;
     seen.add(uid);
-    const ok = await deleteGoogleCalendarEvent(uid, eventId);
+    const ok = await deleteGoogleCalendarEvent(uid, eventId, calendarId, bookingAccountId);
     if (ok) return;
   }
 }

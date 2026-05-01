@@ -97,9 +97,66 @@ function applySortOrderPatchToList(list: Todo[], orderedIds: string[]): Todo[] {
   return updated;
 }
 
+function getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const offsetPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT+0";
+  const match = offsetPart.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) return 0;
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number(match[2] ?? "0");
+  const minutes = Number(match[3] ?? "0");
+  return sign * (hours * 60 + minutes);
+}
+
+function formatIsoForDateTimeInputInZone(iso: string, timeZone: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const byType = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${byType("year")}-${byType("month")}-${byType("day")}T${byType("hour")}:${byType("minute")}`;
+}
+
+function wallTimeInZoneToIso(value: string, timeZone: string): string {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return new Date(value).toISOString();
+  const [, y, mo, d, h, mi] = match;
+  const utcGuess = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), 0, 0));
+  const offsetMinutes = getTimeZoneOffsetMinutes(utcGuess, timeZone);
+  const ts = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), 0, 0) - offsetMinutes * 60_000;
+  return new Date(ts).toISOString();
+}
+
+function mapMeetErrorToMessageKey(message: string): TranslationKey {
+  const msg = message.toLowerCase();
+  if (msg.includes("connectez") || msg.includes("non connecté") || msg.includes("connect")) return "meet.errorNoGoogle";
+  if (msg.includes("invités externes") || msg.includes("forbiddenfornonorganizer")) return "meet.errorExternalInvitePolicy";
+  if (msg.includes("permissions google calendar insuffisantes") || msg.includes("permissions")) return "meet.errorPermissions";
+  if (msg.includes("calendrier google introuvable") || msg.includes("calendrier par défaut")) return "meet.errorDefaultCalendar";
+  if (msg.includes("rejeté un ou plusieurs invités") || msg.includes("email invalide")) return "meet.errorInvitees";
+  return "meet.error";
+}
+
 export default function TodosPage() {
   const { t } = useLocale();
   const { user } = useAuth();
+  const userTimeZone = user?.workingHours?.timezone ?? "UTC";
   const router = useRouter();
   const searchParams = useSearchParams();
   const meUid = user?.uid ?? null;
@@ -641,7 +698,7 @@ export default function TodosPage() {
       const startDate = new Date(todo.scheduledSlot.start);
       const endDate = new Date(todo.scheduledSlot.end);
       const durationMin = Math.max(15, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
-      setMeetStart(todo.scheduledSlot.start.slice(0, 16));
+      setMeetStart(formatIsoForDateTimeInputInZone(todo.scheduledSlot.start, userTimeZone));
       setMeetDuration(durationMin);
       return;
     }
@@ -655,23 +712,23 @@ export default function TodosPage() {
         const start = slots[0]!.start;
         const end = slots[0]!.end;
         const durationMin = Math.max(15, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
-        setMeetStart(start.slice(0, 16));
+        setMeetStart(formatIsoForDateTimeInputInZone(start, userTimeZone));
         setMeetDuration(durationMin);
       } else {
         const now = new Date();
         const rounded = new Date(now.getTime() + 15 * 60000 - (now.getTime() % (15 * 60000)));
-        setMeetStart(rounded.toISOString().slice(0, 16));
+        setMeetStart(formatIsoForDateTimeInputInZone(rounded.toISOString(), userTimeZone));
         setMeetDuration(60);
       }
     } catch {
       const now = new Date();
       const rounded = new Date(now.getTime() + 15 * 60000 - (now.getTime() % (15 * 60000)));
-      setMeetStart(rounded.toISOString().slice(0, 16));
+      setMeetStart(formatIsoForDateTimeInputInZone(rounded.toISOString(), userTimeZone));
       setMeetDuration(60);
     } finally {
       setMeetSlotLoading(false);
     }
-  }, []);
+  }, [userTimeZone]);
 
   const closeMeetOptions = useCallback(() => {
     setMeetOptionsTodo(null);
@@ -690,8 +747,8 @@ export default function TodosPage() {
     if (!meetOptionsTodo || !meetStart) return;
     setMeetLoadingId(meetOptionsTodo.id);
     try {
-      const startIso = new Date(meetStart).toISOString();
-      const endIso = new Date(new Date(meetStart).getTime() + meetDuration * 60000).toISOString();
+      const startIso = wallTimeInZoneToIso(meetStart, userTimeZone);
+      const endIso = new Date(new Date(startIso).getTime() + meetDuration * 60000).toISOString();
       const updated = await createTaskMeet(meetOptionsTodo.id, {
         start: startIso,
         end: endIso,
@@ -708,11 +765,11 @@ export default function TodosPage() {
       closeMeetOptions();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
-      toast.error(msg.toLowerCase().includes("connect") ? t("meet.errorNoGoogle") : t("meet.error"));
+      toast.error(t(mapMeetErrorToMessageKey(msg)));
     } finally {
       setMeetLoadingId(null);
     }
-  }, [meetOptionsTodo, meetStart, meetDuration, meetInvitees, meetSummary, meetDescription, replaceTodoInLists, toast, t, closeMeetOptions]);
+  }, [meetOptionsTodo, meetStart, meetDuration, meetInvitees, meetSummary, meetDescription, replaceTodoInLists, toast, t, closeMeetOptions, userTimeZone]);
 
   const handleReorder = useCallback(async (orderedIds: string[]) => {
     try {
@@ -1694,7 +1751,7 @@ export default function TodosPage() {
                             type="button"
                             onClick={() => {
                               const durationMin = Math.max(15, Math.round((new Date(slot.end).getTime() - new Date(slot.start).getTime()) / 60000));
-                              setMeetStart(slot.start.slice(0, 16));
+                              setMeetStart(formatIsoForDateTimeInputInZone(slot.start, userTimeZone));
                               setMeetDuration(durationMin);
                             }}
                             className="text-xs rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"

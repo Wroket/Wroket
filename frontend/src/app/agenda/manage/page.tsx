@@ -90,16 +90,17 @@ export default function ManageCalendarsPage() {
   const setDefaultBookingCalendar = (accountId: string, calendarId: string) => {
     setAccounts((prev) =>
       prev.map((a) =>
-        a.id === accountId
-          ? {
-              ...a,
-              cals: a.cals?.map((c) => ({
-                ...c,
-                enabled: c.calendarId === calendarId ? true : c.enabled,
-                defaultForBooking: c.calendarId === calendarId && c.canWriteBooking !== false,
-              })),
-            }
-          : a,
+        ({
+          ...a,
+          cals: a.cals?.map((c) => {
+            const selected = a.id === accountId && c.calendarId === calendarId;
+            return {
+              ...c,
+              enabled: selected ? true : c.enabled,
+              defaultForBooking: selected && c.canWriteBooking !== false,
+            };
+          }),
+        })
       ),
     );
   };
@@ -196,7 +197,7 @@ export default function ManageCalendarsPage() {
                           <label className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-slate-400 cursor-pointer">
                             <input
                               type="radio"
-                              name={`booking-default-${account.id}`}
+                              name="booking-default-global"
                               checked={!!cal.defaultForBooking}
                               onChange={() => setDefaultBookingCalendar(account.id, cal.calendarId)}
                               disabled={cal.canWriteBooking === false}

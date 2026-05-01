@@ -37,6 +37,7 @@ import {
   deleteGoogleCalendarEvent,
   deleteGoogleCalendarEventForTodo,
   patchGoogleCalendarEvent,
+  mapGoogleMeetCreateError,
 } from "../services/googleCalendarService";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 
@@ -61,6 +62,7 @@ interface WroketEvent {
   deadline: string | null;
   recurring?: boolean;
   delegated?: boolean;
+  meetingUrl?: string | null;
 }
 
 const MAX_EMITTED = 200;
@@ -100,6 +102,7 @@ function pushRecurrences(
       effort: t.effort,
       deadline: t.deadline,
       recurring: true,
+      meetingUrl: t.scheduledSlot?.meetingUrl ?? null,
     });
     emitted++;
   }
@@ -179,6 +182,7 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
 interface ConflictInfo { id: string; title: string; start: string; end: string }
 
 const MAX_CONFLICT_CALENDAR_FETCHES = 10;
+const meetCreationInFlight = new Map<string, Promise<Todo>>();
 
 async function findConflicts(uid: string, todoId: string, start: Date, end: Date): Promise<ConflictInfo[]> {
   const conflicts: ConflictInfo[] = [];
@@ -260,14 +264,19 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   }
 
   let calendarEventId: string | null = null;
+  let bookingCalendarId: string | null = null;
+  let bookingAccountId: string | null = null;
   const tokens = getGoogleCalendarTokens(uid);
   if (tokens) {
     const user = findUserByUid(uid);
     const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
     const bookingTarget = getGoogleBookingTarget(uid);
-    const bookingCalendarId = bookingTarget?.calendarId ?? "primary";
+    bookingCalendarId = bookingTarget?.calendarId ?? "primary";
+    bookingAccountId = bookingTarget?.accountId ?? null;
     const existingEventId = todo.scheduledSlot?.calendarEventId ?? null;
     if (existingEventId) {
+      const existingBookingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? bookingCalendarId;
+      const existingBookingAccountId = todo.scheduledSlot?.bookingAccountId ?? bookingAccountId;
       const patched = await patchGoogleCalendarEvent(
         uid,
         existingEventId,
@@ -276,21 +285,31 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
         end,
         tz,
         undefined,
-        bookingCalendarId,
+        existingBookingCalendarId,
+        existingBookingAccountId ?? undefined,
       );
       if (patched) {
         calendarEventId = existingEventId;
+        bookingCalendarId = existingBookingCalendarId;
+        bookingAccountId = existingBookingAccountId;
       } else {
-        await deleteGoogleCalendarEvent(uid, existingEventId, bookingCalendarId);
-        calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
+        await deleteGoogleCalendarEvent(uid, existingEventId, existingBookingCalendarId, existingBookingAccountId ?? undefined);
+        calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz, undefined, bookingTarget ?? undefined);
       }
     } else {
-      calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz);
+      calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz, undefined, bookingTarget ?? undefined);
     }
   }
 
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
-    scheduledSlot: { start, end, calendarEventId, bookedByUid: uid },
+    scheduledSlot: {
+      start,
+      end,
+      calendarEventId,
+      bookedByUid: uid,
+      bookingCalendarId,
+      bookingAccountId,
+    },
   });
 
   res.status(200).json(todoToClientJson(updated));
@@ -400,6 +419,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       start: t.scheduledSlot.start, end: t.scheduledSlot.end,
       allDay: false, source: "wroket",
       priority: t.priority, effort: t.effort, deadline: t.deadline,
+      meetingUrl: t.scheduledSlot.meetingUrl ?? null,
     });
 
     if (t.recurrence) {
@@ -418,6 +438,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       allDay: false, source: "wroket",
       priority: t.priority, effort: t.effort, deadline: t.deadline,
       delegated: true,
+      meetingUrl: t.scheduledSlot.meetingUrl ?? null,
     });
 
     if (t.recurrence) {
@@ -488,7 +509,7 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
     label: cal.summary,
     color: cal.backgroundColor,
     enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : !!cal.primary,
-    defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : !!cal.primary,
+    defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : false,
     canWriteBooking: savedMap.has(cal.id) ? savedMap.get(cal.id)!.canWriteBooking !== false : !!cal.canWriteBooking,
     primary: cal.primary ?? false,
   }));
@@ -546,6 +567,17 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
 
   const user = findUserByUid(uid);
   const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+  const lockKey = `${uid}:${todoId}`;
+
+  const currentInFlight = meetCreationInFlight.get(lockKey);
+  if (currentInFlight) {
+    await currentInFlight.catch(() => null);
+    const latest = findTodoForUser(uid, todoId);
+    if (latest?.todo.scheduledSlot?.meetingUrl) {
+      res.status(200).json(todoToClientJson(latest.todo));
+      return;
+    }
+  }
 
   const body = (req.body ?? {}) as {
     start?: string;
@@ -593,36 +625,53 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const slotStart = requestStart ?? existingStart ?? now.toISOString();
   const slotEnd = requestEnd ?? existingEnd ?? new Date(now.getTime() + 60 * 60 * 1000).toISOString();
 
-  // Delete any existing plain calendar event before replacing with Meet one.
-  const existingEventId = todo.scheduledSlot?.calendarEventId;
-  if (existingEventId) {
+  const runCreation = async (): Promise<Todo> => {
+    // Delete any existing plain calendar event before replacing with Meet one.
+    const existingEventId = todo.scheduledSlot?.calendarEventId;
+    if (existingEventId) {
+      const existingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? getGoogleBookingTarget(uid)?.calendarId ?? "primary";
+      const existingAccountId = todo.scheduledSlot?.bookingAccountId ?? getGoogleBookingTarget(uid)?.accountId;
+      await deleteGoogleCalendarEvent(uid, existingEventId, existingCalendarId, existingAccountId).catch(() => null);
+    }
+
     const bookingTarget = getGoogleBookingTarget(uid);
-    await deleteGoogleCalendarEvent(uid, existingEventId, bookingTarget?.calendarId ?? "primary").catch(() => null);
-  }
+    let result: { eventId: string; meetingUrl: string } | null = null;
+    try {
+      result = await createGoogleMeetEvent(uid, summary, slotStart, slotEnd, tz, description, attendees, bookingTarget ?? undefined);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "Erreur inconnue Google Calendar";
+      const mapped = mapGoogleMeetCreateError(raw);
+      console.error("[meet_create_controller_error]", JSON.stringify({ uid, todoId, raw }));
+      throw new ValidationError(`Impossible de créer la réunion Google Meet. ${mapped}`);
+    }
+    if (!result) {
+      throw new ValidationError("Impossible de créer la réunion Google Meet. Vérifiez les permissions d'écriture du calendrier par défaut.");
+    }
 
-  let result: { eventId: string; meetingUrl: string } | null = null;
+    const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
+      scheduledSlot: {
+        start: slotStart,
+        end: slotEnd,
+        calendarEventId: result.eventId,
+        bookedByUid: uid,
+        bookingCalendarId: bookingTarget?.calendarId ?? "primary",
+        bookingAccountId: bookingTarget?.accountId ?? null,
+        meetingUrl: result.meetingUrl,
+        meetingProvider: "google-meet",
+      },
+    });
+    console.info("[meet_create_controller_ok]", JSON.stringify({ uid, todoId, eventId: result.eventId, bookingTarget }));
+    return updated;
+  };
+
+  const op = runCreation();
+  meetCreationInFlight.set(lockKey, op);
   try {
-    result = await createGoogleMeetEvent(uid, summary, slotStart, slotEnd, tz, description, attendees);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur inconnue Google Calendar";
-    throw new ValidationError(`Impossible de créer la réunion Google Meet. ${message}`);
+    const updated = await op;
+    res.status(200).json(todoToClientJson(updated));
+  } finally {
+    meetCreationInFlight.delete(lockKey);
   }
-  if (!result) {
-    throw new ValidationError("Impossible de créer la réunion Google Meet. Vérifiez les permissions d'écriture du calendrier par défaut.");
-  }
-
-  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
-    scheduledSlot: {
-      start: slotStart,
-      end: slotEnd,
-      calendarEventId: result.eventId,
-      bookedByUid: uid,
-      meetingUrl: result.meetingUrl,
-      meetingProvider: "google-meet",
-    },
-  });
-
-  res.status(200).json(todoToClientJson(updated));
 }
 
 /**
@@ -648,6 +697,8 @@ export async function clearMeet(req: AuthenticatedRequest, res: Response) {
       ? {
           ...todo.scheduledSlot,
           calendarEventId: null,
+          bookingCalendarId: null,
+          bookingAccountId: null,
           meetingUrl: null,
           meetingProvider: null,
         }

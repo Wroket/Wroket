@@ -9,6 +9,7 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   source: "wroket" | "google";
+  meetingUrl?: string | null;
   priority?: string;
   effort?: string;
   deadline?: string | null;
