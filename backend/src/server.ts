@@ -21,6 +21,10 @@ async function shutdown(signal: string): Promise<void> {
     const { stopReminderJob } = await import("./services/reminderService");
     stopReminderJob();
   } catch { /* not started yet */ }
+  try {
+    const { stopTodosDriftMonitor } = await import("./services/todosDriftMonitor");
+    stopTodosDriftMonitor();
+  } catch { /* not started yet */ }
 
   try {
     await flushNow();
@@ -36,6 +40,8 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 
 async function main(): Promise<void> {
   await initStore();
+  const { hydrateTodosFromV2IfNeeded } = await import("./services/todoService");
+  await hydrateTodosFromV2IfNeeded();
 
   if (process.env.NODE_ENV === "production" && !process.env.OAUTH_STATE_SECRET?.trim()) {
     console.error("[server] OAUTH_STATE_SECRET is required in production (Calendar OAuth + Google SSO state signing)");
@@ -55,10 +61,12 @@ async function main(): Promise<void> {
 
   const { default: app } = await import("./app");
   const { startReminderJob } = await import("./services/reminderService");
+  const { startTodosDriftMonitor } = await import("./services/todosDriftMonitor");
 
   server = app.listen(port, () => {
     console.log(`[server] Backend listening on port ${port}`);
     startReminderJob();
+    startTodosDriftMonitor();
   });
 }
 

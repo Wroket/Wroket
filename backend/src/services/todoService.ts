@@ -6,6 +6,7 @@ import { purgeAttachmentsForTodoIds } from "./attachmentService";
 import { removeCommentsForTodos } from "./commentService";
 import { detachNotesFromTodoIds } from "./noteService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
+import { syncOwnerTodosV2, loadAllTodosV2ByOwner } from "./todoDocStore";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
@@ -196,6 +197,8 @@ export function calculateNextDueDate(
 const todosByUser = new Map<string, Map<string, Todo>>();
 /** Reverse index: todoId → ownerUserId for O(1) cross-user lookup */
 const ownerIndex = new Map<string, string>();
+const TODOS_STORAGE_MODE = (process.env.TODOS_STORAGE_MODE?.trim().toLowerCase() ?? "legacy") as "legacy" | "dual" | "v2";
+console.log("[todos] storage mode: %s", TODOS_STORAGE_MODE);
 
 export function getTodoStoreOwnerId(todoId: string): string | undefined {
   return ownerIndex.get(todoId);
@@ -250,15 +253,29 @@ async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
     obj[userId] = {};
     todos.forEach((todo, id) => { obj[userId][id] = todoToPersisted(todo); });
   });
-  const store = getStore();
-  store.todos = obj;
-  if (ownerUidsForShards.length === 0) {
-    scheduleTodoShardPersist("all");
-  } else {
-    const shardIndices = [...new Set(ownerUidsForShards.map((uid) => todoShardIndex(uid)))];
-    scheduleTodoShardPersist(shardIndices);
+  if (TODOS_STORAGE_MODE !== "v2") {
+    const store = getStore();
+    store.todos = obj;
+    if (ownerUidsForShards.length === 0) {
+      scheduleTodoShardPersist("all");
+    } else {
+      const shardIndices = [...new Set(ownerUidsForShards.map((uid) => todoShardIndex(uid)))];
+      scheduleTodoShardPersist(shardIndices);
+    }
+    await flushNow();
   }
-  await flushNow();
+  if (TODOS_STORAGE_MODE !== "legacy") {
+    const owners = ownerUidsForShards.length === 0 ? [...todosByUser.keys()] : [...new Set(ownerUidsForShards)];
+    for (const ownerUid of owners) {
+      const ownerTodos = todosByUser.get(ownerUid);
+      if (!ownerTodos) continue;
+      const docs = [...ownerTodos.values()].map((todo) => ({
+        ...todoToPersisted(todo),
+        ownerUid,
+      }));
+      await syncOwnerTodosV2(ownerUid, docs);
+    }
+  }
 }
 
 (function hydrateTodos() {
@@ -320,6 +337,30 @@ async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
     console.log("[todos] %d tâche(s) chargée(s) depuis le fichier local", count);
   }
 })();
+
+export async function hydrateTodosFromV2IfNeeded(): Promise<void> {
+  if (TODOS_STORAGE_MODE !== "v2") return;
+  const fromV2 = await loadAllTodosV2ByOwner();
+  if (Object.keys(fromV2).length === 0) {
+    console.warn("[todos] v2 mode enabled but no docs found in todos_v2");
+    return;
+  }
+
+  todosByUser.clear();
+  ownerIndex.clear();
+  let count = 0;
+  for (const [userId, todos] of Object.entries(fromV2)) {
+    const map = new Map<string, Todo>();
+    for (const [id, row] of Object.entries(todos)) {
+      const todo = row as unknown as Todo;
+      map.set(id, todo);
+      ownerIndex.set(id, userId);
+      count++;
+    }
+    todosByUser.set(userId, map);
+  }
+  console.log("[todos] hydrated %d todo(s) from todos_v2", count);
+}
 
 function getUserTodos(userId: string): Map<string, Todo> {
   let todos = todosByUser.get(userId);
@@ -1112,4 +1153,9 @@ export async function deleteTodo(userId: string, todoId: string): Promise<Todo> 
   todos.set(todoId, todo);
   await persistTodos(userId);
   return todo;
+}
+
+/** Operational helper used by migration scripts to sync all in-memory todos to configured stores. */
+export async function syncAllTodosToConfiguredStores(): Promise<void> {
+  await persistTodos();
 }
