@@ -60,6 +60,7 @@ export interface CreateTodoPayload {
   phaseId?: string | null;
   assignedTo?: string | null;
   recurrence?: Recurrence | null;
+  sortOrder?: number | null;
 }
 
 export interface UpdateTodoPayload {

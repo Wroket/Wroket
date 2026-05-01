@@ -252,9 +252,19 @@ export default function SortableTaskRow({
       {expanded.has(todo.id) && subs.length > 0 && (
         <SubtaskSortableRows
           subs={subs}
+          meUid={meUid}
           onComplete={onComplete}
           onCancel={onCancel}
           onDelete={onDelete}
+          onEdit={onEdit}
+          onDecline={onDecline}
+          onAccept={onAccept}
+          onScheduleUpdate={onScheduleUpdate}
+          onMeet={onMeet}
+          meetLoadingId={meetLoadingId}
+          onCreateNote={onCreateNote}
+          commentCounts={commentCounts}
+          projects={projects}
           onReorderSubtasks={onReorderSubtasks}
         />
       )}

@@ -123,7 +123,7 @@ export default function TaskIconToolbar({
           </svg>
         </button>
       )}
-      {!todo.parentId && onScheduleUpdate && (
+      {onScheduleUpdate && (
         <span onClick={isolatePointerEvents ? (e) => e.stopPropagation() : undefined}>
           <SlotPicker
             todoId={todo.id}
@@ -206,7 +206,7 @@ export default function TaskIconToolbar({
           </svg>
         </button>
       )}
-      {!todo.parentId && onMeet && (
+      {onMeet && (
         <button
           type="button"
           onClick={wrap(() => onMeet(todo))}

@@ -115,7 +115,7 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
-  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags } = req.body as Partial<CreateTodoInput>;
+  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags, sortOrder } = req.body as Partial<CreateTodoInput>;
   if (typeof title !== "string" || typeof priority !== "string") {
     throw new ValidationError("Titre et priorité requis (chaînes)");
   }
@@ -136,6 +136,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     assignedTo,
     recurrence,
     tags,
+    sortOrder,
   });
   try {
     logActivity(req.user!.uid, req.user!.email ?? "", "create", "todo", todo.id, { todoId: todo.id, title: todo.title });

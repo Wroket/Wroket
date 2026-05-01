@@ -111,9 +111,10 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
   const total = noteAtts.length + taskAtts.length;
 
   return (
-    <div className="border-t border-zinc-100 dark:border-slate-800 px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-zinc-500 dark:text-slate-400">
+    <div className="border-t border-zinc-200 dark:border-slate-700 px-4 py-3 bg-zinc-50/70 dark:bg-slate-900/70">
+      <div className="rounded-lg border border-emerald-200/80 dark:border-emerald-900/60 bg-white dark:bg-slate-900 shadow-sm px-3 py-2.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-xs font-semibold text-zinc-700 dark:text-slate-200 tracking-wide">
           {t("notes.attachments")} {total > 0 ? `(${total})` : ""}
         </span>
         {isOwner && (
@@ -122,7 +123,7 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1 text-xs text-zinc-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -141,23 +142,25 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
       </div>
 
       {uploading && (
-        <div className="mb-2">
-          <div className="h-1 bg-zinc-100 dark:bg-slate-700 rounded-full overflow-hidden">
+        <div className="mb-2.5 rounded-md border border-zinc-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 p-2">
+          <div className="h-1.5 bg-zinc-200 dark:bg-slate-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-slate-500 dark:bg-slate-400 rounded-full transition-all"
+              className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all"
               style={{ width: `${uploadPct}%` }}
             />
           </div>
-          <p className="text-[10px] text-zinc-400 mt-0.5">{t("notes.attachUploading")} {uploadPct}%</p>
+          <p className="text-[10px] text-zinc-500 dark:text-slate-400 mt-1">{t("notes.attachUploading")} {uploadPct}%</p>
         </div>
       )}
 
       {error && (
-        <p className="text-xs text-red-500 mb-2">{error}</p>
+        <p className="text-xs text-red-600 dark:text-red-400 mb-2 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-2 py-1">{error}</p>
       )}
 
       {total === 0 && !uploading && (
-        <p className="text-xs text-zinc-300 dark:text-slate-600">{t("notes.attachNone")}</p>
+        <p className="text-xs text-zinc-600 dark:text-slate-400 rounded-md border border-dashed border-zinc-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 px-2.5 py-2">
+          {t("notes.attachNone")}
+        </p>
       )}
 
       <ul className="space-y-1">
@@ -207,6 +210,7 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
           </li>
         ))}
       </ul>
+      </div>
     </div>
   );
 }

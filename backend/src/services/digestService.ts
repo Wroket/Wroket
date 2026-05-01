@@ -94,7 +94,7 @@ function localHour(date: Date, timezone: string): number {
 
 function buildDigestEmailHtml(entries: DigestEntry[]): string {
   const frontendUrl = process.env.FRONTEND_URL || "https://wroket.com";
-  const logoUrl = `${frontendUrl}/wroket-logo.png`;
+  const lockupUrl = `${frontendUrl}/brand/wroket-lockup-neutral-email.svg`;
   const rows = entries
     .map((e) => {
       const link = e.data?.todoId
@@ -112,7 +112,7 @@ function buildDigestEmailHtml(entries: DigestEntry[]): string {
     .join("");
   return `<div style="font-family:sans-serif;max-width:540px;margin:0 auto">
     <div style="text-align:center;padding:24px 0 16px">
-      <img src="${logoUrl}" alt="Wroket" width="48" height="48" style="display:inline-block" />
+      <img src="${lockupUrl}" alt="Wroket" width="180" height="54" style="display:inline-block;max-width:100%;height:auto" />
     </div>
     <h2 style="color:#334155;text-align:center;font-size:16px;margin:0 0 16px">Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}</h2>
     <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">${rows}</table>

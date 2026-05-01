@@ -8,11 +8,9 @@ import AppShell from "@/components/AppShell";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
 import PageHelpButton from "@/components/PageHelpButton";
-import SlashCommandMenu from "@/components/SlashCommandMenu";
-import type { SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, getTodos, createTodo, lookupUser, getTeams, getMe } from "@/lib/api";
+import { getProjects, getTodos, getTeams, getMe } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 
 function NotesPageInner() {
@@ -29,7 +27,7 @@ function NotesPageInner() {
   const [currentUid, setCurrentUid] = useState<string | null>(null);
   const [collabEmailInput, setCollabEmailInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
-  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
   useEffect(() => {
@@ -44,11 +42,14 @@ function NotesPageInner() {
   // has a non-empty userId belonging to someone else. New notes have userId="" until synced.
   const isSharedNote = !!(selected && currentUid && selected.userId && selected.userId !== currentUid);
 
+  const stripHtml = (value: string): string =>
+    value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
   const filtered = search
     ? notes.filter((n) => {
         const q = search.toLowerCase();
         return n.title.toLowerCase().includes(q) ||
-          n.content.toLowerCase().includes(q) ||
+          stripHtml(n.content).toLowerCase().includes(q) ||
           (n.tags ?? []).some((tag) => tag.toLowerCase().includes(q));
       })
     : notes;
@@ -155,20 +156,18 @@ function NotesPageInner() {
     saveNote(selectedId, { tags: current.filter((t) => t !== tag) });
   }, [selectedId, selected, saveNote]);
 
-  const handleSlashCreateTask = useCallback(async (payload: SlashTaskPayload) => {
-    let assignedToUid: string | undefined;
-    if (payload.assignedTo) {
-      const user = await lookupUser(payload.assignedTo);
-      if (user) assignedToUid = user.uid;
+  const handleEditorInput = useCallback(() => {
+    if (!selectedId || !contentRef.current || isSharedNote) return;
+    handleContentChange(contentRef.current.innerHTML);
+  }, [selectedId, isSharedNote, handleContentChange]);
+
+  useEffect(() => {
+    if (!contentRef.current || !selected) return;
+    const current = contentRef.current.innerHTML;
+    if (current !== selected.content) {
+      contentRef.current.innerHTML = selected.content || "";
     }
-    await createTodo({
-      title: payload.title,
-      priority: payload.priority,
-      deadline: payload.deadline ?? null,
-      projectId: payload.projectId ?? null,
-      assignedTo: assignedToUid ?? null,
-    });
-  }, []);
+  }, [selected?.id, selected?.content]);
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -257,7 +256,7 @@ function NotesPageInner() {
                       </p>
                     </div>
                     <p className="text-[11px] text-zinc-400 dark:text-slate-500 truncate mt-0.5 leading-relaxed">
-                      {note.content.slice(0, 80) || "..."}
+                      {stripHtml(note.content).slice(0, 80) || "..."}
                     </p>
                     {(note.tags?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-0.5 mt-1">
@@ -538,32 +537,22 @@ function NotesPageInner() {
               {/* Formatting toolbar */}
               {!isSharedNote && (
                 <NoteToolbar
-                  textareaRef={contentRef}
-                  content={selected.content}
-                  onContentChange={handleContentChange}
+                  editorRef={contentRef}
                 />
               )}
 
               {/* Content area */}
               <div className="flex-1 overflow-y-auto relative">
-                <textarea
+                <div
                   ref={contentRef}
-                  value={selected.content}
-                  onChange={(e) => !isSharedNote && handleContentChange(e.target.value)}
-                  readOnly={isSharedNote}
-                  placeholder={isSharedNote ? undefined : t("notes.contentPlaceholder")}
-                  className={`w-full h-full resize-none px-6 py-4 text-sm text-zinc-800 dark:text-slate-200 bg-white dark:bg-slate-900 border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 leading-relaxed font-mono ${isSharedNote ? "cursor-default" : ""}`}
-                  spellCheck={!isSharedNote}
+                  contentEditable={!isSharedNote}
+                  suppressContentEditableWarning
+                  onInput={handleEditorInput}
+                  data-placeholder={isSharedNote ? "" : t("notes.contentPlaceholder")}
+                  className={`w-full h-full px-6 py-4 text-sm text-zinc-800 dark:text-slate-200 bg-white dark:bg-slate-900 border-none outline-none leading-relaxed overflow-y-auto ${
+                    isSharedNote ? "cursor-default" : ""
+                  }`}
                 />
-                {!isSharedNote && (
-                  <SlashCommandMenu
-                    textareaRef={contentRef}
-                    content={selected.content}
-                    onContentChange={handleContentChange}
-                    projects={projects}
-                    onCreateTask={handleSlashCreateTask}
-                  />
-                )}
               </div>
 
               {/* Attachments panel */}
@@ -577,10 +566,7 @@ function NotesPageInner() {
               <div className="px-4 py-1.5 border-t border-zinc-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-zinc-400 dark:text-slate-500 bg-white dark:bg-slate-900 shrink-0">
                 <span>{t("notes.lastModified")} {formatDate(selected.updatedAt)}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-zinc-300 dark:text-slate-600">
-                    <kbd className="font-mono bg-zinc-100 dark:bg-slate-700 px-1 rounded text-[9px]">/</kbd> commandes
-                  </span>
-                  <span>{selected.content.length} car.</span>
+                  <span>{stripHtml(selected.content).length} car.</span>
                 </div>
               </div>
             </>

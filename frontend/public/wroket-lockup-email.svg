@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="96" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
+  <title id="title">Wroket lockup</title>
+  <desc id="desc">Wroket icon and wordmark</desc>
+  <rect x="0" y="0" width="96" height="96" rx="22" fill="#111827"/>
+  <path d="M14 52l16 16 18-24" stroke="#10b981" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M50 52l16 16 18-24" stroke="#4f46e5" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M50 31l2-3" stroke="#10b981" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <path d="M84 31l2-3" stroke="#4f46e5" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <text x="116" y="62" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="44" font-weight="800">
+    <tspan fill="#0f172a">Wro</tspan><tspan fill="#10b981">ket</tspan>
+  </text>
+</svg>

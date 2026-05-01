@@ -74,7 +74,7 @@ export default function ProjectListView({
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createTeamId, setCreateTeamId] = useState<string | null>(null);
-  const [templateId, setTemplateId] = useState<string>("software");
+  const [templateId, setTemplateId] = useState<string>("basic");
   const [creating, setCreating] = useState(false);
 
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
@@ -273,7 +273,7 @@ export default function ProjectListView({
     setCreateName("");
     setCreateDesc("");
     setCreateTeamId(null);
-    setTemplateId("software");
+    setTemplateId("basic");
   }, [createName, createDesc, t]);
 
   const handleCreate = async () => {
@@ -287,20 +287,22 @@ export default function ProjectListView({
         const { createPhase, createTodo } = await import("@/lib/api");
         for (const phaseDef of template.phases) {
           const phase = await createPhase(project.id, { name: phaseDef.name[lang], startDate: null, endDate: null });
-          for (const taskDef of phaseDef.tasks) {
+          for (const [taskIndex, taskDef] of phaseDef.tasks.entries()) {
             const parentTodo = await createTodo({
               title: taskDef.title[lang],
               priority: "medium",
               projectId: project.id,
               phaseId: phase.id,
+              sortOrder: (taskIndex + 1) * 100,
             });
-            for (const subDef of taskDef.subtasks) {
+            for (const [subIndex, subDef] of taskDef.subtasks.entries()) {
               await createTodo({
                 title: subDef.title[lang],
                 priority: "medium",
                 projectId: project.id,
                 phaseId: phase.id,
                 parentId: parentTodo.id,
+                sortOrder: (taskIndex + 1) * 100 + (subIndex + 1),
               });
             }
           }
@@ -312,7 +314,7 @@ export default function ProjectListView({
       setCreateName("");
       setCreateDesc("");
       setCreateTeamId(null);
-      setTemplateId("software");
+      setTemplateId("basic");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally { setCreating(false); }

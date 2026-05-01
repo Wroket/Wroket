@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 
@@ -239,17 +240,6 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
   }
 }
 
-function WroketLogo() {
-  return (
-    <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none">
-      <path d="M2 13l4 4 4.5-6" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11 13l4 4 4.5-6" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12.4 8l0.7-1" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" />
-      <path d="M21.4 8l0.7-1" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function LandingPage() {
   const { t, locale, setLocale } = useLocale();
   const [dark, setDark] = useState(() =>
@@ -274,13 +264,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-zinc-100 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center">
-              <WroketLogo />
-            </div>
-            <span className="text-xl font-bold">
-              <span className="text-slate-800 dark:text-slate-100">Wro</span>
-              <span className="text-emerald-500">ket</span>
-            </span>
+            <WroketLockup theme="auto" />
           </Link>
           <div className="flex items-center gap-3">
             <button
@@ -432,7 +416,7 @@ export default function LandingPage() {
       <section className="py-24">
         <div className="max-w-2xl mx-auto px-6 text-center">
           <div className="w-16 h-16 rounded-2xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-6">
-            <WroketLogo />
+            <WroketMark />
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
             {t("landing.footerTag")}

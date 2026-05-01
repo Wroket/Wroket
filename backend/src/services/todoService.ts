@@ -440,6 +440,57 @@ export function listProjectTodos(projectId: string): Todo[] {
   return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+/**
+ * Ensures every task linked to the project is archived.
+ * Active tasks are moved to "completed"; already archived tasks are left unchanged.
+ */
+export async function archiveTodosByProjectId(projectId: string): Promise<number> {
+  const now = new Date().toISOString();
+  const owners = new Set<string>();
+  let updated = 0;
+  todosByUser.forEach((todos, ownerUid) => {
+    todos.forEach((todo) => {
+      if (todo.projectId !== projectId) return;
+      if (todo.status === "active") {
+        todo.status = "completed";
+        todo.statusChangedAt = now;
+        todo.updatedAt = now;
+        updated++;
+        owners.add(ownerUid);
+      }
+    });
+  });
+  if (owners.size > 0) {
+    await persistTodos(...owners);
+  }
+  return updated;
+}
+
+/**
+ * Soft-delete every task linked to a project (status => deleted).
+ */
+export async function softDeleteTodosByProjectId(projectId: string): Promise<number> {
+  const now = new Date().toISOString();
+  const owners = new Set<string>();
+  let updated = 0;
+  todosByUser.forEach((todos, ownerUid) => {
+    todos.forEach((todo) => {
+      if (todo.projectId !== projectId) return;
+      if (todo.status !== "deleted") {
+        todo.status = "deleted";
+        todo.statusChangedAt = now;
+        todo.updatedAt = now;
+        updated++;
+        owners.add(ownerUid);
+      }
+    });
+  });
+  if (owners.size > 0) {
+    await persistTodos(...owners);
+  }
+  return updated;
+}
+
 /** Internal: bulk project/phase/parent updates (phase→sub-project conversion). */
 export interface TodoPhaseConversionPatch {
   todoId: string;

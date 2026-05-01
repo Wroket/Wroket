@@ -37,6 +37,64 @@ export const TEMPLATE_PHASES: { name: { fr: string; en: string } }[] = [
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
+    id: "basic",
+    label: { fr: "Basique", en: "Basic" },
+    description: {
+      fr: "Phases classiques d'un projet avec structure générique: 3 tâches et 2 sous-tâches par tâche.",
+      en: "Classic project phases with generic structure: 3 tasks and 2 subtasks per task.",
+    },
+    phases: [
+      {
+        name: { fr: "Cadrage", en: "Scoping" },
+        tasks: [
+          { title: { fr: "Tâche 1", en: "Task 1" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 2", en: "Task 2" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 3", en: "Task 3" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+        ],
+      },
+      {
+        name: { fr: "Conception", en: "Design" },
+        tasks: [
+          { title: { fr: "Tâche 1", en: "Task 1" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 2", en: "Task 2" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 3", en: "Task 3" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+        ],
+      },
+      {
+        name: { fr: "Développement", en: "Development" },
+        tasks: [
+          { title: { fr: "Tâche 1", en: "Task 1" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 2", en: "Task 2" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 3", en: "Task 3" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+        ],
+      },
+      {
+        name: { fr: "Tests & QA", en: "Testing & QA" },
+        tasks: [
+          { title: { fr: "Tâche 1", en: "Task 1" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 2", en: "Task 2" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 3", en: "Task 3" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+        ],
+      },
+      {
+        name: { fr: "Déploiement", en: "Deployment" },
+        tasks: [
+          { title: { fr: "Tâche 1", en: "Task 1" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 2", en: "Task 2" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 3", en: "Task 3" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+        ],
+      },
+      {
+        name: { fr: "Clôture", en: "Closure" },
+        tasks: [
+          { title: { fr: "Tâche 1", en: "Task 1" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 2", en: "Task 2" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+          { title: { fr: "Tâche 3", en: "Task 3" }, subtasks: [{ title: { fr: "Sous-tâche 1", en: "Subtask 1" } }, { title: { fr: "Sous-tâche 2", en: "Subtask 2" } }] },
+        ],
+      },
+    ],
+  },
+  {
     id: "software",
     label: { fr: "Projet logiciel", en: "Software project" },
     description: { fr: "Phases classiques : cadrage, conception, dev, QA, déploiement, clôture — avec tâches et sous-tâches exemple.", en: "Classic phases: scoping, design, dev, QA, deployment, closure — with sample tasks and subtasks." },

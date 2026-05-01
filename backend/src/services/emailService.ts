@@ -11,11 +11,11 @@ const FROM_ADDRESS = process.env.EMAIL_FROM || SMTP_USER || "noreply@wroket.com"
 
 let transporter: nodemailer.Transporter | null = null;
 
-const LOGO_URL = `${process.env.FRONTEND_URL || "http://localhost:3000"}/wroket-logo.png`;
+const BRAND_LOCKUP_NEUTRAL_EMAIL_URL = `${process.env.FRONTEND_URL || "http://localhost:3000"}/brand/wroket-lockup-neutral-email.svg`;
 
 function emailHeader(): string {
   return `<div style="text-align:center;padding:24px 0 16px">
-    <img src="${LOGO_URL}" alt="Wroket" width="48" height="48" style="display:inline-block" />
+    <img src="${BRAND_LOCKUP_NEUTRAL_EMAIL_URL}" alt="Wroket" width="180" height="54" style="display:inline-block;max-width:100%;height:auto" />
   </div>`;
 }
 

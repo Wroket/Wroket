@@ -1,31 +1,25 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { useLocale } from "@/lib/LocaleContext";
 
 /**
- * Formatting toolbar for the note textarea.
- * Wraps the current selection with lightweight markdown-style markers.
- * Markers used:
- *   Bold:          **text**
- *   Italic:        _text_
- *   Underline:     __text__
- *   Strikethrough: ~~text~~
- *   Indent:        inserts two spaces at the start of each selected line
+ * Rich text toolbar for the contenteditable note editor.
+ * Applies formatting commands directly to the current selection.
  */
 
 interface NoteToolbarProps {
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  editorRef: React.RefObject<HTMLDivElement | null>;
   disabled?: boolean;
-  onContentChange: (value: string) => void;
-  content: string;
 }
 
 interface FormatAction {
   label: string;
   title: string;
   icon: React.ReactNode;
-  wrap?: [string, string];
-  indent?: boolean;
+  command: string;
+  toggle?: boolean;
 }
 
 function BoldIcon() {
@@ -71,62 +65,51 @@ function IndentIcon() {
   );
 }
 
-export default function NoteToolbar({ textareaRef, disabled, onContentChange, content }: NoteToolbarProps) {
+export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
   const { t } = useLocale();
+  const [active, setActive] = useState<Record<string, boolean>>({});
 
   const actions: FormatAction[] = [
-    { label: "B",    title: t("notes.fmtBold"),          icon: <BoldIcon />,      wrap: ["**", "**"] },
-    { label: "I",    title: t("notes.fmtItalic"),        icon: <ItalicIcon />,    wrap: ["_", "_"] },
-    { label: "U",    title: t("notes.fmtUnderline"),     icon: <UnderlineIcon />, wrap: ["__", "__"] },
-    { label: "~~",   title: t("notes.fmtStrikethrough"), icon: <StrikeIcon />,    wrap: ["~~", "~~"] },
-    { label: "→|",   title: t("notes.fmtIndent"),        icon: <IndentIcon />,    indent: true },
+    { label: "B", title: t("notes.fmtBold"), icon: <BoldIcon />, command: "bold", toggle: true },
+    { label: "I", title: t("notes.fmtItalic"), icon: <ItalicIcon />, command: "italic", toggle: true },
+    { label: "U", title: t("notes.fmtUnderline"), icon: <UnderlineIcon />, command: "underline", toggle: true },
+    { label: "~~", title: t("notes.fmtStrikethrough"), icon: <StrikeIcon />, command: "strikeThrough", toggle: true },
+    { label: "→|", title: t("notes.fmtIndent"), icon: <IndentIcon />, command: "indent" },
   ];
 
-  const applyFormat = (action: FormatAction) => {
-    const el = textareaRef.current;
-    if (!el || disabled) return;
-
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    let newContent = content;
-    let newStart = start;
-    let newEnd = end;
-
-    if (action.wrap) {
-      const [open, close] = action.wrap;
-      const selected = content.slice(start, end);
-      const insertion = `${open}${selected || t("notes.fmtPlaceholder")}${close}`;
-      newContent = content.slice(0, start) + insertion + content.slice(end);
-      newStart = start + open.length;
-      newEnd = newStart + (selected || t("notes.fmtPlaceholder")).length;
-    } else if (action.indent) {
-      // Indent each line in the selection by 2 spaces.
-      const prefix = "  ";
-      const beforeSelection = content.slice(0, start);
-      const selected = content.slice(start, end) || "";
-      const after = content.slice(end);
-      // Find the beginning of the first selected line.
-      const lineStart = beforeSelection.lastIndexOf("\n") + 1;
-      const selectedWithLineStart = content.slice(lineStart, end);
-      const indented = selectedWithLineStart.replace(/^/gm, prefix);
-      newContent = content.slice(0, lineStart) + indented + after;
-      // Adjust cursor offsets.
-      const addedChars = indented.length - selectedWithLineStart.length;
-      newStart = start + prefix.length;
-      newEnd = end + addedChars;
+  const refreshActiveStates = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const sel = window.getSelection();
+    const anchor = sel?.anchorNode;
+    const inEditor = !!anchor && editor.contains(anchor);
+    if (!inEditor) {
+      setActive({});
+      return;
     }
-
-    onContentChange(newContent);
-
-    // Restore selection after React re-render.
-    requestAnimationFrame(() => {
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(newStart, newEnd);
+    setActive({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      strikeThrough: document.queryCommandState("strikeThrough"),
     });
   };
 
-  const btnCls =
+  useEffect(() => {
+    const onSelectionChange = () => refreshActiveStates();
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [editorRef]);
+
+  const applyFormat = (action: FormatAction) => {
+    const editor = editorRef.current;
+    if (!editor || disabled) return;
+    editor.focus();
+    document.execCommand(action.command, false);
+    refreshActiveStates();
+  };
+
+  const btnBaseCls =
     "flex items-center justify-center w-7 h-7 rounded text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-700 hover:text-zinc-900 dark:hover:text-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
@@ -141,7 +124,11 @@ export default function NoteToolbar({ textareaRef, disabled, onContentChange, co
           title={action.title}
           disabled={disabled}
           onClick={() => applyFormat(action)}
-          className={btnCls}
+          className={`${btnBaseCls} ${
+            action.toggle && active[action.command]
+              ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+              : ""
+          }`}
         >
           {action.icon}
         </button>

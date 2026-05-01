@@ -23,7 +23,13 @@ import {
   UpdatePhaseInput,
   type ProjectAccessEntry,
 } from "../services/projectService";
-import { listProjectTodos, clearProjectPhaseReferences, createTodo } from "../services/todoService";
+import {
+  listProjectTodos,
+  clearProjectPhaseReferences,
+  createTodo,
+  archiveTodosByProjectId,
+  softDeleteTodosByProjectId,
+} from "../services/todoService";
 import { listComments } from "../services/commentService";
 import {
   convertPhaseToSubproject as convertPhaseToSubprojectService,
@@ -107,6 +113,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
 export async function update(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const body = req.body ?? {};
+  const previous = getProjectById(id);
   const input: UpdateProjectInput = {};
   if (body.name !== undefined) {
     if (typeof body.name !== "string") throw new ValidationError("name doit être une chaîne");
@@ -133,6 +140,9 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     input.tags = body.tags;
   }
   const project = updateProject(req.user!.uid, req.user!.email, id, input);
+  if (input.status === "archived" && previous?.status !== "archived") {
+    await archiveTodosByProjectId(project.id);
+  }
   logActivity(req.user!.uid, req.user!.email, "update", "project", project.id, { name: project.name });
   res.status(200).json(project);
 }
@@ -140,8 +150,9 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const project = getProjectById(id);
-  logActivity(req.user!.uid, req.user!.email, "delete", "project", id, project?.name ? { name: project.name } : undefined);
   deleteProject(req.user!.uid, req.user!.email, id);
+  await softDeleteTodosByProjectId(id);
+  logActivity(req.user!.uid, req.user!.email, "delete", "project", id, project?.name ? { name: project.name } : undefined);
   res.status(204).end();
 }
 
