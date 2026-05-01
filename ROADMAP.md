@@ -25,7 +25,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 - **Complet** : socle auth/sécurité v1-v5, CRUD tâches/projets/équipes, vues principales, i18n, CI/CD, monitoring, 2FA, imports/exports majeurs.
 - **Partiel acceptable** : blocs riches fonctionnellement mais avec validation réelle limitée (notifications multicanal, partage notes/mentions, certains flux agenda multi-comptes).
-- **Partiel critique** : flux à fort impact prod qui exigent encore des garde-fous E2E réels (Meet/invitations externes selon politique Google Workspace, persistance tâches multi-modes et dérive de données en conditions extrêmes).
+- **Partiel critique** : flux à fort impact prod qui exigent encore des garde-fous E2E réels (invitations externes / politiques Google Workspace en conditions réelles, persistance tâches multi-modes et dérive de données en conditions extrêmes) — *l’édition Meet (reschedule, invités, annulation) et le compte Google prioritaire sont en prod côté code ; la validation E2E post-déploiement reste à cadrer.*
 
 ### Triage complétude (Critique / Important / Nice-to-have)
 
@@ -46,7 +46,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 ### Now (0-6 semaines)
 
 1. **Reliability Pack — Calendar & Meeting**
-   - DoD: création meeting idempotente, lifecycle complet vérifié, erreurs actionnables, checklist E2E prod exécutée.
+   - DoD: création meeting idempotente, lifecycle complet (création **et** édition/annulation **et** compte prioritaire + secondaires read-only) vérifié, erreurs actionnables, checklist E2E prod exécutée (dont invités externes / comptes multiples).
 2. **Reliability Pack — Todo Persistence**
    - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
 3. **Plan & Billing Core (P1)**
@@ -81,7 +81,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 ### Backlog exécutable (charge + deadlines)
 
 1. **Reliability Pack — Calendar & Meeting**  
-   - Charge: **7-9 jours**  
+   - Charge: **7-9 jours** (partiellement absorbé : Meet édition + compte prioritaire + `sendUpdates` sur patch)  
    - Deadline cible: **2026-05-16**  
    - Livrables: E2E prod multi-comptes/timezone/invités externes, runbook incident, tableau d'erreurs actionnables.
 2. **Reliability Pack — Todo Persistence**  
@@ -129,7 +129,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 3. **UX-3 — Refonte parcours Agenda & Meeting**  
    - Prérequis: Reliability Pack Calendar & Meeting validé  
-   - Livrables: parcours meeting clarifié (création/rejoindre/état), lisibilité événements Wroket vs Google, erreurs guidées  
+   - Livrables: parcours meeting clarifié (création/**édition**/rejoindre/état), lisibilité événements Wroket vs Google, erreurs guidées — *une première passe UX existe déjà (modal unique création/édition, bouton depuis la popup tâche)*  
    - Charge: **6-7 jours**  
    - Deadline: **2026-06-20**
 
@@ -290,6 +290,9 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Calendriers Google — défaut de booking global** — Sélection d’un unique calendrier par défaut inter-comptes (writable only), guardrails UI « lecture seule », fallback déterministe robuste en multi-comptes
 - [x] **Meet options — correction fuseau horaire** — Alignement des créneaux suggérés, des champs de la modale et de la création Google sur la timezone utilisateur Paramètres (évite les décalages UTC/local)
 - [x] **Observabilité meeting** — Logs structurés create/patch/delete Meet + tests backend ciblés (`googleCalendarService.test.ts`) pour fiabiliser le diagnostic production
+- [x] **Google — compte prioritaire & agendas secondaires** — Premier compte connecté traité comme **prioritaire** (écriture/booking par défaut) ; pour les comptes suivants, les calendriers ne sont plus tous pré-cochés côté chargement API ; page **Mes agendas** : badge Prioritaire / Secondaire, bouton **Rendre prioritaire**, désactivation des cases « afficher » et du radio défaut booking tant que le compte n’est pas prioritaire (secondaires en lecture seule jusqu’à promotion)
+- [x] **Google Meet — édition d’une réunion existante** — Endpoint `PATCH /calendar/meet/:todoId` : reschedule (start/end), titre, description, liste d’invités ; patch Google avec `sendUpdates=all` ; champ `meetingInvitees` persisté sur `scheduledSlot` ; annulation toujours via suppression de réunion existante ; même modal Tâches pour créer ou modifier ; bouton **Modifier la réunion** dans `TaskEditModal` ; icône meeting ouvre l’édition lorsqu’un lien existe déjà
+- [x] **SlotPicker — fermeture optimiste + feedback de chargement** — La popover se ferme dès la tentative de réservation ; réouverture automatique en cas de conflit détecté ou d’erreur réseau ; l’icône calendrier passe en spinner pendant l’appel de booking (aligné avec le comportement “Créer une réunion”)
 
 ## Expérience utilisateur & attractivité
 
@@ -329,6 +332,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - OAuth callback : détection de l'email du compte via CalendarList API, ajout au tableau (ou mise à jour si déjà connecté)
   - Endpoints per-account : `GET/PUT /calendar/google/accounts/:accountId/calendars`, `DELETE /calendar/google/disconnect/:accountId`
   - Page dédiée Agenda > Gérer les agendas : liste des comptes connectés avec calendriers par compte, bouton "Ajouter un compte Google", déconnexion individuelle
+  - **Compte prioritaire** : le premier compte connecté est celui par défaut pour l’écriture et le booking ; les comptes secondaires sont en affichage read-only dans l’UI tant qu’ils ne sont pas promus (choix explicite du compte prioritaire)
   - Dropdown multi-comptes dans l'Agenda avec toggle de visibilité par compte, couleurs distinctes par compte
   - Navigation sidebar "Agenda" en dossier déployable (Mon agenda / Gérer les agendas)
   - RGPD : `googleAccounts` strippé de l'export utilisateur

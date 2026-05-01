@@ -469,19 +469,30 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     ? "w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors"
     : "w-6 h-6 rounded flex items-center justify-center border border-blue-200/90 dark:border-blue-500/35 bg-blue-50/90 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 dark:hover:border-blue-400 transition-colors ring-1 ring-inset ring-blue-200/50 dark:ring-blue-400/20";
 
+  const scheduleBusy = booking;
+
   return (
     <>
       <div ref={ref} className="relative inline-flex">
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+          onClick={(e) => { e.stopPropagation(); if (!scheduleBusy) handleOpen(); }}
           title={t("schedule.title")}
           aria-expanded={open}
-          className={scheduleTriggerClass}
+          aria-busy={scheduleBusy}
+          disabled={scheduleBusy}
+          className={`${scheduleTriggerClass} ${scheduleBusy ? "opacity-90 cursor-wait" : ""}`}
         >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
+          {scheduleBusy ? (
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20 10 10 0 000-20v4z" />
+            </svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          )}
         </button>
 
         {open && presentation === "popover" && (
