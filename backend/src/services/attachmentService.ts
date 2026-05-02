@@ -281,6 +281,16 @@ export function listAttachments(todoId: string): Attachment[] {
   return getAttachmentStore()[todoId] ?? [];
 }
 
+/** Same visibility rules as comment counts: one entry per todoId with count > 0. */
+export function getAttachmentCounts(todoIds: string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const id of todoIds) {
+    const n = listAttachments(id).length;
+    if (n > 0) result[id] = n;
+  }
+  return result;
+}
+
 /**
  * Return a read stream for the requested attachment. The lookup is strictly
  * keyed on `(todoId, attachmentId)` — an attachment id alone never resolves to

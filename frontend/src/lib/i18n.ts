@@ -158,6 +158,45 @@ const translations = {
   },
   "archives.confirmDeleteTeamTitle": { fr: "Supprimer l’équipe définitivement ?", en: "Delete team permanently?" },
   "archives.confirmPurgeTeamsTitle": { fr: "Supprimer toutes vos équipes ?", en: "Delete all your teams?" },
+  "archives.bulkRestoreTasksTitle": { fr: "Restaurer {{count}} tâche(s) ?", en: "Restore {{count}} task(s)?" },
+  "archives.bulkRestoreTasksMessage": {
+    fr: "Les tâches sélectionnées reviendront dans vos tâches actives.",
+    en: "Selected tasks will return to your active task list.",
+  },
+  "archives.bulkDeleteTasksTitle": { fr: "Supprimer définitivement {{count}} tâche(s) ?", en: "Permanently delete {{count}} task(s)?" },
+  "archives.bulkDeleteTasksMessage": {
+    fr: "Cette action est irréversible. Seules les tâches dont vous êtes propriétaire seront supprimées.",
+    en: "This cannot be undone. Only tasks you own will be deleted.",
+  },
+  "archives.bulkRestoreProjectsTitle": { fr: "Restaurer {{count}} projet(s) ?", en: "Restore {{count}} project(s)?" },
+  "archives.bulkRestoreProjectsMessage": {
+    fr: "Les projets sélectionnés seront à nouveau actifs.",
+    en: "Selected projects will become active again.",
+  },
+  "archives.bulkDeleteProjectsTitle": { fr: "Supprimer définitivement {{count}} projet(s) ?", en: "Permanently delete {{count}} project(s)?" },
+  "archives.bulkDeleteProjectsMessage": {
+    fr: "Cette action est irréversible.",
+    en: "This cannot be undone.",
+  },
+  "archives.bulkRestoreNotesTitle": { fr: "Restaurer {{count}} note(s) ?", en: "Restore {{count}} note(s)?" },
+  "archives.bulkRestoreNotesMessage": {
+    fr: "Les notes sélectionnées seront à nouveau disponibles.",
+    en: "Selected notes will be available again.",
+  },
+  "archives.bulkPurgeNotesTitle": { fr: "Supprimer définitivement {{count}} note(s) ?", en: "Permanently delete {{count}} note(s)?" },
+  "archives.bulkPurgeNotesMessage": {
+    fr: "Cette action est irréversible.",
+    en: "This cannot be undone.",
+  },
+  "archives.bulkDeleteTeamsTitle": { fr: "Supprimer définitivement {{count}} équipe(s) ?", en: "Permanently delete {{count}} team(s)?" },
+  "archives.bulkDeleteTeamsMessage": {
+    fr: "Les membres perdront l’accès. Action irréversible.",
+    en: "Members will lose access. This cannot be undone.",
+  },
+  "archives.bulkDeleteNoOwnedTasks": {
+    fr: "Aucune tâche sélectionnée n’est supprimable (propriété requise).",
+    en: "None of the selected tasks can be deleted (you must own them).",
+  },
 
   // ── Login ──
   "login.title": { fr: "Connexion", en: "Sign in" },
@@ -309,6 +348,10 @@ const translations = {
   "dashboard.completionRate": { fr: "Taux de complétion", en: "Completion rate" },
   "dashboard.overdue": { fr: "En retard", en: "Overdue" },
   "dashboard.radarTitle": { fr: "Vue Radar", en: "Radar view" },
+  "dashboard.radarSubtitle": {
+    fr: "Même quadrants qu’en Mes tâches — cliquez un point pour modifier.",
+    en: "Same quadrants as My tasks — click a dot to edit.",
+  },
   "dashboard.noTask": { fr: "Aucune tâche", en: "No tasks" },
   "dashboard.taskCount": { fr: "tâche", en: "task" },
   "dashboard.tasksCount": { fr: "tâches", en: "tasks" },
@@ -396,6 +439,19 @@ const translations = {
   "table.status": { fr: "Statut", en: "Status" },
   "table.moveUp": { fr: "Monter", en: "Move up" },
   "table.moveDown": { fr: "Descendre", en: "Move down" },
+  "table.select": { fr: "Sél.", en: "Sel." },
+  "bulk.selectedCount": { fr: "{{count}} sélectionnée(s)", en: "{{count}} selected" },
+  "bulk.complete": { fr: "Accomplir", en: "Complete" },
+  "bulk.archive": { fr: "Archiver", en: "Archive" },
+  "bulk.delete": { fr: "Supprimer", en: "Delete" },
+  "bulk.clearSelection": { fr: "Tout désélectionner", en: "Clear selection" },
+  "bulk.deleteTitle": { fr: "Supprimer plusieurs tâches ?", en: "Delete multiple tasks?" },
+  "bulk.deleteBody": { fr: "Vous allez supprimer définitivement {{count}} tâche(s).", en: "You are about to permanently delete {{count}} task(s)." },
+  "bulk.deleteSubtasksNote": { fr: "Les sous-tâches rattachées ({{count}} au total) seront supprimées en même temps.", en: "Linked subtasks ({{count}} in total) will be deleted as well." },
+  "bulk.deleteInfoSubtasks": { fr: "{{count}} sous-tâche(s) ont été supprimées avec les tâches parentes.", en: "{{count}} subtask(s) were deleted with their parent tasks." },
+  "bulk.archiveInfoSubtasks": { fr: "{{count}} sous-tâche(s) active(s) ont également été archivées.", en: "{{count}} active subtask(s) were also archived." },
+  "a11y.selectTaskRow": { fr: "Sélectionner cette tâche", en: "Select this task" },
+  "a11y.selectAllTasks": { fr: "Sélectionner toutes les tâches visibles", en: "Select all visible tasks" },
 
   // ── Quadrants ──
   "quadrant.doFirst": { fr: "FAIRE", en: "DO" },
@@ -447,21 +503,30 @@ const translations = {
   "matrix.radarModeRoi": { fr: "ROI", en: "ROI" },
   "matrix.radarModeLoad": { fr: "Charge × urgence", en: "Load × urgency" },
   "matrix.radarModeEisenhowerDesc": {
-    fr: "Quatre quadrants : importance stratégique et urgence.",
-    en: "Four quadrants: strategic importance and urgency.",
+    fr: "Lentille Eisenhower : quatre quadrants (importance stratégique × urgence).",
+    en: "Eisenhower lens: four quadrants (strategic importance × urgency).",
   },
   "matrix.radarModePressureDesc": {
-    fr: "Urgence, priorité et charge sur une seule lecture.",
-    en: "Urgency, priority, and load in one read.",
+    fr: "Lentille pression : urgence, priorité et charge sur une seule lecture.",
+    en: "Pressure lens: urgency, priority, and load in one read.",
   },
   "matrix.radarModeRoiDesc": {
-    fr: "Impact attendu / effort — prioriser à fort rendement.",
-    en: "Expected impact vs effort — high-leverage picks.",
+    fr: "Lentille ROI : impact attendu / effort — prioriser à fort rendement.",
+    en: "ROI lens: expected impact vs effort — high-leverage picks.",
   },
   "matrix.radarModeLoadDesc": {
-    fr: "Urgence × charge — sujets critiques et lourds.",
-    en: "Urgency × workload — critical, heavy items.",
+    fr: "Lentille charge × urgence — sujets critiques et lourds.",
+    en: "Load × urgency lens — critical, heavy items.",
   },
+  "matrix.radarLensIntro": {
+    fr: "Les modes ci-dessous sont des lentilles de lecture : les mêmes tâches, un autre angle pour prioriser.",
+    en: "The modes below are reading lenses—the same tasks, another angle to prioritize.",
+  },
+  "matrix.radarWorkflowHint": {
+    fr: "Cliquez un point pour ouvrir la tâche : réservez un créneau dans l’éditeur ; l’agenda reprend les mêmes quadrants.",
+    en: "Click a dot to open the task: book a slot in the editor; the calendar uses the same quadrants.",
+  },
+  "matrix.radarOpenAgenda": { fr: "Ouvrir l’agenda →", en: "Open calendar →" },
   "matrix.radarClickToEdit": { fr: "Cliquer pour modifier la tâche", en: "Click to edit task" },
   "matrix.axisLowX": { fr: "Faible", en: "Low" },
   "matrix.axisHighX": { fr: "Élevé", en: "High" },
@@ -1162,7 +1227,10 @@ const translations = {
   "tutorial.skip": { fr: "Passer", en: "Skip" },
   "tutorial.stepOf": { fr: "sur", en: "of" },
   "tutorial.step1.title": { fr: "Vos tâches, sans prise de tête", en: "Your tasks, hassle-free" },
-  "tutorial.step1.desc": { fr: "Créez des tâches, ajoutez l'échéance et l'effort estimés puis gérer les priorités grâce à la vue Radar. Passez d'une vue à l'autre (liste, cartes, radar) et retrouvez tout depuis la barre de recherche. Wroket vous propose de booker un slot pour accomplir votre tâche !", en: "Create tasks, add deadlines and estimated effort, then manage priorities with the Radar view. Switch between views (list, cards, radar) and find everything from the search bar. Wroket lets you book a time slot so you can actually get the task done!" },
+  "tutorial.step1.desc": {
+    fr: "Créez des tâches avec échéance et effort : la vue Radar montre quoi traiter en premier. Ouvrez une tâche pour planifier un créneau et retrouvez-la dans l’agenda — liste, cartes ou Radar, tout est cherchable depuis la barre de recherche.",
+    en: "Create tasks with deadlines and effort: the Radar shows what to tackle first. Open a task to book a slot and see it on the calendar — list, cards, or Radar; everything is searchable from the bar.",
+  },
   "tutorial.step2.title": { fr: "Vos projets, une vision claire", en: "Projects with a clear view" },
   "tutorial.step2.desc": { fr: "Regroupez vos tâches par projet : tableau, Kanban ou Gantt. Une structure simple pour suivre l'avancement sans vous noyer dans les détails.", en: "Group tasks into projects: board, Kanban, or Gantt. A simple structure to track progress without overload." },
   "tutorial.step3.title": { fr: "Allez plus loin : agenda et import", en: "Go further: calendar and import" },
@@ -1174,7 +1242,14 @@ const translations = {
   },
 
   // ── Page help items ──
-  "help.todos.views": { fr: "3 vues : Liste (drag & drop), Cartes (vue Radar) et Radar 360°", en: "3 views: List (drag & drop), Cards (radar view) and 360° Radar" },
+  "help.todos.views": {
+    fr: "3 vues : Liste (drag & drop), Cartes (par quadrant comme le Radar) et Radar 360°. Les quadrants (Planifier, Expédier…) sont la même classification partout.",
+    en: "3 views: List (drag & drop), Cards (by quadrant like the Radar), and 360° Radar. Quadrants (Schedule, Expedite…) are the same classification everywhere.",
+  },
+  "help.todos.radarWorkflow": {
+    fr: "Radar → clic sur un point ou la carte : modifier la tâche et réserver un créneau ; l’agenda reprend les mêmes couleurs de quadrant.",
+    en: "Radar → click a dot or card: edit the task and book a slot; the calendar uses the same quadrant colors.",
+  },
   "help.todos.scope": { fr: "Filtre d'affichage : Toutes, Personnelles, Reçues (attribuées à vous), Déléguées", en: "Display filter: All, Personal, Assigned to me, Assigned out" },
   "help.todos.dnd": { fr: "Glissez-déposez les tâches pour réordonner en vue Liste", en: "Drag & drop tasks to reorder in List view" },
   "help.todos.edit": { fr: "Double-cliquez sur une tâche pour la modifier (priorité, effort, échéance, assignation, projet, créneau)", en: "Double-click a task to edit it (priority, effort, deadline, assignee, project, slot)" },
@@ -1210,7 +1285,10 @@ const translations = {
   "help.agenda.editTask": { fr: "Double-clic sur une tâche Wroket : édition complète (récurrence, projet, assignation…)", en: "Double-click a Wroket task: full edit (recurrence, project, assignee…)" },
   "help.agenda.quickCreate": { fr: "Double-clic sur un créneau vide : création rapide (durée, priorité, projet, assignation)", en: "Double-click an empty slot: quick create (duration, priority, project, assignee)" },
   "help.agenda.google": { fr: "Plusieurs comptes Google : Agenda > Gérer les agendas (connexion, calendriers visibles)", en: "Multiple Google accounts: Agenda > Manage Calendars (connect, pick visible calendars)" },
-  "help.agenda.colors": { fr: "Couleurs par priorité (tâches Wroket) et par compte Google", en: "Colors by Wroket task priority and per Google account" },
+  "help.agenda.colors": {
+    fr: "Couleurs par quadrant Radar / classification des tâches Wroket (alignées liste et Radar), et par compte Google.",
+    en: "Colors by Radar quadrant / Wroket task classification (aligned with list and Radar), plus per Google account.",
+  },
   "help.agenda.recurring": { fr: "Les tâches récurrentes apparaissent à chaque occurrence sur la période affichée", en: "Recurring tasks appear on each occurrence in the visible range" },
   "help.agenda.smartSlots": { fr: "Créneaux suggérés selon priorité et deadline (paramètres > heures de travail)", en: "Suggested slots from priority and deadline (Settings > working hours)" },
 
@@ -1223,18 +1301,27 @@ const translations = {
   "help.settings.integrations": { fr: "Canal de notification (email ou webhook Slack, Teams, Google Chat) ; webhooks avancés Slack, Discord, Teams, Google Chat (filtres d’événements).", en: "Notification channel (email or Slack, Teams, Google Chat webhook); advanced Slack, Discord, Teams, Google Chat webhooks (event filters)." },
 
   "help.dashboard.overview": { fr: "Statistiques : tâches actives, assignées, déléguées, complétées, retard", en: "Stats: active, assigned, delegated, completed, overdue tasks" },
-  "help.dashboard.radar": { fr: "Vue Radar et répartition par quadrant", en: "Radar view and quadrant breakdown" },
+  "help.dashboard.radar": {
+    fr: "Vue Radar compacte et répartition par quadrant — même logique que Mes tâches › Radar.",
+    en: "Compact Radar and quadrant breakdown — same logic as My tasks › Radar.",
+  },
   "help.dashboard.notifs": { fr: "Notifications récentes ; lien vers la page Notifications", en: "Recent notifications; link to Notifications page" },
   "help.dashboard.progress": { fr: "Bilan hebdomadaire et indicateurs de progression", en: "Weekly summary and progress indicators" },
   "help.dashboard.search": { fr: "Barre de recherche en tête de page : tâches, projets, notes", en: "Top search bar: tasks, projects, notes" },
 
   "landing.heroTitle": { fr: "Organisez, planifiez,\ncollaborez.", en: "Organize, schedule,\ncollaborate." },
-  "landing.heroSub": { fr: "Wroket priorise vos tâches grâce à la vue Radar, planifie intelligemment vos créneaux selon la priorité et la deadline, et synchronise vos agendas Google — le tout dans une interface simple et rapide.", en: "Wroket prioritizes your tasks with the Radar view, intelligently schedules slots based on priority and deadline, and syncs your Google calendars — all in a simple, fast interface." },
+  "landing.heroSub": {
+    fr: "Décidez en un coup d’œil quoi traiter en premier, puis placez-le dans votre agenda réel : vue Radar, créneaux intelligents et agendas Google — le tout dans une interface simple et rapide.",
+    en: "See at a glance what to tackle first, then put it on your real calendar: Radar view, smart slots, and Google calendars — all in a simple, fast interface.",
+  },
   "landing.cta": { fr: "Commencer maintenant", en: "Get started" },
   "landing.ctaLogin": { fr: "J'ai déjà un compte", en: "I already have an account" },
   "landing.featuresTitle": { fr: "Un outil, toutes vos priorités", en: "One tool, all your priorities" },
   "landing.f1.title": { fr: "Priorité automatique", en: "Auto-prioritization" },
-  "landing.f1.desc": { fr: "Vue Radar : urgence et importance détectées automatiquement. Tâches récurrentes, sous-tâches, tags et pièces jointes.", en: "Radar view: urgency and importance auto-detected. Recurring tasks, subtasks, tags and attachments." },
+  "landing.f1.desc": {
+    fr: "Vue Radar : urgence et importance à partir de l’échéance, de la priorité et de l’effort — puis passez à l’agenda pour bloquer le temps. Récurrentes, sous-tâches, tags et pièces jointes.",
+    en: "Radar view: urgency and importance from deadline, priority, and effort — then move to the calendar to block time. Recurring tasks, subtasks, tags, and attachments.",
+  },
   "landing.f2.title": { fr: "Agenda intelligent", en: "Smart calendar" },
   "landing.f2.desc": { fr: "Connectez plusieurs comptes Google Calendar. Créneaux proposés selon la priorité et la deadline — les tâches urgentes passent en premier.", en: "Connect multiple Google Calendar accounts. Slots proposed based on priority and deadline — urgent tasks come first." },
   "landing.f3.title": { fr: "Bloc-notes connecté", en: "Connected notepad" },

@@ -103,6 +103,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ## Refonte UX (plan solide)
 
+Documents complémentaires (produit / hors cases `[ ]`) : [Idées et pistes UI](docs/refonte-ui-ideas.md) (refonte liste de tâches) · [Session produit utilisateur](docs/product-user-session.md) (onboarding, friction, plan d’action) · [Plan partie projet / PMO léger](docs/project-roadmap-pmo.md) (visibilité projet, jalons, lien avec les todos ; **§6** partage lecture seule, exports steering pour client / managers).
+
 ### Objectif UX
 
 Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les parcours à forte valeur (tâches, agenda, collaboration), sans dégrader la stabilité produit.

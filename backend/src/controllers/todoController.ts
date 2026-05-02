@@ -35,6 +35,7 @@ import { findUserByEmail, normalizeEmail } from "../services/authService";
 import { enqueuePendingMention } from "../services/pendingMentionService";
 import { createNotification } from "../services/notificationService";
 import { isActiveCollaborator } from "../services/teamService";
+import { getAttachmentCounts } from "../services/attachmentService";
 import { deleteGoogleCalendarEventForTodo } from "../services/googleCalendarService";
 import { getProjectById, listProjects } from "../services/projectService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
@@ -474,6 +475,19 @@ export async function commentCounts(req: AuthenticatedRequest, res: Response) {
     for (const t of listProjectTodos(p.id)) idSet.add(t.id);
   }
   res.status(200).json(getCommentCounts([...idSet]));
+}
+
+/** Pièces jointes par tâche — même périmètre d’IDs que comment-counts. */
+export async function attachmentCounts(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  const idSet = new Set<string>();
+  for (const t of listTodos(uid)) idSet.add(t.id);
+  for (const t of listAssignedToMe(uid)) idSet.add(t.id);
+  for (const p of listProjects(uid, email)) {
+    for (const t of listProjectTodos(p.id)) idSet.add(t.id);
+  }
+  res.status(200).json(getAttachmentCounts([...idSet]));
 }
 
 export async function exportTodos(req: AuthenticatedRequest, res: Response) {

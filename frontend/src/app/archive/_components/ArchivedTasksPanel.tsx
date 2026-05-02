@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -45,6 +45,8 @@ type TaskArchiveConfirm =
   | { kind: "restore"; todo: Todo }
   | { kind: "delete"; todo: Todo }
   | { kind: "purge-all" }
+  | { kind: "bulk-restore"; todos: Todo[] }
+  | { kind: "bulk-delete"; todos: Todo[] }
   | null;
 
 const archiveActionBtnBase =
@@ -63,6 +65,8 @@ export default function ArchivedTasksPanel() {
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [taskConfirm, setTaskConfirm] = useState<TaskArchiveConfirm>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +109,55 @@ export default function ArchivedTasksPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todos, taskFilter, archivedIds]);
 
+  useEffect(() => {
+    const visible = new Set(filteredTasks.map((td) => td.id));
+    setSelectedIds((prev) => {
+      let removed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id);
+        else removed = true;
+      }
+      return removed ? next : prev;
+    });
+  }, [filteredTasks]);
+
+  const selectedTodos = useMemo(
+    () => filteredTasks.filter((td) => selectedIds.has(td.id)),
+    [filteredTasks, selectedIds],
+  );
+
+  const selectedCount = selectedTodos.length;
+
+  const allVisibleSelected =
+    filteredTasks.length > 0 && selectedCount === filteredTasks.length;
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (!el) return;
+    el.indeterminate = selectedCount > 0 && !allVisibleSelected;
+  }, [selectedCount, allVisibleSelected]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (filteredTasks.length === 0) return prev;
+      const allIds = filteredTasks.map((td) => td.id);
+      const allOn = allIds.every((id) => prev.has(id));
+      return allOn ? new Set() : new Set(allIds);
+    });
+  }, [filteredTasks]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
   const taskCounts = useMemo(() => {
     const c = { all: 0, completed: 0, cancelled: 0, deleted: 0 };
     for (const td of todos) {
@@ -144,6 +197,20 @@ export default function ArchivedTasksPanel() {
     }
   };
 
+  const runPermanentDeleteTasksBulk = async (items: Todo[]) => {
+    const owned = items.filter((td) => meUid && td.userId === meUid);
+    if (owned.length === 0) return;
+    try {
+      for (const todo of owned) {
+        await deleteArchivedTodoPermanently(todo.id);
+      }
+      setRefreshKey((k) => k + 1);
+      toast.success(t("archives.taskDeletedForever"));
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  };
+
   const runPurgeAllMine = async () => {
     if (!meUid || ownedArchivedTaskCount === 0) return;
     try {
@@ -155,6 +222,19 @@ export default function ArchivedTasksPanel() {
     }
   };
 
+  const runRestoreTasksBulk = async (list: Todo[]) => {
+    if (list.length === 0) return;
+    try {
+      for (const todo of list) {
+        const updated = await updateTodo(todo.id, { status: "active" });
+        setTodos((prev) => prev.filter((td) => td.id !== updated.id));
+      }
+      toast.success(t("toast.taskRestored"));
+    } catch {
+      toast.error(t("toast.restoreError"));
+    }
+  };
+
   const handleTaskConfirm = () => {
     const c = taskConfirm;
     setTaskConfirm(null);
@@ -163,7 +243,28 @@ export default function ArchivedTasksPanel() {
       if (c.kind === "restore") await runRestoreTask(c.todo);
       else if (c.kind === "delete") await runPermanentDeleteTask(c.todo);
       else if (c.kind === "purge-all") await runPurgeAllMine();
+      else if (c.kind === "bulk-restore") {
+        await runRestoreTasksBulk(c.todos);
+        clearSelection();
+      } else if (c.kind === "bulk-delete") {
+        await runPermanentDeleteTasksBulk(c.todos);
+        clearSelection();
+      }
     })();
+  };
+
+  const handleBulkRestoreClick = () => {
+    if (selectedTodos.length === 0) return;
+    setTaskConfirm({ kind: "bulk-restore", todos: selectedTodos });
+  };
+
+  const handleBulkDeleteClick = () => {
+    const owned = selectedTodos.filter((td) => meUid && td.userId === meUid);
+    if (owned.length === 0) {
+      toast.error(t("archives.bulkDeleteNoOwnedTasks"));
+      return;
+    }
+    setTaskConfirm({ kind: "bulk-delete", todos: owned });
   };
 
   const formatDate = (iso: string | undefined) => {
@@ -242,8 +343,8 @@ export default function ArchivedTasksPanel() {
           <p className="text-sm text-zinc-400 dark:text-slate-500 italic">{t("archives.empty")}</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-zinc-100 dark:border-slate-800 text-xs text-zinc-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="text-left px-4 py-3 font-medium">{t("table.title")}</th>
@@ -251,9 +352,52 @@ export default function ArchivedTasksPanel() {
                 <th className="text-left px-4 py-3 font-medium hidden md:table-cell">{t("table.status")}</th>
                 <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">{t("archives.statusDateColumn")}</th>
                 <th className="text-right px-4 py-3 font-medium min-w-[10rem]">{t("table.actions")}</th>
+                <th className="w-10 px-1 py-3 text-center font-medium">
+                  <span className="sr-only">{t("table.select")}</span>
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={() => toggleSelectAll()}
+                    className="rounded border-zinc-300 dark:border-slate-600 dark:bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+                    aria-label={t("a11y.selectAllTasks")}
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
+              {selectedCount > 0 && (
+                <tr className="border-b border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/90 dark:bg-emerald-950/35">
+                  <td colSpan={6} className="px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2 gap-y-2">
+                      <span className="text-xs font-medium text-emerald-900 dark:text-emerald-100 mr-1">
+                        {t("bulk.selectedCount").replace("{{count}}", String(selectedCount))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleBulkRestoreClick}
+                        className="inline-flex items-center justify-center shrink-0 text-xs font-medium whitespace-nowrap px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-blue-200/80 dark:border-blue-800/60 text-blue-800 dark:text-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                      >
+                        {t("archives.restore")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleBulkDeleteClick}
+                        className="inline-flex items-center justify-center shrink-0 text-xs font-medium whitespace-nowrap px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                      >
+                        {t("archives.deleteForever")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearSelection}
+                        className="text-xs font-medium px-2.5 py-1 rounded-md text-emerald-700 dark:text-emerald-300 hover:underline ml-auto"
+                      >
+                        {t("bulk.clearSelection")}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {filteredTasks.map((todo) => {
                 const dl = deadlineLabel(todo.deadline, t);
                 const statusInfo = STATUS_STYLES[todo.status] ?? STATUS_STYLES.deleted;
@@ -323,6 +467,15 @@ export default function ArchivedTasksPanel() {
                         )}
                       </div>
                     </td>
+                    <td className="w-10 px-1 py-3 align-middle text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(todo.id)}
+                        onChange={() => toggleSelect(todo.id)}
+                        className="rounded border-zinc-300 dark:border-slate-600 dark:bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+                        aria-label={t("a11y.selectTaskRow")}
+                      />
+                    </td>
                   </tr>
                 );
               })}
@@ -340,7 +493,11 @@ export default function ArchivedTasksPanel() {
               ? t("archives.confirmRestoreTaskTitle")
               : taskConfirm.kind === "delete"
                 ? t("archives.confirmDeleteTaskTitle")
-                : t("archives.confirmPurgeTasksTitle")
+                : taskConfirm.kind === "bulk-restore"
+                  ? t("archives.bulkRestoreTasksTitle").replace("{{count}}", String(taskConfirm.todos.length))
+                  : taskConfirm.kind === "bulk-delete"
+                    ? t("archives.bulkDeleteTasksTitle").replace("{{count}}", String(taskConfirm.todos.length))
+                    : t("archives.confirmPurgeTasksTitle")
         }
         message={
           taskConfirm == null
@@ -352,11 +509,19 @@ export default function ArchivedTasksPanel() {
                 )
               : taskConfirm.kind === "delete"
                 ? t("archives.deleteForeverConfirm")
-                : t("archives.emptyMineConfirm").replace("{count}", String(ownedArchivedTaskCount))
+                : taskConfirm.kind === "bulk-restore"
+                  ? t("archives.bulkRestoreTasksMessage")
+                  : taskConfirm.kind === "bulk-delete"
+                    ? t("archives.bulkDeleteTasksMessage")
+                    : t("archives.emptyMineConfirm").replace("{count}", String(ownedArchivedTaskCount))
         }
-        variant={taskConfirm?.kind === "restore" ? "info" : "danger"}
+        variant={
+          taskConfirm?.kind === "restore" || taskConfirm?.kind === "bulk-restore" ? "info" : "danger"
+        }
         confirmLabel={
-          taskConfirm?.kind === "restore" ? t("archives.restore") : t("archives.deleteForever")
+          taskConfirm?.kind === "restore" || taskConfirm?.kind === "bulk-restore"
+            ? t("archives.restore")
+            : t("archives.deleteForever")
         }
         onCancel={() => setTaskConfirm(null)}
         onConfirm={handleTaskConfirm}

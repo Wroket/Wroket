@@ -278,6 +278,12 @@ export async function getCommentCounts(): Promise<Record<string, number>> {
   return res.json();
 }
 
+export async function getAttachmentCounts(): Promise<Record<string, number>> {
+  const res = await fetch(`${API_BASE_URL}/todos/attachment-counts`, { ...apiFetchDefaults, method: "GET" });
+  if (!res.ok) return {};
+  return res.json();
+}
+
 export type CommentPostResult = Comment & { mentionInviteNeeded?: string[] };
 
 export async function postCommentApi(todoId: string, text: string): Promise<CommentPostResult> {

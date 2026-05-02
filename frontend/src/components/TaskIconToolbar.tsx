@@ -4,6 +4,10 @@ import { useMemo } from "react";
 
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import SlotPicker from "@/components/SlotPicker";
+import {
+  toolbarAffordanceClass,
+  toolbarNeutralButton,
+} from "@/components/taskToolbarStyles";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Project, Todo } from "@/lib/api";
 
@@ -12,6 +16,10 @@ export interface TaskIconToolbarProps {
   meUid: string | null;
   projects: Project[];
   commentCount: number;
+  /** Nombre de sous-tâches (pour contour sous-tâche bleu / vert). */
+  subtaskCount?: number;
+  /** Nombre de pièces jointes sur la tâche (pour contour PJ). */
+  attachmentCount?: number;
   onComplete: (t: Todo) => void;
   onSubtask: (t: Todo) => void;
   onCancel: (t: Todo) => void;
@@ -46,6 +54,8 @@ export default function TaskIconToolbar({
   meUid,
   projects,
   commentCount,
+  subtaskCount = 0,
+  attachmentCount = 0,
   onComplete,
   onSubtask,
   onCancel,
@@ -90,6 +100,12 @@ export default function TaskIconToolbar({
     fn();
   };
 
+  const commentBtnClass = `relative ${toolbarAffordanceClass(commentCount > 0)}`;
+  const subtaskBtnClass = toolbarAffordanceClass(subtaskCount > 0);
+  const attachBtnClass = toolbarAffordanceClass(attachmentCount > 0);
+  const noteBtnClass = toolbarAffordanceClass(hasLinkedNote);
+  const meetBtnClass = toolbarAffordanceClass(!!todo.scheduledSlot?.meetingUrl);
+
   const layoutCls =
     variant === "radar"
       ? "grid grid-cols-4 gap-x-1 gap-y-1 w-[6.75rem] shrink-0 justify-items-center content-start"
@@ -105,7 +121,7 @@ export default function TaskIconToolbar({
         onClick={wrap(() => onComplete(todo))}
         aria-label={t("a11y.complete")}
         title={t("a11y.complete")}
-        className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-green-500 hover:text-green-500"
+        className={toolbarNeutralButton}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -115,7 +131,7 @@ export default function TaskIconToolbar({
         <button
           type="button"
           onClick={wrap(() => onSubtask(todo))}
-          className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500"
+          className={subtaskBtnClass}
           title={t("subtask.add")}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -142,7 +158,7 @@ export default function TaskIconToolbar({
         onClick={wrap(() => onCancel(todo))}
         aria-label={t("a11y.cancelTask")}
         title={t("a11y.cancelTask")}
-        className="w-6 h-6 rounded flex items-center justify-center border border-zinc-300 text-zinc-400 hover:border-zinc-500 hover:text-zinc-500"
+        className={toolbarNeutralButton}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -153,7 +169,7 @@ export default function TaskIconToolbar({
           type="button"
           onClick={wrap(() => onDecline(todo))}
           title={t("assign.decline")}
-          className="w-6 h-6 rounded flex items-center justify-center border border-orange-300 dark:border-orange-700 text-orange-400 hover:border-orange-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+          className={toolbarNeutralButton}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -165,7 +181,7 @@ export default function TaskIconToolbar({
           type="button"
           onClick={wrap(() => onAccept(todo))}
           title={t("assign.accept")}
-          className="w-6 h-6 rounded flex items-center justify-center border border-emerald-300 dark:border-emerald-700 text-emerald-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+          className={toolbarNeutralButton}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -176,7 +192,7 @@ export default function TaskIconToolbar({
         todoId={todo.id}
         commentCount={commentCount}
         onClick={() => onEdit(todo)}
-        buttonClass="relative w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"
+        buttonClass={commentBtnClass}
         iconSize="w-3 h-3"
       />
       <button
@@ -184,7 +200,7 @@ export default function TaskIconToolbar({
         onClick={wrap(() => onEdit(todo))}
         title={t("a11y.taskAttachments")}
         aria-label={t("a11y.taskAttachments")}
-        className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-amber-600 dark:hover:text-amber-400"
+        className={attachBtnClass}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -195,11 +211,7 @@ export default function TaskIconToolbar({
           type="button"
           onClick={wrap(() => onCreateNote(todo))}
           title={hasLinkedNote ? t("notes.openLinkedNote") : t("notes.createFromTask")}
-          className={`w-6 h-6 rounded flex items-center justify-center border transition-colors ${
-            hasLinkedNote
-              ? "border-indigo-300 dark:border-indigo-700 text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
-              : "border-transparent text-zinc-300 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400"
-          }`}
+          className={noteBtnClass}
         >
           <svg className="w-3 h-3" fill={hasLinkedNote ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -212,11 +224,7 @@ export default function TaskIconToolbar({
           onClick={wrap(() => onMeet(todo))}
           title={todo.scheduledSlot?.meetingUrl ? t("meet.editMeet") : t("meet.createMeet")}
           disabled={meetLoading}
-          className={`w-6 h-6 rounded flex items-center justify-center border transition-colors ${
-            todo.scheduledSlot?.meetingUrl
-              ? "border-emerald-300 dark:border-emerald-700 text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
-              : "border-transparent text-zinc-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400"
-          }`}
+          className={`${meetBtnClass} ${meetLoading ? "opacity-90 cursor-wait" : ""}`}
         >
           {meetLoading ? (
             <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20 10 10 0 000-20v4z" /></svg>
@@ -230,7 +238,7 @@ export default function TaskIconToolbar({
         onClick={wrap(() => onDelete(todo))}
         aria-label={t("a11y.delete")}
         title={t("a11y.delete")}
-        className="w-6 h-6 rounded flex items-center justify-center border border-transparent text-zinc-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"
+        className={toolbarNeutralButton}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

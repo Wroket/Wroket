@@ -16,6 +16,7 @@ import {
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
+import { toolbarAffordanceClass } from "@/components/taskToolbarStyles";
 
 export interface SlotPickerProps {
   todoId: string;
@@ -472,9 +473,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     </>
   );
 
-  const scheduleTriggerClass = scheduledSlot
-    ? "w-6 h-6 rounded flex items-center justify-center border border-zinc-300 dark:border-slate-600 text-zinc-400 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors"
-    : "w-6 h-6 rounded flex items-center justify-center border border-blue-200/90 dark:border-blue-500/35 bg-blue-50/90 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 dark:hover:border-blue-400 transition-colors ring-1 ring-inset ring-blue-200/50 dark:ring-blue-400/20";
+  const scheduleTriggerClass = toolbarAffordanceClass(!!scheduledSlot);
 
   const slotMutationBusy = booking || clearing;
 

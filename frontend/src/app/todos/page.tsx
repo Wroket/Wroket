@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
+import BulkDeleteTaskDialog from "@/components/BulkDeleteTaskDialog";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -26,6 +28,7 @@ import {
   getArchivedTodos,
   getAssignedTodos,
   getProjects,
+  getAttachmentCounts,
   getCommentCounts,
   updateTodo,
   reorderTodos as reorderTodosApi,
@@ -59,10 +62,14 @@ import {
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import { useTodoListSync } from "@/lib/useTodoListSync";
+import { trackRadarEvent } from "@/lib/productAnalytics";
 import { compareTodosForRadarList, type RadarMode } from "@/lib/taskScores";
 import type { TranslationKey } from "@/lib/i18n";
 
 import { FILTER_BUTTONS, QUADRANT_BADGES } from "./_components/sortUtils";
+import SubtaskBadge from "./_components/SubtaskBadge";
+import TaskList from "./_components/TaskList";
+import QuadrantCell from "./_components/QuadrantCell";
 
 const RADAR_MODE_LABEL_KEYS: Record<RadarMode, TranslationKey> = {
   eisenhower: "matrix.radarModeEisenhower",
@@ -70,9 +77,6 @@ const RADAR_MODE_LABEL_KEYS: Record<RadarMode, TranslationKey> = {
   roi: "matrix.radarModeRoi",
   load: "matrix.radarModeLoad",
 };
-import SubtaskBadge from "./_components/SubtaskBadge";
-import TaskList from "./_components/TaskList";
-import QuadrantCell from "./_components/QuadrantCell";
 
 function replaceTodoInArray(list: Todo[], updated: Todo): Todo[] {
   const i = list.findIndex((t) => t.id === updated.id);
@@ -174,6 +178,7 @@ export default function TodosPage() {
   useTodoListSync(bumpRefresh);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
 
   type TaskScope = "all" | "personal" | "assigned" | "delegated";
@@ -283,6 +288,11 @@ export default function TodosPage() {
       document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
+  useEffect(() => {
+    if (mainView === "radar") {
+      trackRadarEvent("radar_view_enter");
+    }
+  }, [mainView]);
   const createInFlightRef = useRef(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
@@ -293,6 +303,7 @@ export default function TodosPage() {
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState<Todo[] | null>(null);
   const assignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -363,6 +374,7 @@ export default function TodosPage() {
     await flush();
     setEditingTodo(null);
     getCommentCounts().then(setCommentCounts).catch(() => {});
+    getAttachmentCounts().then(setAttachmentCounts).catch(() => {});
   }, [flush]);
 
   const persistEditTags = useCallback(
@@ -389,12 +401,13 @@ export default function TodosPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [mine, archived, assigned, projs, ccounts, noteMap, collabs, tms] = await Promise.all([
+        const [mine, archived, assigned, projs, ccounts, attachCounts, noteMap, collabs, tms] = await Promise.all([
           getTodos(),
           getArchivedTodos(),
           getAssignedTodos(),
           getProjects(),
           getCommentCounts(),
+          getAttachmentCounts(),
           getTodoNoteMap().catch(() => ({} as Record<string, string>)),
           getCollaborators().catch(() => [] as Collaborator[]),
           getTeams().catch(() => [] as Team[]),
@@ -404,6 +417,7 @@ export default function TodosPage() {
           setAssignedTodos(assigned);
           setProjects(projs.filter((p) => p.status === "active"));
           setCommentCounts(ccounts);
+          setAttachmentCounts(attachCounts);
           setTodoNoteIds(noteMap);
           setCollaborators(collabs.filter((c) => c.status === "active"));
           setTeams(tms);
@@ -525,42 +539,6 @@ export default function TodosPage() {
     }
   }, [toast, replaceTodoInLists, t]);
 
-  const requestDelete = (todo: Todo) => {
-    if (todo.status === "deleted") {
-      executeDelete(todo, "promote");
-    } else {
-      setConfirmDelete(todo);
-    }
-  };
-
-  const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
-    setConfirmDelete(null);
-    try {
-      const previousStatus = todo.status;
-      if (todo.status === "deleted") {
-        const restored = await updateTodo(todo.id, { status: "active" });
-        replaceTodoInLists(restored);
-        setLastAction({ todoId: todo.id, previousStatus });
-      } else {
-        const subs = getSubtasks(todo.id);
-        if (subs.length > 0) {
-          if (mode === "promote") {
-            const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-            mergeTodosIntoLists(promoted);
-          } else {
-            const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
-            mergeTodosIntoLists(deleted);
-          }
-        }
-        const updated = await deleteTodo(todo.id);
-        replaceTodoInLists(updated);
-        setLastAction({ todoId: todo.id, previousStatus });
-      }
-    } catch {
-      toast.error(t("toast.deleteError"));
-    }
-  };
-
   const handleDecline = useCallback(async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { assignmentStatus: "declined" });
@@ -592,8 +570,6 @@ export default function TodosPage() {
       setUndoing(false);
     }
   };
-
-  const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
 
   const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; startDate: string; deadline: string }) => {
     if (!subtaskParent) return;
@@ -927,6 +903,91 @@ export default function TodosPage() {
     return { subtaskCounts: counts, subtasksByParent: byParent };
   }, [todos]);
 
+  const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
+
+  const performDeleteTask = async (todo: Todo, mode: "promote" | "deleteAll") => {
+    const previousStatus = todo.status;
+    if (todo.status === "deleted") {
+      const restored = await updateTodo(todo.id, { status: "active" });
+      replaceTodoInLists(restored);
+      setLastAction({ todoId: todo.id, previousStatus });
+      return;
+    }
+    const subs = getSubtasks(todo.id);
+    if (subs.length > 0) {
+      if (mode === "promote") {
+        const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+        mergeTodosIntoLists(promoted);
+      } else {
+        const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+        mergeTodosIntoLists(deleted);
+      }
+    }
+    const updated = await deleteTodo(todo.id);
+    replaceTodoInLists(updated);
+    setLastAction({ todoId: todo.id, previousStatus });
+  };
+
+  const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
+    setConfirmDelete(null);
+    try {
+      await performDeleteTask(todo, mode);
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  };
+
+  const requestDelete = (todo: Todo) => {
+    if (todo.status === "deleted") {
+      void executeDelete(todo, "promote");
+    } else {
+      setConfirmDelete(todo);
+    }
+  };
+
+  const handleBulkComplete = useCallback(async (items: Todo[]) => {
+    for (const todo of items) {
+      if (todo.status !== "completed") {
+        await handleStatusChange(todo, "completed");
+      }
+    }
+  }, [handleStatusChange]);
+
+  const handleBulkArchive = useCallback(async (items: Todo[]) => {
+    let subsArchived = 0;
+    for (const todo of items) {
+      if (todo.status !== "active") continue;
+      const subs = getSubtasks(todo.id);
+      for (const sub of subs) {
+        if (sub.status === "active") {
+          await handleStatusChange(sub, "cancelled");
+          subsArchived++;
+        }
+      }
+      await handleStatusChange(todo, "cancelled");
+    }
+    if (subsArchived > 0) {
+      toast.info(t("bulk.archiveInfoSubtasks").replace("{{count}}", String(subsArchived)));
+    }
+  }, [handleStatusChange, getSubtasks, toast, t]);
+
+  const executeBulkDelete = useCallback(async () => {
+    if (!confirmBulkDelete?.length) return;
+    const items = confirmBulkDelete;
+    const subtasksTotal = items.reduce((n, todo) => n + getSubtasks(todo.id).length, 0);
+    setConfirmBulkDelete(null);
+    try {
+      for (const todo of items) {
+        await performDeleteTask(todo, "deleteAll");
+      }
+      if (subtasksTotal > 0) {
+        toast.info(t("bulk.deleteInfoSubtasks").replace("{{count}}", String(subtasksTotal)));
+      }
+    } catch {
+      toast.error(t("toast.deleteError"));
+    }
+  }, [confirmBulkDelete, toast, t, getSubtasks]);
+
   const uniqueAssignees = useMemo(() => {
     const uids = new Set<string>();
     for (const t of todos) {
@@ -984,7 +1045,7 @@ export default function TodosPage() {
         {/* ── Create form ── */}
         <form
           onSubmit={handleCreate}
-          className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-3 sm:p-5 shadow-sm"
+          className="rounded-lg border border-emerald-200/80 dark:border-emerald-900/60 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm"
         >
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -1135,6 +1196,8 @@ export default function TodosPage() {
               <PageHelpButton
                 title={t("todos.listTitle")}
                 items={[
+                  ...(mainView === "radar" ? [{ text: t("help.todos.radarWorkflow") }] : []),
+                  { text: t("help.todos.views") },
                   { text: t("help.todos.dnd") },
                   { text: t("help.todos.edit") },
                   { text: t("help.todos.attachments") },
@@ -1447,7 +1510,11 @@ export default function TodosPage() {
               onReorderSubtasks={handleReorderSubtasks}
               justCreatedId={justCreatedId}
               commentCounts={commentCounts}
+              attachmentCounts={attachmentCounts}
               onReorder={handleReorder}
+              onBulkComplete={handleBulkComplete}
+              onBulkArchive={handleBulkArchive}
+              onBulkDelete={(items) => setConfirmBulkDelete(items)}
             />
           ) : mainView === "cards" ? (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
@@ -1466,7 +1533,7 @@ export default function TodosPage() {
                   ) : (
                     <div className="space-y-2">
                       {listTodos.map((todo) => (
-                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
+                        <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} attachmentCount={attachmentCounts[todo.id] ?? 0} projects={projects} />
                       ))}
                     </div>
                   )}
@@ -1476,7 +1543,7 @@ export default function TodosPage() {
                 <div className={`grid gap-2 ${activeQuadrantFilters.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                   {activeQuadrantFilters.map((q) => (
                     <div key={q} className="rounded overflow-hidden">
-                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant={q} todos={grouped[q]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   ))}
                   {activeStatusFilters.length > 0 && (
@@ -1490,7 +1557,7 @@ export default function TodosPage() {
                         {activeStatusFilters.flatMap((f) =>
                           f === "completed" ? completedTodos : f === "cancelled" ? cancelledTodos : deletedTodos
                         ).map((todo) => (
-                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} projects={projects} />
+                          <TodoCard key={todo.id} todo={todo} onComplete={(t) => handleStatusChange(t, t.status === "completed" ? "active" : "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} onCreateNote={handleNoteAction} hasLinkedNote={!!todoNoteIds[todo.id]} justCreatedId={justCreatedId} subtaskCount={getSubtasks(todo.id).length} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} commentCount={commentCounts[todo.id] ?? 0} attachmentCount={attachmentCounts[todo.id] ?? 0} projects={projects} />
                         ))}
                       </div>
                     </div>
@@ -1522,10 +1589,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
 
@@ -1537,10 +1604,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
                 </>
@@ -1640,9 +1707,13 @@ export default function TodosPage() {
                                   meUid={meUid}
                                   projects={projects}
                                   commentCount={commentCounts[todo.id] ?? 0}
+                                  subtaskCount={getSubtasks(todo.id).length}
+                                  attachmentCount={attachmentCounts[todo.id] ?? 0}
                                   onComplete={(t) => handleStatusChange(t, "completed")}
                                   onSubtask={openSubtaskModal}
                                   onScheduleUpdate={handleScheduleUpdate}
+                                  onMeet={handleMeet}
+                                  meetLoading={meetLoadingId === todo.id}
                                   onCancel={(t) => handleStatusChange(t, "cancelled")}
                                   onDecline={handleDecline}
                                   onAccept={handleAccept}
@@ -1678,6 +1749,15 @@ export default function TodosPage() {
 
                 {/* Radar */}
                 <div className="flex-1 min-w-0">
+                  <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-slate-400">
+                    <span className="leading-snug">{t("matrix.radarWorkflowHint")}</span>
+                    <Link
+                      href="/agenda"
+                      className="font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 shrink-0"
+                    >
+                      {t("matrix.radarOpenAgenda")}
+                    </Link>
+                  </div>
                   <EisenhowerRadar
                     todos={activeTodos}
                     subtaskCounts={subtaskCounts}
@@ -1729,6 +1809,7 @@ export default function TodosPage() {
         onPersistTags={persistEditTags}
         onTodoCommentsChanged={() => {
           getCommentCounts().then(setCommentCounts).catch(() => {});
+          getAttachmentCounts().then(setAttachmentCounts).catch(() => {});
         }}
         onManageMeet={editingTodo ? (() => openMeetOptions(editingTodo)) : undefined}
       />
@@ -1752,6 +1833,14 @@ export default function TodosPage() {
         onCancel={() => setConfirmDelete(null)}
         onDeleteAndPromote={() => confirmDelete && executeDelete(confirmDelete, "promote")}
         onDeleteAll={() => confirmDelete && executeDelete(confirmDelete, "deleteAll")}
+      />
+
+      <BulkDeleteTaskDialog
+        open={!!confirmBulkDelete?.length}
+        count={confirmBulkDelete?.length ?? 0}
+        subtaskCount={confirmBulkDelete?.reduce((n, todo) => n + getSubtasks(todo.id).length, 0) ?? 0}
+        onCancel={() => setConfirmBulkDelete(null)}
+        onConfirm={() => void executeBulkDelete()}
       />
 
       {meetOptionsTodo && (

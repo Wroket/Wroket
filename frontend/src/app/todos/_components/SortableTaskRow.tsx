@@ -38,10 +38,13 @@ export interface SortableTaskRowProps {
   onReorderSubtasks?: (orderedIds: string[]) => void;
   justCreatedId?: string | null;
   commentCounts: Record<string, number>;
+  attachmentCounts: Record<string, number>;
   projects: Project[];
   subtasksOf: (id: string) => Todo[];
   expanded: Set<string>;
   toggleExpand: (id: string) => void;
+  bulkSelected: boolean;
+  onBulkToggle: () => void;
 }
 
 export default function SortableTaskRow({
@@ -64,11 +67,14 @@ export default function SortableTaskRow({
   hasLinkedNote = false,
   justCreatedId,
   commentCounts,
+  attachmentCounts,
   projects,
   subtasksOf,
   expanded,
   toggleExpand,
   onReorderSubtasks,
+  bulkSelected,
+  onBulkToggle,
 }: SortableTaskRowProps) {
   const { t } = useLocale();
   const {
@@ -120,7 +126,7 @@ export default function SortableTaskRow({
             </svg>
           </button>
         </td>
-        <td className="px-4 py-3">
+        <td className="pl-2 pr-0.5 py-3 align-top">
           {isArchived ? (
             <button
               type="button"
@@ -139,6 +145,8 @@ export default function SortableTaskRow({
               meUid={meUid}
               projects={projects}
               commentCount={commentCounts[todo.id] ?? 0}
+              subtaskCount={subs.length}
+              attachmentCount={attachmentCounts[todo.id] ?? 0}
               onComplete={onComplete}
               onSubtask={onSubtask}
               onScheduleUpdate={onScheduleUpdate}
@@ -156,7 +164,7 @@ export default function SortableTaskRow({
             />
           )}
         </td>
-        <td className="px-4 py-3">
+        <td className="pl-2 pr-4 py-3">
           <span className={`font-medium ${
             todo.status === "completed" ? "line-through text-zinc-400" :
             todo.status === "cancelled" ? "line-through text-zinc-400 italic" :
@@ -216,12 +224,12 @@ export default function SortableTaskRow({
             </button>
           )}
         </td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 w-24 align-top">
           <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${badge.cls}`}>
             {t(badge.tKey)}
           </span>
         </td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 w-24 align-top">
           <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
             {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
           </span>
@@ -236,17 +244,27 @@ export default function SortableTaskRow({
             );
           })()}
         </td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 w-24 align-top">
           {dl ? (
             <span className={`text-xs font-semibold px-2 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>
           ) : (
             <span className="text-xs text-zinc-300">—</span>
           )}
         </td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 w-24 align-top">
           <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded ${qBadge.cls}`}>
             {t(qBadge.tKey)}
           </span>
+        </td>
+        <td className="w-10 px-1 py-3 align-middle text-center">
+          <input
+            type="checkbox"
+            checked={bulkSelected}
+            onChange={(e) => { e.stopPropagation(); onBulkToggle(); }}
+            onClick={(e) => e.stopPropagation()}
+            className="rounded border-zinc-300 dark:border-slate-600 dark:bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+            aria-label={t("a11y.selectTaskRow")}
+          />
         </td>
       </tr>
       {expanded.has(todo.id) && subs.length > 0 && (
@@ -264,6 +282,7 @@ export default function SortableTaskRow({
           meetLoadingId={meetLoadingId}
           onCreateNote={onCreateNote}
           commentCounts={commentCounts}
+          attachmentCounts={attachmentCounts}
           projects={projects}
           onReorderSubtasks={onReorderSubtasks}
         />

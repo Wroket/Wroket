@@ -22,6 +22,7 @@ export interface QuadrantCellProps {
   onScheduleUpdate?: (t: Todo) => void;
   subtaskCounts?: Record<string, number>;
   commentCounts?: Record<string, number>;
+  attachmentCounts?: Record<string, number>;
   todoNoteIds?: Record<string, string>;
   onCreateNote?: (t: Todo) => void;
   justCreatedId?: string | null;
@@ -45,6 +46,7 @@ export default function QuadrantCell({
   onScheduleUpdate,
   subtaskCounts = {},
   commentCounts: ccounts = {},
+  attachmentCounts: acounts = {},
   todoNoteIds = {},
   onCreateNote,
   justCreatedId,
@@ -125,6 +127,7 @@ export default function QuadrantCell({
                     meUid={meUid}
                     userDisplayName={userDisplayName}
                     commentCount={ccounts[todo.id] ?? 0}
+                    attachmentCount={acounts[todo.id] ?? 0}
                     projects={projects}
                   />
                   {subs.length > 0 && (

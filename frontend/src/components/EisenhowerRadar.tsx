@@ -18,6 +18,7 @@ import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { useLocale } from "@/lib/LocaleContext";
 import { PRIORITY_BADGES, SUBTASK_BADGE_CLS, type Quadrant } from "@/lib/todoConstants";
 import type { TranslationKey } from "@/lib/i18n";
+import { trackRadarEvent } from "@/lib/productAnalytics";
 
 const QUADRANT_BADGES: Record<Quadrant, { tKey: TranslationKey; cls: string }> = {
   "do-first": { tKey: "badge.doFirst", cls: "bg-red-500 text-white dark:bg-red-600" },
@@ -113,6 +114,7 @@ export default function EisenhowerRadar({
   const isControlled = radarModeProp !== undefined && onRadarModeChange !== undefined;
   const radarMode = isControlled ? radarModeProp : internalRadarMode;
   const setRadarMode = (id: RadarMode) => {
+    trackRadarEvent("radar_mode_change", { mode: id });
     onRadarModeChange?.(id);
     if (!isControlled) setInternalRadarMode(id);
   };
@@ -164,8 +166,18 @@ export default function EisenhowerRadar({
     }
   }, [radarMode, t]);
 
+  const openTaskEdit = (todo: Todo) => {
+    trackRadarEvent("radar_open_edit", { todoId: todo.id });
+    onEditTask?.(todo);
+  };
+
   return (
     <div className={compact ? "max-w-full mx-auto" : "max-w-[min(100%,calc(100vh-16rem))] mx-auto"}>
+      {!compact && (
+        <p className="text-center text-xs text-zinc-500 dark:text-slate-400 mb-2 max-w-md mx-auto leading-relaxed">
+          {t("matrix.radarLensIntro")}
+        </p>
+      )}
       <div className={`flex flex-wrap gap-1.5 justify-center mb-3 ${compact ? "gap-1" : ""}`}>
         {RADAR_MODES.map(({ id, labelKey, helpKey }) => (
           <button
@@ -305,7 +317,7 @@ export default function EisenhowerRadar({
                       if (onEditTask) {
                         cancelHoverClear();
                         setHoveredId(null);
-                        onEditTask(todo);
+                        openTaskEdit(todo);
                       }
                     }}
                     onKeyDown={(e: KeyboardEvent) => {
@@ -314,7 +326,7 @@ export default function EisenhowerRadar({
                         if (onEditTask) {
                           cancelHoverClear();
                           setHoveredId(null);
-                          onEditTask(todo);
+                          openTaskEdit(todo);
                         }
                       }
                     }}
@@ -341,7 +353,7 @@ export default function EisenhowerRadar({
                         ? () => {
                             cancelHoverClear();
                             setHoveredId(null);
-                            onEditTask(todo);
+                            openTaskEdit(todo);
                           }
                         : undefined
                     }

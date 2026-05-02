@@ -63,6 +63,7 @@ export {
   getTaskActivity,
   getComments,
   getCommentCounts,
+  getAttachmentCounts,
   postCommentApi,
   editCommentApi,
   deleteCommentApi,

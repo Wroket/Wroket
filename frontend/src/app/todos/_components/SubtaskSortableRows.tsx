@@ -25,6 +25,7 @@ export interface SubtaskSortableRowsProps {
   onCreateNote?: (todo: Todo) => void;
   hasLinkedNoteById?: Record<string, boolean>;
   commentCounts?: Record<string, number>;
+  attachmentCounts?: Record<string, number>;
   projects?: Project[];
   onReorderSubtasks?: (orderedIds: string[]) => void;
 }
@@ -44,6 +45,7 @@ export default function SubtaskSortableRows({
   onCreateNote,
   hasLinkedNoteById = {},
   commentCounts = {},
+  attachmentCounts = {},
   projects = [],
   onReorderSubtasks,
 }: SubtaskSortableRowsProps) {
@@ -95,12 +97,14 @@ export default function SubtaskSortableRows({
                 </div>
               )}
             </td>
-            <td className="px-4 py-2 pl-8">
+            <td className="py-2 pl-8 pr-0.5 align-top">
               <TaskIconToolbar
                 todo={sub}
                 meUid={meUid}
                 projects={projects}
                 commentCount={commentCounts[sub.id] ?? 0}
+                subtaskCount={0}
+                attachmentCount={attachmentCounts[sub.id] ?? 0}
                 onComplete={onComplete}
                 onSubtask={() => {}}
                 onScheduleUpdate={onScheduleUpdate}
@@ -116,22 +120,23 @@ export default function SubtaskSortableRows({
                 isolatePointerEvents
               />
             </td>
-            <td className="px-4 py-2">
+            <td className="pl-2 pr-4 py-2">
               <span className="text-zinc-400 mr-1.5">↳</span>
               <span className={`text-sm ${sub.status === "completed" ? "line-through text-zinc-400" : "text-zinc-700 dark:text-slate-300"}`}>
                 {displayTodoTitle(sub.title, t("todos.untitled"))}
               </span>
             </td>
-            <td className="px-4 py-2">
+            <td className="px-4 py-2 w-24 align-top">
               <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${subBadge.cls}`}>{t(subBadge.tKey)}</span>
             </td>
-            <td className="px-4 py-2">
+            <td className="px-4 py-2 w-24 align-top">
               <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${EFFORT_BADGES[sub.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[sub.effort ?? "medium"].tKey)}</span>
             </td>
-            <td className="px-4 py-2">
+            <td className="px-4 py-2 w-24 align-top">
               {subDl ? <span className={`text-xs font-semibold px-2 py-0.5 rounded ${subDl.cls}`}>{subDl.text}</span> : <span className="text-xs text-zinc-300">—</span>}
             </td>
-            <td className="px-4 py-2" />
+            <td className="px-4 py-2 w-24 align-top" />
+            <td className="w-10 px-1 py-2 bg-zinc-50/40 dark:bg-slate-800/30" aria-hidden />
           </tr>
         );
       })}

@@ -33,6 +33,8 @@ interface TodoCardProps {
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   commentCount?: number;
+  /** Pièces jointes sur la tâche (toolbar PJ bleu / vert). */
+  attachmentCount?: number;
   projects?: Project[];
   /** Horodatage partagé avec le radar pour la barre de quadrant. */
   nowMs?: number;
@@ -57,6 +59,7 @@ export default function TodoCard({
   meUid,
   userDisplayName,
   commentCount = 0,
+  attachmentCount = 0,
   projects = [],
   nowMs,
 }: TodoCardProps) {
@@ -93,6 +96,8 @@ export default function TodoCard({
             meUid={meUid ?? null}
             projects={projects}
             commentCount={commentCount}
+            subtaskCount={subtaskCount}
+            attachmentCount={attachmentCount}
             onComplete={onComplete}
             onSubtask={onSubtask}
             onScheduleUpdate={onScheduleUpdate}

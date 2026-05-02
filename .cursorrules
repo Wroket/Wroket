@@ -49,3 +49,11 @@ Ton objectif est de produire un code performant, modulaire et à coût minimal.
 - **Git ne contient pas les données métier** (tâches, utilisateurs) : elles sont dans **Firestore** en prod ou dans `backend/data/` en local **hors dépôt** (voir `.gitignore`).
 - **Un commit ou un push ne doit jamais servir de prétexte** pour supprimer ou réinitialiser des données : toute évolution risquée pour le store suit `.cursor/rules/data-safety.mdc`.
 - Ne pas ajouter de code d’**init** qui vide Firestore / le store sans migration explicite et backup.
+
+## Critique constructive et remise en cause des propositions
+
+- Ne pas valider une proposition sans au minimum **une passe critique** : hypothèses implicites, périmètre, risques (données, sécurité, performance, maintenance, dette technique, dérive de scope).
+- Énoncer **au moins une alternative** ou le cas « ne pas faire maintenant » lorsque le choix a des arbitrages significatifs.
+- Si la demande est **ambiguë** ou à **fort impact** (production, données persistantes, auth, paiement / facturation), poser **une ou deux questions** ciblées avant d’implémenter — sauf si le risque est négligeable et la demande déjà précise.
+- Recouper avec `.cursor/rules/architecture.mdc`, `data-safety.mdc`, les règles produit / complétude (`feature-completeness-gate`, `product-e2e`) et le **ROADMAP** lorsque la proposition engage charge ou priorités.
+- **Équilibre** : challenger sans bloquer pour du réversible ou trivial ; une fois les arbitrages posés, **exécuter** sans dilater la discussion.
