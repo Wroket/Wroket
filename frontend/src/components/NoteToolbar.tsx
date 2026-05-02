@@ -65,6 +65,14 @@ function IndentIcon() {
   );
 }
 
+function OutdentIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M9 12h12M3 18h18M17 9l-4 3 4 3" />
+    </svg>
+  );
+}
+
 export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
   const { t } = useLocale();
   const [active, setActive] = useState<Record<string, boolean>>({});
@@ -75,6 +83,7 @@ export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
     { label: "U", title: t("notes.fmtUnderline"), icon: <UnderlineIcon />, command: "underline", toggle: true },
     { label: "~~", title: t("notes.fmtStrikethrough"), icon: <StrikeIcon />, command: "strikeThrough", toggle: true },
     { label: "→|", title: t("notes.fmtIndent"), icon: <IndentIcon />, command: "indent" },
+    { label: "|←", title: t("notes.fmtOutdent"), icon: <OutdentIcon />, command: "outdent" },
   ];
 
   const refreshActiveStates = () => {

@@ -793,6 +793,7 @@ const translations = {
   "notes.fmtUnderline": { fr: "Souligné (__texte__)", en: "Underline (__text__)" },
   "notes.fmtStrikethrough": { fr: "Barré (~~texte~~)", en: "Strikethrough (~~text~~)" },
   "notes.fmtIndent": { fr: "Retrait (2 espaces)", en: "Indent (2 spaces)" },
+  "notes.fmtOutdent": { fr: "Retrait négatif", en: "Outdent" },
   "notes.fmtPlaceholder": { fr: "texte", en: "text" },
   "notes.fmtHint": { fr: "Sélectionnez du texte puis cliquez", en: "Select text then click" },
   "notes.search": { fr: "Rechercher...", en: "Search..." },

@@ -4,6 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { Project, Priority } from "@/lib/api";
+import {
+  detectSlashQuery,
+  getCaretPlainOffset,
+  getPlainTextBeforeCaret,
+  placeCaretAtPlainOffset,
+  replacePlainTextRange,
+} from "@/lib/noteSlashRange";
 import { useLocale } from "@/lib/LocaleContext";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 
@@ -36,11 +43,15 @@ export interface SlashTaskPayload {
 }
 
 export interface SlashCommandMenuProps {
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** Plain-text notes: use `editorRef` (contenteditable). */
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  editorRef?: React.RefObject<HTMLDivElement | null>;
   content: string;
   onContentChange: (newContent: string) => void;
   projects?: Project[];
   onCreateTask?: (payload: SlashTaskPayload) => Promise<void>;
+  /** When this changes (e.g. selected note id), any open slash UI closes. */
+  bindingNoteId?: string | null;
 }
 
 /* ─── Built-in command definitions (locale-agnostic) ─── */
@@ -59,7 +70,15 @@ const COMMAND_DEFS: CommandDef[] = [
 
 /* ─── Component ─── */
 
-export default function SlashCommandMenu({ textareaRef, content, onContentChange, projects, onCreateTask }: SlashCommandMenuProps) {
+export default function SlashCommandMenu({
+  textareaRef,
+  editorRef,
+  content,
+  onContentChange,
+  projects,
+  onCreateTask,
+  bindingNoteId,
+}: SlashCommandMenuProps) {
   const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -124,33 +143,61 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
     setActivePanel(null);
   }, []);
 
-  const insertText = useCallback((text: string) => {
-    const textarea = textareaRef.current;
-    const start = slashStartRef.current;
-    if (!textarea || start < 0) return;
-    const cur = contentRef.current;
-    const cursorPos = textarea.selectionStart;
-    const before = cur.slice(0, start);
-    const after = cur.slice(Math.max(cursorPos, start));
-    const newContent = before + text + after;
-    onContentChange(newContent);
+  useEffect(() => {
     closeMenu();
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        const pos = start + text.length;
-        textareaRef.current.focus();
-        textareaRef.current.setSelectionRange(pos, pos);
+  }, [bindingNoteId, closeMenu]);
+
+  const insertText = useCallback(
+    (text: string) => {
+      const start = slashStartRef.current;
+      if (start < 0) return;
+
+      const editor = editorRef?.current;
+      if (editor) {
+        const caretPlain = getCaretPlainOffset(editor);
+        replacePlainTextRange(editor, start, caretPlain, text);
+        onContentChange(editor.innerHTML);
+        closeMenu();
+        requestAnimationFrame(() => {
+          editor.focus();
+          placeCaretAtPlainOffset(editor, start + text.length);
+        });
+        return;
       }
-    });
-  }, [onContentChange, closeMenu, textareaRef]);
+
+      const textarea = textareaRef?.current;
+      if (!textarea) return;
+      const cur = contentRef.current;
+      const cursorPos = textarea.selectionStart;
+      const before = cur.slice(0, start);
+      const after = cur.slice(Math.max(cursorPos, start));
+      const newContent = before + text + after;
+      onContentChange(newContent);
+      closeMenu();
+      requestAnimationFrame(() => {
+        if (textareaRef?.current) {
+          const pos = start + text.length;
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(pos, pos);
+        }
+      });
+    },
+    [onContentChange, closeMenu, textareaRef, editorRef],
+  );
 
   const getCurrentLineText = useCallback(() => {
     const start = slashStartRef.current;
-    const cur = contentRef.current;
     if (start < 0) return "";
+    const ed = editorRef?.current;
+    if (ed) {
+      const beforeCaret = getPlainTextBeforeCaret(ed);
+      const lineStart = beforeCaret.lastIndexOf("\n", start - 1) + 1;
+      return beforeCaret.slice(lineStart, start).trim();
+    }
+    const cur = contentRef.current;
     const lineStart = cur.lastIndexOf("\n", start - 1) + 1;
     return cur.slice(lineStart, start).trim();
-  }, []);
+  }, [editorRef]);
 
   const openPanel = useCallback((panelId: string) => {
     setActivePanel(panelId);
@@ -217,7 +264,26 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
   /* ── Position computing ── */
 
   const computeMenuPosition = useCallback(() => {
-    const textarea = textareaRef.current;
+    const editor = editorRef?.current;
+    if (editor) {
+      const sel = window.getSelection();
+      if (sel?.rangeCount && editor.contains(sel.anchorNode)) {
+        const r = sel.getRangeAt(0).getBoundingClientRect();
+        const pad = 4;
+        const top = Math.min(
+          (r.height > 0 || r.width > 0 ? r.bottom : r.top) + pad,
+          window.innerHeight - 8,
+        );
+        const left = Math.min(r.left, window.innerWidth - 300);
+        return { top, left };
+      }
+      const rect = editor.getBoundingClientRect();
+      return {
+        top: Math.min(rect.top + 8, window.innerHeight - 380),
+        left: Math.min(rect.left + 12, window.innerWidth - 300),
+      };
+    }
+    const textarea = textareaRef?.current;
     if (!textarea) return { top: 0, left: 0 };
     const rect = textarea.getBoundingClientRect();
     const style = getComputedStyle(textarea);
@@ -227,40 +293,67 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
     const textBefore = content.slice(0, slashStart);
     const lines = textBefore.split("\n");
     const lineIndex = lines.length - 1;
-    const charIndex = lines[lineIndex].length;
+    const charIndex = lines[lineIndex]!.length;
     const charWidth = parseFloat(style.fontSize) * 0.6;
     const top = rect.top + paddingTop + (lineIndex + 1) * lineHeight - textarea.scrollTop + 4;
     const left = rect.left + paddingLeft + charIndex * charWidth;
     return { top: Math.min(top, window.innerHeight - 380), left: Math.min(left, window.innerWidth - 300) };
-  }, [textareaRef, content, slashStart]);
+  }, [editorRef, textareaRef, content, slashStart]);
 
   /* ── Textarea event listeners (only for command list, NOT panels) ── */
 
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+    const textarea = textareaRef?.current;
+    const richEditor = editorRef?.current;
+    const target = textarea ?? richEditor;
+    if (!target) return;
 
     const handleInput = () => {
       if (activePanel) return;
-      const cursor = textarea.selectionStart;
-      const text = textarea.value;
-      const lineStart = text.lastIndexOf("\n", cursor - 1) + 1;
-      const textBeforeCursor = text.slice(lineStart, cursor);
-      const slashMatch = textBeforeCursor.match(/\/(\w*)$/);
-      if (slashMatch) {
-        const matchStart = lineStart + slashMatch.index!;
-        setSlashStart(matchStart);
-        setQuery(slashMatch[1]);
-        setOpen(true);
-      } else if (open && !activePanel) {
-        closeMenu();
+      if (textarea) {
+        const cursor = textarea.selectionStart;
+        const text = textarea.value;
+        const lineStart = text.lastIndexOf("\n", cursor - 1) + 1;
+        const textBeforeCursor = text.slice(lineStart, cursor);
+        const slashMatch = textBeforeCursor.match(/\/(\w*)$/);
+        if (slashMatch) {
+          const matchStart = lineStart + slashMatch.index!;
+          setSlashStart(matchStart);
+          setQuery(slashMatch[1]);
+          setOpen(true);
+        } else if (open && !activePanel) {
+          closeMenu();
+        }
+        return;
+      }
+      if (richEditor) {
+        const det = detectSlashQuery(richEditor);
+        if (det) {
+          setSlashStart(det.slashStartPlainOffset);
+          setQuery(det.query);
+          setOpen(true);
+        } else if (open && !activePanel) {
+          closeMenu();
+        }
       }
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (ev: Event) => {
+      const e = ev as KeyboardEvent;
+      const ed = editorRef?.current;
+      if (ed && !open && e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        document.execCommand(e.shiftKey ? "outdent" : "indent", false);
+        onContentChange(ed.innerHTML);
+        return;
+      }
+
       if (!open || activePanel) return;
       if (filtered.length === 0) {
-        if (e.key === "Escape") { e.preventDefault(); closeMenu(); }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeMenu();
+        }
         return;
       }
       if (e.key === "ArrowDown") {
@@ -270,19 +363,32 @@ export default function SlashCommandMenu({ textareaRef, content, onContentChange
         e.preventDefault();
         setSelectedIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
       } else if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault(); executeCommand(filtered[selectedIndex]);
+        e.preventDefault();
+        executeCommand(filtered[selectedIndex]!);
       } else if (e.key === "Escape") {
-        e.preventDefault(); closeMenu();
+        e.preventDefault();
+        closeMenu();
       }
     };
 
-    textarea.addEventListener("input", handleInput);
-    textarea.addEventListener("keydown", handleKeyDown);
+    target.addEventListener("input", handleInput);
+    target.addEventListener("keydown", handleKeyDown);
     return () => {
-      textarea.removeEventListener("input", handleInput);
-      textarea.removeEventListener("keydown", handleKeyDown);
+      target.removeEventListener("input", handleInput);
+      target.removeEventListener("keydown", handleKeyDown);
     };
-  }, [textareaRef, open, filtered, selectedIndex, executeCommand, closeMenu, activePanel]);
+  }, [
+    textareaRef,
+    editorRef,
+    content,
+    open,
+    filtered,
+    selectedIndex,
+    executeCommand,
+    closeMenu,
+    activePanel,
+    onContentChange,
+  ]);
 
   /* ── Global Escape for panels ── */
   useEffect(() => {

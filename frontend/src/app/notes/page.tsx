@@ -8,9 +8,10 @@ import AppShell from "@/components/AppShell";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
 import PageHelpButton from "@/components/PageHelpButton";
+import SlashCommandMenu, { type SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { useOfflineNotes } from "@/lib/useOfflineNotes";
-import { getProjects, getTodos, getTeams, getMe } from "@/lib/api";
+import { createTodo, getProjects, getTodos, getTeams, getMe } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 
 function NotesPageInner() {
@@ -160,6 +161,24 @@ function NotesPageInner() {
     if (!selectedId || !contentRef.current || isSharedNote) return;
     handleContentChange(contentRef.current.innerHTML);
   }, [selectedId, isSharedNote, handleContentChange]);
+
+  const handleSlashCreateTask = useCallback(
+    async (payload: SlashTaskPayload) => {
+      const todo = await createTodo({
+        title: payload.title,
+        priority: payload.priority,
+        effort: "medium",
+        deadline: payload.deadline ? `${payload.deadline}T12:00:00` : null,
+        projectId: payload.projectId ?? null,
+        assignedTo: payload.assignedTo ?? null,
+      });
+      if (selectedId) {
+        saveNote(selectedId, { todoId: todo.id });
+      }
+      getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
+    },
+    [selectedId, saveNote],
+  );
 
   useEffect(() => {
     if (!contentRef.current || !selected) return;
@@ -538,6 +557,17 @@ function NotesPageInner() {
               {!isSharedNote && (
                 <NoteToolbar
                   editorRef={contentRef}
+                />
+              )}
+
+              {!isSharedNote && selected && (
+                <SlashCommandMenu
+                  editorRef={contentRef}
+                  content={selected.content}
+                  onContentChange={handleContentChange}
+                  projects={projects}
+                  onCreateTask={handleSlashCreateTask}
+                  bindingNoteId={selected.id}
                 />
               )}
 
