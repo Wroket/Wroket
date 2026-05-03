@@ -39,6 +39,7 @@ import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
+import { useResourceSync } from "@/lib/useResourceSync";
 import type { TranslationKey } from "@/lib/i18n";
 import type { Quadrant } from "@/lib/todoConstants";
 
@@ -154,6 +155,9 @@ export default function DashboardPage() {
       toast.error(t("toast.loadError"));
     }
   }, [meUid, resolveUser, toast, t]);
+
+  // Refresh when tab becomes visible or another tab mutates todos/projects.
+  useResourceSync("todos", loadDashboard);
 
   useEffect(() => {
     let cancelled = false;

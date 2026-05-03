@@ -2,6 +2,7 @@ import {
   API_BASE_URL, parseJsonOrThrow, extractApiMessage,
 } from "./core";
 import type { Priority, Effort, Todo } from "./todos";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
 
 export type ProjectStatus = "active" | "archived";
 
@@ -105,7 +106,9 @@ export async function createProject(payload: CreateProjectPayload): Promise<Proj
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur"));
   }
-  return (await res.json()) as Project;
+  const result = (await res.json()) as Project;
+  broadcastResourceChange("projects");
+  return result;
 }
 
 export async function updateProject(id: string, payload: UpdateProjectPayload): Promise<Project> {
@@ -119,7 +122,9 @@ export async function updateProject(id: string, payload: UpdateProjectPayload): 
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur lors de la mise à jour du projet"));
   }
-  return (await res.json()) as Project;
+  const result = (await res.json()) as Project;
+  broadcastResourceChange("projects");
+  return result;
 }
 
 export async function deleteProjectApi(id: string): Promise<void> {
@@ -128,6 +133,7 @@ export async function deleteProjectApi(id: string): Promise<void> {
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur lors de la suppression du projet"));
   }
+  broadcastResourceChange("projects");
 }
 
 export async function reorderProjects(projectIds: string[]): Promise<void> {
@@ -141,6 +147,7 @@ export async function reorderProjects(projectIds: string[]): Promise<void> {
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur de réordonnancement"));
   }
+  broadcastResourceChange("projects");
 }
 
 export async function getProjectTodos(projectId: string): Promise<Todo[]> {
@@ -183,7 +190,9 @@ export async function createPhase(projectId: string, payload: CreatePhasePayload
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur"));
   }
-  return (await res.json()) as ProjectPhase;
+  const result = (await res.json()) as ProjectPhase;
+  broadcastResourceChange("projects");
+  return result;
 }
 
 export async function updatePhaseApi(projectId: string, phaseId: string, payload: UpdatePhasePayload): Promise<ProjectPhase> {
@@ -197,7 +206,9 @@ export async function updatePhaseApi(projectId: string, phaseId: string, payload
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur lors de la mise à jour de la phase"));
   }
-  return (await res.json()) as ProjectPhase;
+  const result = (await res.json()) as ProjectPhase;
+  broadcastResourceChange("projects");
+  return result;
 }
 
 export async function deletePhaseApi(projectId: string, phaseId: string): Promise<void> {
@@ -209,6 +220,7 @@ export async function deletePhaseApi(projectId: string, phaseId: string): Promis
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur lors de la suppression de la phase"));
   }
+  broadcastResourceChange("projects");
 }
 
 export interface ConvertPhaseToSubprojectPayload {

@@ -30,6 +30,7 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useUserLookup } from "@/lib/userUtils";
+import { useResourceSync } from "@/lib/useResourceSync";
 import {
   HOUR_HEIGHT,
   DAY_START_HOUR,
@@ -409,6 +410,9 @@ export default function AgendaPage() {
     setWroketEvents(data.wroketEvents);
     setGoogleEvents(data.googleEvents);
   }, [dateRange]);
+
+  // Refresh when tab becomes visible or another tab mutates todos/calendar slots.
+  useResourceSync("agenda", refreshCalendarForRange);
 
   const onEditAutoSaved = useCallback(
     (updated: Todo) => {

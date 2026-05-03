@@ -824,6 +824,13 @@ const translations = {
   "notes.removeCollaboratorShare": { fr: "Retirer l'accès", en: "Remove access" },
   "notes.collaboratorSharedWith": { fr: "Partagé avec", en: "Shared with" },
   "notes.archivedShort": { fr: "Annulé", en: "Archived" },
+  "notes.resyncFromServer": { fr: "Resynchroniser depuis le serveur", en: "Resync from server" },
+  "notes.resyncConfirm": {
+    fr: "Remplacer le cache local par les notes du serveur ? Les modifications hors ligne non synchronisées seront perdues.",
+    en: "Replace local cache with notes from the server? Unsaved offline changes will be lost.",
+  },
+  "notes.resyncSuccess": { fr: "Notes rechargées depuis le serveur", en: "Notes reloaded from server" },
+  "notes.resyncError": { fr: "Impossible de resynchroniser", en: "Could not resync" },
   "notes.archiveTitle": { fr: "Notes archivées", en: "Archived notes" },
   "notes.archiveSubtitle": { fr: "Notes supprimées — restauration ou suppression définitive", en: "Deleted notes — restore or delete permanently" },
   "notes.archiveEmpty": { fr: "Aucune note archivée", en: "No archived notes" },

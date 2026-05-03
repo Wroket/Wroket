@@ -2,6 +2,7 @@ import {
   API_BASE_URL, parseJsonOrThrow, extractApiMessage,
 } from "./core";
 import type { Todo } from "./todos";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
 
 export interface Collaborator {
   email: string;
@@ -63,7 +64,9 @@ export async function inviteCollaborator(email: string): Promise<Collaborator> {
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur"));
   }
-  return (await res.json()) as Collaborator;
+  const result = (await res.json()) as Collaborator;
+  broadcastResourceChange("teams");
+  return result;
 }
 
 /** Re-sends in-app notification (if applicable) and collaboration invite email for a pending invite. */
@@ -86,6 +89,7 @@ export async function removeCollaborator(email: string): Promise<void> {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Impossible de supprimer le collaborateur");
+  broadcastResourceChange("teams");
 }
 
 export async function acceptCollaboration(inviterEmail: string): Promise<void> {
@@ -96,6 +100,7 @@ export async function acceptCollaboration(inviterEmail: string): Promise<void> {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erreur lors de l'acceptation");
+  broadcastResourceChange("teams");
 }
 
 export async function declineCollaboration(inviterEmail: string): Promise<void> {
@@ -106,6 +111,7 @@ export async function declineCollaboration(inviterEmail: string): Promise<void> 
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erreur lors du refus");
+  broadcastResourceChange("teams");
 }
 
 export async function getTeams(): Promise<Team[]> {
@@ -125,7 +131,9 @@ export async function createTeam(name: string, members: string[]): Promise<Team>
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur"));
   }
-  return (await res.json()) as Team;
+  const result = (await res.json()) as Team;
+  broadcastResourceChange("teams");
+  return result;
 }
 
 export async function addTeamMember(teamId: string, email: string): Promise<Team> {
@@ -139,7 +147,9 @@ export async function addTeamMember(teamId: string, email: string): Promise<Team
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur"));
   }
-  return (await res.json()) as Team;
+  const result = (await res.json()) as Team;
+  broadcastResourceChange("teams");
+  return result;
 }
 
 export async function removeTeamMemberApi(teamId: string, email: string): Promise<Team> {
@@ -148,7 +158,9 @@ export async function removeTeamMemberApi(teamId: string, email: string): Promis
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erreur");
-  return (await res.json()) as Team;
+  const result = (await res.json()) as Team;
+  broadcastResourceChange("teams");
+  return result;
 }
 
 export async function updateMemberRoleApi(teamId: string, email: string, role: TeamMemberRole): Promise<Team> {
@@ -162,7 +174,9 @@ export async function updateMemberRoleApi(teamId: string, email: string, role: T
     const body = await parseJsonOrThrow(res);
     throw new Error(extractApiMessage(body, "Erreur"));
   }
-  return (await res.json()) as Team;
+  const result = (await res.json()) as Team;
+  broadcastResourceChange("teams");
+  return result;
 }
 
 export interface TeamDashboardData {
@@ -186,6 +200,7 @@ export async function getTeamDashboard(teamId: string): Promise<TeamDashboardDat
 export async function deleteTeamApi(teamId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/teams/${teamId}`, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error("Impossible de supprimer l'équipe");
+  broadcastResourceChange("teams");
 }
 
 export async function getOwnedTeams(): Promise<Team[]> {

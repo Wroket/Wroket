@@ -6,6 +6,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
 import { errorHandler } from "./middlewares/errorHandler";
+import { noStoreCache } from "./middlewares/noStoreCache";
 import { requestId } from "./middlewares/requestId";
 import healthRoutes from "./routes/healthRoutes";
 import authRoutes from "./routes/authRoutes";
@@ -64,6 +65,11 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "Trop de requêtes, réessayez dans une minute" },
 });
+
+// Prevent HTTP caches (browser, CDN, proxy) from serving stale authenticated data.
+// Applied at the app level so every business route is covered, including future ones.
+// Individual attachment controllers may override with their own Cache-Control headers.
+app.use(noStoreCache);
 
 app.use("/", healthRoutes);
 app.use("/auth", authRoutes);

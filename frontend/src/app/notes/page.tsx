@@ -8,16 +8,19 @@ import AppShell from "@/components/AppShell";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
 import PageHelpButton from "@/components/PageHelpButton";
+import { useToast } from "@/components/Toast";
 import SlashCommandMenu, { type SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
-import { useOfflineNotes } from "@/lib/useOfflineNotes";
+import { clearNotesLocalStorage, useOfflineNotes } from "@/lib/useOfflineNotes";
 import { createTodo, getProjects, getTodos, getTeams, getMe } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 
 function NotesPageInner() {
   const { t } = useLocale();
+  const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin } = useOfflineNotes();
+  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload } = useOfflineNotes();
+  const [resyncing, setResyncing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -99,6 +102,20 @@ function NotesPageInner() {
     }
     setDeleteConfirm(null);
   }, [deleteConfirm, removeNote, selectedId, notes]);
+
+  const handleResyncFromServer = useCallback(async () => {
+    if (!window.confirm(t("notes.resyncConfirm"))) return;
+    setResyncing(true);
+    try {
+      clearNotesLocalStorage();
+      await reload();
+      toast.success(t("notes.resyncSuccess"));
+    } catch {
+      toast.error(t("notes.resyncError"));
+    } finally {
+      setResyncing(false);
+    }
+  }, [reload, t, toast]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -222,9 +239,28 @@ function NotesPageInner() {
                 </Link>
                 <button
                   type="button"
+                  data-testid="notes-resync"
+                  onClick={() => void handleResyncFromServer()}
+                  disabled={resyncing || loading}
+                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  title={t("notes.resyncFromServer")}
+                  aria-label={t("notes.resyncFromServer")}
+                >
+                  {resyncing ? (
+                    <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
                   onClick={handleNew}
                   className="rounded-lg bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white p-1.5 transition-colors"
                   title={t("notes.new")}
+                  aria-label={t("notes.new")}
+                  data-testid="notes-new"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -349,6 +385,7 @@ function NotesPageInner() {
                 </div>
                 <input
                   ref={titleRef}
+                  data-testid="note-title-input"
                   type="text"
                   value={selected.title}
                   onChange={(e) => !isSharedNote && handleTitleChange(e.target.value)}
@@ -383,7 +420,12 @@ function NotesPageInner() {
                 {!isSharedNote && (
                   deleteConfirm === selected.id ? (
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={handleDelete} className="rounded bg-red-500 text-white text-xs px-2 py-1 font-medium hover:bg-red-600">
+                      <button
+                        type="button"
+                        data-testid="note-delete-confirm"
+                        onClick={handleDelete}
+                        className="rounded bg-red-500 text-white text-xs px-2 py-1 font-medium hover:bg-red-600"
+                      >
                         {t("notes.delete")}
                       </button>
                       <button type="button" onClick={() => setDeleteConfirm(null)} className="text-xs text-zinc-500 dark:text-slate-400 px-2 py-1 hover:underline">
@@ -393,6 +435,7 @@ function NotesPageInner() {
                   ) : (
                     <button
                       type="button"
+                      data-testid="note-delete-open"
                       onClick={() => setDeleteConfirm(selected.id)}
                       className="p-1.5 rounded text-zinc-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       title={t("notes.delete")}

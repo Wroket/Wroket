@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import http from "http";
-import { initStore, flushNow } from "./persistence";
+import { initStore, flushNow, attachLiveInvalidation, detachLiveInvalidation } from "./persistence";
 
 const port = Number(process.env.PORT) || 3000;
 let server: http.Server | null = null;
@@ -26,6 +26,7 @@ async function shutdown(signal: string): Promise<void> {
     stopTodosDriftMonitor();
   } catch { /* not started yet */ }
 
+  detachLiveInvalidation();
   try {
     await flushNow();
     console.log("[server] Store flushed, exiting cleanly");
@@ -43,6 +44,9 @@ async function main(): Promise<void> {
   const { hydrateTodosFromLegacyStore, hydrateTodosFromV2IfNeeded } = await import("./services/todoService");
   hydrateTodosFromLegacyStore();
   await hydrateTodosFromV2IfNeeded();
+  // Attach cross-replica cache invalidation AFTER hydration so that the initial
+  // onSnapshot calls (which would replay existing data) are safely skipped.
+  attachLiveInvalidation();
 
   if (process.env.NODE_ENV === "production" && !process.env.OAUTH_STATE_SECRET?.trim()) {
     console.error("[server] OAUTH_STATE_SECRET is required in production (Calendar OAuth + Google SSO state signing)");

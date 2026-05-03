@@ -224,7 +224,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Dashboard équipe** — Vue consolidée `/teams/dashboard` : stats, répartition par membre, tâches en retard
 - [x] **Rappels deadline** — Job horaire créant des notifications in-app (échéance aujourd'hui / dans 24h)
 - [x] **Bloc-notes** — Éditeur de notes en ligne et hors ligne (localStorage + sync auto), épinglage, recherche
-- [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/code`, `/warning` dans l'éditeur de notes
+- [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/datetime`, `/code`, `/warning` dans l’éditeur de notes (contenteditable) ; conflit Tab résolu (menu slash ouvert vs indentation)
 - [x] **Aide contextuelle notes** — Bouton ampoule avec liste des commandes et info hors ligne
 - [x] **Timezone utilisateur** — Détection automatique du fuseau horaire navigateur, auto-correction des profils UTC, dropdown dans les paramètres avec alerte de désynchronisation
 - [x] **Page d'accueil** — Landing page marketing bilingue FR/EN : hero avec mini-visuel interactif (tags, slots planifiés), 6 flip cards avec icônes SVG et previews (Vue Radar, Agenda multi-comptes, Notes, Kanban, Collaboration, Notifications), CTA, footer
@@ -295,6 +295,9 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Google — compte prioritaire & agendas secondaires** — Premier compte connecté traité comme **prioritaire** (écriture/booking par défaut) ; pour les comptes suivants, les calendriers ne sont plus tous pré-cochés côté chargement API ; page **Mes agendas** : badge Prioritaire / Secondaire, bouton **Rendre prioritaire**, désactivation des cases « afficher » et du radio défaut booking tant que le compte n’est pas prioritaire (secondaires en lecture seule jusqu’à promotion)
 - [x] **Google Meet — édition d’une réunion existante** — Endpoint `PATCH /calendar/meet/:todoId` : reschedule (start/end), titre, description, liste d’invités ; patch Google avec `sendUpdates=all` ; champ `meetingInvitees` persisté sur `scheduledSlot` ; annulation toujours via suppression de réunion existante ; même modal Tâches pour créer ou modifier ; bouton **Modifier la réunion** dans `TaskEditModal` ; icône meeting ouvre l’édition lorsqu’un lien existe déjà
 - [x] **SlotPicker — fermeture optimiste + feedback de chargement** — Même pattern pour **réservation**, **retirer le créneau** et **replanifier** : fermeture immédiate du panneau, spinner sur l’icône pendant l’appel API ; en cas d’erreur, réouverture en modal avec toast ; en cas de replanification réussie, réouverture automatique en modal sur la sélection de créneaux après chargement des slots ; réouverture également si conflit ou erreur lors du booking
+- [x] **Vue Liste — sélection multiple & suppression groupée** — Colonne « Sél. », barre d’actions (statuts / suppression groupée avec `BulkDeleteTaskDialog`) ; API `DELETE /todos/bulk` + pièces jointes associées
+- [x] **Archives — actions groupées** — Sélection multiple (barre émeraude) sur tâches / projets / notes archivées et équipes dont l’utilisateur est owner : restaurer, supprimer définitivement ou purger selon le contexte ; barre visible seulement lorsque la liste n’est pas vide ; libellés boutons `whitespace-nowrap`
+- [x] **Notes — détabulation & commandes slash (éditeur riche)** — Toolbar **outdent** + raccourcis Tab / Shift+Tab (`indent` / `outdent`) dans le corps de la note ; module `noteSlashRange` pour détecter `/…` et insérer du texte dans le contenteditable ; `SlashCommandMenu` branché sur `editorRef` (position du menu au curseur, `bindingNoteId` au changement de note) ; `/task` appelle `createTodo` et enregistre `todoId` sur la note
 
 ## Expérience utilisateur & attractivité
 
@@ -410,6 +413,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Tests E2E** — Playwright pour les parcours utilisateur (login, tâche, projet/agenda, export)
 - [x] **Tests unitaires backend** — Jest/Vitest pour services et controllers
 - [x] **Tests unitaires frontend** — Tests des composants React critiques
+- [x] **Tests E2E cross-device** — Specs Playwright notes/todos/projects : purge fantômes, refetch visibilitychange, broadcast mutations
 
 ## Déploiement & Infrastructure
 
@@ -421,6 +425,9 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - Zero-cost au repos (scale-to-zero)
 - [x] **Firestore** — Base de données NoSQL en production
   - Cache in-memory + écriture Firestore asynchrone (debounce 500ms)
+  - **Invalidation cross-replica via Firestore `onSnapshot`** : chaque instance Cloud Run se réabonne aux documents Firestore au démarrage ; une écriture sur un replica est propagée aux autres en < 2 s sans redémarrage (voir `docs/cloud-run-ops.md`)
+  - **`noStoreCache` global** : en-têtes `Cache-Control: private, no-store` appliqués à tous les endpoints business (plus aucun risque de staleness CDN/proxy)
+  - **Revalidation frontend unifiée** (`useResourceSync`) : visibilitychange + online + BroadcastChannel sur tous les écrans (notes, projets, équipes, dashboard, agenda)
   - Fallback `USE_LOCAL_STORE=true` pour dev local (`local-store.json`)
   - Free Tier : 50k lectures/jour, 20k écritures/jour
 - [x] **Cloud Build** — CI/CD sur push `main`

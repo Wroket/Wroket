@@ -16,6 +16,7 @@ import {
   Todo,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import { useResourceSync } from "@/lib/useResourceSync";
 
 import ProjectDetailView from "./_components/ProjectDetailView";
 import ProjectListView from "./_components/ProjectListView";
@@ -78,6 +79,9 @@ export default function ProjectsPage() {
     }
     router.replace(`/projects?${params.toString()}`, { scroll: false });
   }, [searchParams, router, refreshAllTodos, loadProjects]);
+
+  // Refresh when tab becomes visible or another tab mutates project data.
+  useResourceSync("projects", loadProjects);
 
   useEffect(() => {
     loadProjects().then((loadedProjects) => {

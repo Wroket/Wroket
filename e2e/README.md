@@ -35,6 +35,8 @@ npm run test:e2e
 | `E2E_API_BASE_URL` | `http://localhost:3001` | Base de l’API (smoke `/health`) |
 | `E2E_SKIP_WEBSERVER` | — | `1` pour ne pas exécuter `npm run dev` (**recommandé** si le démarrage auto time out) |
 | `E2E_WEBSERVER_TIMEOUT_MS` | `420000` local / `360000` CI | Délai max d’attente du `webServer` (ms) |
+| `E2E_NOTES_EMAIL` | — | Email d’un compte **sans 2FA**, email vérifié (optionnel, pour `notes.cross-device.spec.ts`) |
+| `E2E_NOTES_PASSWORD` | — | Mot de passe du même compte (optionnel, pour `notes.cross-device.spec.ts`) |
 
 ### Si `Timed out waiting ... from config.webServer`
 
@@ -54,3 +56,6 @@ npm run test:e2e
 
 - `tests/smoke.api.spec.ts` — `GET /health`
 - `tests/smoke.ui.spec.ts` — page `/login`
+- `tests/notes.cross-device.spec.ts` — purge cache notes entre deux navigateurs, vérifie la disparition d'une note supprimée sur l'autre appareil (nécessite `E2E_NOTES_EMAIL` + `E2E_NOTES_PASSWORD`, sinon ignoré)
+- `tests/todos.cross-device.spec.ts` — vérifie que la page tâches se recharge au `visibilitychange` sans F5, et que l'état synchronisé remonte d'un appareil à l'autre (nécessite `E2E_NOTES_EMAIL` + `E2E_NOTES_PASSWORD`, sinon ignoré)
+- `tests/projects.cross-device.spec.ts` — vérifie que la page projets se recharge au `visibilitychange` sans F5, et qu'un projet créé sur un appareil apparaît sur l'autre après refocus (nécessite `E2E_NOTES_EMAIL` + `E2E_NOTES_PASSWORD`, sinon ignoré)

@@ -72,6 +72,9 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const dirtyDomains = new Set<Domain>();
 const dirtyTodoShards = new Set<number>();
 
+/** Firestore onSnapshot unsubscribe functions for cross-replica live invalidation. */
+const liveListenerUnsubs: Array<() => void> = [];
+
 function loadFromDisk(): StoreData {
   try {
     if (!fs.existsSync(STORE_PATH)) return {};
@@ -360,6 +363,119 @@ export async function flushNow(): Promise<void> {
     await saveToFirestore();
   }
 }
+
+// ─── Cross-replica live invalidation via Firestore onSnapshot ────────────────
+
+/**
+ * Apply a domain snapshot received from Firestore to the in-memory cache.
+ * Exported for unit tests only — do not call directly in production code.
+ */
+export function _applyDomainSnapshot(domain: string, data: unknown): void {
+  (cachedStore as Record<string, unknown>)[domain] = data;
+  console.log(
+    JSON.stringify({ event: "store.invalidation.received", domain, ts: Date.now() })
+  );
+}
+
+/**
+ * Apply a todo shard snapshot to the in-memory cache.
+ * Only user buckets belonging to this shard are replaced; others are untouched.
+ * Exported for unit tests only — do not call directly in production code.
+ */
+export function _applyTodoShardSnapshot(shardId: string, shardIndex: number, data: unknown): void {
+  if (!data || typeof data !== "object") return;
+  if (!cachedStore.todos) cachedStore.todos = {} as Record<string, Record<string, unknown>>;
+  const blob = data as TodoBlob;
+
+  // Replace user buckets that belong to this shard.
+  for (const [userId, todos] of Object.entries(blob)) {
+    if (todoShardIndex(userId) === shardIndex) {
+      (cachedStore.todos as Record<string, unknown>)[userId] = todos;
+    }
+  }
+  // Remove buckets no longer present in this shard.
+  for (const userId of Object.keys(cachedStore.todos as Record<string, unknown>)) {
+    if (todoShardIndex(userId) === shardIndex && !(blob[userId])) {
+      delete (cachedStore.todos as Record<string, unknown>)[userId];
+    }
+  }
+  console.log(
+    JSON.stringify({ event: "store.invalidation.received", shard: shardId, ts: Date.now() })
+  );
+}
+
+/**
+ * Attach Firestore onSnapshot listeners for each domain document and todo shard.
+ * When another Cloud Run replica writes to Firestore, the snapshot arrives here
+ * and the in-memory cache is updated without a restart — eliminating cross-replica staleness.
+ *
+ * No-op when USE_LOCAL_STORE=true or when the Firestore client is not initialised.
+ * Must be called AFTER initStore() and todo hydration (server.ts startup sequence).
+ */
+export function attachLiveInvalidation(): void {
+  if (USE_LOCAL || !db) return;
+
+  // Domain documents (notes, projects, teams, todos v1 legacy, etc.)
+  for (const domain of DOMAINS) {
+    const ref = db.collection("store").doc(domain);
+    let isFirst = true;
+    const unsub = ref.onSnapshot(
+      (snap) => {
+        // Skip the initial snapshot — we already have this data from initStore().
+        if (isFirst) { isFirst = false; return; }
+        const data = snap.data()?.data;
+        _applyDomainSnapshot(domain, data);
+      },
+      (err) => {
+        console.error(JSON.stringify({ event: "store.invalidation.error", domain, error: String(err) }));
+      }
+    );
+    liveListenerUnsubs.push(unsub);
+  }
+
+  // Todo shard documents (todos_0 … todos_127)
+  for (let i = 0; i < TODO_SHARD_COUNT; i++) {
+    const shardId = todoShardDocId(i);
+    const ref = db.collection("store").doc(shardId);
+    const shardIndex = i;
+    let isFirst = true;
+    const unsub = ref.onSnapshot(
+      (snap) => {
+        if (isFirst) { isFirst = false; return; }
+        const data = snap.data()?.data;
+        _applyTodoShardSnapshot(shardId, shardIndex, data);
+      },
+      (err) => {
+        console.error(JSON.stringify({ event: "store.invalidation.error", shard: shardId, error: String(err) }));
+      }
+    );
+    liveListenerUnsubs.push(unsub);
+  }
+
+  console.log(
+    JSON.stringify({ event: "store.invalidation.attached", listenerCount: liveListenerUnsubs.length })
+  );
+}
+
+/**
+ * Detach all live-invalidation Firestore listeners.
+ * Called during graceful shutdown to release connections cleanly.
+ */
+export function detachLiveInvalidation(): void {
+  for (const unsub of liveListenerUnsubs) {
+    try { unsub(); } catch { /* ignore */ }
+  }
+  liveListenerUnsubs.length = 0;
+}
+
+// ─── Test helpers (never called in production paths) ─────────────────────────
+
+/** Exposed for tests only — read the raw in-memory cache. */
+export function _getStoreForTest(): StoreData { return cachedStore; }
+/** Exposed for tests only — replace the in-memory cache. */
+export function _resetStoreForTest(data: StoreData): void { cachedStore = data; }
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Lightweight read for readiness probes (/health/ready). Does not verify full hydration.

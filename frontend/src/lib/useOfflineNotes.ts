@@ -11,10 +11,20 @@ import {
   syncNotesApi,
   Note,
 } from "@/lib/api";
+import { mergeOwnNotesFromServer } from "@/lib/notesMerge";
+import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
 
 const LS_KEY = "wroket_notes";
 const LS_DIRTY_KEY = "wroket_notes_dirty";
 const LS_DELETED_KEY = "wroket_notes_deleted";
+
+/** Clears notes offline cache (own list, dirty queue, pending deletes). */
+export function clearNotesLocalStorage(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_DIRTY_KEY);
+  localStorage.removeItem(LS_DELETED_KEY);
+}
 
 function readLocal(): Note[] {
   if (typeof window === "undefined") return [];
@@ -94,18 +104,7 @@ export function useOfflineNotes() {
    */
   const mergeOwnNotes = useCallback((serverNotes: Note[]): Note[] => {
     const local = readLocal();
-    const merged = new Map<string, Note>();
-    for (const n of serverNotes) merged.set(n.id, n);
-    for (const n of local) {
-      const existing = merged.get(n.id);
-      if (!existing || new Date(n.updatedAt) > new Date(existing.updatedAt)) {
-        merged.set(n.id, n);
-      }
-    }
-    const result = [...merged.values()].sort((a, b) => {
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+    const result = mergeOwnNotesFromServer(serverNotes, local, getDirtyIds(), getDeletedIds());
     writeLocal(result);
     return result;
   }, []);
@@ -150,6 +149,10 @@ export function useOfflineNotes() {
       setSyncing(false);
     }
   }, [mergeOwnNotes]);
+
+  // Re-fetch when tab becomes visible or another tab changes notes (cross-tab).
+  // Cross-device freshness is handled by the Firestore onSnapshot backend invalidation.
+  useResourceSync("notes", fetchAndSync);
 
   useEffect(() => {
     fetchAndSync().finally(() => setLoading(false));
@@ -204,6 +207,7 @@ export function useOfflineNotes() {
         shared: opts?.shared,
         teamId: opts?.teamId,
       })
+        .then(() => broadcastResourceChange("notes"))
         .catch(() => markDirty([id]));
     } else {
       markDirty([id]);
@@ -271,7 +275,7 @@ export function useOfflineNotes() {
         sp.teamId = updates.teamId === null || updates.teamId === "" ? undefined : updates.teamId;
       }
       if (updates.sharedWithEmail !== undefined) sp.sharedWithEmail = updates.sharedWithEmail;
-      updateNoteApi(id, sp).catch(() => markDirty([id]));
+      updateNoteApi(id, sp).then(() => broadcastResourceChange("notes")).catch(() => markDirty([id]));
     } else if (hasSharing && !online) {
       markDirty([id]);
     }
@@ -287,6 +291,7 @@ export function useOfflineNotes() {
       syncTimerRef.current = setTimeout(async () => {
         try {
           await updateNoteApi(id, rest as Parameters<typeof updateNoteApi>[1]);
+          broadcastResourceChange("notes");
         } catch {
           markDirty([id]);
         }
@@ -301,7 +306,10 @@ export function useOfflineNotes() {
     writeLocal(readLocal().filter((n) => n.id !== id));
 
     if (online) {
-      try { await deleteNoteApi(id); } catch { markDeleted(id); }
+      try {
+        await deleteNoteApi(id);
+        broadcastResourceChange("notes");
+      } catch { markDeleted(id); }
     } else {
       markDeleted(id);
     }

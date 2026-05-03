@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useLocale } from "@/lib/LocaleContext";
+import { useResourceSync } from "@/lib/useResourceSync";
 import { useToast } from "@/components/Toast";
 import {
   getCollaborators,
@@ -81,14 +82,14 @@ export default function TeamsPage() {
     return () => { cancelled = true; };
   }, [refreshData]);
 
+  // Refresh when tab becomes visible or another tab mutates teams/collaborators.
+  useResourceSync("teams", refreshData);
+
   useEffect(() => {
     const onCollabUpdate = () => { refreshData(); };
-    const onFocus = () => { refreshData(); };
     window.addEventListener("collaborators-updated", onCollabUpdate);
-    window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("collaborators-updated", onCollabUpdate);
-      window.removeEventListener("focus", onFocus);
     };
   }, [refreshData]);
 
