@@ -19,6 +19,7 @@ import webhookRoutes from "./routes/webhookRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import noteRoutes from "./routes/noteRoutes";
 import attachmentRoutes from "./routes/attachmentRoutes";
+import syncEventsRoutes from "./routes/syncEventsRoutes";
 
 dotenv.config();
 
@@ -82,6 +83,8 @@ app.use("/webhooks", apiLimiter, webhookRoutes);
 app.use("/admin", apiLimiter, adminRoutes);
 app.use("/notes", apiLimiter, noteRoutes);
 app.use("/attachments", apiLimiter, attachmentRoutes);
+/** SSE spike: long-lived connections — not counted by per-minute REST limiter. */
+app.use("/sync", syncEventsRoutes);
 
 app.use(errorHandler);
 

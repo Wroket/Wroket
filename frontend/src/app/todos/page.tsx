@@ -175,7 +175,7 @@ export default function TodosPage() {
   const bumpRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
-  useTodoListSync(bumpRefresh);
+  useTodoListSync(bumpRefresh, { pollIntervalMs: 120_000 });
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({});

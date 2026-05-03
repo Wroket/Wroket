@@ -4,6 +4,12 @@ import { useEffect, useRef } from "react";
 
 export type ResourceChannel = "todos" | "notes" | "projects" | "teams" | "agenda" | "dashboard";
 
+/** Optional periodic pull while the document is visible (cross-device when other tabs cannot BroadcastChannel). */
+export type UseResourceSyncOptions = {
+  /** Minimum 10_000 ms. When set, `onRefresh` runs on this interval if the tab is not hidden. */
+  pollIntervalMs?: number;
+};
+
 function getTabId(): string {
   if (typeof window === "undefined") return "";
   const w = window as Window & { __wroketTabId?: string };
@@ -21,9 +27,20 @@ function getTabId(): string {
  *
  * Use `broadcastResourceChange(channel)` after successful API mutations to notify
  * other open tabs of the same user.
+ *
+ * When `options.pollIntervalMs` is set (>= 10_000), also calls `onRefresh` on that interval
+ * while the document is visible — useful for multi-device alignment without manual buttons.
  */
-export function useResourceSync(channel: ResourceChannel, onRefresh: () => void): void {
+export function useResourceSync(
+  channel: ResourceChannel,
+  onRefresh: () => void,
+  options?: UseResourceSyncOptions,
+): void {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollIntervalMs =
+    options?.pollIntervalMs !== undefined && options.pollIntervalMs >= 10_000
+      ? options.pollIntervalMs
+      : undefined;
 
   useEffect(() => {
     const tabId = getTabId();
@@ -55,16 +72,24 @@ export function useResourceSync(channel: ResourceChannel, onRefresh: () => void)
       /* BroadcastChannel not supported in this environment */
     }
 
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    if (pollIntervalMs !== undefined) {
+      pollId = setInterval(() => {
+        if (!document.hidden) schedule();
+      }, pollIntervalMs);
+    }
+
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("online", onOnline);
       bc?.close();
+      if (pollId !== null) clearInterval(pollId);
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
     };
-  }, [channel, onRefresh]);
+  }, [channel, onRefresh, pollIntervalMs]);
 }
 
 /**

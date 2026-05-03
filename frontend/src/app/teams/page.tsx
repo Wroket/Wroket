@@ -83,7 +83,7 @@ export default function TeamsPage() {
   }, [refreshData]);
 
   // Refresh when tab becomes visible or another tab mutates teams/collaborators.
-  useResourceSync("teams", refreshData);
+  useResourceSync("teams", refreshData, { pollIntervalMs: 120_000 });
 
   useEffect(() => {
     const onCollabUpdate = () => { refreshData(); };

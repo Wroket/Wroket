@@ -831,6 +831,14 @@ const translations = {
   },
   "notes.resyncSuccess": { fr: "Notes rechargées depuis le serveur", en: "Notes reloaded from server" },
   "notes.resyncError": { fr: "Impossible de resynchroniser", en: "Could not resync" },
+  "notes.pushToServer": { fr: "Envoyer les notes vers le serveur", en: "Push notes to server" },
+  "notes.pushConfirm": {
+    fr: "Envoyer votre copie locale vers le serveur ? Les titres, textes et épingles de vos notes remplaceront la version serveur (les notes partagées reçues d'autres personnes ne sont pas modifiées). Les tags et partages ne sont pas couverts par cet envoi.",
+    en: "Upload your local copy to the server? Your notes' titles, bodies, and pins will replace the server version (notes shared with you by others are unchanged). Tags and sharing are not covered by this upload.",
+  },
+  "notes.pushSuccess": { fr: "Notes envoyées au serveur", en: "Notes pushed to server" },
+  "notes.pushError": { fr: "Impossible d'envoyer les notes", en: "Could not push notes" },
+  "notes.pushOffline": { fr: "Connexion requise pour envoyer les notes", en: "You must be online to push notes" },
   "notes.archiveTitle": { fr: "Notes archivées", en: "Archived notes" },
   "notes.archiveSubtitle": { fr: "Notes supprimées — restauration ou suppression définitive", en: "Deleted notes — restore or delete permanently" },
   "notes.archiveEmpty": { fr: "Aucune note archivée", en: "No archived notes" },
@@ -1286,6 +1294,10 @@ const translations = {
     en: "Team sharing: check Share with team, pick a team — members can read the note. Notes linked to a task or project stay tied to that context too.",
   },
   "help.notes.offline": { fr: "Mode hors-ligne : notes sauvées localement, synchro auto au retour en ligne", en: "Offline mode: notes saved locally, auto-sync when back online" },
+  "help.notes.push": {
+    fr: "Envoyer vers le serveur : pousse titre, texte et épingle de vos notes (pas les tags ni le partage). Utile si le cache local et le serveur divergent.",
+    en: "Push to server: uploads your notes' title, body, and pin (not tags or sharing). Use when local cache and server drift apart.",
+  },
 
   "help.agenda.viewDay": { fr: "Vue Jour : grille horaire, tâches Wroket et événements Google", en: "Day view: hourly grid, Wroket tasks and Google events" },
   "help.agenda.viewWeek": { fr: "Vue Semaine : la semaine en colonnes, même fusion Wroket + Google", en: "Week view: week in columns, same Wroket + Google merge" },

@@ -19,8 +19,9 @@ function NotesPageInner() {
   const { t } = useLocale();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload } = useOfflineNotes();
+  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload, pushToServer } = useOfflineNotes();
   const [resyncing, setResyncing] = useState(false);
+  const [pushing, setPushing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -116,6 +117,24 @@ function NotesPageInner() {
       setResyncing(false);
     }
   }, [reload, t, toast]);
+
+  const handlePushToServer = useCallback(async () => {
+    if (!online) {
+      toast.error(t("notes.pushOffline"));
+      return;
+    }
+    if (!window.confirm(t("notes.pushConfirm"))) return;
+    setPushing(true);
+    try {
+      await pushToServer();
+      toast.success(t("notes.pushSuccess"));
+    } catch (e) {
+      const msg = e instanceof Error && e.message === "offline" ? t("notes.pushOffline") : t("notes.pushError");
+      toast.error(msg);
+    } finally {
+      setPushing(false);
+    }
+  }, [online, pushToServer, t, toast]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -229,6 +248,7 @@ function NotesPageInner() {
                     { text: t("help.notes.export") },
                     { text: t("help.notes.sharing") },
                     { text: t("help.notes.offline") },
+                    { text: t("help.notes.push") },
                   ]}
                 />
                 <Link
@@ -241,7 +261,7 @@ function NotesPageInner() {
                   type="button"
                   data-testid="notes-resync"
                   onClick={() => void handleResyncFromServer()}
-                  disabled={resyncing || loading}
+                  disabled={resyncing || pushing || loading}
                   className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                   title={t("notes.resyncFromServer")}
                   aria-label={t("notes.resyncFromServer")}
@@ -251,6 +271,23 @@ function NotesPageInner() {
                   ) : (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  data-testid="notes-push"
+                  onClick={() => void handlePushToServer()}
+                  disabled={!online || resyncing || pushing || loading}
+                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  title={t("notes.pushToServer")}
+                  aria-label={t("notes.pushToServer")}
+                >
+                  {pushing ? (
+                    <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                     </svg>
                   )}
                 </button>

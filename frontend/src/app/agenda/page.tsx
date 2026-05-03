@@ -412,7 +412,7 @@ export default function AgendaPage() {
   }, [dateRange]);
 
   // Refresh when tab becomes visible or another tab mutates todos/calendar slots.
-  useResourceSync("agenda", refreshCalendarForRange);
+  useResourceSync("agenda", refreshCalendarForRange, { pollIntervalMs: 120_000 });
 
   const onEditAutoSaved = useCallback(
     (updated: Todo) => {

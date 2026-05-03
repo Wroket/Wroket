@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getNotes,
   getSharedNotes,
+  getMe,
   createNoteApi,
   updateNoteApi,
   deleteNoteApi,
@@ -12,7 +13,10 @@ import {
   Note,
 } from "@/lib/api";
 import { mergeOwnNotesFromServer } from "@/lib/notesMerge";
-import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
+import { broadcastResourceChange, useResourceSync } from "@/lib/useResourceSync";
+
+/** Periodic server pull while Notes is mounted and tab visible (multi-device). */
+const NOTES_RESOURCE_POLL_MS = 90_000;
 
 const LS_KEY = "wroket_notes";
 const LS_DIRTY_KEY = "wroket_notes_dirty";
@@ -85,6 +89,8 @@ export function useOfflineNotes() {
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notesRef = useRef<Note[]>([]);
+  notesRef.current = notes;
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -149,6 +155,12 @@ export function useOfflineNotes() {
       setSyncing(false);
     }
   }, [mergeOwnNotes]);
+
+  const refetchNotesFromServer = useCallback(() => {
+    void fetchAndSync();
+  }, [fetchAndSync]);
+
+  useResourceSync("notes", refetchNotesFromServer, { pollIntervalMs: NOTES_RESOURCE_POLL_MS });
 
   useEffect(() => {
     fetchAndSync().finally(() => setLoading(false));
@@ -317,6 +329,45 @@ export function useOfflineNotes() {
     saveNote(id, { pinned: !note.pinned });
   }, [notes, saveNote]);
 
+  /**
+   * Upload all own notes to the server via /notes/sync (title, content, pinned).
+   * Uses fresh timestamps so the server applies them over older server copies.
+   * Shared (read-only) notes from others are skipped. Pending offline deletes run first.
+   */
+  const pushToServer = useCallback(async () => {
+    if (!navigator.onLine) throw new Error("offline");
+    setSyncing(true);
+    try {
+      const deletedIds = getDeletedIds();
+      if (deletedIds.length > 0) {
+        await Promise.allSettled(deletedIds.map((id) => deleteNoteApi(id)));
+        clearDeleted();
+      }
+
+      const { uid } = await getMe();
+      const own = notesRef.current.filter((n) => !n.userId || n.userId === uid);
+      if (own.length > 0) {
+        const base = Date.now();
+        const payload = own.map((n, i) => ({
+          id: n.id,
+          title: (n.title || "").trim() || "Sans titre",
+          content: n.content ?? "",
+          updatedAt: new Date(base + i).toISOString(),
+          pinned: n.pinned,
+        }));
+        for (let offset = 0; offset < payload.length; offset += 200) {
+          await syncNotesApi(payload.slice(offset, offset + 200));
+        }
+        clearDirty();
+      }
+
+      await fetchAndSync();
+      broadcastResourceChange("notes");
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchAndSync]);
+
   return {
     notes,
     loading,
@@ -327,5 +378,6 @@ export function useOfflineNotes() {
     removeNote,
     togglePin,
     reload: fetchAndSync,
+    pushToServer,
   };
 }

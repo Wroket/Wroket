@@ -157,7 +157,7 @@ export default function DashboardPage() {
   }, [meUid, resolveUser, toast, t]);
 
   // Refresh when tab becomes visible or another tab mutates todos/projects.
-  useResourceSync("todos", loadDashboard);
+  useResourceSync("todos", loadDashboard, { pollIntervalMs: 120_000 });
 
   useEffect(() => {
     let cancelled = false;

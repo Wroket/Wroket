@@ -81,7 +81,7 @@ export default function ProjectsPage() {
   }, [searchParams, router, refreshAllTodos, loadProjects]);
 
   // Refresh when tab becomes visible or another tab mutates project data.
-  useResourceSync("projects", loadProjects);
+  useResourceSync("projects", loadProjects, { pollIntervalMs: 120_000 });
 
   useEffect(() => {
     loadProjects().then((loadedProjects) => {
