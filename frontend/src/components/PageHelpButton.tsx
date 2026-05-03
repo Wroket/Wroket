@@ -12,9 +12,11 @@ export interface HelpItem {
 interface PageHelpButtonProps {
   items: HelpItem[];
   title?: string;
+  /** Compact control (e.g. narrow notes sidebar); label in title + screen reader only. */
+  iconOnly?: boolean;
 }
 
-export default function PageHelpButton({ items, title }: PageHelpButtonProps) {
+export default function PageHelpButton({ items, title, iconOnly }: PageHelpButtonProps) {
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -55,17 +57,24 @@ export default function PageHelpButton({ items, title }: PageHelpButtonProps) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-colors ${
+        aria-label={iconOnly ? (title ?? t("tutorial.helpButton")) : undefined}
+        className={`inline-flex items-center justify-center rounded-lg border text-xs font-medium transition-colors ${
+          iconOnly ? "gap-0 p-1.5" : "gap-1.5 px-2.5 py-1.5"
+        } ${
           open
             ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
             : "bg-white dark:bg-slate-800 border-zinc-200 dark:border-slate-700 text-zinc-500 dark:text-slate-400 hover:border-amber-300 dark:hover:border-amber-700 hover:text-amber-600 dark:hover:text-amber-400"
         }`}
         title={title ?? t("tutorial.helpButton")}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
-        <span className="hidden sm:inline">{t("tutorial.helpButton")}</span>
+        {iconOnly ? (
+          <span className="sr-only">{t("tutorial.helpButton")}</span>
+        ) : (
+          <span className="hidden sm:inline">{t("tutorial.helpButton")}</span>
+        )}
       </button>
 
       {open && createPortal(

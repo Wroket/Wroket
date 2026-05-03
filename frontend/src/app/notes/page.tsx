@@ -233,13 +233,13 @@ function NotesPageInner() {
         {/* Sidebar - Note list */}
         <div className={`w-full md:w-72 shrink-0 border-r border-zinc-200 dark:border-slate-700 flex flex-col bg-zinc-50 dark:bg-slate-900/50 ${mobileShowEditor ? "hidden md:flex" : "flex"}`}>
           {/* Header */}
-          <div className="p-3 border-b border-zinc-200 dark:border-slate-700 space-y-2">
-            <div className="flex flex-nowrap items-center justify-between gap-2 min-w-0">
-              <h1 className="text-lg font-bold text-zinc-900 dark:text-slate-100 whitespace-nowrap shrink-0">
-                {t("notes.title")}
-              </h1>
-              <div className="flex items-center gap-1.5 shrink-0">
+          <div className="p-3 border-b border-zinc-200 dark:border-slate-700 space-y-2 min-w-0">
+            <h1 className="text-base font-bold text-zinc-900 dark:text-slate-100 truncate leading-tight pr-0.5">
+              {t("notes.title")}
+            </h1>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <PageHelpButton
+                  iconOnly
                   title={t("notes.title")}
                   items={[
                     { text: t("help.notes.slash") },
@@ -253,9 +253,13 @@ function NotesPageInner() {
                 />
                 <Link
                   href="/archive/notes"
-                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                  className="inline-flex items-center justify-center rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+                  title={t("notes.archiveTitle")}
+                  aria-label={t("notes.archiveTitle")}
                 >
-                  {t("notes.archivedShort")}
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                  </svg>
                 </Link>
                 <button
                   type="button"
@@ -269,7 +273,7 @@ function NotesPageInner() {
                   {resyncing ? (
                     <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
                   ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   )}
@@ -286,7 +290,7 @@ function NotesPageInner() {
                   {pushing ? (
                     <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
                   ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                     </svg>
                   )}
@@ -299,11 +303,10 @@ function NotesPageInner() {
                   aria-label={t("notes.new")}
                   data-testid="notes-new"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                 </button>
-              </div>
             </div>
             <input
               type="text"

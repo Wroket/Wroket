@@ -44,7 +44,7 @@ export const QUADRANT_CONFIG: Record<
     icon: "⚡",
     headerBg: "bg-amber-400 dark:bg-amber-950/90",
     headerText: "text-white",
-    cellBg: "bg-zinc-100/80 dark:bg-slate-800/40",
+    cellBg: "bg-zinc-100/80 dark:bg-slate-800/60",
     accentBar: "bg-amber-400 dark:bg-amber-600",
   },
   eliminate: {
@@ -53,7 +53,7 @@ export const QUADRANT_CONFIG: Record<
     icon: "⏸️",
     headerBg: "bg-emerald-400 dark:bg-emerald-950/90",
     headerText: "text-white",
-    cellBg: "bg-emerald-50/70 dark:bg-slate-800/40",
+    cellBg: "bg-zinc-100/80 dark:bg-slate-800/60",
     accentBar: "bg-emerald-400 dark:bg-emerald-600",
   },
 };

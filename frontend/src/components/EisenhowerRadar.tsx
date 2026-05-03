@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { Todo } from "@/lib/api";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import {
@@ -68,6 +77,8 @@ interface Props {
   nowMs?: number;
   /** When set, clicking the dot or the hover card opens edit (e.g. TaskEditModal) without navigating. */
   onEditTask?: (todo: Todo) => void;
+  /** Renders on the left of the lens pills (e.g. dashboard title); pills stay on one row from `sm` when space allows. */
+  headerStart?: ReactNode;
 }
 
 export default function EisenhowerRadar({
@@ -80,6 +91,7 @@ export default function EisenhowerRadar({
   onRadarModeChange,
   nowMs,
   onEditTask,
+  headerStart,
 }: Props) {
   const { t } = useLocale();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -171,30 +183,34 @@ export default function EisenhowerRadar({
     onEditTask?.(todo);
   };
 
+  const lensPills = RADAR_MODES.map(({ id, labelKey, helpKey }) => (
+    <button
+      key={id}
+      type="button"
+      title={t(helpKey)}
+      onClick={() => setRadarMode(id)}
+      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+        radarMode === id
+          ? "bg-slate-700 text-white dark:bg-slate-600"
+          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+      }`}
+    >
+      {t(labelKey)}
+    </button>
+  ));
+
   return (
     <div className={compact ? "max-w-full mx-auto" : "max-w-[min(100%,calc(100vh-16rem))] mx-auto"}>
-      {!compact && (
-        <p className="text-center text-xs text-zinc-500 dark:text-slate-400 mb-2 max-w-md mx-auto leading-relaxed">
-          {t("matrix.radarLensIntro")}
-        </p>
+      {headerStart ? (
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-2 sm:gap-y-2">
+          <div className="min-w-0 flex shrink sm:max-w-[min(100%,14rem)] md:max-w-[min(100%,18rem)]">{headerStart}</div>
+          <div className={`flex flex-wrap gap-1 justify-start sm:justify-end sm:min-w-0 sm:flex-1 ${compact ? "" : "gap-1.5"}`}>
+            {lensPills}
+          </div>
+        </div>
+      ) : (
+        <div className={`flex flex-wrap gap-1.5 justify-center mb-3 ${compact ? "gap-1" : ""}`}>{lensPills}</div>
       )}
-      <div className={`flex flex-wrap gap-1.5 justify-center mb-3 ${compact ? "gap-1" : ""}`}>
-        {RADAR_MODES.map(({ id, labelKey, helpKey }) => (
-          <button
-            key={id}
-            type="button"
-            title={t(helpKey)}
-            onClick={() => setRadarMode(id)}
-            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors ${
-              radarMode === id
-                ? "bg-slate-700 text-white dark:bg-slate-600"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            }`}
-          >
-            {t(labelKey)}
-          </button>
-        ))}
-      </div>
 
       <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
         <div className="w-10 shrink-0" aria-hidden />

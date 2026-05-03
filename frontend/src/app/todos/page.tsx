@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
@@ -1570,18 +1569,18 @@ export default function TodosPage() {
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
                     <div className="w-10" />
                     <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
-                      <span className="text-xs font-bold tracking-[0.15em] uppercase text-blue-500">
-                        🕐 {t("matrix.notUrgent")}
-                      </span>
-                    </div>
-                    <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
                       <span className="text-xs font-bold tracking-[0.15em] uppercase text-amber-600">
                         ⚡ {t("matrix.urgent")}
                       </span>
                     </div>
+                    <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
+                      <span className="text-xs font-bold tracking-[0.15em] uppercase text-blue-500">
+                        🕐 {t("matrix.notUrgent")}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Important row */}
+                  {/* Important row — left: urgent (do first), right: not urgent (schedule) */}
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2">
                     <div className="w-10 flex items-center justify-center bg-zinc-50/50 dark:bg-slate-800/50 rounded-l">
                       <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-red-500">
@@ -1589,14 +1588,14 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
 
-                  {/* Not important row */}
+                  {/* Not important row — left: urgent (delegate), right: not urgent (eliminate) */}
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mt-2">
                     <div className="w-10 flex items-center justify-center bg-zinc-50/50 dark:bg-slate-800/50 rounded-l">
                       <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-zinc-400">
@@ -1604,10 +1603,10 @@ export default function TodosPage() {
                       </span>
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                     <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                     </div>
                   </div>
                 </>
@@ -1749,15 +1748,6 @@ export default function TodosPage() {
 
                 {/* Radar */}
                 <div className="flex-1 min-w-0">
-                  <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-slate-400">
-                    <span className="leading-snug">{t("matrix.radarWorkflowHint")}</span>
-                    <Link
-                      href="/agenda"
-                      className="font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 shrink-0"
-                    >
-                      {t("matrix.radarOpenAgenda")}
-                    </Link>
-                  </div>
                   <EisenhowerRadar
                     todos={activeTodos}
                     subtaskCounts={subtaskCounts}

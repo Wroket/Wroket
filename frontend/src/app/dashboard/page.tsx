@@ -375,18 +375,18 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/agenda/manage"
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors text-center"
+            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
           >
-            <svg className="w-4 h-4 shrink-0 text-sky-600 dark:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             {t("dashboard.connectCalendar")}
           </Link>
           <Link
             href="/teams"
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors text-center"
+            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
           >
-            <svg className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             {t("dashboard.collaborate")}
@@ -394,9 +394,9 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => setImportChoiceOpen(true)}
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors text-center"
+            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
           >
-            <svg className="w-4 h-4 shrink-0 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
             {t("dashboard.importData")}
@@ -422,42 +422,12 @@ export default function DashboardPage() {
           <>
             {/* ── Stats cards ── */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard
-                label={t("dashboard.activeTasks")}
-                value={active.length}
-                accent="bg-blue-500"
-                scopeHint={t("dashboard.scopeAllNoSubtasks")}
-              />
-              <StatCard
-                label={t("dashboard.assignedCount")}
-                value={activeAssigned.length}
-                accent="bg-cyan-500"
-                scopeHint={t("dashboard.scopeAssignedNoSubtasks")}
-              />
-              <StatCard
-                label={t("dashboard.delegatedCount")}
-                value={activeDelegated.length}
-                accent="bg-amber-500"
-                scopeHint={t("dashboard.scopeDelegatedNoSubtasks")}
-              />
-              <StatCard
-                label={t("dashboard.completed")}
-                value={completed.length}
-                accent="bg-green-500"
-                scopeHint={t("dashboard.scopeAllNoSubtasks")}
-              />
-              <StatCard
-                label={t("dashboard.completionRate")}
-                value={`${completionRate}%`}
-                accent="bg-violet-500"
-                scopeHint={t("dashboard.scopeAllNoSubtasks")}
-              />
-              <StatCard
-                label={t("dashboard.overdue")}
-                value={overdueCount}
-                accent="bg-red-500"
-                scopeHint={t("dashboard.scopeAllNoSubtasks")}
-              />
+              <StatCard label={t("dashboard.activeTasks")} value={active.length} accent="bg-blue-500" />
+              <StatCard label={t("dashboard.assignedCount")} value={activeAssigned.length} accent="bg-cyan-500" />
+              <StatCard label={t("dashboard.delegatedCount")} value={activeDelegated.length} accent="bg-amber-500" />
+              <StatCard label={t("dashboard.completed")} value={completed.length} accent="bg-green-500" />
+              <StatCard label={t("dashboard.completionRate")} value={`${completionRate}%`} accent="bg-violet-500" />
+              <StatCard label={t("dashboard.overdue")} value={overdueCount} accent="bg-red-500" />
             </div>
 
             {/* ── Quadrant summary (vue Radar) ── */}
@@ -480,7 +450,39 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* ── Urgent tasks ── */}
+              {/* ── Radar chart (left / first on lg) ── */}
+              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
+                {active.length === 0 ? (
+                  <>
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-1 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
+                      </svg>
+                      {t("dashboard.radarTitle")}
+                    </h3>
+                    <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noTask")}</p>
+                  </>
+                ) : (
+                  <EisenhowerRadar
+                    todos={active}
+                    compact
+                    meUid={meUid}
+                    userDisplayName={userDisplayName}
+                    subtaskCounts={radarSubtaskCounts}
+                    onEditTask={openRadarEdit}
+                    headerStart={
+                      <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
+                        <svg className="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
+                        </svg>
+                        <span className="min-w-0 truncate">{t("dashboard.radarTitle")}</span>
+                      </h3>
+                    }
+                  />
+                )}
+              </div>
+
+              {/* ── Urgent tasks (right / second on lg) ── */}
               <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 flex items-center gap-2 min-w-0">
@@ -529,31 +531,6 @@ export default function DashboardPage() {
                       String(totalUpcomingPanelCount - UPCOMING_DEADLINES_MAX),
                     )}
                   </p>
-                )}
-              </div>
-
-              {/* ── Radar chart ── */}
-              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-1 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
-                  </svg>
-                  {t("dashboard.radarTitle")}
-                </h3>
-                {active.length > 0 && (
-                  <p className="text-xs text-zinc-500 dark:text-slate-400 mb-3">{t("dashboard.radarSubtitle")}</p>
-                )}
-                {active.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noTask")}</p>
-                ) : (
-                  <EisenhowerRadar
-                    todos={active}
-                    compact
-                    meUid={meUid}
-                    userDisplayName={userDisplayName}
-                    subtaskCounts={radarSubtaskCounts}
-                    onEditTask={openRadarEdit}
-                  />
                 )}
               </div>
             </div>
@@ -767,26 +744,13 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  accent,
-  scopeHint,
-}: {
-  label: string;
-  value: string | number;
-  accent: string;
-  scopeHint?: string;
-}) {
+function StatCard({ label, value, accent }: { label: string; value: string | number; accent: string }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4 flex items-start gap-3">
       <div className={`w-2 h-10 rounded-full ${accent} shrink-0`} />
       <div>
         <p className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{value}</p>
         <p className="text-xs text-zinc-500 dark:text-slate-400">{label}</p>
-        {scopeHint && (
-          <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{scopeHint}</p>
-        )}
       </div>
     </div>
   );
