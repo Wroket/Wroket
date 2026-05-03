@@ -45,8 +45,11 @@ async function tryRead(db: Firestore, isoTime: string): Promise<Record<string, u
 function countNotes(data: Record<string, unknown>): number {
   const notesMap = data.data as Record<string, unknown> | undefined;
   if (!notesMap) return 0;
-  return Object.values(notesMap).reduce((acc, userNotes) => {
-    return acc + (userNotes && typeof userNotes === "object" ? Object.keys(userNotes as object).length : 0);
+  return Object.values(notesMap).reduce((acc: number, userNotes: unknown) => {
+    return (
+      acc +
+      (userNotes && typeof userNotes === "object" ? Object.keys(userNotes as object).length : 0)
+    );
   }, 0);
 }
 
