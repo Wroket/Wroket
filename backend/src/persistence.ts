@@ -371,6 +371,16 @@ export async function flushNow(): Promise<void> {
  * Exported for unit tests only — do not call directly in production code.
  */
 export function _applyDomainSnapshot(domain: string, data: unknown): void {
+  // Safety guard: never overwrite existing cache with an empty/undefined snapshot.
+  // An undefined or null data field indicates either a missing Firestore document or
+  // a transient read error — NOT a legitimate "all records deleted" event.
+  // Legitimate deletes are applied incrementally via the write path (scheduleSave).
+  if (data === undefined || data === null) {
+    console.log(
+      JSON.stringify({ event: "store.invalidation.skipped_empty", domain, ts: Date.now() })
+    );
+    return;
+  }
   (cachedStore as Record<string, unknown>)[domain] = data;
   console.log(
     JSON.stringify({ event: "store.invalidation.received", domain, ts: Date.now() })
@@ -383,6 +393,13 @@ export function _applyDomainSnapshot(domain: string, data: unknown): void {
  * Exported for unit tests only — do not call directly in production code.
  */
 export function _applyTodoShardSnapshot(shardId: string, shardIndex: number, data: unknown): void {
+  // Safety guard: skip empty/null snapshots — same rationale as _applyDomainSnapshot.
+  if (data === undefined || data === null) {
+    console.log(
+      JSON.stringify({ event: "store.invalidation.skipped_empty", shard: shardId, ts: Date.now() })
+    );
+    return;
+  }
   if (!data || typeof data !== "object") return;
   if (!cachedStore.todos) cachedStore.todos = {} as Record<string, Record<string, unknown>>;
   const blob = data as TodoBlob;

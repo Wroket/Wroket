@@ -26,10 +26,20 @@ describe("_applyDomainSnapshot", () => {
     expect((_getStoreForTest() as Record<string, unknown>).notes).toEqual(fresh);
   });
 
-  it("accepts undefined data (empty doc)", () => {
-    _resetStoreForTest({ notes: { user1: {} } as unknown as Record<string, Record<string, unknown>> });
+  it("skips undefined data to protect existing cache (safety guard)", () => {
+    const existing = { user1: { note1: { title: "keep me" } } };
+    _resetStoreForTest({ notes: existing as unknown as Record<string, Record<string, unknown>> });
     _applyDomainSnapshot("notes", undefined);
-    expect((_getStoreForTest() as Record<string, unknown>).notes).toBeUndefined();
+    // Cache must NOT be wiped — undefined snapshot means missing/transient Firestore doc,
+    // not a legitimate "all notes deleted" event.
+    expect((_getStoreForTest() as Record<string, unknown>).notes).toEqual(existing);
+  });
+
+  it("skips null data to protect existing cache (safety guard)", () => {
+    const existing = { user1: { note1: { title: "keep me" } } };
+    _resetStoreForTest({ notes: existing as unknown as Record<string, Record<string, unknown>> });
+    _applyDomainSnapshot("notes", null);
+    expect((_getStoreForTest() as Record<string, unknown>).notes).toEqual(existing);
   });
 
   it("does not affect unrelated domains", () => {

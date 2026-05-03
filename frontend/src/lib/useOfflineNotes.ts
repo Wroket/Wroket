@@ -150,10 +150,6 @@ export function useOfflineNotes() {
     }
   }, [mergeOwnNotes]);
 
-  // Re-fetch when tab becomes visible or another tab changes notes (cross-tab).
-  // Cross-device freshness is handled by the Firestore onSnapshot backend invalidation.
-  useResourceSync("notes", fetchAndSync);
-
   useEffect(() => {
     fetchAndSync().finally(() => setLoading(false));
   }, [fetchAndSync]);

@@ -12,6 +12,16 @@ export function mergeOwnNotesFromServer(
   dirtyIds: readonly string[],
   deletedIds: readonly string[],
 ): Note[] {
+  // Safety guard: if the server returns 0 notes but local cache has notes,
+  // the server response is likely stale (e.g. backend cache wiped by a bad
+  // onSnapshot). Fall back to local cache so we never purge valid data.
+  if (serverNotes.length === 0 && localNotes.length > 0) {
+    return [...localNotes].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }
+
   const dirtySet = new Set(dirtyIds);
   const deletedSet = new Set(deletedIds);
   const serverIds = new Set(serverNotes.map((n) => n.id));
