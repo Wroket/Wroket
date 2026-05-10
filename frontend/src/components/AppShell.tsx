@@ -144,7 +144,14 @@ const ADMIN_ITEM = {
   ),
 };
 
-const ADMIN_EMAILS = ["francois@broudeur.com", "team@wroket.com"];
+/** Used only when GET /auth/me has no `isAdmin` yet (older API). Must stay aligned with Cloud Run `ADMIN_EMAILS`. */
+const LEGACY_ADMIN_EMAIL_ALLOWLIST = ["francois@broudeur.com", "team@wroket.com"];
+
+function userSeesAdminNav(me: { email: string; isAdmin?: boolean }): boolean {
+  if (me.isAdmin === true) return true;
+  if (me.isAdmin === false) return false;
+  return LEGACY_ADMIN_EMAIL_ALLOWLIST.includes(me.email.toLowerCase());
+}
 
 function NavLink({ href, icon, label, active, onClick }: { href: string; icon: ReactNode; label: string; active: boolean; onClick?: () => void }) {
   return (
@@ -976,7 +983,7 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
           <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
-            {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
+            {me && userSeesAdminNav(me) && (
               <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} onClick={closeMobileMenu} />
             )}
           </div>
@@ -1135,7 +1142,7 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
             <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
               <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
-              {me && ADMIN_EMAILS.includes(me.email.toLowerCase()) && (
+              {me && userSeesAdminNav(me) && (
                 <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} />
               )}
             </div>

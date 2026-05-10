@@ -838,6 +838,12 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 
   if (input.recurrence) {
     validateRecurrence(input.recurrence);
+    if (input.deadline && !input.allowPastDeadline) {
+      const today = new Date().toISOString().split("T")[0];
+      if (input.deadline < today) {
+        throw new ValidationError("Impossible d'activer la récurrence avec une échéance passée");
+      }
+    }
   }
 
   const normalizedSlot: ScheduledSlot | null =
@@ -1112,6 +1118,13 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   if (input.recurrence !== undefined) {
     if (input.recurrence) {
       validateRecurrence(input.recurrence);
+      const effectiveDeadline = input.deadline ?? todo.deadline;
+      if (effectiveDeadline) {
+        const today = new Date().toISOString().split("T")[0];
+        if (effectiveDeadline < today) {
+          throw new ValidationError("Impossible d'activer la récurrence avec une échéance passée");
+        }
+      }
     }
     todo.recurrence = input.recurrence;
   }

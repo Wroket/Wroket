@@ -71,6 +71,8 @@ export type NotificationType =
 export interface AuthMeResponse {
   uid: string;
   email: string;
+  /** Set from API `ADMIN_EMAILS`; when false/undefined, /admin is not available. */
+  isAdmin?: boolean;
   firstName: string;
   lastName: string;
   effortMinutes: { light: number; medium: number; heavy: number };

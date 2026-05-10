@@ -535,6 +535,10 @@ const translations = {
   "edit.recurrenceInterval": { fr: "Tous les", en: "Every" },
   "edit.recurrenceEnd": { fr: "Date de fin", en: "End date" },
   "edit.recurrenceEnabled": { fr: "Tâche récurrente", en: "Recurring task" },
+  "edit.recurrenceNeedsDeadline": {
+    fr: "Définissez une échéance future pour activer la récurrence",
+    en: "Set a future deadline to enable recurrence",
+  },
 
   // ── Attachments ──
   "edit.attachments": { fr: "Pièces jointes", en: "Attachments" },

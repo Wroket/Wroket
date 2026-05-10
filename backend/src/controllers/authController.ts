@@ -30,6 +30,7 @@ import {
   requestDisableEmail2faOtp as requestDisableEmail2faOtpService,
   disableEmailOtp2fa as disableEmailOtp2faService,
 } from "../services/authService";
+import { isAdmin as emailIsInAdminAllowlist } from "../services/adminService";
 import { purgeArchivedTodosPastRetentionForUser } from "../services/todoService";
 import {
   getPendingTwoFactorMethods,
@@ -396,13 +397,9 @@ export async function logout(req: Request, res: Response) {
   res.status(200).json({ message: "Logged out" });
 }
 
-export async function getMe(req: AuthenticatedRequest, res: Response) {
-  const user = req.user;
-  if (!user) {
-    res.status(401).json({ message: "Non authentifié" });
-    return;
-  }
-  res.status(200).json({
+/** Body for GET/PUT /auth/me — keep in sync with frontend `AuthMeResponse`. */
+function serializeAuthMeResponse(user: AuthUser) {
+  return {
     uid: user.uid,
     email: user.email,
     firstName: user.firstName,
@@ -419,7 +416,18 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     notificationDeliveryMode: user.notificationDeliveryMode,
     notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl,
     archivedTaskRetentionDays: user.archivedTaskRetentionDays,
-  });
+    /** Mirrors `ADMIN_EMAILS` on the API — used for /admin nav without duplicating the list in the client. */
+    isAdmin: emailIsInAdminAllowlist(user.email),
+  };
+}
+
+export async function getMe(req: AuthenticatedRequest, res: Response) {
+  const user = req.user;
+  if (!user) {
+    res.status(401).json({ message: "Non authentifié" });
+    return;
+  }
+  res.status(200).json(serializeAuthMeResponse(user));
 }
 
 export async function lookupUser(req: AuthenticatedRequest, res: Response) {
@@ -545,7 +553,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
       console.warn("[auth] purge archive après mise à jour profil:", err);
     });
   }
-  res.status(200).json(updated);
+  res.status(200).json(serializeAuthMeResponse(updated));
 }
 
 export async function changePassword(req: Request, res: Response) {

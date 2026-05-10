@@ -138,6 +138,18 @@ export default function TaskEditModal({
     return { start: null as string | null, end: null as string | null };
   }, [todo?.phaseId, todo?.projectId, form.projectId, projects]);
 
+  const deadlineIsPast = useMemo(() => {
+    const d = form.deadline?.trim();
+    if (!d) return false;
+    const today = new Date().toISOString().split("T")[0];
+    return d < today;
+  }, [form.deadline]);
+
+  useEffect(() => {
+    if (!deadlineIsPast || !form.recurrence) return;
+    onFormChange({ recurrence: null });
+  }, [deadlineIsPast, form.recurrence, onFormChange]);
+
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -728,23 +740,33 @@ export default function TaskEditModal({
 
           {/* Recurrence */}
           <div className="rounded border border-zinc-200 dark:border-slate-700 p-3 space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label
+              className={
+                "flex items-center gap-2 " +
+                (deadlineIsPast || !isTaskOwner ? "cursor-not-allowed opacity-70" : "cursor-pointer")
+              }
+            >
               <input
                 type="checkbox"
                 checked={!!form.recurrence}
+                disabled={deadlineIsPast || !isTaskOwner}
                 onChange={(e) => {
+                  if (deadlineIsPast || !isTaskOwner) return;
                   if (e.target.checked) {
                     onFormChange({ recurrence: { frequency: "weekly", interval: 1 } });
                   } else {
                     onFormChange({ recurrence: null });
                   }
                 }}
-                className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500"
+                className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500 disabled:opacity-50"
               />
               <span className="text-xs font-medium text-zinc-700 dark:text-slate-300">
                 🔄 {t("edit.recurrenceEnabled")}
               </span>
             </label>
+            {deadlineIsPast && isTaskOwner && (
+              <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("edit.recurrenceNeedsDeadline")}</p>
+            )}
             {form.recurrence && (
               <div className="grid grid-cols-3 gap-2">
                 <div>
@@ -753,10 +775,18 @@ export default function TaskEditModal({
                   </label>
                   <select
                     value={form.recurrence.frequency}
-                    onChange={(e) =>
-                      onFormChange({ recurrence: { ...form.recurrence!, frequency: e.target.value as RecurrenceFrequency } })
-                    }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    disabled={!isTaskOwner}
+                    onChange={(e) => {
+                      const freq = e.target.value as RecurrenceFrequency;
+                      onFormChange({
+                        recurrence: {
+                          ...form.recurrence!,
+                          frequency: freq,
+                          interval: freq === "daily" ? 1 : form.recurrence!.interval,
+                        },
+                      });
+                    }}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
                   >
                     <option value="daily">{t("edit.recurrenceDaily")}</option>
                     <option value="weekly">{t("edit.recurrenceWeekly")}</option>
@@ -764,18 +794,23 @@ export default function TaskEditModal({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
+                  <label className={`block text-[10px] mb-0.5 ${form.recurrence.frequency === "daily" ? "text-zinc-300 dark:text-slate-600" : "text-zinc-500 dark:text-slate-400"}`}>
                     {t("edit.recurrenceInterval")}
                   </label>
                   <input
                     type="number"
                     min={1}
                     max={365}
+                    disabled={form.recurrence.frequency === "daily" || !isTaskOwner}
                     value={form.recurrence.interval}
                     onChange={(e) =>
                       onFormChange({ recurrence: { ...form.recurrence!, interval: Math.max(1, Number(e.target.value) || 1) } })
                     }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 text-center"
+                    className={`w-full rounded border px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-slate-500 ${
+                      form.recurrence.frequency === "daily"
+                        ? "border-zinc-200 dark:border-slate-700 bg-zinc-100 dark:bg-slate-900 text-zinc-400 dark:text-slate-600 cursor-not-allowed"
+                        : "border-zinc-300 dark:border-slate-600 text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+                    }`}
                   />
                 </div>
                 <div>
@@ -786,10 +821,11 @@ export default function TaskEditModal({
                     type="date"
                     value={form.recurrence.endDate ?? ""}
                     min={new Date().toISOString().split("T")[0]}
+                    disabled={!isTaskOwner}
                     onChange={(e) =>
                       onFormChange({ recurrence: { ...form.recurrence!, endDate: e.target.value || undefined } })
                     }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
                   />
                 </div>
               </div>

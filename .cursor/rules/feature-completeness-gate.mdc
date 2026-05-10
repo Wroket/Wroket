@@ -9,6 +9,12 @@ alwaysApply: true
 - Ne jamais livrer une feature partiellement implémentée comme "terminée".
 - Toute nouvelle feature doit être challengée avant implémentation (impact user, cas limites, dépendances E2E).
 
+## Audit de dépendances applicatives (obligatoire avant toute modification)
+- Avant d'implémenter, l'agent DOIT identifier tous les fichiers et composants qui lisent, écrivent ou valident la donnée/feature concernée dans toute l'app (frontend + backend + tests + scripts).
+- Présenter le résultat sous forme de tableau ou liste : fichier, rôle, impact du changement.
+- Si un point d'entrée est exempté (ex. import avec flag spécial, path admin), l'expliciter et justifier l'exemption explicitement.
+- Ne démarrer le code qu'après que cet audit figure dans le plan.
+
 ## Challenge obligatoire avant code
 - Vérifier le parcours complet: UI -> API -> persistance -> observabilité -> UX d'erreur.
 - Identifier explicitement les fonctionnalités liées (création, édition, suppression, permissions, états vides, régression).
