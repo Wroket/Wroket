@@ -276,7 +276,9 @@ function parseCsvToNoteObjects(text: string): Array<Record<string, string>> {
 }
 
 export async function sync(req: AuthenticatedRequest, res: Response) {
-  const { notes } = req.body as { notes?: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean }> };
+  const { notes } = req.body as {
+    notes?: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean; folder?: string }>;
+  };
   if (!Array.isArray(notes)) throw new ValidationError("notes[] requis");
   if (notes.length > 200) throw new ValidationError("Trop de notes à synchroniser (max 200)");
   const result = syncNotes(req.user!.uid, notes);

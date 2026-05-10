@@ -312,7 +312,10 @@ export function permanentlyDeleteArchivedNote(userId: string, noteId: string): v
  * Bulk sync for offline notes: accepts an array of { id, title, content, updatedAt }.
  * Creates or updates notes if the incoming updatedAt is newer.
  */
-export function syncNotes(userId: string, incoming: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean }>): Note[] {
+export function syncNotes(
+  userId: string,
+  incoming: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean; folder?: string }>,
+): Note[] {
   const map = getUserNotes(userId);
   const now = new Date().toISOString();
 
@@ -327,17 +330,22 @@ export function syncNotes(userId: string, incoming: Array<{ id: string; title: s
         existing.content = (item.content || "").slice(0, 50_000);
         existing.pinned = item.pinned ?? existing.pinned;
         existing.updatedAt = item.updatedAt;
+        if (item.folder !== undefined) {
+          existing.folder = item.folder.trim() || undefined;
+        }
       }
     } else {
       if (getUserArchivedNotes(userId).has(item.id)) {
         continue;
       }
+      const folderTrim = item.folder?.trim() || undefined;
       const note: Note = {
         id: item.id,
         userId,
         title: (item.title || "").trim().slice(0, 200) || "Sans titre",
         content: (item.content || "").slice(0, 50_000),
         pinned: item.pinned ?? false,
+        folder: folderTrim,
         createdAt: item.updatedAt || now,
         updatedAt: item.updatedAt || now,
       };

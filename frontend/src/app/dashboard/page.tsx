@@ -577,7 +577,7 @@ export default function DashboardPage() {
                   </ul>
                 )}
                 {activeAssigned.length > 5 && (
-                  <Link href="/todos" className="block text-xs text-cyan-600 dark:text-cyan-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
+                  <Link href="/todos" className="block text-xs text-indigo-600 dark:text-indigo-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
                 )}
               </div>
 
@@ -621,7 +621,7 @@ export default function DashboardPage() {
                   </ul>
                 )}
                 {activeDelegated.length > 5 && (
-                  <Link href="/todos?scope=delegated" className="block text-xs text-amber-600 dark:text-amber-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
+                  <Link href="/todos?scope=delegated" className="block text-xs text-indigo-600 dark:text-indigo-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
                 )}
               </div>
             </div>

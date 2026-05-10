@@ -122,6 +122,7 @@ export async function syncNotesApi(notes: Array<{
   content: string;
   updatedAt: string;
   pinned?: boolean;
+  folder?: string;
 }>): Promise<Note[]> {
   const res = await fetch(`${API_BASE_URL}/notes/sync`, {
     method: "POST",

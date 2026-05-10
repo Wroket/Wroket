@@ -1335,7 +1335,7 @@ export default function ProjectDetailView({
         {parentProject && (
           <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-slate-400">
             <span>{t("projects.parentProject")} :</span>
-            <button type="button" onClick={() => handleSelectProject(parentProject)} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">{parentProject.name}</button>
+            <button type="button" onClick={() => handleSelectProject(parentProject)} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{parentProject.name}</button>
           </div>
         )}
 
@@ -1345,7 +1345,7 @@ export default function ProjectDetailView({
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("projects.subProjects")} ({subProjects.length})</h4>
               {selectedProject.status === "active" && !showCreateSub && (
-                <button type="button" onClick={() => setShowCreateSub(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">+ {t("projects.addSubProject")}</button>
+                <button type="button" onClick={() => setShowCreateSub(true)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">+ {t("projects.addSubProject")}</button>
               )}
             </div>
             {showCreateSub && (

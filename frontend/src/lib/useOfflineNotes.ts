@@ -182,18 +182,20 @@ export function useOfflineNotes() {
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
-  const addNote = useCallback((title?: string, opts?: { todoId?: string; projectId?: string; shared?: boolean; teamId?: string }) => {
+  const addNote = useCallback((title?: string, opts?: { todoId?: string; projectId?: string; shared?: boolean; teamId?: string; folder?: string }) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const noteTitle = title ?? "";
     const shared = opts?.shared && opts?.teamId ? true : undefined;
     const teamId = opts?.shared && opts?.teamId ? opts.teamId : undefined;
+    const folderTrim = opts?.folder?.trim() || undefined;
     const note: Note = {
       id,
       userId: "",
       title: noteTitle,
       content: "",
       pinned: false,
+      folder: folderTrim,
       todoId: opts?.todoId,
       projectId: opts?.projectId,
       shared,
@@ -210,6 +212,7 @@ export function useOfflineNotes() {
         title: noteTitle || "Sans titre",
         content: "",
         id,
+        folder: folderTrim,
         todoId: opts?.todoId,
         projectId: opts?.projectId,
         shared: opts?.shared,
@@ -229,6 +232,7 @@ export function useOfflineNotes() {
     content?: string;
     pinned?: boolean;
     tags?: string[];
+    folder?: string;
     todoId?: string | null;
     projectId?: string | null;
     shared?: boolean;
@@ -238,7 +242,15 @@ export function useOfflineNotes() {
     const now = new Date().toISOString();
 
     const mergeLocal = (n: Note): Note => {
-      const raw = { ...n, ...updates, updatedAt: now };
+      const raw = { ...n, ...updates, updatedAt: now } as Note;
+      if ("folder" in updates) {
+        const fv = updates.folder;
+        if (fv === undefined || fv === null || fv.trim() === "") {
+          delete raw.folder;
+        } else {
+          raw.folder = fv.trim();
+        }
+      }
       if (updates.shared === false) {
         raw.shared = undefined;
         raw.teamId = undefined;
@@ -354,6 +366,7 @@ export function useOfflineNotes() {
           content: n.content ?? "",
           updatedAt: new Date(base + i).toISOString(),
           pinned: n.pinned,
+          ...(n.folder ? { folder: n.folder } : {}),
         }));
         for (let offset = 0; offset < payload.length; offset += 200) {
           await syncNotesApi(payload.slice(offset, offset + 200));

@@ -555,7 +555,7 @@ export default function TaskEditModal({
                   <button
                     type="button"
                     onClick={() => onFormChange({ estimatedMinutes: null })}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     {t("todos.useDefault")}
                   </button>
@@ -971,7 +971,7 @@ export default function TaskEditModal({
                     <button type="button" onClick={() => setEditingCommentId(null)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-600 dark:text-slate-300">{t("edit.cancel")}</button>
                   </div>
                 ) : (
-                  <p className="text-zinc-600 dark:text-slate-400 whitespace-pre-wrap">{c.text.split(/(@[\w.+-]+@[\w.-]+)/g).map((part, i) => /^@[\w.+-]+@[\w.-]+$/.test(part) ? <span key={i} className="text-blue-600 dark:text-blue-400 font-medium">{part}</span> : part)}</p>
+                  <p className="text-zinc-600 dark:text-slate-400 whitespace-pre-wrap">{c.text.split(/(@[\w.+-]+@[\w.-]+)/g).map((part, i) => /^@[\w.+-]+@[\w.-]+$/.test(part) ? <span key={i} className="text-indigo-600 dark:text-indigo-400 font-medium">{part}</span> : part)}</p>
                 )}
                 {/* Reactions */}
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
@@ -1049,7 +1049,7 @@ export default function TaskEditModal({
               <button
                 type="button"
                 onClick={() => onOpenSubtasks(todo)}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
               >
                 {t("subtask.addShort")}
               </button>
@@ -1073,7 +1073,7 @@ export default function TaskEditModal({
             <button
               type="button"
               onClick={() => onOpenSubtasks(todo)}
-              className="flex items-center gap-1.5 rounded border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+              className="flex items-center gap-1.5 rounded border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
               title={t("subtask.add")}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

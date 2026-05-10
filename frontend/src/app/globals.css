@@ -21,11 +21,13 @@
   --radius-card: 0.5rem;
 
   /* Semantic tokens */
-  --color-primary:   var(--color-emerald-600);
-  --color-danger:    var(--color-red-600);
-  --color-success:   var(--color-green-600);
-  --color-warning:   var(--color-amber-500);
-  --color-info:      var(--color-blue-500);
+  --color-primary:          var(--color-emerald-600);
+  --color-danger:           var(--color-red-600);
+  --color-success:          var(--color-green-600);
+  --color-warning:          var(--color-amber-500);
+  --color-info:             var(--color-blue-500);
+  --color-brand-dark:       var(--color-slate-800);
+  --color-secondary-accent: var(--color-indigo-600);
 }
 
 body {
