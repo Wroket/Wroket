@@ -971,46 +971,53 @@ function TasksSection() {
     { label: "settings.effortHeavy", value: heavy, set: setHeavy },
   ];
 
+  const sectionCardCls =
+    "rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 p-5 space-y-4";
+  const saveBtnCls =
+    "rounded bg-emerald-600 dark:bg-emerald-700 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-60 transition-colors shadow-sm";
+
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.effortDefaults")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.effortDesc")}</p>
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <div key={row.label} className="flex items-center gap-3">
-            <span className="text-sm text-zinc-700 dark:text-slate-300 w-36">{t(row.label)}</span>
-            <input
-              type="number"
-              min={1}
-              max={480}
-              step={5}
-              value={row.value}
-              onChange={(e) => row.set(Math.max(1, Math.min(480, Number(e.target.value) || 1)))}
-              className={inputCls}
-            />
-            <span className="text-sm text-zinc-400 dark:text-slate-500">{t("settings.minutes")}</span>
-          </div>
-        ))}
-      </div>
-      <div className="pt-4 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
-        >
-          {saving ? t("settings.saving") : t("settings.save")}
-        </button>
-        {saved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
+    <div className="space-y-4">
+      {/* ── Effort defaults ── */}
+      <div className={sectionCardCls}>
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.effortDefaults")}</h3>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.effortDesc")}</p>
+        </div>
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-center gap-3">
+              <span className="text-sm text-zinc-700 dark:text-slate-300 w-36">{t(row.label)}</span>
+              <input
+                type="number"
+                min={1}
+                max={480}
+                step={5}
+                value={row.value}
+                onChange={(e) => row.set(Math.max(1, Math.min(480, Number(e.target.value) || 1)))}
+                className={inputCls}
+              />
+              <span className="text-sm text-zinc-400 dark:text-slate-500">{t("settings.minutes")}</span>
+            </div>
+          ))}
+        </div>
+        <div className="pt-3 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
+          <button type="button" onClick={handleSave} disabled={saving} className={saveBtnCls}>
+            {saving ? t("settings.saving") : t("settings.save")}
+          </button>
+          {saved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
+        </div>
       </div>
 
       {/* ── Working Hours ── */}
-      <hr className="border-zinc-200 dark:border-slate-700" />
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.workingHours")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.workingHoursDesc")}</p>
+      <div className={sectionCardCls}>
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.workingHours")}</h3>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.workingHoursDesc")}</p>
+        </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.whStart")}</label>
             <input
@@ -1087,79 +1094,74 @@ function TasksSection() {
         </div>
       </div>
 
-      <div className="pt-4 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleWhSave}
-          disabled={whSaving}
-          className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
-        >
-          {whSaving ? t("settings.saving") : t("settings.save")}
-        </button>
-        {whSaved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
+        <div className="pt-3 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
+          <button type="button" onClick={handleWhSave} disabled={whSaving} className={saveBtnCls}>
+            {whSaving ? t("settings.saving") : t("settings.save")}
+          </button>
+          {whSaved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
+        </div>
       </div>
 
       {/* ── Recurrence on working days ── */}
-      <hr className="border-zinc-200 dark:border-slate-700" />
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.skipNonWorkingDays")}</h3>
-          <p className="text-xs text-zinc-400 dark:text-slate-500 mt-0.5">{t("settings.skipNonWorkingDaysDesc")}</p>
+      <div className={sectionCardCls}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.skipNonWorkingDays")}</h3>
+            <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.skipNonWorkingDaysDesc")}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={skipNonWorkingDays}
+            onClick={async () => {
+              const next = !skipNonWorkingDays;
+              setSkipNonWorkingDays(next);
+              try {
+                await updateProfile({ skipNonWorkingDays: next });
+              } catch {
+                setSkipNonWorkingDays(!next);
+              }
+            }}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${skipNonWorkingDays ? "bg-emerald-600 dark:bg-emerald-700" : "bg-zinc-300 dark:bg-slate-600"}`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ${skipNonWorkingDays ? "translate-x-5" : "translate-x-0"}`}
+            />
+          </button>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={skipNonWorkingDays}
-          onClick={async () => {
-            const next = !skipNonWorkingDays;
-            setSkipNonWorkingDays(next);
-            try {
-              await updateProfile({ skipNonWorkingDays: next });
-            } catch {
-              setSkipNonWorkingDays(!next);
-            }
-          }}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${skipNonWorkingDays ? "bg-emerald-600 dark:bg-emerald-700" : "bg-zinc-300 dark:bg-slate-600"}`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ${skipNonWorkingDays ? "translate-x-5" : "translate-x-0"}`}
-          />
-        </button>
       </div>
 
       {/* ── Archived tasks retention ── */}
-      <hr className="border-zinc-200 dark:border-slate-700" />
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.archiveRetentionTitle")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.archiveRetentionDesc")}</p>
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+      <div className={sectionCardCls}>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.archiveRetentionLabel")}</label>
-          <input
-            type="number"
-            min={0}
-            max={365}
-            step={1}
-            value={archiveRetentionDays}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (e.target.value === "") {
-                setArchiveRetentionDays(0);
-                return;
-              }
-              if (Number.isNaN(v)) return;
-              setArchiveRetentionDays(Math.max(0, Math.min(365, Math.floor(v))));
-            }}
-            className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
-          />
-          <p className="text-xs text-zinc-400 dark:text-slate-500 mt-1">{t("settings.archiveRetentionHint")}</p>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.archiveRetentionTitle")}</h3>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.archiveRetentionDesc")}</p>
         </div>
-        <div className="flex items-center gap-3 pt-2 sm:pt-0">
-          <button
-            type="button"
-            onClick={handleArchiveRetentionSave}
-            disabled={arSaving}
-            className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
-          >
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.archiveRetentionLabel")}</label>
+            <input
+              type="number"
+              min={0}
+              max={365}
+              step={1}
+              value={archiveRetentionDays}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (e.target.value === "") {
+                  setArchiveRetentionDays(0);
+                  return;
+                }
+                if (Number.isNaN(v)) return;
+                setArchiveRetentionDays(Math.max(0, Math.min(365, Math.floor(v))));
+              }}
+              className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
+            />
+            <p className="text-xs text-zinc-400 dark:text-slate-500 mt-1">{t("settings.archiveRetentionHint")}</p>
+          </div>
+        </div>
+        <div className="pt-3 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
+          <button type="button" onClick={handleArchiveRetentionSave} disabled={arSaving} className={saveBtnCls}>
             {arSaving ? t("settings.saving") : t("settings.save")}
           </button>
           {arSaved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
