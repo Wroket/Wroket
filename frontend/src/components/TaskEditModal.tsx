@@ -842,7 +842,7 @@ export default function TaskEditModal({
           </label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.tags.map((tag) => (
-              <span key={tag} className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+              <span key={tag} className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                 {tag}
                 <button type="button" onClick={() => void handleRemoveTag(tag)} disabled={tagsSaving} className="hover:text-red-500 disabled:opacity-40">×</button>
               </span>
@@ -858,7 +858,7 @@ export default function TaskEditModal({
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleAddTag(); } }}
               className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
             />
-            <button type="button" onClick={() => void handleAddTag()} disabled={!tagInput.trim() || tagsSaving} className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
+            <button type="button" onClick={() => void handleAddTag()} disabled={!tagInput.trim() || tagsSaving} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
           </div>
         </div>
         </>}
@@ -884,7 +884,7 @@ export default function TaskEditModal({
                   type="button"
                   disabled={attachmentUploading}
                   onClick={() => attachmentInputRef.current?.click()}
-                  className="shrink-0 rounded border border-indigo-300 dark:border-indigo-600 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 disabled:opacity-50"
+                  className="shrink-0 rounded border border-emerald-300 dark:border-emerald-600 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 disabled:opacity-50"
                 >
                   {t("edit.addFile")}
                 </button>
@@ -899,7 +899,7 @@ export default function TaskEditModal({
                 <li key={a.id} className="flex items-center gap-2 text-xs min-w-0">
                   <button
                     type="button"
-                    className="min-w-0 flex-1 text-left text-indigo-600 dark:text-indigo-400 hover:underline truncate"
+                    className="min-w-0 flex-1 text-left text-emerald-600 dark:text-emerald-400 hover:underline truncate"
                     onClick={() => void downloadAttachment(todo.id, a.id, a.originalName)}
                   >
                     {a.originalName}
@@ -936,7 +936,7 @@ export default function TaskEditModal({
               <button
                 type="button"
                 onClick={() => setShowAllComments(true)}
-                className="w-full text-center text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium py-1 transition-colors"
+                className="w-full text-center text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium py-1 transition-colors"
               >
                 {t("comments.showOlder")} ({comments.length - 3})
               </button>

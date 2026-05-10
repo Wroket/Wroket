@@ -279,7 +279,7 @@ function ProfileSection() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
+          className="rounded bg-emerald-600 dark:bg-emerald-500 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors"
         >
           {saving ? t("settings.saving") : t("settings.save")}
         </button>
@@ -585,7 +585,7 @@ function SecuritySection() {
             type="button"
             disabled={busy}
             onClick={startPairing}
-            className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
+            className="rounded bg-emerald-600 dark:bg-emerald-500 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors"
           >
             {busy ? "…" : t("settings.security2faEnableApp")}
           </button>
@@ -1051,7 +1051,7 @@ function TasksSection() {
                   onClick={() => toggleDay(dayVal)}
                   className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                     active
-                      ? "bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-100 shadow-sm hover:bg-slate-800 dark:hover:bg-slate-500"
+                      ? "bg-emerald-600 text-white dark:bg-emerald-500 shadow-sm hover:bg-emerald-700 dark:hover:bg-emerald-400"
                       : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900"
                   }`}
                 >
@@ -1456,7 +1456,7 @@ function IntegrationsSection() {
               savingDelivery
               || ((deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && !deliveryUrl.trim())
             }
-            className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
           >
             {savingDelivery ? t("settings.saving") : t("settings.deliverySave")}
           </button>
@@ -1514,7 +1514,7 @@ function IntegrationsSection() {
             type="button"
             onClick={() => void handleSaveTypes()}
             disabled={savingTypes}
-            className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
           >
             {savingTypes ? t("settings.saving") : t("settings.notifTypesSave")}
           </button>
@@ -1562,7 +1562,7 @@ function IntegrationsSection() {
             type="button"
             onClick={() => void handleSaveFrequency()}
             disabled={savingFreq}
-            className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
           >
             {savingFreq ? t("settings.saving") : t("settings.freqSave")}
           </button>
@@ -1688,7 +1688,7 @@ function IntegrationsSection() {
                         onClick={() => toggleEvent(ev.key)}
                         className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                           active
-                            ? "bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-100"
+                            ? "bg-emerald-600 text-white dark:bg-emerald-500"
                             : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
                         }`}
                       >
@@ -1703,7 +1703,7 @@ function IntegrationsSection() {
                   type="button"
                   onClick={handleSave}
                   disabled={saving || !url.trim()}
-                  className="rounded bg-slate-700 dark:bg-slate-600 px-5 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors"
+                  className="rounded bg-emerald-600 dark:bg-emerald-500 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors"
                 >
                   {saving ? t("settings.saving") : t("settings.save")}
                 </button>
@@ -1781,7 +1781,7 @@ function ChangePasswordForm() {
       <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("settings.confirmPassword")} className={inputCls} />
       <div className="flex gap-2">
         <button type="button" onClick={handleSubmit} disabled={saving || !current || !next || !confirm}
-          className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
+          className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors">
           {t("settings.passwordChange")}
         </button>
         <button type="button" onClick={() => { setOpen(false); setError(null); }}
@@ -2006,7 +2006,7 @@ function AdminSection() {
         <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100 mb-1">{t("settings.dataExport")}</h4>
         <p className="text-xs text-zinc-500 dark:text-slate-400 mb-3">{t("settings.dataExportDesc")}</p>
         <button type="button" onClick={handleExport} disabled={exporting}
-          className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
+          className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors">
           {exporting ? "..." : t("settings.exportBtn")}
         </button>
       </div>

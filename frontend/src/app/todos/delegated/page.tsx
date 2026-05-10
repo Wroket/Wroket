@@ -107,7 +107,7 @@ export default function DelegatedPage() {
       case "active": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
       case "completed": return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
       case "cancelled": return "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-400";
-      case "deleted": return "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300";
+      case "deleted": return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800/40 dark:text-zinc-400";
       default: return "bg-zinc-100 text-zinc-600";
     }
   };

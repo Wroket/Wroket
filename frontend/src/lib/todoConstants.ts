@@ -33,10 +33,10 @@ export const QUADRANT_CONFIG: Record<
     label: "PLANIFIER",
     tKey: "quadrant.schedule" as const,
     icon: "📅",
-    headerBg: "bg-sky-400 dark:bg-sky-950/90",
+    headerBg: "bg-blue-500 dark:bg-blue-950/90",
     headerText: "text-white",
     cellBg: "bg-zinc-100/80 dark:bg-slate-800/60",
-    accentBar: "bg-sky-400 dark:bg-sky-600",
+    accentBar: "bg-blue-500 dark:bg-blue-600",
   },
   delegate: {
     label: "EXPÉDIER",
@@ -51,10 +51,10 @@ export const QUADRANT_CONFIG: Record<
     label: "DIFFÉRER",
     tKey: "quadrant.eliminate" as const,
     icon: "⏸️",
-    headerBg: "bg-emerald-400 dark:bg-emerald-950/90",
+    headerBg: "bg-zinc-400 dark:bg-zinc-800/90",
     headerText: "text-white",
     cellBg: "bg-zinc-100/80 dark:bg-slate-800/60",
-    accentBar: "bg-emerald-400 dark:bg-emerald-600",
+    accentBar: "bg-zinc-400 dark:bg-zinc-600",
   },
 };
 
@@ -75,7 +75,7 @@ export const PRIORITY_BADGES: Record<
   low: {
     label: "Basse",
     tKey: "priority.low" as const,
-    cls: "bg-emerald-400 text-white dark:bg-emerald-600",
+    cls: "bg-sky-400 text-white dark:bg-sky-600",
   },
 };
 

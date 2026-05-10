@@ -23,7 +23,7 @@ export const QUADRANT_BADGES: Record<Quadrant, { label: string; tKey: Translatio
   "do-first": { label: "🔥 Faire", tKey: "badge.doFirst" as const, cls: "bg-red-500 text-white dark:bg-red-600" },
   schedule: { label: "📅 Planifier", tKey: "badge.schedule" as const, cls: "bg-blue-500 text-white dark:bg-blue-600" },
   delegate: { label: "⚡ Expédier", tKey: "badge.delegate" as const, cls: "bg-amber-500 text-white dark:bg-amber-600" },
-  eliminate: { label: "⏸️ Différer", tKey: "badge.eliminate" as const, cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
+  eliminate: { label: "⏸️ Différer", tKey: "badge.eliminate" as const, cls: "bg-zinc-400 text-white dark:bg-zinc-600" },
 };
 
 export const QUADRANT_RANK: Record<Quadrant, number> = {

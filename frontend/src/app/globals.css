@@ -19,6 +19,13 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-card: 0.5rem;
+
+  /* Semantic tokens */
+  --color-primary:   var(--color-emerald-600);
+  --color-danger:    var(--color-red-600);
+  --color-success:   var(--color-green-600);
+  --color-warning:   var(--color-amber-500);
+  --color-info:      var(--color-blue-500);
 }
 
 body {

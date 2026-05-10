@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
@@ -61,6 +61,8 @@ export default function AgendaPage() {
   const [hiddenAccounts, setHiddenAccounts] = useState<Set<string>>(new Set());
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
   const calendarMenuRef = useRef<HTMLDivElement>(null);
+  const timeGridScrollRef = useRef<HTMLDivElement>(null);
+  const [timeGridScrollbarW, setTimeGridScrollbarW] = useState(0);
   const [now, setNow] = useState(new Date());
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -278,6 +280,22 @@ export default function AgendaPage() {
   }, [now]);
 
   const hours = useMemo(() => Array.from({ length: TOTAL_HOURS }, (_, i) => DAY_START_HOUR + i), []);
+
+  /** Vertical scrollbar on the time grid steals width from day columns; pad header rows so columns align. */
+  useLayoutEffect(() => {
+    const el = timeGridScrollRef.current;
+    if (!el) {
+      setTimeGridScrollbarW(0);
+      return;
+    }
+    const measure = () => {
+      setTimeGridScrollbarW(Math.max(0, el.offsetWidth - el.clientWidth));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, viewMode, visibleDays.length]);
 
   const getAccountColor = (accountEmail?: string): string => {
     if (!accountEmail) return ACCOUNT_COLORS[0];
@@ -614,7 +632,10 @@ export default function AgendaPage() {
           <div className="flex-1 overflow-hidden rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <div className="flex flex-col h-full">
               {/* Day headers (sticky) */}
-              <div className="flex border-b border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-20">
+              <div
+                className="flex border-b border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-20"
+                style={{ paddingRight: timeGridScrollbarW }}
+              >
                 <div className="w-14 shrink-0 border-r border-zinc-100 dark:border-slate-800" />
                 {visibleDays.map((day, i) => {
                   const isToday = isSameDay(day, today);
@@ -645,7 +666,10 @@ export default function AgendaPage() {
 
               {/* All-day events row */}
               {visibleDays.some((d) => eventsForDay(d, true).length > 0) && (
-                <div className="flex border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-800/30">
+                <div
+                  className="flex border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-800/30"
+                  style={{ paddingRight: timeGridScrollbarW }}
+                >
                   <div className="w-14 shrink-0 border-r border-zinc-100 dark:border-slate-800 flex items-center justify-center">
                     <span className="text-[10px] text-zinc-400 dark:text-slate-500">{t("agenda.allDay")}</span>
                   </div>
@@ -702,7 +726,7 @@ export default function AgendaPage() {
               )}
 
               {/* Time grid (scrollable) */}
-              <div className="flex-1 overflow-y-auto overflow-x-auto">
+              <div ref={timeGridScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
                 <div className="flex" style={{ minHeight: TOTAL_HOURS * HOUR_HEIGHT }}>
                   {/* Time labels column */}
                   <div className="w-14 shrink-0 relative border-r border-zinc-100 dark:border-slate-800">

@@ -5,7 +5,7 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANT_CLS: Record<ButtonVariant, string> = {
   primary:
-    "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60",
+    "bg-emerald-600 dark:bg-emerald-500 text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60",
   secondary:
     "border border-zinc-200 dark:border-slate-600 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800",
   danger:
