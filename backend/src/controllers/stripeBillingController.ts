@@ -9,6 +9,7 @@ import {
 } from "../services/authService";
 import { normalizeBillingPlan } from "../services/entitlementsService";
 import { createBillingPortalSessionUrl } from "../services/stripePortalSessionService";
+import { patchTeamBilling, findTeamByStripeSubscriptionId } from "../services/teamService";
 
 function applyPlanFromStripeMetadata(uid: string | undefined, planRaw: string | undefined): void {
   if (!uid) return;
@@ -46,6 +47,34 @@ function syncSubscriptionFields(uid: string, sub: Stripe.Subscription): void {
     stripeSubscriptionId: sub.id,
     stripeSubscriptionStatus: sub.status,
     billingCurrentPeriodEnd: subscriptionPeriodEndIso(sub),
+  });
+}
+
+/**
+ * Synchronise le plan et le nombre de sièges d'une équipe depuis un objet Subscription Stripe.
+ * Utilise `metadata.team_id` + `metadata.billing_plan` + `quantity` sur la subscription.
+ * Si le sub est lié à une équipe connue via `stripeSubscriptionId`, met aussi à jour via l'id.
+ */
+function syncTeamSubscription(sub: Stripe.Subscription, active: boolean): void {
+  const teamId = typeof sub.metadata?.team_id === "string" ? sub.metadata.team_id : undefined;
+  const plan = normalizeBillingPlan(sub.metadata?.billing_plan);
+  const rawQty = sub.items?.data?.[0]?.quantity;
+  const quantity = typeof rawQty === "number" && rawQty > 0 ? rawQty : undefined;
+
+  const teamById = teamId ? null : findTeamByStripeSubscriptionId(sub.id);
+  const resolvedTeamId = teamId ?? teamById?.id;
+
+  if (!resolvedTeamId) return;
+
+  if (!active) {
+    patchTeamBilling(resolvedTeamId, { billingPlan: "free", seatCount: undefined, stripeSubscriptionId: sub.id });
+    return;
+  }
+
+  patchTeamBilling(resolvedTeamId, {
+    ...(plan ? { billingPlan: plan } : {}),
+    ...(quantity !== undefined ? { seatCount: quantity } : {}),
+    stripeSubscriptionId: sub.id,
   });
 }
 
@@ -116,6 +145,8 @@ export async function postStripeWebhook(req: Request, res: Response): Promise<vo
         if (uid) {
           syncSubscriptionFields(uid, sub);
         }
+        // Sync équipe si metadata.team_id présent ou sub déjà lié à une équipe
+        syncTeamSubscription(sub, active);
         if (!active) {
           if (uid) setBillingPlanForUid(uid, "first");
           break;
@@ -135,6 +166,8 @@ export async function postStripeWebhook(req: Request, res: Response): Promise<vo
           });
           setBillingPlanForUid(uid, "first");
         }
+        // Remettre l'équipe à free si le sub lui était associé
+        syncTeamSubscription(sub, false);
         break;
       }
       default:

@@ -1510,7 +1510,7 @@ const translations = {
     fr: "Quand Checkout sera activé, le paiement passera par Stripe (carte, factures). D’ici là, le portail client peut déjà apparaître dans Paramètres si un abonnement Stripe est lié à votre compte.",
     en: "Once Checkout is on, payment runs through Stripe (card, invoices). Until then, the customer portal may already appear in Settings if a Stripe subscription is linked.",
   },
-  "pricing.priceFree": { fr: "Gratuit", en: "Free" },
+  "pricing.priceFree": { fr: "Sans frais", en: "No charge" },
   "pricing.priceSoon": { fr: "Bientôt", en: "Coming soon" },
   "pricing.priceOnRequest": { fr: "Sur demande", en: "Contact us" },
   "pricing.recommended": { fr: "Recommandé", en: "Recommended" },

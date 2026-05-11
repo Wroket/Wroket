@@ -20,6 +20,9 @@ import {
   getMyTeamRole,
   getTeamDashboard,
   getTeamReporting,
+  getTeamCollaborators,
+  postAddTeamCollaborator,
+  deleteTeamCollaborator,
 } from "../controllers/teamController";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -45,6 +48,9 @@ teamRoutes.get("/:teamId/reporting", getTeamReporting);
 teamRoutes.post("/:teamId/members", postAddMember);
 teamRoutes.patch("/:teamId/members/role", postUpdateMemberRole);
 teamRoutes.delete("/:teamId/members/:email", postRemoveMember);
+teamRoutes.get("/:teamId/ext-collaborators", getTeamCollaborators);
+teamRoutes.post("/:teamId/ext-collaborators", postAddTeamCollaborator);
+teamRoutes.delete("/:teamId/ext-collaborators/:email", deleteTeamCollaborator);
 teamRoutes.post("/:teamId/transfer", postTransferOwnership);
 teamRoutes.delete("/:teamId", postDeleteTeam);
 

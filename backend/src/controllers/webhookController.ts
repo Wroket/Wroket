@@ -1,7 +1,7 @@
 import { Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
-import { getEntitlementsForUid } from "../services/authService";
+import { getEffectiveEntitlementsForUid } from "../services/teamService";
 import {
   listWebhooks,
   upsertWebhook,
@@ -10,8 +10,8 @@ import {
 } from "../services/webhookService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 
-function assertIntegrationsEntitled(uid: string): void {
-  if (!getEntitlementsForUid(uid).integrations) {
+function assertIntegrationsEntitled(uid: string, email: string): void {
+  if (!getEffectiveEntitlementsForUid(uid, email).integrations) {
     throw new ForbiddenError(
       "Les webhooks et intégrations nécessitent le palier Small teams ou le statut early bird (attribué par un administrateur).",
     );
@@ -19,13 +19,13 @@ function assertIntegrationsEntitled(uid: string): void {
 }
 
 export async function getWebhooks(req: AuthenticatedRequest, res: Response) {
-  assertIntegrationsEntitled(req.user!.uid);
+  assertIntegrationsEntitled(req.user!.uid, req.user!.email);
   const list = listWebhooks(req.user!.uid);
   res.status(200).json(list);
 }
 
 export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response) {
-  assertIntegrationsEntitled(req.user!.uid);
+  assertIntegrationsEntitled(req.user!.uid, req.user!.email);
   const { id, label, url, platform, events, enabled } = req.body as Record<string, unknown>;
 
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
@@ -45,7 +45,7 @@ export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response
 }
 
 export async function postDeleteWebhook(req: AuthenticatedRequest, res: Response) {
-  assertIntegrationsEntitled(req.user!.uid);
+  assertIntegrationsEntitled(req.user!.uid, req.user!.email);
   const webhookId = req.params.id as string;
   if (!webhookId) throw new ValidationError("ID requis");
   deleteWebhook(req.user!.uid, webhookId);
@@ -53,7 +53,7 @@ export async function postDeleteWebhook(req: AuthenticatedRequest, res: Response
 }
 
 export async function postTestWebhook(req: AuthenticatedRequest, res: Response) {
-  assertIntegrationsEntitled(req.user!.uid);
+  assertIntegrationsEntitled(req.user!.uid, req.user!.email);
   const { url, platform } = req.body as { url?: string; platform?: string };
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
     throw new ValidationError("URL de webhook invalide");

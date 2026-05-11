@@ -22,3 +22,9 @@ export class ValidationError extends AppError {
     super(400, message);
   }
 }
+
+export class PaymentRequiredError extends AppError {
+  constructor(message = "Payment required") {
+    super(402, message);
+  }
+}

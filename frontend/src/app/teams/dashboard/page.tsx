@@ -11,11 +11,15 @@ import {
   getTeams,
   getTeamDashboard,
   getTeamReporting,
+  getTeamCollaborators,
+  addTeamCollaboratorApi,
+  removeTeamCollaboratorApi,
   getProjects,
   getCommentCounts,
   updateTodo,
   lookupUser,
   type Team,
+  type TeamCollaborator,
   type TeamDashboardData,
   type Todo,
   type Project,
@@ -52,6 +56,10 @@ export default function TeamDashboardPage() {
   const [reporting, setReporting] = useState<TeamReportingResponse | null>(null);
   const [reportingLoading, setReportingLoading] = useState(false);
   const canTeamReporting = user?.entitlements?.teamReporting === true;
+
+  const [extCollaborators, setExtCollaborators] = useState<TeamCollaborator[]>([]);
+  const [newCollabEmail, setNewCollabEmail] = useState("");
+  const [collabSubmitting, setCollabSubmitting] = useState(false);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({
@@ -120,6 +128,9 @@ export default function TeamDashboardPage() {
     void Promise.resolve().then(() => {
       void loadDashboard(id);
     });
+    getTeamCollaborators(id)
+      .then(setExtCollaborators)
+      .catch(() => setExtCollaborators([]));
   }, [selectedTeamId, loadDashboard]);
 
   useEffect(() => {
@@ -264,6 +275,42 @@ export default function TeamDashboardPage() {
   const subtaskCount =
     editingTodo && data ? data.todos.filter((x) => x.parentId === editingTodo.id).length : 0;
 
+  const canManageCurrentTeam = data
+    ? data.team.ownerUid === user?.uid ||
+      data.team.members.some((m) => m.email === user?.email && (m.role === "co-owner" || m.role === "admin"))
+    : false;
+
+  const usedSeats = data ? 1 + data.team.members.length : 0;
+  const totalSeats = data?.team.seatCount;
+
+  const handleAddExtCollab = async () => {
+    if (!selectedTeamId || !newCollabEmail.trim()) return;
+    setCollabSubmitting(true);
+    try {
+      const entry = await addTeamCollaboratorApi(selectedTeamId, newCollabEmail.trim());
+      setExtCollaborators((prev) => {
+        const exists = prev.some((c) => c.email === entry.email);
+        return exists ? prev : [...prev, entry];
+      });
+      setNewCollabEmail("");
+      toast.success(`${entry.email} invité comme collaborateur`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setCollabSubmitting(false);
+    }
+  };
+
+  const handleRemoveExtCollab = async (email: string) => {
+    if (!selectedTeamId) return;
+    try {
+      await removeTeamCollaboratorApi(selectedTeamId, email);
+      setExtCollaborators((prev) => prev.filter((c) => c.email !== email));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    }
+  };
+
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -311,6 +358,31 @@ export default function TeamDashboardPage() {
                 <p className={`text-2xl font-bold mt-1 ${data.stats.dueSoon > 0 ? "text-amber-500" : "text-zinc-900 dark:text-slate-100"}`}>{data.stats.dueSoon}</p>
               </div>
             </div>
+
+            {/* Sièges */}
+            {(data.team.billingPlan === "small" || data.team.billingPlan === "large") && (
+              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 px-4 py-3">
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold text-sm shrink-0">
+                  Plan {data.team.billingPlan === "small" ? "Small teams" : "Large teams"}
+                </span>
+                {totalSeats !== undefined && (
+                  <>
+                    <span className="text-zinc-400 dark:text-slate-500 text-xs">—</span>
+                    <span className="text-sm text-zinc-700 dark:text-slate-200">
+                      <span className={usedSeats >= totalSeats ? "text-red-500 font-bold" : "font-semibold"}>
+                        {usedSeats}
+                      </span>
+                      <span className="text-zinc-400 dark:text-slate-500"> / {totalSeats} sièges</span>
+                    </span>
+                    {usedSeats >= totalSeats && (
+                      <span className="ml-auto text-xs font-medium text-amber-600 dark:text-amber-400">
+                        Quota atteint
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <div>
               <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">
@@ -462,6 +534,69 @@ export default function TeamDashboardPage() {
                       </table>
                     </div>
                   </>
+                )}
+              </div>
+            </div>
+
+            {/* Collaborateurs externes */}
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+                Collaborateurs externes
+              </h2>
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden">
+                {extCollaborators.length > 0 && (
+                  <div className="divide-y divide-zinc-100 dark:divide-slate-800">
+                    {extCollaborators.map((c) => (
+                      <div key={c.email} className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-zinc-500 uppercase shrink-0">
+                          {c.email[0]}
+                        </div>
+                        <span className="flex-1 text-sm text-zinc-800 dark:text-slate-100 truncate">{c.email}</span>
+                        {c.status === "pending" && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            En attente
+                          </span>
+                        )}
+                        {canManageCurrentTeam && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExtCollab(c.email)}
+                            className="ml-1 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-zinc-400 hover:text-red-500 transition-colors"
+                            aria-label={`Retirer ${c.email}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {extCollaborators.length === 0 && (
+                  <p className="px-4 py-4 text-sm text-zinc-400 dark:text-slate-500">
+                    Aucun collaborateur externe. Invitez des personnes extérieures à l'équipe qui garderont leur propre plan.
+                  </p>
+                )}
+                {canManageCurrentTeam && (
+                  <div className="border-t border-zinc-100 dark:border-slate-800 px-4 py-3 flex items-center gap-2">
+                    <input
+                      type="email"
+                      value={newCollabEmail}
+                      onChange={(e) => setNewCollabEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void handleAddExtCollab(); }}
+                      placeholder="email@exemple.com"
+                      className="flex-1 min-w-0 rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleAddExtCollab()}
+                      disabled={collabSubmitting || !newCollabEmail.trim()}
+                      className="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-2 text-sm font-medium transition-colors"
+                    >
+                      Inviter
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

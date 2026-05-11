@@ -16,12 +16,25 @@ export interface TeamMember {
   role: TeamMemberRole;
 }
 
+export type BillingPlanTeam = "free" | "first" | "small" | "large";
+
+export interface TeamCollaborator {
+  email: string;
+  status: "pending" | "active";
+}
+
 export interface Team {
   id: string;
   name: string;
   ownerUid: string;
   members: TeamMember[];
   createdAt: string;
+  /** Plan commercial de l'équipe (défaut : "free"). */
+  billingPlan?: BillingPlanTeam;
+  /** Nombre de sièges couverts (undefined = pas de limite). */
+  seatCount?: number;
+  /** Collaborateurs externes (plan propre, non comptés dans les sièges). */
+  collaborators?: TeamCollaborator[];
 }
 
 export interface ReceivedInvitation {
@@ -283,6 +296,39 @@ export async function transferTeamOwnership(teamId: string, newOwnerEmail: strin
     throw new Error(extractApiMessage(body, "Erreur lors du transfert"));
   }
   return (await res.json()) as Team;
+}
+
+// ── Team External Collaborators ──
+
+export async function getTeamCollaborators(teamId: string): Promise<TeamCollaborator[]> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/ext-collaborators`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les collaborateurs");
+  return (await res.json()) as TeamCollaborator[];
+}
+
+export async function addTeamCollaboratorApi(teamId: string, email: string): Promise<TeamCollaborator> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/ext-collaborators`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const result = (await res.json()) as TeamCollaborator;
+  broadcastResourceChange("teams");
+  return result;
+}
+
+export async function removeTeamCollaboratorApi(teamId: string, email: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/teams/${teamId}/ext-collaborators/${encodeURIComponent(email)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!res.ok) throw new Error("Impossible de supprimer le collaborateur");
+  broadcastResourceChange("teams");
 }
 
 // ── Notifications ──

@@ -93,7 +93,7 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      <header className="relative overflow-hidden border-b border-zinc-100 dark:border-slate-800">
+      <header className="relative overflow-hidden border-b border-zinc-100 dark:border-slate-800 min-h-[15rem] sm:min-h-[17rem]">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-indigo-50 dark:from-emerald-950/20 dark:via-slate-950 dark:to-indigo-950/20" />
         <div className="relative max-w-4xl mx-auto px-6 py-16 sm:py-20 text-center">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-slate-50">{t("pricing.heroTitle")}</h1>
@@ -105,11 +105,11 @@ export default function PricingPage() {
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
           {/* Free */}
           <div className={`${tierCardBase} border-zinc-200 dark:border-slate-700`}>
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50">{t("settings.plan.free")}</h2>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50 pt-2">{t("settings.plan.free")}</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-slate-400">{t("pricing.tier.free.tagline")}</p>
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceFree")}</p>
             <TierBullets keys={["pricing.tier.free.b1", "pricing.tier.free.b2", "pricing.tier.free.b3"]} />
-            <div className="mt-8">
+            <div className="mt-auto pt-8">
               <Link
                 href="/login"
                 className="inline-flex w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-3 px-4 text-sm transition-colors"
@@ -121,16 +121,16 @@ export default function PricingPage() {
 
           {/* 1st in */}
           <div className={`${tierCardBase} border-zinc-200 dark:border-slate-700`}>
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50">{t("settings.plan.first")}</h2>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50 pt-2">{t("settings.plan.first")}</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-slate-400">{t("pricing.tier.first.tagline")}</p>
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceSoon")}</p>
             <TierBullets keys={["pricing.tier.first.b1", "pricing.tier.first.b2", "pricing.tier.first.b3"]} />
-            <div className="mt-8">
+            <div className="mt-auto pt-8">
               <a
                 href={`${MAIL_TEAM}?subject=${encodeURIComponent("Wroket - 1st in")}`}
                 className="inline-flex w-full justify-center rounded-xl border border-zinc-300 dark:border-slate-600 font-semibold py-3 px-4 text-sm text-zinc-800 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
               >
-                {t("pricing.cta.notifyUs")}
+                {t("pricing.cta.contactUs")}
               </a>
             </div>
           </div>
@@ -148,7 +148,7 @@ export default function PricingPage() {
             <p className="mt-1 text-sm text-zinc-600 dark:text-slate-400">{t("pricing.tier.small.tagline")}</p>
             <p className="mt-4 text-2xl font-bold text-emerald-700 dark:text-emerald-400">{t("pricing.priceOnRequest")}</p>
             <TierBullets keys={["pricing.tier.small.b1", "pricing.tier.small.b2", "pricing.tier.small.b3"]} />
-            <div className="mt-8">
+            <div className="mt-auto pt-8">
               <a
                 href={`${MAIL_TEAM}?subject=${encodeURIComponent("Wroket - Small teams")}`}
                 className="inline-flex w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-3 px-4 text-sm transition-colors"
@@ -160,11 +160,11 @@ export default function PricingPage() {
 
           {/* Large */}
           <div className={`${tierCardBase} border-zinc-200 dark:border-slate-700`}>
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50">{t("settings.plan.large")}</h2>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50 pt-2">{t("settings.plan.large")}</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-slate-400">{t("pricing.tier.large.tagline")}</p>
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceOnRequest")}</p>
             <TierBullets keys={["pricing.tier.large.b1", "pricing.tier.large.b2", "pricing.tier.large.b3"]} />
-            <div className="mt-8">
+            <div className="mt-auto pt-8">
               <a
                 href={`${MAIL_TEAM}?subject=${encodeURIComponent("Wroket - Large teams")}`}
                 className="inline-flex w-full justify-center rounded-xl border border-zinc-300 dark:border-slate-600 font-semibold py-3 px-4 text-sm text-zinc-800 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"

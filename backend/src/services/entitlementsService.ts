@@ -44,3 +44,19 @@ export function resolveEntitlements(plan: BillingPlan, earlyBird: boolean): Enti
   }
   return getEntitlements(plan);
 }
+
+/**
+ * Droits effectifs combinés : prend le maximum entre le plan personnel et le plan de l'équipe
+ * dont l'utilisateur est membre siège. Le plan équipe améliore, ne dégrade jamais.
+ */
+export function resolveEffectiveEntitlements(
+  personal: Entitlements,
+  teamPlan?: BillingPlan | null,
+): Entitlements {
+  if (!teamPlan) return personal;
+  const team = getEntitlements(teamPlan);
+  return {
+    integrations: personal.integrations || team.integrations,
+    teamReporting: personal.teamReporting || team.teamReporting,
+  };
+}

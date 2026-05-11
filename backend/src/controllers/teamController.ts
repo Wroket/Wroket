@@ -21,11 +21,15 @@ import {
   findCollaborator,
   listKnownContactEmails,
   filterContactEmailsByQuery,
+  addTeamCollaborator,
+  removeTeamCollaborator,
+  listTeamCollaborators,
+  getEffectiveEntitlementsForUid,
 } from "../services/teamService";
 import { listActiveProjectIdsForTeam } from "../services/projectService";
 import { listAllTodos, listTodosForUsers } from "../services/todoService";
 import { createNotification } from "../services/notificationService";
-import { findUserByEmail, findUserByUid, getEntitlementsForUid, type AuthUser } from "../services/authService";
+import { findUserByEmail, findUserByUid, type AuthUser } from "../services/authService";
 import { sendCollaborationInviteEmail } from "../services/emailService";
 import { deliverPendingMentionsAfterCollaborationAccepted } from "../services/pendingMentionService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
@@ -329,7 +333,7 @@ export async function getTeamReporting(req: AuthenticatedRequest, res: Response)
   const role = getTeamRole(team, req.user!.uid, req.user!.email);
   if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
 
-  if (!getEntitlementsForUid(req.user!.uid).teamReporting) {
+  if (!getEffectiveEntitlementsForUid(req.user!.uid, req.user!.email).teamReporting) {
     throw new ForbiddenError(
       "Le reporting équipe nécessite le palier Large teams ou le statut early bird (attribué par un administrateur).",
     );
@@ -401,5 +405,53 @@ export async function postTransferOwnership(req: AuthenticatedRequest, res: Resp
 export async function postDeleteTeam(req: AuthenticatedRequest, res: Response) {
   const teamId = req.params.teamId as string;
   deleteTeam(teamId, req.user!.uid, req.user!.email);
+  res.status(200).json({ ok: true });
+}
+
+// ── Team External Collaborators ──
+
+export async function getTeamCollaborators(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const team = getTeam(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  const role = getTeamRole(team, req.user!.uid, req.user!.email);
+  if (!role) throw new ForbiddenError("Vous ne faites pas partie de cette équipe");
+  res.status(200).json(listTeamCollaborators(teamId));
+}
+
+export async function postAddTeamCollaborator(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const { email } = req.body as { email?: string };
+  if (!email || typeof email !== "string") throw new ValidationError("Email requis");
+
+  const entry = addTeamCollaborator(teamId, req.user!.uid, req.user!.email, email);
+
+  if (entry.status === "pending") {
+    try {
+      const team = getTeam(teamId)!;
+      const fromName = [req.user!.firstName, req.user!.lastName].filter(Boolean).join(" ") || req.user!.email;
+      const targetUser = findUserByEmail(entry.email);
+      if (targetUser) {
+        createNotification(
+          targetUser.uid,
+          "team_invite",
+          "Invitation en tant que collaborateur",
+          `${req.user!.email} vous a invité à collaborer avec l'équipe "${team.name}"`,
+          { teamId, teamName: team.name, actorEmail: req.user!.email },
+        );
+      }
+      await sendCollaborationInviteEmail(entry.email, req.user!.email, fromName);
+    } catch (err) {
+      console.warn("[team.postAddTeamCollaborator] deliver failed:", err);
+    }
+  }
+
+  res.status(201).json(entry);
+}
+
+export async function deleteTeamCollaborator(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const email = decodeURIComponent(req.params.email as string);
+  removeTeamCollaborator(teamId, req.user!.uid, req.user!.email, email);
   res.status(200).json({ ok: true });
 }

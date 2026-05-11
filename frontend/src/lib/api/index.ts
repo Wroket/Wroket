@@ -113,6 +113,9 @@ export {
   deleteTeamApi,
   getOwnedTeams,
   transferTeamOwnership,
+  getTeamCollaborators,
+  addTeamCollaboratorApi,
+  removeTeamCollaboratorApi,
   getNotifications,
   getUnreadCount,
   markNotificationRead,
@@ -120,6 +123,7 @@ export {
 } from "./teams";
 export type {
   Collaborator,
+  TeamCollaborator,
   TeamMemberRole,
   TeamMember,
   Team,

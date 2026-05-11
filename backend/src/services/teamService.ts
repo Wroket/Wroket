@@ -1,9 +1,15 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
-import { findUserByUid } from "./authService";
+import { findUserByUid, getEntitlementsForUid } from "./authService";
 import { assertValidEmailFormat } from "../utils/emailValidation";
-import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import { ForbiddenError, NotFoundError, PaymentRequiredError, ValidationError } from "../utils/errors";
+import {
+  resolveEffectiveEntitlements,
+  normalizeBillingPlan,
+  type BillingPlan,
+  type Entitlements,
+} from "./entitlementsService";
 
 export interface Collaborator {
   email: string;
@@ -17,12 +23,29 @@ export interface TeamMember {
   role: "co-owner" | "admin" | "super-user" | "user";
 }
 
+/**
+ * Collaborateur externe d'une équipe : invité ponctuel, NON couvert par le plan de l'équipe.
+ * Conserve son propre billingPlan personnel.
+ */
+export interface TeamCollaborator {
+  email: string;
+  status: "pending" | "active";
+}
+
 export interface Team {
   id: string;
   name: string;
   ownerUid: string;
   members: TeamMember[];
   createdAt: string;
+  /** Plan commercial de l'équipe (hérité du Stripe de l'owner). Défaut : "free". */
+  billingPlan?: BillingPlan;
+  /** Nombre de sièges couverts par l'abonnement (owner + membres). Défaut : Infinity = pas de limite. */
+  seatCount?: number;
+  /** Stripe Subscription id lié à l'abonnement équipe. */
+  stripeSubscriptionId?: string;
+  /** Collaborateurs externes (plan propre, non comptés dans les sièges). */
+  collaborators?: TeamCollaborator[];
 }
 
 /** collaborators keyed by owner uid */
@@ -51,6 +74,16 @@ function persistTeams(): void {
   scheduleSave("teams");
 }
 
+/** Nombre de sièges effectivement occupés (owner inclus). */
+function usedSeats(team: Team): number {
+  return 1 + team.members.length;
+}
+
+/** Nombre de sièges disponibles. Infinity quand aucun abonnement actif (pas de limite imposée). */
+function availableSeats(team: Team): number {
+  return team.seatCount ?? Infinity;
+}
+
 (function hydrate() {
   const store = getStore();
   if (store.collaborators) {
@@ -69,6 +102,10 @@ function persistTeams(): void {
           migrated++;
         }
       }
+      // Fallbacks pour les équipes existantes sans les nouveaux champs billing
+      if (!t.billingPlan) t.billingPlan = "free";
+      if (t.seatCount === undefined) t.seatCount = undefined; // conserver Infinity implicite
+      if (!Array.isArray(t.collaborators)) t.collaborators = [];
       teamsById.set(id, t);
     }
     console.log("[teams] %d équipe(s) chargée(s)", teamsById.size);
@@ -358,6 +395,14 @@ export function addTeamMember(
     throw new ValidationError("Ce membre fait déjà partie de l'équipe");
   }
 
+  const seats = availableSeats(team);
+  if (usedSeats(team) >= seats) {
+    const planLabel = team.billingPlan === "small" ? "Small teams (5 sièges max)" : "votre plan actuel";
+    throw new PaymentRequiredError(
+      `Quota de sièges atteint pour ${planLabel}. Passez au plan Large teams pour ajouter davantage de membres.`,
+    );
+  }
+
   team.members.push({ email: normalised, role: "user" });
   persistTeams();
   return team;
@@ -415,6 +460,126 @@ function findUidByEmail(email: string): string {
     if ((u.email as string)?.toLowerCase() === email) return uid;
   }
   throw new NotFoundError("Utilisateur introuvable pour cet email");
+}
+
+// ── Team Collaborators (externes, plan propre) ──
+
+export function listTeamCollaborators(teamId: string): TeamCollaborator[] {
+  return teamsById.get(teamId)?.collaborators ?? [];
+}
+
+export function addTeamCollaborator(
+  teamId: string,
+  uid: string,
+  userEmail: string,
+  email: string,
+): TeamCollaborator {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
+
+  assertValidRosterEmail(email, "Email");
+  const normalised = email.trim().toLowerCase();
+
+  if (!Array.isArray(team.collaborators)) team.collaborators = [];
+
+  const existing = team.collaborators.find((c) => c.email === normalised);
+  if (existing) return existing;
+
+  if (team.members.some((m) => m.email === normalised) || team.ownerUid === findUidByEmailSafe(normalised)) {
+    throw new ValidationError("Cet utilisateur est déjà membre siège de l'équipe");
+  }
+
+  const entry: TeamCollaborator = { email: normalised, status: "pending" };
+  team.collaborators.push(entry);
+  persistTeams();
+  return entry;
+}
+
+export function removeTeamCollaborator(
+  teamId: string,
+  uid: string,
+  userEmail: string,
+  email: string,
+): void {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
+
+  const normalised = email.trim().toLowerCase();
+  if (!Array.isArray(team.collaborators)) throw new NotFoundError("Collaborateur introuvable");
+  const idx = team.collaborators.findIndex((c) => c.email === normalised);
+  if (idx === -1) throw new NotFoundError("Collaborateur introuvable");
+  team.collaborators.splice(idx, 1);
+  persistTeams();
+}
+
+function findUidByEmailSafe(email: string): string | null {
+  const store = getStore();
+  const users = (store.users ?? {}) as Record<string, Record<string, unknown>>;
+  for (const [uid, u] of Object.entries(users)) {
+    if ((u.email as string)?.toLowerCase() === email) return uid;
+  }
+  return null;
+}
+
+// ── Team Billing (Stripe sync) ──
+
+export function patchTeamBilling(
+  teamId: string,
+  patch: {
+    billingPlan?: BillingPlan;
+    seatCount?: number;
+    stripeSubscriptionId?: string | null;
+  },
+): void {
+  const team = teamsById.get(teamId);
+  if (!team) {
+    console.warn("[teams] patchTeamBilling: équipe introuvable %s", teamId);
+    return;
+  }
+  if (patch.billingPlan !== undefined) team.billingPlan = patch.billingPlan;
+  if (patch.seatCount !== undefined) team.seatCount = patch.seatCount > 0 ? patch.seatCount : undefined;
+  if (patch.stripeSubscriptionId !== undefined) {
+    team.stripeSubscriptionId = patch.stripeSubscriptionId ?? undefined;
+  }
+  persistTeams();
+}
+
+/**
+ * Trouve l'équipe liée à un Stripe Subscription id.
+ * Utilisé par le webhook Stripe pour mettre à jour le plan de l'équipe.
+ */
+export function findTeamByStripeSubscriptionId(subId: string): Team | null {
+  for (const team of teamsById.values()) {
+    if (team.stripeSubscriptionId === subId) return team;
+  }
+  return null;
+}
+
+// ── Effective Entitlements (plan perso + couverture équipe) ──
+
+/**
+ * Droits effectifs d'un utilisateur : max entre son plan personnel et le meilleur plan
+ * des équipes dont il est membre siège (owner ou membre dans `members[]`).
+ * À utiliser dans les controllers pour le gating des features.
+ */
+export function getEffectiveEntitlementsForUid(uid: string, userEmail: string): Entitlements {
+  const personal = getEntitlementsForUid(uid);
+  const email = userEmail.trim().toLowerCase();
+  let best: BillingPlan | null = null;
+
+  for (const team of teamsById.values()) {
+    const isMember =
+      team.ownerUid === uid ||
+      team.members.some((m) => m.email === email);
+    if (!isMember) continue;
+    const plan = team.billingPlan ?? "free";
+    if (plan === "large") { best = "large"; break; }
+    if (plan === "small") best = "small";
+  }
+
+  return resolveEffectiveEntitlements(personal, best);
 }
 
 /** Only owner or admin can delete the team. */
