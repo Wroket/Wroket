@@ -12,7 +12,9 @@ import { ForbiddenError, ValidationError } from "../utils/errors";
 
 function assertIntegrationsEntitled(uid: string): void {
   if (!getEntitlementsForUid(uid).integrations) {
-    throw new ForbiddenError("Les webhooks et intégrations sont réservés au palier Small teams.");
+    throw new ForbiddenError(
+      "Les webhooks et intégrations nécessitent le palier Small teams ou le statut early bird (attribué par un administrateur).",
+    );
   }
 }
 

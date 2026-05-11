@@ -234,6 +234,7 @@ export {
   getAdminCompletionRates,
   postAdminUserBillingPortalSession,
   patchAdminUserBillingPlan,
+  patchAdminUserEarlyBird,
 } from "./admin";
 export type {
   AdminStats,

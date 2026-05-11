@@ -330,7 +330,9 @@ export async function getTeamReporting(req: AuthenticatedRequest, res: Response)
   if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
 
   if (!getEntitlementsForUid(req.user!.uid).teamReporting) {
-    throw new ForbiddenError("Le reporting équipe est réservé au palier Large teams.");
+    throw new ForbiddenError(
+      "Le reporting équipe nécessite le palier Large teams ou le statut early bird (attribué par un administrateur).",
+    );
   }
 
   const rawPeriod = typeof req.query.periodDays === "string" ? req.query.periodDays : "";

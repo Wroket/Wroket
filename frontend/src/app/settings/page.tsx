@@ -1339,6 +1339,11 @@ function SubscriptionSection() {
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${subscriptionPlanBadgeClass(plan)}`}>
               {t(subscriptionPlanTKey(plan))}
             </span>
+            {user?.earlyBird ? (
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200">
+                {t("settings.earlyBirdBadge")}
+              </span>
+            ) : null}
             <h3 id="subscription-card-plan-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
               {t("settings.currentPlanPrefix")}{" "}
               <span className="text-zinc-800 dark:text-slate-100">{t(subscriptionPlanTKey(plan))}</span>

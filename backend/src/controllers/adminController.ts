@@ -11,6 +11,7 @@ import {
   getBillingPlanForUid,
   getStripeCustomerIdForUid,
   setBillingPlanForUid,
+  setEarlyBirdForUid,
 } from "../services/authService";
 import { normalizeBillingPlan } from "../services/entitlementsService";
 import { createBillingPortalSessionUrl } from "../services/stripePortalSessionService";
@@ -150,6 +151,47 @@ export async function adminUserBillingPlanPatch(req: AuthenticatedRequest, res: 
     reason,
   });
   res.status(200).json({ billingPlan: plan });
+}
+
+export async function adminUserEarlyBirdPatch(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const targetUid = req.params.uid as string;
+  const target = findUserByUid(targetUid);
+  if (!target) {
+    res.status(404).json({ message: "Utilisateur introuvable." });
+    return;
+  }
+
+  const body = req.body as Record<string, unknown> | null;
+  const reasonRaw = body?.reason;
+  const ebRaw = body?.earlyBird;
+
+  if (typeof ebRaw !== "boolean") {
+    res.status(400).json({ message: "Indiquez earlyBird (booléen true ou false)." });
+    return;
+  }
+
+  const reason = typeof reasonRaw === "string" ? reasonRaw.trim() : "";
+  if (reason.length < 3) {
+    res.status(400).json({
+      message: "Indiquez une raison d’au moins 3 caractères (audit support).",
+    });
+    return;
+  }
+
+  const fromEb = !!target.earlyBird;
+  if (fromEb === ebRaw) {
+    res.status(200).json({ earlyBird: ebRaw, unchanged: true });
+    return;
+  }
+
+  setEarlyBirdForUid(targetUid, ebRaw);
+  logActivity(req.user!.uid, req.user!.email ?? "", "admin_early_bird", "user", targetUid, {
+    targetEmail: target.email,
+    fromEarlyBird: fromEb,
+    toEarlyBird: ebRaw,
+    reason,
+  });
+  res.status(200).json({ earlyBird: ebRaw });
 }
 
 export async function adminCompletionRates(_req: AuthenticatedRequest, res: Response) {

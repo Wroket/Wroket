@@ -7,7 +7,7 @@ import {
   getAdminStats, getAdminUsers, getAdminInvites,
   getAdminActivity, getAdminSessions, getAdminIntegrations,
   getAdminUserExport, deleteAdminUser, getAdminCompletionRates,
-  postAdminUserBillingPortalSession, patchAdminUserBillingPlan,
+  postAdminUserBillingPortalSession, patchAdminUserBillingPlan, patchAdminUserEarlyBird,
   AdminStats, AdminUser, InviteLogEntry,
   ActivityLogEntry, SessionInfo, IntegrationOverview, CompletionRate,
   type BillingPlan,
@@ -63,6 +63,21 @@ export default function AdminPage() {
   const [planPick, setPlanPick] = useState<BillingPlan>("first");
   const [planReason, setPlanReason] = useState("");
   const [planSaving, setPlanSaving] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [earlyBirdReason, setEarlyBirdReason] = useState("");
+  const [earlyBirdSaving, setEarlyBirdSaving] = useState(false);
+
+  const refreshUsers = useCallback((syncUid?: string) => {
+    getAdminUsers()
+      .then((list) => {
+        setUsers(list);
+        if (syncUid) {
+          const nu = list.find((x) => x.uid === syncUid);
+          setSelectedUser((prev) => (prev?.uid === syncUid ? nu ?? null : prev));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     Promise.all([getAdminStats(), getAdminUsers(), getAdminInvites()])
@@ -112,12 +127,23 @@ export default function AdminPage() {
       await deleteAdminUser(uid);
       setUsers((prev) => prev.filter((u) => u.uid !== uid));
       setDeleteConfirmUid(null);
+      setSelectedUser((prev) => (prev?.uid === uid ? null : prev));
     } catch { /* ignore */ }
   };
 
-  const reloadUsers = useCallback(() => {
-    getAdminUsers().then(setUsers).catch(() => {});
-  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (planModal) {
+        setPlanModal(null);
+        setBillingFlash(null);
+      } else if (selectedUser) {
+        setSelectedUser(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [planModal, selectedUser]);
 
   const openPlanModal = (u: AdminUser) => {
     const plan = u.billingPlan ?? "first";
@@ -146,6 +172,33 @@ export default function AdminPage() {
     }
   };
 
+  const handleEarlyBirdPatch = async (next: boolean) => {
+    if (!selectedUser) return;
+    const reason = earlyBirdReason.trim();
+    if (reason.length < 3) {
+      setBillingFlash({
+        kind: "err",
+        text: t("admin.earlyBird.reasonRequired"),
+      });
+      return;
+    }
+    setEarlyBirdSaving(true);
+    setBillingFlash(null);
+    try {
+      await patchAdminUserEarlyBird(selectedUser.uid, next, reason);
+      setBillingFlash({ kind: "ok", text: t("admin.earlyBird.updated") });
+      setEarlyBirdReason("");
+      refreshUsers(selectedUser.uid);
+    } catch (e) {
+      setBillingFlash({
+        kind: "err",
+        text: e instanceof Error ? e.message : t("admin.billing.planError"),
+      });
+    } finally {
+      setEarlyBirdSaving(false);
+    }
+  };
+
   const handlePlanModalSubmit = async () => {
     if (!planModal) return;
     setPlanSaving(true);
@@ -154,7 +207,7 @@ export default function AdminPage() {
       await patchAdminUserBillingPlan(planModal.uid, planPick, planReason);
       setBillingFlash({ kind: "ok", text: t("admin.billing.planUpdated") });
       setPlanModal(null);
-      reloadUsers();
+      refreshUsers(planModal.uid);
     } catch (e) {
       setBillingFlash({
         kind: "err",
@@ -317,6 +370,7 @@ export default function AdminPage() {
                 {billingFlash.text}
               </div>
             )}
+            <p className="text-xs text-zinc-500 dark:text-slate-400">{t("admin.users.rowHint")}</p>
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -325,24 +379,32 @@ export default function AdminPage() {
                     <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.name")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.verified")}</th>
                     <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400 whitespace-nowrap">{t("admin.billing.planCol")}</th>
-                    <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.billing.stripeCol")}</th>
-                    <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400 whitespace-nowrap">{t("admin.billing.periodEndCol")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.taskCount")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.notes")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.completionRate")}</th>
                     <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.joined")}</th>
                     <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.lastLogin")}</th>
-                    <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.billing.actionsCol")}</th>
-                    <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">RGPD</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((u) => {
                     const rate = rateForUser(u.uid);
                     const effPlan = (u.billingPlan ?? "first") as BillingPlan;
-                    const overrideBlocked = stripeOverrideBlocked(u);
                     return (
-                      <tr key={u.uid} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30">
+                      <tr
+                        key={u.uid}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { setSelectedUser(u); setBillingFlash(null); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedUser(u);
+                            setBillingFlash(null);
+                          }
+                        }}
+                        className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                      >
                         <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{u.email}</td>
                         <td className="px-4 py-3 text-zinc-700 dark:text-slate-300">{u.firstName || u.lastName ? `${u.firstName} ${u.lastName}`.trim() : "—"}</td>
                         <td className="px-4 py-3 text-center">
@@ -351,61 +413,11 @@ export default function AdminPage() {
                             : <span className="inline-block w-2 h-2 rounded-full bg-zinc-300 dark:bg-slate-600" title={t("admin.unverifiedTooltip")} />}
                         </td>
                         <td className="px-4 py-3 text-zinc-800 dark:text-slate-200 text-xs whitespace-nowrap">{t(ADMIN_PLAN_LABEL_KEY[effPlan])}</td>
-                        <td className="px-4 py-3 text-xs text-zinc-600 dark:text-slate-400">
-                          <span className={u.stripeLinked ? "text-emerald-700 dark:text-emerald-400" : ""}>
-                            {u.stripeLinked ? t("admin.billing.linked") : t("admin.billing.notLinked")}
-                          </span>
-                          {u.stripeSubscriptionStatus ? (
-                            <span className="block font-mono text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{u.stripeSubscriptionStatus}</span>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs whitespace-nowrap">
-                          {u.billingCurrentPeriodEnd ? formatDateTime(u.billingCurrentPeriodEnd) : "—"}
-                        </td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.taskCount}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.noteCount ?? 0}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{rate ? `${rate.rate}%` : "—"}</td>
                         <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{formatDate(u.createdAt)}</td>
                         <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex flex-col sm:flex-row items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              disabled={!u.stripeLinked || portalLoadingUid === u.uid}
-                              onClick={() => handleOpenBillingPortal(u)}
-                              className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer disabled:cursor-not-allowed"
-                              title={u.stripeLinked ? t("admin.billing.portalTitle") : t("admin.billing.notLinked")}
-                            >
-                              {portalLoadingUid === u.uid ? "…" : t("admin.billing.openPortal")}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={overrideBlocked}
-                              onClick={() => openPlanModal(u)}
-                              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer disabled:cursor-not-allowed"
-                              title={overrideBlocked ? t("admin.billing.overrideBlocked") : t("admin.billing.changePlan")}
-                            >
-                              {t("admin.billing.changePlan")}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button type="button" onClick={() => handleExportUser(u.uid)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline" title={t("admin.rgpd.export")}>
-                              {t("admin.exportShort")}
-                            </button>
-                            {deleteConfirmUid === u.uid ? (
-                              <div className="flex items-center gap-1">
-                                <button type="button" onClick={() => handleDeleteUser(u.uid)} className="text-xs text-red-600 font-medium">Oui</button>
-                                <button type="button" onClick={() => setDeleteConfirmUid(null)} className="text-xs text-zinc-500">Non</button>
-                              </div>
-                            ) : (
-                              <button type="button" onClick={() => setDeleteConfirmUid(u.uid)} className="text-xs text-red-500 hover:underline" title={t("admin.rgpd.delete")}>
-                                Suppr.
-                              </button>
-                            )}
-                          </div>
-                        </td>
                       </tr>
                     );
                   })}
@@ -413,9 +425,161 @@ export default function AdminPage() {
               </table>
             </div>
 
-            {planModal && (
+            {selectedUser && (
               <div
                 className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-user-detail-title"
+                onClick={() => { setSelectedUser(null); setEarlyBirdReason(""); }}
+              >
+                <div
+                  className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 id="admin-user-detail-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
+                        {t("admin.users.detailTitle")}
+                      </h2>
+                      <p className="text-xs font-mono text-zinc-600 dark:text-slate-400 mt-1 break-all">{selectedUser.email}</p>
+                      <p className="text-sm text-zinc-700 dark:text-slate-300 mt-1">
+                        {selectedUser.firstName || selectedUser.lastName ? `${selectedUser.firstName} ${selectedUser.lastName}`.trim() : "—"}
+                      </p>
+                      <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 mt-2">
+                        {t("admin.billing.planCol")}: {t(ADMIN_PLAN_LABEL_KEY[(selectedUser.billingPlan ?? "first") as BillingPlan])}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-slate-200 text-xl leading-none px-1"
+                      aria-label={t("cancel")}
+                      onClick={() => { setSelectedUser(null); setEarlyBirdReason(""); }}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <section className="space-y-3 border-t border-zinc-100 dark:border-slate-800 pt-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-slate-400">{t("admin.users.sectionBilling")}</h3>
+                    <dl className="grid gap-2 text-sm">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-zinc-500 dark:text-slate-400">{t("admin.billing.stripeCol")}</dt>
+                        <dd className={selectedUser.stripeLinked ? "text-emerald-700 dark:text-emerald-400 font-medium" : "text-zinc-700 dark:text-slate-300"}>
+                          {selectedUser.stripeLinked ? t("admin.billing.linked") : t("admin.billing.notLinked")}
+                        </dd>
+                      </div>
+                      {selectedUser.stripeSubscriptionStatus ? (
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-zinc-500 dark:text-slate-400">{t("settings.stripeStatusLabel")}</dt>
+                          <dd className="font-mono text-xs text-zinc-700 dark:text-slate-300">{selectedUser.stripeSubscriptionStatus}</dd>
+                        </div>
+                      ) : null}
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-zinc-500 dark:text-slate-400">{t("admin.billing.periodEndCol")}</dt>
+                        <dd className="text-zinc-700 dark:text-slate-300 text-xs">
+                          {selectedUser.billingCurrentPeriodEnd ? formatDateTime(selectedUser.billingCurrentPeriodEnd) : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={!selectedUser.stripeLinked || portalLoadingUid === selectedUser.uid}
+                        onClick={() => handleOpenBillingPortal(selectedUser)}
+                        className="text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-medium px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={selectedUser.stripeLinked ? t("admin.billing.portalTitle") : t("admin.billing.notLinked")}
+                      >
+                        {portalLoadingUid === selectedUser.uid ? "…" : t("admin.billing.openPortal")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={stripeOverrideBlocked(selectedUser)}
+                        onClick={() => openPlanModal(selectedUser)}
+                        className="text-sm rounded-lg border border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 font-medium px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={stripeOverrideBlocked(selectedUser) ? t("admin.billing.overrideBlocked") : t("admin.billing.changePlan")}
+                      >
+                        {t("admin.billing.changePlan")}
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="space-y-3 border-t border-zinc-100 dark:border-slate-800 pt-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-slate-400">{t("admin.earlyBird.sectionTitle")}</h3>
+                    <p className="text-xs text-zinc-500 dark:text-slate-400">{t("admin.earlyBird.description")}</p>
+                    <p className="text-sm text-zinc-800 dark:text-slate-200">
+                      <span className="text-zinc-500 dark:text-slate-400">{t("admin.earlyBird.statusPrefix")}: </span>
+                      <span className="font-medium">
+                        {selectedUser.earlyBird ? t("admin.earlyBird.statusOn") : t("admin.earlyBird.statusOff")}
+                      </span>
+                    </p>
+                    <div>
+                      <label htmlFor="admin-early-bird-reason" className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
+                        {t("admin.billing.reasonLabel")}
+                      </label>
+                      <textarea
+                        id="admin-early-bird-reason"
+                        rows={2}
+                        className="w-full rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-zinc-900 dark:text-slate-100 text-sm px-3 py-2"
+                        placeholder={t("admin.billing.reasonPlaceholder")}
+                        value={earlyBirdReason}
+                        onChange={(e) => setEarlyBirdReason(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={earlyBirdSaving || selectedUser.earlyBird}
+                        onClick={() => handleEarlyBirdPatch(true)}
+                        className="text-sm rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {earlyBirdSaving ? "…" : t("admin.earlyBird.grant")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={earlyBirdSaving || !selectedUser.earlyBird}
+                        onClick={() => handleEarlyBirdPatch(false)}
+                        className="text-sm rounded-lg border border-zinc-300 dark:border-slate-600 text-zinc-700 dark:text-slate-300 font-medium px-3 py-2 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {earlyBirdSaving ? "…" : t("admin.earlyBird.revoke")}
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="space-y-3 border-t border-zinc-100 dark:border-slate-800 pt-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-slate-400">{t("admin.users.sectionRgpd")}</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleExportUser(selectedUser.uid)}
+                        className="text-sm rounded-lg border border-zinc-200 dark:border-slate-600 text-blue-600 dark:text-blue-400 font-medium px-3 py-2 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                      >
+                        {t("admin.exportShort")}
+                      </button>
+                      {deleteConfirmUid === selectedUser.uid ? (
+                        <span className="inline-flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-zinc-600 dark:text-slate-400">{t("admin.rgpd.deleteConfirm")}</span>
+                          <button type="button" onClick={() => handleDeleteUser(selectedUser.uid)} className="text-red-600 font-medium">{t("confirm")}</button>
+                          <button type="button" onClick={() => setDeleteConfirmUid(null)} className="text-zinc-500">{t("cancel")}</button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmUid(selectedUser.uid)}
+                          className="text-sm rounded-lg border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-medium px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        >
+                          {t("admin.rgpd.delete")}
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            )}
+
+            {planModal && (
+              <div
+                className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="admin-plan-modal-title"
@@ -510,7 +674,7 @@ export default function AdminPage() {
                         a.action === "create" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" :
                         a.action === "update" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" :
                         a.action === "delete" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
-                        a.action === "admin_billing_portal" || a.action === "admin_billing_plan"
+                        a.action === "admin_billing_portal" || a.action === "admin_billing_plan" || a.action === "admin_early_bird"
                           ? "bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300"
                           : "bg-zinc-100 dark:bg-slate-800 text-zinc-600 dark:text-slate-400"
                       }`}>{a.action}</span>
@@ -606,8 +770,8 @@ export default function AdminPage() {
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
               <p className="font-medium mb-1">{t("admin.rgpd.title")}</p>
               <ul className="list-disc list-inside text-xs space-y-1">
-                <li>Export des données : onglet Utilisateurs &rarr; bouton &quot;Export&quot;</li>
-                <li>Suppression de compte : onglet Utilisateurs &rarr; bouton &quot;Suppr.&quot; (anonymise les commentaires et l&apos;activité)</li>
+                <li>{t("admin.rgpd.hintExportRow")}</li>
+                <li>{t("admin.rgpd.hintDeleteRow")}</li>
                 <li>Droit d&apos;accès (art. 15 RGPD) : export JSON complet de toutes les données d&apos;un utilisateur</li>
                 <li>Droit à l&apos;effacement (art. 17 RGPD) : suppression irréversible avec anonymisation</li>
               </ul>

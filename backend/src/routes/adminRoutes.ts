@@ -11,6 +11,7 @@ import {
   adminUserDelete,
   adminUserBillingPortalSession,
   adminUserBillingPlanPatch,
+  adminUserEarlyBirdPatch,
   adminCompletionRates,
 } from "../controllers/adminController";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -27,6 +28,7 @@ adminRoutes.get("/users/completion-rates", adminCompletionRates);
 adminRoutes.get("/users/:uid/export", adminUserExport);
 adminRoutes.post("/users/:uid/billing-portal-session", adminUserBillingPortalSession);
 adminRoutes.patch("/users/:uid/billing-plan", adminUserBillingPlanPatch);
+adminRoutes.patch("/users/:uid/early-bird", adminUserEarlyBirdPatch);
 adminRoutes.delete("/users/:uid", adminUserDelete);
 adminRoutes.get("/invites", adminInviteLog);
 adminRoutes.get("/activity", adminActivity);

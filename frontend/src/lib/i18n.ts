@@ -1654,6 +1654,37 @@ const translations = {
     en: "Active Stripe subscription: use the portal or Stripe.",
   },
   "admin.billing.portalTitle": { fr: "Ouvrir le portail de facturation Stripe (utilisateur cible)", en: "Open Stripe billing portal (target user)" },
+  "admin.users.detailTitle": { fr: "Utilisateur", en: "User" },
+  "admin.users.sectionBilling": { fr: "Facturation", en: "Billing" },
+  "admin.users.sectionRgpd": { fr: "Données personnelles (RGPD)", en: "Personal data (GDPR)" },
+  "admin.users.rowHint": {
+    fr: "Cliquez sur une ligne pour ouvrir la facturation et les actions RGPD.",
+    en: "Click a row to open billing and GDPR actions.",
+  },
+  "admin.earlyBird.sectionTitle": { fr: "Early bird", en: "Early bird" },
+  "admin.earlyBird.description": {
+    fr: "Accès complet intégrations et reporting équipe, indépendamment du palier payant. Réservé aux admins.",
+    en: "Full integrations and team reporting access regardless of paid tier. Admin-assigned only.",
+  },
+  "admin.earlyBird.statusPrefix": { fr: "Statut", en: "Status" },
+  "admin.earlyBird.statusOn": { fr: "Activé", en: "Enabled" },
+  "admin.earlyBird.statusOff": { fr: "Inactif", en: "Inactive" },
+  "admin.earlyBird.grant": { fr: "Accorder early bird", en: "Grant early bird" },
+  "admin.earlyBird.revoke": { fr: "Retirer early bird", en: "Revoke early bird" },
+  "admin.earlyBird.updated": { fr: "Statut early bird mis à jour.", en: "Early bird status updated." },
+  "admin.earlyBird.reasonRequired": {
+    fr: "Indiquez une raison d’au moins 3 caractères (audit).",
+    en: "Enter a reason of at least 3 characters (audit).",
+  },
+  "settings.earlyBirdBadge": { fr: "Early bird", en: "Early bird" },
+  "admin.rgpd.hintExportRow": {
+    fr: "Export des données : onglet Utilisateurs → cliquer sur un utilisateur → « Exporter ».",
+    en: "Data export: Users tab → click a user → \"Export\".",
+  },
+  "admin.rgpd.hintDeleteRow": {
+    fr: "Suppression de compte : onglet Utilisateurs → cliquer sur un utilisateur → « Supprimer le compte ».",
+    en: "Account deletion: Users tab → click a user → \"Delete account\".",
+  },
 
   // ── Search ──
   "search.placeholder": { fr: "Rechercher…", en: "Search…" },

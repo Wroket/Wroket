@@ -506,6 +506,7 @@ function serializeAuthMeResponse(user: AuthUser) {
     notificationDeliveryMode: user.notificationDeliveryMode,
     notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl,
     billingPlan: user.billingPlan,
+    earlyBird: user.earlyBird,
     entitlements: user.entitlements,
     stripeCustomerId: user.stripeCustomerId,
     stripeSubscriptionId: user.stripeSubscriptionId,

@@ -12,7 +12,13 @@ import {
 } from "./twoFactorService";
 import { assertValidEmailFormat } from "../utils/emailValidation";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
-import { getEntitlements, resolveBillingPlan, type BillingPlan, type Entitlements } from "./entitlementsService";
+import {
+  getEntitlements,
+  resolveBillingPlan,
+  resolveEntitlements,
+  type BillingPlan,
+  type Entitlements,
+} from "./entitlementsService";
 import { sendEmailOtpEmail } from "./emailService";
 import { validateWebhookUrl } from "./webhookService";
 export type EffortMinutes = { light: number; medium: number; heavy: number };
@@ -251,6 +257,8 @@ export interface AuthUser {
   /** Preferred calendar provider for new bookings; unset means infer (Google first, then Microsoft). */
   preferredBookingProvider?: "google" | "microsoft";
   billingPlan: BillingPlan;
+  /** Statut early bird (admin uniquement) — débloque intégrations + reporting quel que soit le palier. */
+  earlyBird: boolean;
   entitlements: Entitlements;
   /** Stripe Customer — set when Checkout completes with a customer. */
   stripeCustomerId?: string;
@@ -308,6 +316,8 @@ interface StoredUser {
   preferredBookingProvider?: "google" | "microsoft";
   /** Commercial palier — mis à jour via Stripe webhook ou admin (voir entitlementsService). */
   billingPlan?: BillingPlan;
+  /** Early bird : accès complet intégrations + reporting — uniquement via admin API. */
+  earlyBird?: boolean;
   /** Stripe Customer id (Checkout / Customer Portal). */
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
@@ -442,9 +452,13 @@ function readBillingPlan(user: StoredUser): BillingPlan {
   return resolveBillingPlan(user.billingPlan);
 }
 
+function readEntitlementsForStoredUser(user: StoredUser): Entitlements {
+  return resolveEntitlements(readBillingPlan(user), !!user.earlyBird);
+}
+
 /** Outbound copies (email / Slack / Teams / Google Chat) — disabled when plan has no `integrations` entitlement. */
 function effectiveNotificationDelivery(user: StoredUser): { mode: NotificationDeliveryMode; webhookUrl: string | null } {
-  if (!getEntitlements(readBillingPlan(user)).integrations) {
+  if (!readEntitlementsForStoredUser(user).integrations) {
     return { mode: "none", webhookUrl: null };
   }
   const mode = readNotificationDeliveryMode(user);
@@ -461,7 +475,8 @@ function toAuthUser(user: StoredUser): AuthUser {
   const accounts = resolveGoogleAccounts(user);
   const msAccounts = resolveMicrosoftAccounts(user);
   const billingPlan = readBillingPlan(user);
-  const entitlements = getEntitlements(billingPlan);
+  const earlyBird = !!user.earlyBird;
+  const entitlements = resolveEntitlements(billingPlan, earlyBird);
   const delivery = effectiveNotificationDelivery(user);
   return {
     uid: user.uid,
@@ -482,6 +497,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     emailOtp2faEnabled: !!user.emailOtp2faEnabled,
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
     billingPlan,
+    earlyBird,
     entitlements,
     stripeCustomerId: user.stripeCustomerId?.trim() || undefined,
     stripeSubscriptionId: user.stripeSubscriptionId?.trim() || null,
@@ -896,7 +912,7 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
   }
 
   if (input.notificationDeliveryMode !== undefined || input.notificationDeliveryWebhookUrl !== undefined) {
-    const ent = getEntitlements(readBillingPlan(user));
+    const ent = readEntitlementsForStoredUser(user);
     const mode =
       input.notificationDeliveryMode !== undefined
         ? normalizeNotificationDeliveryModeInput(input.notificationDeliveryMode)
@@ -909,10 +925,14 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
 
     if (!ent.integrations) {
       if (mode !== "none") {
-        throw new ForbiddenError("Les intégrations et la livraison externe des notifications sont réservées au palier Small teams.");
+        throw new ForbiddenError(
+          "Les intégrations et la livraison externe des notifications nécessitent le palier Small teams ou le statut early bird (attribué par un administrateur).",
+        );
       }
       if (url) {
-        throw new ForbiddenError("Les intégrations et la livraison externe des notifications sont réservées au palier Small teams.");
+        throw new ForbiddenError(
+          "Les intégrations et la livraison externe des notifications nécessitent le palier Small teams ou le statut early bird (attribué par un administrateur).",
+        );
       }
     }
 
@@ -1025,7 +1045,9 @@ export function getBillingPlanForUid(uid: string): BillingPlan {
 }
 
 export function getEntitlementsForUid(uid: string): Entitlements {
-  return getEntitlements(getBillingPlanForUid(uid));
+  const user = usersByUid.get(uid);
+  if (!user) return getEntitlements("free");
+  return resolveEntitlements(readBillingPlan(user), !!user.earlyBird);
 }
 
 /** Used by Stripe webhooks — no-op if user missing. */
@@ -1036,6 +1058,18 @@ export function setBillingPlanForUid(uid: string, plan: BillingPlan): void {
     return;
   }
   user.billingPlan = plan;
+  usersByUid.set(uid, user);
+  persistUsers();
+}
+
+/** Admin API uniquement — active ou désactive le statut early bird sur l’utilisateur. */
+export function setEarlyBirdForUid(uid: string, value: boolean): void {
+  const user = usersByUid.get(uid);
+  if (!user) {
+    console.warn("[auth] setEarlyBirdForUid: utilisateur introuvable %s", uid);
+    return;
+  }
+  user.earlyBird = value;
   usersByUid.set(uid, user);
   persistUsers();
 }

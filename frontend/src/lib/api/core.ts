@@ -121,6 +121,8 @@ export interface AuthMeResponse {
   preferredBookingProvider?: "google" | "microsoft";
   /** Commercial palier (Stripe / interne). */
   billingPlan?: BillingPlan;
+  /** Early bird : droits étendus — uniquement attribué par un admin. */
+  earlyBird?: boolean;
   /** Capacités dérivées du palier — source serveur. */
   entitlements?: Entitlements;
   stripeCustomerId?: string;

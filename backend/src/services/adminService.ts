@@ -38,6 +38,8 @@ export interface AdminUserSummary {
   stripeLinked: boolean;
   stripeSubscriptionStatus: string | null;
   billingCurrentPeriodEnd: string | null;
+  /** Statut early bird (admin uniquement). */
+  earlyBird: boolean;
 }
 
 interface AdminStats {
@@ -186,6 +188,7 @@ export function getAdminUsers(): AdminUserSummary[] {
       stripeLinked: cid.length > 0,
       stripeSubscriptionStatus: subStatus.length > 0 ? subStatus : null,
       billingCurrentPeriodEnd: periodEnd.length > 0 ? periodEnd : null,
+      earlyBird: !!(u.earlyBird as boolean | undefined),
     };
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

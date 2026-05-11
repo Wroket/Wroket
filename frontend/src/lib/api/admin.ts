@@ -26,6 +26,7 @@ export interface AdminUser {
   stripeLinked: boolean;
   stripeSubscriptionStatus: string | null;
   billingCurrentPeriodEnd: string | null;
+  earlyBird: boolean;
 }
 
 export interface InviteLogEntry {
@@ -150,4 +151,20 @@ export async function patchAdminUserBillingPlan(
   const data = (await res.json().catch(() => ({}))) as { message?: string; billingPlan?: BillingPlan; unchanged?: boolean };
   if (!res.ok) throw new Error(data.message ?? "Impossible de mettre à jour le plan");
   return { billingPlan: data.billingPlan ?? plan, unchanged: data.unchanged };
+}
+
+export async function patchAdminUserEarlyBird(
+  uid: string,
+  earlyBird: boolean,
+  reason: string,
+): Promise<{ earlyBird: boolean; unchanged?: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/admin/users/${encodeURIComponent(uid)}/early-bird`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ earlyBird, reason }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { message?: string; earlyBird?: boolean; unchanged?: boolean };
+  if (!res.ok) throw new Error(data.message ?? "Impossible de mettre à jour le statut early bird");
+  return { earlyBird: data.earlyBird ?? earlyBird, unchanged: data.unchanged };
 }

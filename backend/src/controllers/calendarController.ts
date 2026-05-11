@@ -66,7 +66,7 @@ import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 function assertCalendarIntegrations(uid: string): void {
   if (!getEntitlementsForUid(uid).integrations) {
     throw new ForbiddenError(
-      "Google Calendar, Outlook et la réservation sur calendrier externe sont réservés au palier Small teams (pack intégrations).",
+      "Google Calendar, Outlook et la réservation sur calendrier externe nécessitent le palier Small teams (pack intégrations) ou le statut early bird (attribué par un administrateur).",
     );
   }
 }
@@ -359,7 +359,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
 
   if (bookingTarget && !getEntitlementsForUid(uid).integrations) {
     throw new ForbiddenError(
-      "La réservation sur Google Calendar ou Outlook est réservée au palier Small teams (pack intégrations).",
+      "La réservation sur Google Calendar ou Outlook nécessite le palier Small teams (pack intégrations) ou le statut early bird (attribué par un administrateur).",
     );
   }
 
