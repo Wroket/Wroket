@@ -1,4 +1,4 @@
-import { API_BASE_URL, type ActivityLogEntry } from "./core";
+import { API_BASE_URL, type ActivityLogEntry, type BillingPlan } from "./core";
 
 export interface AdminStats {
   users: { total: number; verified: number; last7d: number; last30d: number; googleSso: number };
@@ -22,6 +22,10 @@ export interface AdminUser {
   noteCount: number;
   createdAt: string;
   lastLoginAt: string;
+  billingPlan: BillingPlan;
+  stripeLinked: boolean;
+  stripeSubscriptionStatus: string | null;
+  billingCurrentPeriodEnd: string | null;
 }
 
 export interface InviteLogEntry {
@@ -114,4 +118,36 @@ export async function getAdminCompletionRates(): Promise<CompletionRate[]> {
   const res = await fetch(`${API_BASE_URL}/admin/users/completion-rates`, { credentials: "include" });
   if (!res.ok) throw new Error("Accès refusé");
   return res.json();
+}
+
+export async function postAdminUserBillingPortalSession(
+  uid: string,
+  opts?: { returnUrl?: string },
+): Promise<{ url: string }> {
+  const res = await fetch(`${API_BASE_URL}/admin/users/${encodeURIComponent(uid)}/billing-portal-session`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(opts?.returnUrl ? { returnUrl: opts.returnUrl } : {}),
+  });
+  const data = (await res.json().catch(() => ({}))) as { message?: string; url?: string };
+  if (!res.ok) throw new Error(data.message ?? "Impossible d’ouvrir le portail de facturation");
+  if (!data.url) throw new Error("Réponse inattendue du serveur");
+  return { url: data.url };
+}
+
+export async function patchAdminUserBillingPlan(
+  uid: string,
+  plan: BillingPlan,
+  reason: string,
+): Promise<{ billingPlan: BillingPlan; unchanged?: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/admin/users/${encodeURIComponent(uid)}/billing-plan`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan, reason }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { message?: string; billingPlan?: BillingPlan; unchanged?: boolean };
+  if (!res.ok) throw new Error(data.message ?? "Impossible de mettre à jour le plan");
+  return { billingPlan: data.billingPlan ?? plan, unchanged: data.unchanged };
 }

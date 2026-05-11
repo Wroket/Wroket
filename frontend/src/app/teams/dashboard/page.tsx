@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import AppShell from "@/components/AppShell";
@@ -10,6 +10,7 @@ import { useToast } from "@/components/Toast";
 import {
   getTeams,
   getTeamDashboard,
+  getTeamReporting,
   getProjects,
   getCommentCounts,
   updateTodo,
@@ -19,6 +20,8 @@ import {
   type Todo,
   type Project,
   type AuthMeResponse,
+  type TeamReportingPeriodDays,
+  type TeamReportingResponse,
   type Priority,
   type Effort,
   type Recurrence,
@@ -44,6 +47,11 @@ export default function TeamDashboardPage() {
   const [data, setData] = useState<TeamDashboardData | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [reportingPeriodDays, setReportingPeriodDays] = useState<TeamReportingPeriodDays>(7);
+  const [reporting, setReporting] = useState<TeamReportingResponse | null>(null);
+  const [reportingLoading, setReportingLoading] = useState(false);
+  const canTeamReporting = user?.entitlements?.teamReporting === true;
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({
@@ -80,6 +88,7 @@ export default function TeamDashboardPage() {
   }, []);
 
   const requestIdRef = useRef(0);
+  const reportingRequestIdRef = useRef(0);
 
   const loadDashboard = useCallback(async (teamId: string) => {
     const reqId = ++requestIdRef.current;
@@ -92,6 +101,19 @@ export default function TeamDashboardPage() {
     }
   }, []);
 
+  const loadReporting = useCallback(async (teamId: string, periodDays: TeamReportingPeriodDays) => {
+    const reqId = ++reportingRequestIdRef.current;
+    setReportingLoading(true);
+    try {
+      const r = await getTeamReporting(teamId, periodDays);
+      if (reqId === reportingRequestIdRef.current) setReporting(r);
+    } catch {
+      if (reqId === reportingRequestIdRef.current) setReporting(null);
+    } finally {
+      if (reqId === reportingRequestIdRef.current) setReportingLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedTeamId) return;
     const id = selectedTeamId;
@@ -99,6 +121,18 @@ export default function TeamDashboardPage() {
       void loadDashboard(id);
     });
   }, [selectedTeamId, loadDashboard]);
+
+  useEffect(() => {
+    if (!selectedTeamId || !canTeamReporting) {
+      setReporting(null);
+      setReportingLoading(false);
+      return;
+    }
+    const id = selectedTeamId;
+    void Promise.resolve().then(() => {
+      void loadReporting(id, reportingPeriodDays);
+    });
+  }, [selectedTeamId, reportingPeriodDays, loadReporting, canTeamReporting]);
 
   useEffect(() => {
     return () => {
@@ -201,6 +235,32 @@ export default function TeamDashboardPage() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects) map.set(p.id, p.name);
+    return map;
+  }, [projects]);
+
+  const escapeCsv = (value: string | number | null | undefined): string => {
+    const raw = value === null || value === undefined ? "" : String(value);
+    const needsQuotes = /[,"\n\r]/.test(raw);
+    const escaped = raw.replaceAll('"', '""');
+    return needsQuotes ? `"${escaped}"` : escaped;
+  };
+
+  const downloadCsv = (filename: string, header: string[], rows: Array<Array<string | number | null | undefined>>) => {
+    const lines = [header.map(escapeCsv).join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+    const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const subtaskCount =
     editingTodo && data ? data.todos.filter((x) => x.parentId === editingTodo.id).length : 0;
 
@@ -279,6 +339,130 @@ export default function TeamDashboardPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide">
+                  {t("teamReport.title")}
+                </h2>
+                {canTeamReporting && (
+                <div className="flex items-center gap-2">
+                  <label className="sr-only" htmlFor="team-reporting-period">
+                    {t("teamReport.periodLabel")}
+                  </label>
+                  <select
+                    id="team-reporting-period"
+                    value={reportingPeriodDays}
+                    onChange={(e) => setReportingPeriodDays(Number(e.target.value) as TeamReportingPeriodDays)}
+                    className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-2 text-sm text-zinc-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value={7}>{t("teamReport.period7")}</option>
+                    <option value={14}>{t("teamReport.period14")}</option>
+                    <option value={30}>{t("teamReport.period30")}</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!reporting) return;
+                      const rows = reporting.byProject.map((p) => [
+                        projectNameById.get(p.projectId) ?? p.projectId,
+                        p.active,
+                        p.createdInPeriod,
+                        p.completedInPeriod,
+                        p.overdueActive,
+                        p.noDeadlineActive,
+                        p.cancelledInPeriod,
+                        p.completionRatio === null ? "" : Math.round(p.completionRatio * 100),
+                      ]);
+                      downloadCsv(
+                        `wroket-team-reporting-projects-${reporting.periodDays}d.csv`,
+                        [
+                          t("teamReport.csv.project"),
+                          t("teamReport.csv.active"),
+                          t("teamReport.csv.createdInPeriod"),
+                          t("teamReport.csv.completedInPeriod"),
+                          t("teamReport.csv.overdueActive"),
+                          t("teamReport.csv.noDeadlineActive"),
+                          t("teamReport.csv.cancelledInPeriod"),
+                          t("teamReport.csv.completionPct"),
+                        ],
+                        rows,
+                      );
+                    }}
+                    className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                  >
+                    {t("teamReport.exportCsv")}
+                  </button>
+                </div>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4 space-y-4">
+                {!canTeamReporting ? (
+                  <p className="text-sm text-zinc-600 dark:text-slate-400">{t("teamReport.lockedLarge")}</p>
+                ) : reportingLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-slate-400">
+                    <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <span>{t("teamReport.loading")}</span>
+                  </div>
+                ) : !reporting ? (
+                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("teamReport.unavailable")}</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div className="rounded-xl border border-zinc-200 dark:border-slate-700 p-3">
+                        <p className="text-xs text-zinc-500 dark:text-slate-400 uppercase tracking-wide">{t("teamReport.activeNow")}</p>
+                        <p className="text-xl font-bold text-zinc-900 dark:text-slate-100 mt-1">{reporting.summary.active}</p>
+                      </div>
+                      <div className="rounded-xl border border-zinc-200 dark:border-slate-700 p-3">
+                        <p className="text-xs text-zinc-500 dark:text-slate-400 uppercase tracking-wide">{t("teamReport.completedInPeriod")}</p>
+                        <p className="text-xl font-bold text-zinc-900 dark:text-slate-100 mt-1">{reporting.summary.completedInPeriod}</p>
+                      </div>
+                      <div className="rounded-xl border border-zinc-200 dark:border-slate-700 p-3">
+                        <p className="text-xs text-zinc-500 dark:text-slate-400 uppercase tracking-wide">{t("teamReport.overdueActive")}</p>
+                        <p className={`text-xl font-bold mt-1 ${reporting.summary.overdueActive > 0 ? "text-red-500" : "text-zinc-900 dark:text-slate-100"}`}>
+                          {reporting.summary.overdueActive}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
+                            <th className="text-left px-3 py-2 font-medium text-zinc-500 dark:text-slate-400">{t("teamReport.table.project")}</th>
+                            <th className="text-right px-3 py-2 font-medium text-zinc-500 dark:text-slate-400">{t("teamReport.table.active")}</th>
+                            <th className="text-right px-3 py-2 font-medium text-zinc-500 dark:text-slate-400">{t("teamReport.table.completed")}</th>
+                            <th className="text-right px-3 py-2 font-medium text-zinc-500 dark:text-slate-400">{t("teamReport.table.overdue")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reporting.byProject.map((p) => (
+                            <tr key={p.projectId} className="border-b border-zinc-100 dark:border-slate-800">
+                              <td className="px-3 py-2 text-zinc-900 dark:text-slate-100">
+                                {projectNameById.get(p.projectId) ?? p.projectId}
+                              </td>
+                              <td className="px-3 py-2 text-right text-zinc-600 dark:text-slate-300">{p.active}</td>
+                              <td className="px-3 py-2 text-right text-zinc-600 dark:text-slate-300">{p.completedInPeriod}</td>
+                              <td className={`px-3 py-2 text-right ${p.overdueActive > 0 ? "text-red-500 font-semibold" : "text-zinc-600 dark:text-slate-300"}`}>
+                                {p.overdueActive}
+                              </td>
+                            </tr>
+                          ))}
+                          {reporting.byProject.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-3 py-6 text-center text-zinc-400 dark:text-slate-500">
+                                {t("teamReport.empty")}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

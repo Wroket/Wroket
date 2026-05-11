@@ -505,6 +505,12 @@ function serializeAuthMeResponse(user: AuthUser) {
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
     notificationDeliveryMode: user.notificationDeliveryMode,
     notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl,
+    billingPlan: user.billingPlan,
+    entitlements: user.entitlements,
+    stripeCustomerId: user.stripeCustomerId,
+    stripeSubscriptionId: user.stripeSubscriptionId,
+    stripeSubscriptionStatus: user.stripeSubscriptionStatus,
+    billingCurrentPeriodEnd: user.billingCurrentPeriodEnd,
     archivedTaskRetentionDays: user.archivedTaskRetentionDays,
     /** Mirrors `ADMIN_EMAILS` on the API — used for /admin nav without duplicating the list in the client. */
     isAdmin: emailIsInAdminAllowlist(user.email),

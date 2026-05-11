@@ -11,7 +11,8 @@ import {
   verifyTotpCode,
 } from "./twoFactorService";
 import { assertValidEmailFormat } from "../utils/emailValidation";
-import { AppError, NotFoundError, ValidationError } from "../utils/errors";
+import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import { getEntitlements, resolveBillingPlan, type BillingPlan, type Entitlements } from "./entitlementsService";
 import { sendEmailOtpEmail } from "./emailService";
 import { validateWebhookUrl } from "./webhookService";
 export type EffortMinutes = { light: number; medium: number; heavy: number };
@@ -249,6 +250,14 @@ export interface AuthUser {
   archivedTaskRetentionDays: number;
   /** Preferred calendar provider for new bookings; unset means infer (Google first, then Microsoft). */
   preferredBookingProvider?: "google" | "microsoft";
+  billingPlan: BillingPlan;
+  entitlements: Entitlements;
+  /** Stripe Customer — set when Checkout completes with a customer. */
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string | null;
+  stripeSubscriptionStatus?: string | null;
+  /** ISO 8601 end of current Stripe billing period, when known. */
+  billingCurrentPeriodEnd?: string | null;
 }
 
 interface StoredUser {
@@ -297,6 +306,14 @@ interface StoredUser {
   archivedTaskRetentionDays?: number;
   /** Where new slot bookings are written when both Google and Microsoft are connected. */
   preferredBookingProvider?: "google" | "microsoft";
+  /** Commercial palier — mis à jour via Stripe webhook ou admin (voir entitlementsService). */
+  billingPlan?: BillingPlan;
+  /** Stripe Customer id (Checkout / Customer Portal). */
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripeSubscriptionStatus?: string;
+  /** ISO 8601 end of current billing period (Stripe `current_period_end`). */
+  billingCurrentPeriodEnd?: string;
   /** Pending enrollment / disable flows — email OTP verification */
   email2faEnrollHash?: string;
   email2faEnrollExpiresAt?: number;
@@ -421,9 +438,31 @@ export function getArchivedTaskRetentionDaysForPurge(uid: string): number {
   return u ? readArchivedTaskRetentionDays(u) : DEFAULT_ARCHIVED_TASK_RETENTION_DAYS;
 }
 
+function readBillingPlan(user: StoredUser): BillingPlan {
+  return resolveBillingPlan(user.billingPlan);
+}
+
+/** Outbound copies (email / Slack / Teams / Google Chat) — disabled when plan has no `integrations` entitlement. */
+function effectiveNotificationDelivery(user: StoredUser): { mode: NotificationDeliveryMode; webhookUrl: string | null } {
+  if (!getEntitlements(readBillingPlan(user)).integrations) {
+    return { mode: "none", webhookUrl: null };
+  }
+  const mode = readNotificationDeliveryMode(user);
+  const url = user.notificationDeliveryWebhookUrl?.trim() || null;
+  if (mode === "slack" || mode === "teams" || mode === "google_chat") {
+    if (!url) return { mode: "none", webhookUrl: null };
+    return { mode, webhookUrl: url };
+  }
+  if (mode === "email") return { mode: "email", webhookUrl: null };
+  return { mode: "none", webhookUrl: null };
+}
+
 function toAuthUser(user: StoredUser): AuthUser {
   const accounts = resolveGoogleAccounts(user);
   const msAccounts = resolveMicrosoftAccounts(user);
+  const billingPlan = readBillingPlan(user);
+  const entitlements = getEntitlements(billingPlan);
+  const delivery = effectiveNotificationDelivery(user);
   return {
     uid: user.uid,
     email: user.email,
@@ -442,8 +481,14 @@ function toAuthUser(user: StoredUser): AuthUser {
     ),
     emailOtp2faEnabled: !!user.emailOtp2faEnabled,
     totpEmailFallbackEnabled: user.totpEmailFallbackEnabled !== false,
-    notificationDeliveryMode: readNotificationDeliveryMode(user),
-    notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl?.trim() || null,
+    billingPlan,
+    entitlements,
+    stripeCustomerId: user.stripeCustomerId?.trim() || undefined,
+    stripeSubscriptionId: user.stripeSubscriptionId?.trim() || null,
+    stripeSubscriptionStatus: user.stripeSubscriptionStatus?.trim() || null,
+    billingCurrentPeriodEnd: user.billingCurrentPeriodEnd?.trim() || null,
+    notificationDeliveryMode: delivery.mode,
+    notificationDeliveryWebhookUrl: delivery.webhookUrl,
     notificationTypesDisabledInApp: Array.isArray(user.notificationTypesDisabledInApp) ? user.notificationTypesDisabledInApp : [],
     notificationTypesDisabledOutbound: Array.isArray(user.notificationTypesDisabledOutbound) ? user.notificationTypesDisabledOutbound : [],
     notificationOutboundFrequency: readNotificationOutboundFrequency(user),
@@ -589,6 +634,7 @@ export function register(input: RegisterInput): AuthUser & { verifyToken: string
     emailVerifyToken: verifyToken,
     emailVerifyExpiresAt: Date.now() + VERIFY_TOKEN_TTL_MS,
     createdAt,
+    billingPlan: "free",
   };
   usersByUid.set(uid, stored);
   persistUsers();
@@ -850,6 +896,7 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
   }
 
   if (input.notificationDeliveryMode !== undefined || input.notificationDeliveryWebhookUrl !== undefined) {
+    const ent = getEntitlements(readBillingPlan(user));
     const mode =
       input.notificationDeliveryMode !== undefined
         ? normalizeNotificationDeliveryModeInput(input.notificationDeliveryMode)
@@ -859,6 +906,15 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
       urlFromInput !== undefined
         ? (typeof urlFromInput === "string" ? urlFromInput.trim() : "")
         : (user.notificationDeliveryWebhookUrl?.trim() ?? "");
+
+    if (!ent.integrations) {
+      if (mode !== "none") {
+        throw new ForbiddenError("Les intégrations et la livraison externe des notifications sont réservées au palier Small teams.");
+      }
+      if (url) {
+        throw new ForbiddenError("Les intégrations et la livraison externe des notifications sont réservées au palier Small teams.");
+      }
+    }
 
     if (mode === "slack" || mode === "teams" || mode === "google_chat") {
       if (!url) {
@@ -915,9 +971,10 @@ export function getNotificationDeliveryPrefs(uid: string): {
 } | null {
   const user = usersByUid.get(uid);
   if (!user) return null;
+  const delivery = effectiveNotificationDelivery(user);
   return {
-    mode: readNotificationDeliveryMode(user),
-    webhookUrl: user.notificationDeliveryWebhookUrl?.trim() || null,
+    mode: delivery.mode,
+    webhookUrl: delivery.webhookUrl,
     email: user.email,
   };
 }
@@ -962,6 +1019,69 @@ export function findUserByUid(uid: string): AuthUser | null {
   return toAuthUser(user);
 }
 
+export function getBillingPlanForUid(uid: string): BillingPlan {
+  const user = usersByUid.get(uid);
+  return user ? readBillingPlan(user) : "free";
+}
+
+export function getEntitlementsForUid(uid: string): Entitlements {
+  return getEntitlements(getBillingPlanForUid(uid));
+}
+
+/** Used by Stripe webhooks — no-op if user missing. */
+export function setBillingPlanForUid(uid: string, plan: BillingPlan): void {
+  const user = usersByUid.get(uid);
+  if (!user) {
+    console.warn("[auth] setBillingPlanForUid: utilisateur introuvable %s", uid);
+    return;
+  }
+  user.billingPlan = plan;
+  usersByUid.set(uid, user);
+  persistUsers();
+}
+
+export function getStripeCustomerIdForUid(uid: string): string | undefined {
+  const id = usersByUid.get(uid)?.stripeCustomerId?.trim();
+  return id && id.length > 0 ? id : undefined;
+}
+
+/**
+ * Merge Stripe billing fields on the user (webhook / admin). Pass `null` to clear optional subscription fields.
+ */
+export function patchStripeBillingForUid(
+  uid: string,
+  patch: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string | null;
+    stripeSubscriptionStatus?: string | null;
+    billingCurrentPeriodEnd?: string | null;
+  },
+): void {
+  const user = usersByUid.get(uid);
+  if (!user) {
+    console.warn("[auth] patchStripeBillingForUid: utilisateur introuvable %s", uid);
+    return;
+  }
+  if (patch.stripeCustomerId !== undefined) {
+    const v = patch.stripeCustomerId.trim();
+    user.stripeCustomerId = v.length > 0 ? v : undefined;
+  }
+  if (patch.stripeSubscriptionId !== undefined) {
+    const v = patch.stripeSubscriptionId?.trim();
+    user.stripeSubscriptionId = v && v.length > 0 ? v : undefined;
+  }
+  if (patch.stripeSubscriptionStatus !== undefined) {
+    const v = patch.stripeSubscriptionStatus?.trim();
+    user.stripeSubscriptionStatus = v && v.length > 0 ? v : undefined;
+  }
+  if (patch.billingCurrentPeriodEnd !== undefined) {
+    const v = patch.billingCurrentPeriodEnd?.trim();
+    user.billingCurrentPeriodEnd = v && v.length > 0 ? v : undefined;
+  }
+  usersByUid.set(uid, user);
+  persistUsers();
+}
+
 /**
  * Logs in (or registers) a user via Google SSO.
  * The email is auto-verified since Google has already validated it.
@@ -989,6 +1109,7 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
       workingHours: { ...DEFAULT_WORKING_HOURS, timezone: tz },
       emailVerified: true,
       createdAt: new Date().toISOString(),
+      billingPlan: "free",
     };
     usersByUid.set(uid, user);
     persistUsers();

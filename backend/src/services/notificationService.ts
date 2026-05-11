@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
 import { NotFoundError } from "../utils/errors";
-import { findUserByUid, getNotificationDeliveryPrefs, getNotificationFilterPrefs } from "./authService";
+import { findUserByUid, getEntitlementsForUid, getNotificationDeliveryPrefs, getNotificationFilterPrefs } from "./authService";
 import { enqueueDigest } from "./digestService";
 import { sendNotificationEmail } from "./emailService";
 import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
@@ -105,7 +105,9 @@ export function createNotification(
   persist();
 
   try {
-    dispatchWebhooks(userId, type as WebhookEvent, title, message, payloadData);
+    if (getEntitlementsForUid(userId).integrations) {
+      dispatchWebhooks(userId, type as WebhookEvent, title, message, payloadData);
+    }
   } catch (err) {
     console.warn("[notifications] webhook dispatch error:", err);
   }

@@ -20,6 +20,8 @@ import adminRoutes from "./routes/adminRoutes";
 import noteRoutes from "./routes/noteRoutes";
 import attachmentRoutes from "./routes/attachmentRoutes";
 import syncEventsRoutes from "./routes/syncEventsRoutes";
+import { postStripeWebhook } from "./controllers/stripeBillingController";
+import billingRoutes from "./routes/billingRoutes";
 
 dotenv.config();
 
@@ -57,6 +59,10 @@ app.use(
     credentials: true,
   })
 );
+
+/** Stripe needs the raw body for signature verification — must run before `express.json`. */
+app.post("/billing/stripe-webhook", express.raw({ type: "application/json" }), postStripeWebhook);
+
 app.use(express.json({ limit: "128kb" }));
 
 const apiLimiter = rateLimit({
@@ -71,6 +77,8 @@ const apiLimiter = rateLimit({
 // Applied at the app level so every business route is covered, including future ones.
 // Individual attachment controllers may override with their own Cache-Control headers.
 app.use(noStoreCache);
+
+app.use("/billing", apiLimiter, billingRoutes);
 
 app.use("/", healthRoutes);
 app.use("/auth", authRoutes);

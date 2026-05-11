@@ -23,12 +23,13 @@ import {
   filterContactEmailsByQuery,
 } from "../services/teamService";
 import { listActiveProjectIdsForTeam } from "../services/projectService";
-import { listTodosForUsers } from "../services/todoService";
+import { listAllTodos, listTodosForUsers } from "../services/todoService";
 import { createNotification } from "../services/notificationService";
-import { findUserByEmail, findUserByUid, type AuthUser } from "../services/authService";
+import { findUserByEmail, findUserByUid, getEntitlementsForUid, type AuthUser } from "../services/authService";
 import { sendCollaborationInviteEmail } from "../services/emailService";
 import { deliverPendingMentionsAfterCollaborationAccepted } from "../services/pendingMentionService";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import { computeTeamReportingSnapshot, type TeamReportingPeriodDays } from "../services/teamReportingService";
 
 /**
  * In-app notification (if the invitee has an account) + collaboration email (best-effort).
@@ -318,6 +319,52 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   }
 
   res.status(200).json({ team, stats, todos, memberMap });
+}
+
+export async function getTeamReporting(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const team = getTeam(teamId);
+  if (!team) throw new ValidationError("Équipe introuvable");
+
+  const role = getTeamRole(team, req.user!.uid, req.user!.email);
+  if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
+
+  if (!getEntitlementsForUid(req.user!.uid).teamReporting) {
+    throw new ForbiddenError("Le reporting équipe est réservé au palier Large teams.");
+  }
+
+  const rawPeriod = typeof req.query.periodDays === "string" ? req.query.periodDays : "";
+  const parsed = rawPeriod ? Number.parseInt(rawPeriod, 10) : 7;
+  if (parsed !== 7 && parsed !== 14 && parsed !== 30) {
+    throw new ValidationError("Paramètre periodDays invalide (7, 14 ou 30)");
+  }
+  const periodDays = parsed as TeamReportingPeriodDays;
+
+  const memberUids: string[] = [team.ownerUid];
+  for (const m of team.members) {
+    const u = findUserByEmail(m.email);
+    if (u) memberUids.push(u.uid);
+  }
+
+  const ownerUser = findUserByUid(team.ownerUid);
+  const memberMap: Record<string, string> = {};
+  if (ownerUser) memberMap[ownerUser.uid] = ownerUser.email;
+  for (const m of team.members) {
+    const u = findUserByEmail(m.email);
+    if (u) memberMap[u.uid] = u.email;
+  }
+
+  const teamProjectIds = listActiveProjectIdsForTeam(teamId);
+  const todos = memberUids.flatMap((uid) => listAllTodos(uid));
+
+  const snapshot = computeTeamReportingSnapshot({
+    todos,
+    projectIdSet: teamProjectIds,
+    memberEmailByUid: memberMap,
+    periodDays,
+  });
+
+  res.status(200).json({ team, memberMap, ...snapshot });
 }
 
 export async function getOwnedTeams(req: AuthenticatedRequest, res: Response) {

@@ -28,9 +28,10 @@ import {
   removeMicrosoftAccount,
   removeAllMicrosoftAccounts,
   setMicrosoftAccountCalendars,
+  getEntitlementsForUid,
   type GoogleCalendarEntry,
 } from "../services/authService";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 import {
   getGoogleAuthUrl,
   exchangeCodeForTokens,
@@ -61,6 +62,14 @@ import {
 } from "../services/microsoftCalendarService";
 import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
+
+function assertCalendarIntegrations(uid: string): void {
+  if (!getEntitlementsForUid(uid).integrations) {
+    throw new ForbiddenError(
+      "Google Calendar, Outlook et la réservation sur calendrier externe sont réservés au palier Small teams (pack intégrations).",
+    );
+  }
+}
 
 /** Advance a Date in-place by the recurrence step, preserving time-of-day. */
 function advanceDate(d: Date, freq: RecurrenceFrequency, interval: number): void {
@@ -149,8 +158,9 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const durationSource = hasCustomEstimate ? "task" as const : "settings" as const;
 
   const googleBusySlots: { start: Date; end: Date }[] = [];
+  const extCal = getEntitlementsForUid(uid).integrations;
   const accounts = getGoogleAccounts(uid);
-  if (accounts.length > 0) {
+  if (extCal && accounts.length > 0) {
     const now = new Date();
     const searchEnd = new Date(now.getTime() + 31 * 24 * 3600_000);
     const fetches: Promise<{ start: string; end: string; allDay: boolean }[]>[] = [];
@@ -172,7 +182,7 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
   }
 
   const msAccounts = getMicrosoftAccounts(uid);
-  if (msAccounts.length > 0) {
+  if (extCal && msAccounts.length > 0) {
     const now = new Date();
     const searchEnd = new Date(now.getTime() + 31 * 24 * 3600_000);
     const msFetches: Promise<{ start: string; end: string; allDay: boolean }[]>[] = [];
@@ -234,6 +244,7 @@ const meetCreationInFlight = new Map<string, Promise<Todo>>();
 
 async function findConflicts(uid: string, todoId: string, start: Date, end: Date): Promise<ConflictInfo[]> {
   const conflicts: ConflictInfo[] = [];
+  const extCal = getEntitlementsForUid(uid).integrations;
 
   const checkTodo = (t: Todo) => {
     if (t.id === todoId || t.status !== "active" || !t.scheduledSlot) return;
@@ -248,7 +259,7 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
   for (const t of listAssignedToMe(uid)) checkTodo(t);
 
   const accounts = getGoogleAccounts(uid);
-  if (accounts.length > 0) {
+  if (extCal && accounts.length > 0) {
     const timeMin = start.toISOString();
     const timeMax = end.toISOString();
     const fetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
@@ -274,7 +285,7 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
   }
 
   const msAccounts = getMicrosoftAccounts(uid);
-  if (msAccounts.length > 0) {
+  if (extCal && msAccounts.length > 0) {
     const timeMin = start.toISOString();
     const timeMax = end.toISOString();
     const msFetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
@@ -345,6 +356,12 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   const hasCalendarIntegration =
     getGoogleAccounts(uid).length > 0 || getMicrosoftAccounts(uid).length > 0;
   const bookingTarget = resolveBookingTarget(uid);
+
+  if (bookingTarget && !getEntitlementsForUid(uid).integrations) {
+    throw new ForbiddenError(
+      "La réservation sur Google Calendar ou Outlook est réservée au palier Small teams (pack intégrations).",
+    );
+  }
 
   if (hasCalendarIntegration && !bookingTarget) {
     throw new ValidationError(
@@ -515,6 +532,7 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function googleAuthUrl(req: AuthenticatedRequest, res: Response) {
+  assertCalendarIntegrations(req.user!.uid);
   const state = createOAuthState(req.user!.uid);
   const url = getGoogleAuthUrl(state);
   res.status(200).json({ url });
@@ -533,6 +551,11 @@ export async function googleCallback(req: Request, res: Response) {
   const uid = consumeOAuthState(state);
   if (!uid) {
     res.redirect(`${frontendUrl}/settings?error=google_auth_failed`);
+    return;
+  }
+
+  if (!getEntitlementsForUid(uid).integrations) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=calendar_plan_required`);
     return;
   }
 
@@ -563,6 +586,7 @@ export async function microsoftCalendarAuthUrl(req: AuthenticatedRequest, res: R
     res.status(503).json({ message: "Microsoft Calendar OAuth non configuré sur ce serveur" });
     return;
   }
+  assertCalendarIntegrations(req.user!.uid);
   const state = createOAuthState(req.user!.uid);
   const url = getMicrosoftCalendarAuthUrl(state);
   res.status(200).json({ url });
@@ -581,6 +605,11 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
   const uid = consumeOAuthState(state);
   if (!uid) {
     res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+    return;
+  }
+
+  if (!getEntitlementsForUid(uid).integrations) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=calendar_plan_required`);
     return;
   }
 
@@ -630,6 +659,7 @@ export async function disconnectMicrosoft(req: AuthenticatedRequest, res: Respon
 
 export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
   const accountId = String(req.params.accountId);
 
   const accounts = getMicrosoftAccounts(uid);
@@ -655,6 +685,7 @@ export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Res
 
 export async function saveMicrosoftCalendarSelection(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
   const accountId = String(req.params.accountId);
 
   const { calendars } = req.body as { calendars?: GoogleCalendarEntry[] };
@@ -687,6 +718,8 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   if (startDate >= endDateParsed) throw new ValidationError("start must be before end");
   const rangeMs = endDateParsed.getTime() - startDate.getTime();
   if (rangeMs > 90 * 24 * 60 * 60 * 1000) throw new ValidationError("Date range too large (max 90 days)");
+
+  const extCal = getEntitlementsForUid(uid).integrations;
 
   const ownedTodos = listTodos(uid);
   const assignedTodos = listAssignedToMe(uid);
@@ -754,7 +787,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
 
   const MAX_CALENDAR_FETCHES = 20;
 
-  if (accounts.length > 0) {
+  if (extCal && accounts.length > 0) {
     const fetches: Promise<GEvent[]>[] = [];
     for (const account of accounts) {
       if (fetches.length >= MAX_CALENDAR_FETCHES) break;
@@ -793,7 +826,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   let allMicrosoftEvents: MEvent[] = [];
 
   const msAcc = getMicrosoftAccounts(uid);
-  if (msAcc.length > 0) {
+  if (extCal && msAcc.length > 0) {
     const msFetches: Promise<MEvent[]>[] = [];
     for (const account of msAcc) {
       if (msFetches.length >= MAX_CALENDAR_FETCHES) break;
@@ -843,6 +876,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
 /** List all calendars for a specific Google account */
 export async function listCalendars(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
   const accountId = String(req.params.accountId);
 
   const accounts = getGoogleAccounts(uid);
@@ -869,6 +903,7 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
 /** Save calendar selection for a specific Google account */
 export async function saveCalendarSelection(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
   const accountId = String(req.params.accountId);
 
   const { calendars } = req.body as { calendars?: GoogleCalendarEntry[] };
@@ -898,6 +933,7 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
 export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
 
   const bookingTarget = resolveBookingTarget(uid);
   if (!bookingTarget) {
@@ -1091,6 +1127,7 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
 export async function updateMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
   const found = findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;

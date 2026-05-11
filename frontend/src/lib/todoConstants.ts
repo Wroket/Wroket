@@ -65,18 +65,20 @@ export const PRIORITY_BADGES: Record<
   high: {
     label: "Haute",
     tKey: "priority.high" as const,
-    cls: "bg-red-500 text-white dark:bg-red-600",
+    cls: "rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
   },
   medium: {
     label: "Moyenne",
     tKey: "priority.medium" as const,
-    cls: "bg-amber-500 text-white dark:bg-amber-600",
+    cls: "rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
   },
   low: {
     label: "Basse",
     tKey: "priority.low" as const,
-    cls: "bg-sky-400 text-white dark:bg-sky-600",
+    cls: "rounded-full bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
   },
 };
 
-export const SUBTASK_BADGE_CLS = "bg-emerald-600 text-white dark:bg-emerald-500";
+/** Subtask expand chip — same “soft” family as landing hero preview. */
+export const SUBTASK_BADGE_CLS =
+  "rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/45";

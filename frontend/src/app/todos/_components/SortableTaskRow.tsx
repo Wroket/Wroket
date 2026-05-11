@@ -215,7 +215,7 @@ export default function SortableTaskRow({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); toggleExpand(todo.id); }}
-              className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors hover:bg-emerald-700 ${SUBTASK_BADGE_CLS}`}
+              className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 transition-colors ${SUBTASK_BADGE_CLS}`}
             >
               <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />

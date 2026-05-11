@@ -75,6 +75,13 @@ export type NotificationType =
   | "comment_mention"
   | "project_deleted";
 
+export type BillingPlan = "free" | "first" | "small" | "large";
+
+export interface Entitlements {
+  integrations: boolean;
+  teamReporting: boolean;
+}
+
 export interface AuthMeResponse {
   uid: string;
   email: string;
@@ -112,6 +119,14 @@ export interface AuthMeResponse {
   archivedTaskRetentionDays?: number;
   /** Where new bookings are written when both Google and Outlook are connected. */
   preferredBookingProvider?: "google" | "microsoft";
+  /** Commercial palier (Stripe / interne). */
+  billingPlan?: BillingPlan;
+  /** Capacités dérivées du palier — source serveur. */
+  entitlements?: Entitlements;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string | null;
+  stripeSubscriptionStatus?: string | null;
+  billingCurrentPeriodEnd?: string | null;
 }
 
 export interface ActivityLogEntry {

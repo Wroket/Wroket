@@ -322,6 +322,22 @@ export async function getMe(): Promise<AuthMeResponse> {
   return (await res.json()) as AuthMeResponse;
 }
 
+export async function createBillingPortalSession(returnUrl?: string): Promise<{ url: string }> {
+  const res = await fetch(`${API_BASE_URL}/billing/create-portal-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(
+      typeof returnUrl === "string" && returnUrl.trim() ? { returnUrl: returnUrl.trim() } : {},
+    ),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(extractApiMessage(body, "Portail de facturation indisponible"));
+  const url = (body as { url?: unknown }).url;
+  if (typeof url !== "string" || !url.startsWith("http")) throw new Error("Réponse portail invalide");
+  return { url };
+}
+
 export type { NotificationOutboundFrequency, NotificationType };
 
 export async function updateProfile(payload: {

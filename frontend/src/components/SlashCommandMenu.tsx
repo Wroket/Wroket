@@ -144,7 +144,8 @@ export default function SlashCommandMenu({
   }, []);
 
   useEffect(() => {
-    closeMenu();
+    const t = setTimeout(() => closeMenu(), 0);
+    return () => clearTimeout(t);
   }, [bindingNoteId, closeMenu]);
 
   const insertText = useCallback(

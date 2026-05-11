@@ -289,6 +289,12 @@ export default function LandingPage() {
               )}
             </button>
             <Link
+              href="/pricing"
+              className="text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+            >
+              {t("landing.navPricing")}
+            </Link>
+            <Link
               href="/login"
               className="text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
             >
@@ -440,8 +446,11 @@ export default function LandingPage() {
             <span suppressHydrationWarning>&copy; {new Date().getFullYear()}</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-zinc-500 dark:text-slate-400">
+            <Link href="/pricing" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.navPricing")}
+            </Link>
             <a href="mailto:team@wroket.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              Contact
+              {t("landing.footerContact")}
             </a>
           </div>
         </div>

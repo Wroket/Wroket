@@ -28,13 +28,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { PRIORITY_BADGES, SUBTASK_BADGE_CLS, type Quadrant } from "@/lib/todoConstants";
 import type { TranslationKey } from "@/lib/i18n";
 import { trackRadarEvent } from "@/lib/productAnalytics";
-
-const QUADRANT_BADGES: Record<Quadrant, { tKey: TranslationKey; cls: string }> = {
-  "do-first": { tKey: "badge.doFirst", cls: "bg-red-500 text-white dark:bg-red-600" },
-  schedule: { tKey: "badge.schedule", cls: "bg-blue-500 text-white dark:bg-blue-600" },
-  delegate: { tKey: "badge.delegate", cls: "bg-amber-500 text-white dark:bg-amber-600" },
-  eliminate: { tKey: "badge.eliminate", cls: "bg-emerald-400 text-white dark:bg-emerald-600" },
-};
+import { QUADRANT_BADGES } from "@/app/todos/_components/sortUtils";
 
 const DOT_COLORS: Record<Quadrant, string> = {
   "do-first": "bg-red-500",
@@ -55,7 +49,7 @@ const RADAR_MODES: { id: RadarMode; labelKey: TranslationKey; helpKey: Translati
 
 function SubtaskBadge({ count }: { count: number }) {
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${SUBTASK_BADGE_CLS}`}>
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 shrink-0 whitespace-nowrap ${SUBTASK_BADGE_CLS}`}>
       <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
       </svg>

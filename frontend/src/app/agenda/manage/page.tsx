@@ -19,6 +19,8 @@ import {
   type GoogleCalendarEntry,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import { useAuth } from "@/components/AuthContext";
+import Link from "next/link";
 
 const ACCOUNT_COLORS = [
   "#10b981", "#8b5cf6", "#3b82f6", "#f59e0b",
@@ -35,6 +37,7 @@ function hasBothCalendarProviders(accs: AccountWithCals[]): boolean {
 
 export default function ManageCalendarsPage() {
   const { t } = useLocale();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,6 +45,8 @@ export default function ManageCalendarsPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [preferredBookingProvider, setPreferredBookingProvider] = useState<"google" | "microsoft" | undefined>();
+
+  const canUseCalendarIntegrations = !authLoading && user?.entitlements?.integrations === true;
 
   const loadAccounts = async () => {
     try {
@@ -80,19 +85,25 @@ export default function ManageCalendarsPage() {
   }, [searchParams, router, toast, t]);
 
   const handleConnectGoogle = async () => {
+    if (!canUseCalendarIntegrations) return;
     try {
       const { url } = await getGoogleAuthUrl();
       if (!url.startsWith("https://accounts.google.com/")) return;
       window.location.href = url;
-    } catch { /* ignore */ }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("agenda.connectGoogle"));
+    }
   };
 
   const handleConnectMicrosoft = async () => {
+    if (!canUseCalendarIntegrations) return;
     try {
       const { url } = await getMicrosoftAuthUrl();
       if (!url.startsWith("https://") && !url.startsWith("http://")) return;
       window.location.href = url;
-    } catch { /* ignore */ }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("agenda.connectOutlook"));
+    }
   };
 
   const handleDisconnect = async (accountId: string, provider: CalProvider) => {
@@ -171,6 +182,10 @@ export default function ManageCalendarsPage() {
   };
 
   const handleSave = async (accountId: string, provider: CalProvider) => {
+    if (!canUseCalendarIntegrations) {
+      toast.error(t("agenda.calendarReadonlyPlanHint"));
+      return;
+    }
     const account = accounts.find((a) => a.id === accountId && a.provider === provider);
     if (!account?.cals) return;
     const key = `${provider}:${accountId}`;
@@ -203,6 +218,20 @@ export default function ManageCalendarsPage() {
             />
           </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("agenda.manageDesc")}</p>
+          {!authLoading && user && !user.entitlements?.integrations && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100">
+              <p>{t("agenda.calendarIntegrationsBanner")}</p>
+              <Link
+                href="/settings?tab=integrations"
+                className="mt-2 inline-block text-sm font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950 dark:text-amber-200 dark:hover:text-amber-50"
+              >
+                {t("agenda.openIntegrationsTab")}
+              </Link>
+            </div>
+          )}
+          {!authLoading && user && !user.entitlements?.integrations && accounts.length > 0 && (
+            <p className="text-xs text-zinc-600 dark:text-slate-400 mt-2">{t("agenda.calendarReadonlyPlanHint")}</p>
+          )}
           {hasBothCalendarProviders(accounts) && (
             <p className="text-xs text-zinc-600 dark:text-slate-400 mt-2 rounded-lg bg-zinc-50 dark:bg-slate-800/80 px-3 py-2 border border-zinc-100 dark:border-slate-700">
               {preferredBookingProvider === "microsoft" ? t("agenda.bookingPreferenceOutlook") : preferredBookingProvider === "google" ? t("agenda.bookingPreferenceGoogle") : t("agenda.bookingPreferenceUnset")}
@@ -215,7 +244,8 @@ export default function ManageCalendarsPage() {
           <button
             type="button"
             onClick={handleConnectGoogle}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium bg-white dark:bg-slate-800 border-2 border-dashed border-zinc-200 dark:border-slate-700 text-zinc-600 dark:text-slate-300 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-800 dark:hover:text-slate-100 transition-colors"
+            disabled={!canUseCalendarIntegrations}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium bg-white dark:bg-slate-800 border-2 border-dashed border-zinc-200 dark:border-slate-700 text-zinc-600 dark:text-slate-300 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-800 dark:hover:text-slate-100 transition-colors disabled:opacity-50 disabled:pointer-events-none disabled:hover:border-zinc-200 dark:disabled:hover:border-slate-700"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
             {accounts.some((a) => a.provider === "google") ? t("settings.addGoogleAccount") : t("agenda.connectGoogle")}
@@ -227,7 +257,8 @@ export default function ManageCalendarsPage() {
           <button
             type="button"
             onClick={handleConnectMicrosoft}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium bg-white dark:bg-slate-800 border-2 border-dashed border-zinc-200 dark:border-slate-700 text-zinc-600 dark:text-slate-300 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-800 dark:hover:text-slate-100 transition-colors"
+            disabled={!canUseCalendarIntegrations}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium bg-white dark:bg-slate-800 border-2 border-dashed border-zinc-200 dark:border-slate-700 text-zinc-600 dark:text-slate-300 hover:border-zinc-400 dark:hover:border-slate-500 hover:text-zinc-800 dark:hover:text-slate-100 transition-colors disabled:opacity-50 disabled:pointer-events-none disabled:hover:border-zinc-200 dark:disabled:hover:border-slate-700"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4z" />
@@ -276,7 +307,8 @@ export default function ManageCalendarsPage() {
                         <button
                           type="button"
                           onClick={() => setPriorityAccount(account.id, account.provider)}
-                          className="rounded px-2.5 py-1 text-xs text-blue-600 hover:text-blue-700 border border-blue-200 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950/30 transition-colors"
+                          disabled={!canUseCalendarIntegrations}
+                          className="rounded px-2.5 py-1 text-xs text-blue-600 hover:text-blue-700 border border-blue-200 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                         >
                           {t("agenda.setPriorityAccount")}
                         </button>
@@ -304,7 +336,7 @@ export default function ManageCalendarsPage() {
                             type="checkbox"
                             checked={cal.enabled}
                             onChange={() => toggleCalendar(account.id, account.provider, cal.calendarId)}
-                            disabled={!isPriorityAccount}
+                            disabled={!isPriorityAccount || !canUseCalendarIntegrations}
                             className="w-4 h-4 rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
                           />
                           <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.color }} />
@@ -315,7 +347,7 @@ export default function ManageCalendarsPage() {
                               name="booking-default-global"
                               checked={!!cal.defaultForBooking}
                               onChange={() => setDefaultBookingCalendar(account.id, account.provider, cal.calendarId)}
-                              disabled={!isPriorityAccount || cal.canWriteBooking === false}
+                              disabled={!isPriorityAccount || cal.canWriteBooking === false || !canUseCalendarIntegrations}
                               className="w-3.5 h-3.5 border-zinc-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
                             />
                             {!isPriorityAccount || cal.canWriteBooking === false ? t("agenda.readOnlyCalendar") : t("agenda.defaultBookingCalendar")}
@@ -326,7 +358,7 @@ export default function ManageCalendarsPage() {
                         <button
                           type="button"
                           onClick={() => handleSave(account.id, account.provider)}
-                          disabled={savingKey === rowKey}
+                          disabled={savingKey === rowKey || !canUseCalendarIntegrations}
                           className="rounded-lg bg-slate-700 dark:bg-slate-600 px-4 py-2 text-xs font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                         >
                           {savingKey === rowKey ? "..." : t("projects.save")}

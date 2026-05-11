@@ -1,4 +1,6 @@
 import { getStore } from "../persistence";
+import type { BillingPlan } from "./entitlementsService";
+import { resolveBillingPlan } from "./entitlementsService";
 
 /**
  * FIX: Do not fall back to a hardcoded email. If ADMIN_EMAILS is not
@@ -20,7 +22,7 @@ export function isAdmin(email: string): boolean {
   return ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
-interface UserSummary {
+export interface AdminUserSummary {
   uid: string;
   email: string;
   firstName: string;
@@ -31,6 +33,11 @@ interface UserSummary {
   noteCount: number;
   createdAt: string;
   lastLoginAt: string;
+  /** Effective plan (legacy accounts without stored plan resolve to `first`). */
+  billingPlan: BillingPlan;
+  stripeLinked: boolean;
+  stripeSubscriptionStatus: string | null;
+  billingCurrentPeriodEnd: string | null;
 }
 
 interface AdminStats {
@@ -134,7 +141,7 @@ export function getInviteLog(): InviteLogEntry[] {
   return [...log].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
 }
 
-export function getAdminUsers(): UserSummary[] {
+export function getAdminUsers(): AdminUserSummary[] {
   const store = getStore();
   const users = Object.values(store.users ?? {}) as Array<Record<string, unknown>>;
   const todoStore = store.todos ?? {};
@@ -160,6 +167,10 @@ export function getAdminUsers(): UserSummary[] {
     const hash = u.passwordHashB64 as string | undefined;
     const lastLogin = lastLoginMap.get(uid);
 
+    const cid = (u.stripeCustomerId as string | undefined)?.trim() ?? "";
+    const subStatus = (u.stripeSubscriptionStatus as string | undefined)?.trim() ?? "";
+    const periodEnd = (u.billingCurrentPeriodEnd as string | undefined)?.trim() ?? "";
+
     return {
       uid,
       email: u.email as string,
@@ -171,6 +182,10 @@ export function getAdminUsers(): UserSummary[] {
       noteCount,
       createdAt: (u.createdAt as string) ?? "",
       lastLoginAt: lastLogin ? new Date(lastLogin).toISOString() : "",
+      billingPlan: resolveBillingPlan(u.billingPlan),
+      stripeLinked: cid.length > 0,
+      stripeSubscriptionStatus: subStatus.length > 0 ? subStatus : null,
+      billingCurrentPeriodEnd: periodEnd.length > 0 ? periodEnd : null,
     };
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

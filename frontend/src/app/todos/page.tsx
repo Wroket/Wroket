@@ -903,30 +903,36 @@ export default function TodosPage() {
     return { subtaskCounts: counts, subtasksByParent: byParent };
   }, [todos]);
 
-  const getSubtasks = (parentId: string) => subtasksByParent[parentId] ?? [];
+  const getSubtasks = useCallback(
+    (parentId: string) => subtasksByParent[parentId] ?? [],
+    [subtasksByParent],
+  );
 
-  const performDeleteTask = async (todo: Todo, mode: "promote" | "deleteAll") => {
-    const previousStatus = todo.status;
-    if (todo.status === "deleted") {
-      const restored = await updateTodo(todo.id, { status: "active" });
-      replaceTodoInLists(restored);
-      setLastAction({ todoId: todo.id, previousStatus });
-      return;
-    }
-    const subs = getSubtasks(todo.id);
-    if (subs.length > 0) {
-      if (mode === "promote") {
-        const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-        mergeTodosIntoLists(promoted);
-      } else {
-        const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
-        mergeTodosIntoLists(deleted);
+  const performDeleteTask = useCallback(
+    async (todo: Todo, mode: "promote" | "deleteAll") => {
+      const previousStatus = todo.status;
+      if (todo.status === "deleted") {
+        const restored = await updateTodo(todo.id, { status: "active" });
+        replaceTodoInLists(restored);
+        setLastAction({ todoId: todo.id, previousStatus });
+        return;
       }
-    }
-    const updated = await deleteTodo(todo.id);
-    replaceTodoInLists(updated);
-    setLastAction({ todoId: todo.id, previousStatus });
-  };
+      const subs = getSubtasks(todo.id);
+      if (subs.length > 0) {
+        if (mode === "promote") {
+          const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+          mergeTodosIntoLists(promoted);
+        } else {
+          const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+          mergeTodosIntoLists(deleted);
+        }
+      }
+      const updated = await deleteTodo(todo.id);
+      replaceTodoInLists(updated);
+      setLastAction({ todoId: todo.id, previousStatus });
+    },
+    [getSubtasks, replaceTodoInLists, mergeTodosIntoLists],
+  );
 
   const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
     setConfirmDelete(null);
@@ -986,7 +992,7 @@ export default function TodosPage() {
     } catch {
       toast.error(t("toast.deleteError"));
     }
-  }, [confirmBulkDelete, toast, t, getSubtasks]);
+  }, [confirmBulkDelete, toast, t, performDeleteTask, getSubtasks]);
 
   const uniqueAssignees = useMemo(() => {
     const uids = new Set<string>();

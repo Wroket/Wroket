@@ -197,6 +197,68 @@ export async function getTeamDashboard(teamId: string): Promise<TeamDashboardDat
   return res.json();
 }
 
+export type TeamReportingPeriodDays = 7 | 14 | 30;
+
+export interface TeamReportingMemberRow {
+  email: string;
+  active: number;
+  createdInPeriod: number;
+  completedInPeriod: number;
+  cancelledInPeriod: number;
+  overdueActive: number;
+}
+
+export interface TeamReportingProjectRow {
+  projectId: string;
+  active: number;
+  createdInPeriod: number;
+  completedInPeriod: number;
+  cancelledInPeriod: number;
+  overdueActive: number;
+  noDeadlineActive: number;
+  completionRatio: number | null;
+}
+
+export interface TeamReportingVelocityWeek {
+  weekStartUtc: string;
+  weekEndUtc: string;
+  completed: number;
+  byProject: Record<string, number>;
+}
+
+export interface TeamReportingSnapshot {
+  periodDays: TeamReportingPeriodDays;
+  generatedAt: string;
+  summary: {
+    active: number;
+    createdInPeriod: number;
+    completedInPeriod: number;
+    cancelledInPeriod: number;
+    overdueActive: number;
+    noDeadlineActive: number;
+  };
+  byMember: TeamReportingMemberRow[];
+  byProject: TeamReportingProjectRow[];
+  velocityWeeks: TeamReportingVelocityWeek[];
+}
+
+export interface TeamReportingResponse extends TeamReportingSnapshot {
+  team: Team;
+  memberMap: Record<string, string>;
+}
+
+export async function getTeamReporting(teamId: string, periodDays: TeamReportingPeriodDays): Promise<TeamReportingResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/teams/${teamId}/reporting?periodDays=${encodeURIComponent(String(periodDays))}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de charger le reporting équipe"));
+  }
+  return res.json();
+}
+
 export async function deleteTeamApi(teamId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/teams/${teamId}`, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error("Impossible de supprimer l'équipe");

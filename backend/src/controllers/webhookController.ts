@@ -1,20 +1,29 @@
 import { Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
+import { getEntitlementsForUid } from "../services/authService";
 import {
   listWebhooks,
   upsertWebhook,
   deleteWebhook,
   testWebhook,
 } from "../services/webhookService";
-import { ValidationError } from "../utils/errors";
+import { ForbiddenError, ValidationError } from "../utils/errors";
+
+function assertIntegrationsEntitled(uid: string): void {
+  if (!getEntitlementsForUid(uid).integrations) {
+    throw new ForbiddenError("Les webhooks et intégrations sont réservés au palier Small teams.");
+  }
+}
 
 export async function getWebhooks(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitled(req.user!.uid);
   const list = listWebhooks(req.user!.uid);
   res.status(200).json(list);
 }
 
 export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitled(req.user!.uid);
   const { id, label, url, platform, events, enabled } = req.body as Record<string, unknown>;
 
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
@@ -34,6 +43,7 @@ export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response
 }
 
 export async function postDeleteWebhook(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitled(req.user!.uid);
   const webhookId = req.params.id as string;
   if (!webhookId) throw new ValidationError("ID requis");
   deleteWebhook(req.user!.uid, webhookId);
@@ -41,6 +51,7 @@ export async function postDeleteWebhook(req: AuthenticatedRequest, res: Response
 }
 
 export async function postTestWebhook(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitled(req.user!.uid);
   const { url, platform } = req.body as { url?: string; platform?: string };
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
     throw new ValidationError("URL de webhook invalide");

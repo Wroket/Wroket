@@ -20,10 +20,26 @@ export const FILTER_BUTTONS: {
 ];
 
 export const QUADRANT_BADGES: Record<Quadrant, { label: string; tKey: TranslationKey; cls: string }> = {
-  "do-first": { label: "🔥 Faire", tKey: "badge.doFirst" as const, cls: "bg-red-500 text-white dark:bg-red-600" },
-  schedule: { label: "📅 Planifier", tKey: "badge.schedule" as const, cls: "bg-blue-500 text-white dark:bg-blue-600" },
-  delegate: { label: "⚡ Expédier", tKey: "badge.delegate" as const, cls: "bg-amber-500 text-white dark:bg-amber-600" },
-  eliminate: { label: "⏸️ Différer", tKey: "badge.eliminate" as const, cls: "bg-zinc-400 text-white dark:bg-zinc-600" },
+  "do-first": {
+    label: "🔥 Faire",
+    tKey: "badge.doFirst" as const,
+    cls: "rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  },
+  schedule: {
+    label: "📅 Planifier",
+    tKey: "badge.schedule" as const,
+    cls: "rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  },
+  delegate: {
+    label: "⚡ Expédier",
+    tKey: "badge.delegate" as const,
+    cls: "rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
+  },
+  eliminate: {
+    label: "⏸️ Différer",
+    tKey: "badge.eliminate" as const,
+    cls: "rounded-full bg-zinc-200 text-zinc-800 dark:bg-slate-700/50 dark:text-slate-200",
+  },
 };
 
 export const QUADRANT_RANK: Record<Quadrant, number> = {

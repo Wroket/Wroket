@@ -9,6 +9,8 @@ import {
   adminIntegrations,
   adminUserExport,
   adminUserDelete,
+  adminUserBillingPortalSession,
+  adminUserBillingPlanPatch,
   adminCompletionRates,
 } from "../controllers/adminController";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -23,6 +25,8 @@ adminRoutes.get("/stats", adminStats);
 adminRoutes.get("/users", adminUsers);
 adminRoutes.get("/users/completion-rates", adminCompletionRates);
 adminRoutes.get("/users/:uid/export", adminUserExport);
+adminRoutes.post("/users/:uid/billing-portal-session", adminUserBillingPortalSession);
+adminRoutes.patch("/users/:uid/billing-plan", adminUserBillingPlanPatch);
 adminRoutes.delete("/users/:uid", adminUserDelete);
 adminRoutes.get("/invites", adminInviteLog);
 adminRoutes.get("/activity", adminActivity);

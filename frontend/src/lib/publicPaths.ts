@@ -6,6 +6,7 @@ export const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  "/pricing",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

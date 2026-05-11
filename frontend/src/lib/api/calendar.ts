@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./core";
+import { API_BASE_URL, extractApiMessage } from "./core";
 import type { SlotProposal, SuggestedSlot, GoogleCalendarEntry } from "./core";
 import type { Todo } from "./todos";
 
@@ -27,6 +27,16 @@ export interface CalendarEventsResponse {
   microsoftEvents?: CalendarEvent[];
 }
 
+async function throwCalendarHttpError(res: Response, fallback: string): Promise<never> {
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  throw new Error(extractApiMessage(body, fallback));
+}
+
 export async function getTaskSlots(todoId: string): Promise<{
   slots: SlotProposal[];
   duration: number;
@@ -35,7 +45,9 @@ export async function getTaskSlots(todoId: string): Promise<{
   suggestedSlot: SuggestedSlot | null;
 }> {
   const res = await fetch(`${API_BASE_URL}/calendar/slots/${todoId}`, { credentials: "include" });
-  if (!res.ok) throw new Error("Impossible de charger les créneaux");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de charger les créneaux");
+  }
   return res.json();
 }
 
@@ -85,13 +97,22 @@ export async function clearTaskSlot(todoId: string): Promise<Todo> {
 export async function getCalendarEvents(start: string, end: string): Promise<CalendarEventsResponse> {
   const params = new URLSearchParams({ start, end });
   const res = await fetch(`${API_BASE_URL}/calendar/events?${params.toString()}`, { credentials: "include" });
-  if (!res.ok) throw new Error("Impossible de charger les événements");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de charger les événements");
+  }
   return res.json();
 }
 
 export async function getGoogleAuthUrl(): Promise<{ url: string }> {
   const res = await fetch(`${API_BASE_URL}/calendar/google/auth-url`, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur d'authentification Google");
+  if (!res.ok) {
+    await throwCalendarHttpError(
+      res,
+      res.status === 403
+        ? "Google Calendar est réservé au palier Small teams (pack intégrations)."
+        : "Erreur d'authentification Google",
+    );
+  }
   return res.json();
 }
 
@@ -102,7 +123,9 @@ export async function disconnectGoogleCalendar(): Promise<void> {
 
 export async function getAccountCalendars(accountId: string): Promise<GoogleCalendarEntry[]> {
   const res = await fetch(`${API_BASE_URL}/calendar/google/accounts/${encodeURIComponent(accountId)}/calendars`, { credentials: "include" });
-  if (!res.ok) throw new Error("Impossible de charger les calendriers");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de charger les calendriers");
+  }
   return res.json();
 }
 
@@ -113,7 +136,9 @@ export async function saveAccountCalendars(accountId: string, calendars: GoogleC
     credentials: "include",
     body: JSON.stringify({ calendars }),
   });
-  if (!res.ok) throw new Error("Impossible de sauvegarder");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de sauvegarder");
+  }
 }
 
 export interface CreateTaskMeetPayload {
@@ -134,7 +159,14 @@ export async function disconnectGoogleAccount(accountId: string): Promise<void> 
 
 export async function getMicrosoftAuthUrl(): Promise<{ url: string }> {
   const res = await fetch(`${API_BASE_URL}/calendar/microsoft/auth-url`, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur d'authentification Microsoft");
+  if (!res.ok) {
+    await throwCalendarHttpError(
+      res,
+      res.status === 403
+        ? "Outlook est réservé au palier Small teams (pack intégrations)."
+        : "Erreur d'authentification Microsoft",
+    );
+  }
   return res.json();
 }
 
@@ -147,7 +179,9 @@ export async function getMicrosoftAccountCalendars(accountId: string): Promise<G
   const res = await fetch(`${API_BASE_URL}/calendar/microsoft/accounts/${encodeURIComponent(accountId)}/calendars`, {
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Impossible de charger les calendriers");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de charger les calendriers");
+  }
   return res.json();
 }
 
@@ -158,7 +192,9 @@ export async function saveMicrosoftAccountCalendars(accountId: string, calendars
     credentials: "include",
     body: JSON.stringify({ calendars }),
   });
-  if (!res.ok) throw new Error("Impossible de sauvegarder");
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de sauvegarder");
+  }
 }
 
 export async function disconnectMicrosoftAccount(accountId: string): Promise<void> {
@@ -182,8 +218,7 @@ export async function createTaskMeet(todoId: string, payload?: CreateTaskMeetPay
     credentials: "include",
   });
   if (!res.ok) {
-    const msg = await res.json().then((d: { message?: string }) => d.message).catch(() => null);
-    throw new Error(msg ?? "Impossible de créer le meeting");
+    await throwCalendarHttpError(res, "Impossible de créer le meeting");
   }
   return res.json() as Promise<Todo>;
 }
@@ -196,8 +231,7 @@ export async function updateTaskMeet(todoId: string, payload: CreateTaskMeetPayl
     credentials: "include",
   });
   if (!res.ok) {
-    const msg = await res.json().then((d: { message?: string }) => d.message).catch(() => null);
-    throw new Error(msg ?? "Impossible de modifier le meeting");
+    await throwCalendarHttpError(res, "Impossible de modifier le meeting");
   }
   return res.json() as Promise<Todo>;
 }

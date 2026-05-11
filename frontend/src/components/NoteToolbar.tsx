@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 
@@ -86,7 +86,7 @@ export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
     { label: "|←", title: t("notes.fmtOutdent"), icon: <OutdentIcon />, command: "outdent" },
   ];
 
-  const refreshActiveStates = () => {
+  const refreshActiveStates = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
     const sel = window.getSelection();
@@ -102,13 +102,13 @@ export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
       underline: document.queryCommandState("underline"),
       strikeThrough: document.queryCommandState("strikeThrough"),
     });
-  };
+  }, [editorRef]);
 
   useEffect(() => {
     const onSelectionChange = () => refreshActiveStates();
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, [editorRef]);
+  }, [refreshActiveStates]);
 
   const applyFormat = (action: FormatAction) => {
     const editor = editorRef.current;

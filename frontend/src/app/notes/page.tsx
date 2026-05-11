@@ -346,7 +346,7 @@ function NotesPageInner() {
     if (current !== selected.content) {
       contentRef.current.innerHTML = selected.content || "";
     }
-  }, [selected?.id, selected?.content]);
+  }, [selected]);
 
   useEffect(() => {
     setFolderPickInput("");

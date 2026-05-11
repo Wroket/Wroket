@@ -2,6 +2,8 @@
 
 Document de travail produit et design pour la refonte de l’interface. Il complète la vue stratégique du [ROADMAP](../ROADMAP.md) (section « Refonte UX (plan solide) »), sans la remplacer. Il sert d’arbitrage avant toute implémentation.
 
+**Couleurs, transparence, pastilles** : la source à jour est la [charte `design-template.md`](design-template.md) (alignée sur le code `frontend/`).
+
 ## Principe produit : deux versions d’interface
 
 L’objectif est de permettre à l’utilisateur de **choisir** entre :

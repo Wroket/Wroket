@@ -58,28 +58,28 @@ export function deadlineLabel(
   if (diff < 0)
     return {
       text: t("deadline.overdue"),
-      cls: "bg-red-500 text-white dark:bg-red-600 dark:text-red-50",
+      cls: "rounded-full bg-rose-100 text-rose-900 dark:bg-rose-900/35 dark:text-rose-200",
       urgent: true,
     };
 
   if (diff === 0)
     return {
       text: t("deadline.today"),
-      cls: "bg-orange-500 text-white dark:bg-orange-600 dark:text-orange-50",
+      cls: "rounded-full bg-orange-100 text-orange-900 dark:bg-orange-900/30 dark:text-orange-200",
       urgent: true,
     };
 
   if (diff === 1)
     return {
       text: t("deadline.tomorrow"),
-      cls: "bg-amber-500 text-white dark:bg-amber-600 dark:text-amber-50",
+      cls: "rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
       urgent: true,
     };
 
   if (diff <= 7)
     return {
       text: `${diff} ${t("deadline.daysLeft")}`,
-      cls: "bg-sky-500 text-white dark:bg-sky-600 dark:text-sky-50",
+      cls: "rounded-full bg-sky-100 text-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
       urgent: diff <= 3,
     };
 
@@ -88,7 +88,7 @@ export function deadlineLabel(
       day: "numeric",
       month: "short",
     }),
-    cls: "bg-zinc-300 text-zinc-700 dark:bg-slate-600 dark:text-slate-300",
+    cls: "rounded-full bg-zinc-200 text-zinc-800 dark:bg-slate-600/50 dark:text-slate-300",
     urgent: false,
   };
 }

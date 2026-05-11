@@ -5,9 +5,11 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
 import {
   getMe,
+  createBillingPortalSession,
   updateProfile,
   changePassword as changePasswordApi,
   getMyExport,
@@ -36,6 +38,7 @@ import {
   type Team,
   type NotificationDeliveryMode,
   type NotificationOutboundFrequency,
+  type BillingPlan,
 } from "@/lib/api";
 import type { NotificationType } from "@/lib/api/teams";
 import { useLocale } from "@/lib/LocaleContext";
@@ -64,7 +67,7 @@ function isSessionLikeAuthError(raw: string): boolean {
   );
 }
 
-type Section = "profile" | "security" | "languages" | "tasks" | "integrations" | "history" | "admin";
+type Section = "profile" | "security" | "languages" | "tasks" | "subscription" | "integrations" | "history" | "admin";
 
 const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
   {
@@ -102,6 +105,15 @@ const SECTIONS: { key: Section; tKey: TranslationKey; icon: ReactNode }[] = [
         <path d="M5 3h14M5 21h14" />
         <path d="M7 3v4a5 5 0 005 5 5 5 0 005-5V3" />
         <path d="M7 21v-4a5 5 0 015-5 5 5 0 015 5v4" />
+      </svg>
+    ),
+  },
+  {
+    key: "subscription",
+    tKey: "settings.subscription",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
       </svg>
     ),
   },
@@ -144,11 +156,24 @@ export default function SettingsPage() {
 
 function SettingsContent() {
   const { t } = useLocale();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [active, setActive] = useState<Section>(
     SECTIONS.some((s) => s.key === tabParam) ? (tabParam as Section) : "profile",
   );
+
+  const navSections = SECTIONS.filter(
+    (s) => s.key !== "integrations" || user?.entitlements?.integrations === true,
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    if (active === "integrations" && user.entitlements?.integrations !== true) {
+      const t = setTimeout(() => setActive("profile"), 0);
+      return () => clearTimeout(t);
+    }
+  }, [user, active]);
 
   return (
     <AppShell>
@@ -175,7 +200,7 @@ function SettingsContent() {
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
           {/* ── Section nav ── */}
           <nav className="flex md:flex-col md:w-52 md:shrink-0 gap-1 overflow-x-auto pb-1 md:pb-0 md:overflow-x-visible">
-            {SECTIONS.map((s) => (
+            {navSections.map((s) => (
               <button
                 key={s.key}
                 onClick={() => setActive(s.key)}
@@ -197,7 +222,13 @@ function SettingsContent() {
             {active === "security" && <SecuritySection />}
             {active === "languages" && <LanguagesSection />}
             {active === "tasks" && <TasksSection />}
-            {active === "integrations" && <IntegrationsSection />}
+            {active === "subscription" && <SubscriptionSection />}
+            {active === "integrations" &&
+              (user?.entitlements?.integrations === true ? (
+                <IntegrationsSection />
+              ) : (
+                <IntegrationsLockedNotice />
+              ))}
             {active === "history" && <HistorySection />}
             {active === "admin" && <AdminSection />}
           </div>
@@ -1191,6 +1222,227 @@ const PLATFORMS: { key: WebhookPlatform; label: string }[] = [
   { key: "google_chat", label: "Google Chat" },
   { key: "custom", label: "Custom (JSON)" },
 ];
+
+function subscriptionPlanTKey(plan: BillingPlan | undefined): TranslationKey {
+  if (plan === "free") return "settings.plan.free";
+  if (plan === "first") return "settings.plan.first";
+  if (plan === "small") return "settings.plan.small";
+  if (plan === "large") return "settings.plan.large";
+  return "settings.planUnknown";
+}
+
+function subscriptionPlanTaglineTKey(plan: BillingPlan | undefined): TranslationKey {
+  if (plan === "free") return "settings.plan.free.tagline";
+  if (plan === "first") return "settings.plan.first.tagline";
+  if (plan === "small") return "settings.plan.small.tagline";
+  if (plan === "large") return "settings.plan.large.tagline";
+  return "settings.planUnknown.tagline";
+}
+
+function subscriptionPlanBadgeClass(plan: BillingPlan | undefined): string {
+  if (plan === "small" || plan === "large") {
+    return "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white";
+  }
+  return "bg-slate-600 text-white dark:bg-slate-500 dark:text-white";
+}
+
+function stripeSubscriptionStatusLabelKey(status: string | undefined): TranslationKey {
+  const s = (status || "").trim().toLowerCase();
+  if (s === "active") return "settings.stripeStatusActive";
+  if (s === "trialing") return "settings.stripeStatusTrialing";
+  if (s === "past_due") return "settings.stripeStatusPastDue";
+  if (s === "canceled" || s === "cancelled") return "settings.stripeStatusCanceled";
+  return "settings.stripeStatusOther";
+}
+
+function stripeSubscriptionStatusPillClass(status: string | undefined): string {
+  const s = (status || "").trim().toLowerCase();
+  if (s === "active" || s === "trialing") {
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+  }
+  if (s === "past_due") {
+    return "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200";
+  }
+  if (s === "canceled" || s === "cancelled") {
+    return "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300";
+  }
+  return "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200";
+}
+
+function EntitlementRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 shrink-0" aria-hidden>
+        {ok ? (
+          <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        )}
+      </span>
+      <span className={`text-sm leading-snug ${ok ? "text-zinc-800 dark:text-slate-200" : "text-zinc-500 dark:text-slate-500"}`}>{label}</span>
+    </div>
+  );
+}
+
+function SubscriptionSection() {
+  const { t, locale } = useLocale();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const plan = user?.billingPlan;
+  const ent = user?.entitlements;
+  const stripeStatus = user?.stripeSubscriptionStatus?.trim();
+  const periodEndRaw = user?.billingCurrentPeriodEnd?.trim();
+
+  let periodLabel = "—";
+  if (periodEndRaw) {
+    const d = new Date(periodEndRaw);
+    if (!Number.isNaN(d.getTime())) {
+      periodLabel = d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB", { dateStyle: "long" });
+    }
+  }
+
+  const handlePortal = async () => {
+    setPortalLoading(true);
+    try {
+      const returnUrl =
+        typeof window !== "undefined" ? `${window.location.origin}/settings?tab=subscription` : undefined;
+      const { url } = await createBillingPortalSession(returnUrl);
+      window.location.href = url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("settings.openBillingPortal"));
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const cardCls = "rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 sm:p-5 shadow-sm";
+
+  return (
+    <section className="space-y-6 max-w-2xl" aria-labelledby="subscription-main-heading">
+      <div>
+        <h3 id="subscription-main-heading" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
+          {t("settings.subscriptionTitle")}
+        </h3>
+        <p className="text-sm text-zinc-600 dark:text-slate-400 mt-1">{t("settings.subscriptionDesc")}</p>
+      </div>
+
+      <div className="space-y-4">
+        {/* Card — plan */}
+        <section className={cardCls} aria-labelledby="subscription-card-plan-heading">
+          <div className="flex flex-wrap items-center gap-2 gap-y-1">
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${subscriptionPlanBadgeClass(plan)}`}>
+              {t(subscriptionPlanTKey(plan))}
+            </span>
+            <h3 id="subscription-card-plan-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
+              {t("settings.currentPlanPrefix")}{" "}
+              <span className="text-zinc-800 dark:text-slate-100">{t(subscriptionPlanTKey(plan))}</span>
+            </h3>
+          </div>
+          <p className="text-sm text-zinc-600 dark:text-slate-400 mt-2">{t(subscriptionPlanTaglineTKey(plan))}</p>
+          <div className="mt-4">
+            <Link
+              href="/pricing"
+              className="text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
+            >
+              {t("settings.viewAllPlans")}
+            </Link>
+          </div>
+        </section>
+
+        {/* Card — entitlements */}
+        <section className={cardCls} aria-labelledby="subscription-card-ent-heading">
+          <h3 id="subscription-card-ent-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-3">
+            {t("settings.cardEntitlementsTitle")}
+          </h3>
+          <div className="space-y-3">
+            <EntitlementRow ok={!!ent?.integrations} label={t("settings.entitlementIntegrations")} />
+            <EntitlementRow ok={!!ent?.teamReporting} label={t("settings.entitlementTeamReporting")} />
+          </div>
+        </section>
+
+        {/* Card — Stripe */}
+        <section className={cardCls} aria-labelledby="subscription-card-stripe-heading">
+          <h3 id="subscription-card-stripe-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-3">
+            {t("settings.cardStripeTitle")}
+          </h3>
+
+          {!user?.stripeCustomerId ? (
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-600 dark:text-slate-400">{t("settings.stripeNotLinked")}</p>
+              <Link
+                href="/pricing"
+                className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
+              >
+                {t("settings.viewAllPlans")}
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {(stripeStatus || periodEndRaw) && (
+                <div className="space-y-3 text-sm">
+                  {stripeStatus ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-zinc-600 dark:text-slate-400">{t("settings.stripeStatusLabel")}</span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${stripeSubscriptionStatusPillClass(stripeStatus)}`}
+                      >
+                        {t(stripeSubscriptionStatusLabelKey(stripeStatus))}
+                      </span>
+                      <span className="text-xs font-mono text-zinc-400 dark:text-slate-500" title={stripeStatus}>
+                        ({stripeStatus})
+                      </span>
+                    </div>
+                  ) : null}
+                  {periodEndRaw ? (
+                    <p className="text-zinc-700 dark:text-slate-300">
+                      <span className="font-medium text-zinc-600 dark:text-slate-400">{t("settings.stripePeriodEndHeading")}:</span>{" "}
+                      {periodLabel}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void handlePortal()}
+                  disabled={portalLoading}
+                  className="inline-flex items-center justify-center rounded-lg bg-slate-800 dark:bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-900 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
+                >
+                  {portalLoading ? "…" : t("settings.openBillingPortal")}
+                </button>
+                <p className="text-xs text-zinc-500 dark:text-slate-500">{t("settings.billingPortalHint")}</p>
+              </div>
+
+              <Link
+                href="/pricing"
+                className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
+              >
+                {t("settings.viewAllPlans")}
+              </Link>
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function IntegrationsLockedNotice() {
+  const { t } = useLocale();
+  return (
+    <div className="space-y-3 max-w-xl">
+      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsLockedTitle")}</h3>
+      <p className="text-sm text-zinc-600 dark:text-slate-400">{t("settings.integrationsLockedDesc")}</p>
+    </div>
+  );
+}
 
 function IntegrationsSection() {
   const { t } = useLocale();

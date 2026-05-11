@@ -50,10 +50,12 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 2. **Reliability Pack — Todo Persistence**
    - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
 3. **Plan & Billing Core (P1)**
-   - DoD: plan gating Free/Pro/Team en prod + Stripe checkout + webhooks + `/pricing`.
-4. **Microsoft path (SSO + Outlook MVP)**
+   - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (placeholder tarifs).
+   - **Reste** : Stripe Checkout bout-en-bout (upgrade self-service), alignement terminologie roadmap historique Free/Pro/Team vs paliers code `free` / `first` / `small` / `large`.
+4. **Polish Abonnement + tarifs** — Panneau Paramètres → Abonnement en cards + liens vers `/pricing` (charge ~1–2 j).
+5. **Microsoft path (SSO + Outlook MVP)**
    - DoD: OAuth Microsoft opérationnel + premier connecteur calendrier externe utilisable.
-5. **Error UX Standard**
+6. **Error UX Standard**
    - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
 
 ### Next (6-12 semaines)
@@ -103,7 +105,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ## Refonte UX (plan solide)
 
-Documents complémentaires (produit / hors cases `[ ]`) : [Idées et pistes UI](docs/refonte-ui-ideas.md) (refonte liste de tâches) · [Session produit utilisateur](docs/product-user-session.md) (onboarding, friction, plan d’action) · [Plan partie projet / PMO léger](docs/project-roadmap-pmo.md) (visibilité projet, jalons, lien avec les todos ; **§6** partage lecture seule, exports steering pour client / managers).
+Documents complémentaires (produit / hors cases `[ ]`) : [Charte couleurs & transparence](docs/design-template.md) (tokens, pastilles, vitrine) · [Idées et pistes UI](docs/refonte-ui-ideas.md) (refonte liste de tâches) · [Session produit utilisateur](docs/product-user-session.md) (onboarding, friction, plan d’action) · [Plan partie projet / PMO léger](docs/project-roadmap-pmo.md) (visibilité projet, jalons, lien avec les todos ; **§6** partage lecture seule, exports steering pour client / managers).
 
 ### Objectif UX
 
@@ -331,6 +333,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 *Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
 
+- [ ] **IA assistive** — Étude produit & technique : cas d’usage, ROI, risques RGPD, fournisseur — voir [docs/ai-opportunities.md](docs/ai-opportunities.md) ; décision go/no-go avant tout envoi de contenu utilisateur vers un LLM.
+- [x] **Paramètres — panneau Abonnement (lisibilité)** — Présentation en cards (palier, entitlements, Stripe) + lien vers `/pricing`.
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
   - Modèle `googleAccounts[]` avec tokens + email par compte, migration automatique de l'ancien format single-account
@@ -385,12 +389,14 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 *Bloc P1 : rendre l’offre lisible et facturable avant d’empiler les features « Business ».*
 
-- [ ] **Plan system (Free / Pro / Team)** — Champ `plan` sur le modèle utilisateur, middleware de feature gating, prompts d'upgrade frontend
+- [x] **Paliers & entitlements (code)** — `billingPlan` + `entitlements` sur l’utilisateur (`free` / `first` / `small` / `large`) ; pack **intégrations** (Small+) = webhooks, livraison externe des notifications, OAuth Google/Outlook agenda + Meet/Teams ; **teamReporting** (Large) pour le reporting équipe.
+- [x] **Stripe — persistance & portail** — Webhooks enrichis (`checkout.session.completed`, `customer.subscription.updated|deleted`), champs `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `billingCurrentPeriodEnd` exposés dans `GET /auth/me` ; `POST /billing/create-portal-session` (Customer Portal à activer dans le dashboard Stripe).
+- [x] **Page `/pricing` publique** — Comparatif marketing 4 paliers, FAQ, CTA mailto / inscription ; liée depuis la landing et depuis Paramètres → Abonnement.
+- [ ] **Plan system (Free / Pro / Team)** — *Roadmap historique / doc produit* — alignement terminologie et limites chiffrées (quotas) avec les paliers code ; middleware de feature gating fin, prompts d’upgrade homogènes
   - Free : 25 tâches actives, pas d'archives (purge auto 7j), 3 notes, pas de récurrence, pas de pièces jointes, Google Calendar en lecture seule, planification manuelle uniquement
   - Pro ($9/mois ou $89/an) : tâches illimitées, archives complètes, planification intelligente + détection de conflits, récurrence + jours ouvrés, notes et pièces jointes illimitées, Google Calendar lecture/écriture (multi-comptes), import/export CSV, webhooks
   - Team ($12/utilisateur/mois ou $119/utilisateur/an, min 2 sièges) : tout Pro + équipes, assignation de tâches, projets/phases/Kanban/Gantt, notes partagées, dashboard équipe, rôles RBAC
-- [ ] **Stripe Checkout** — Intégration paiement : Stripe Checkout pour upgrade Pro/Team, gestion abonnements, portail client Stripe, webhooks Stripe pour provisioning automatique
-- [ ] **Page Pricing** — Page publique `/pricing` avec comparatif des plans, FAQ, CTA vers Stripe Checkout
+- [ ] **Stripe Checkout** — Intégration paiement : Stripe Checkout pour upgrade self-service, gestion abonnements ; complète les webhooks + portail déjà en place
 
 ## Fonctionnalités Premium (Business tier — $20-25/utilisateur/mois)
 
@@ -414,6 +420,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Tests unitaires backend** — Jest/Vitest pour services et controllers
 - [x] **Tests unitaires frontend** — Tests des composants React critiques
 - [x] **Tests E2E cross-device** — Specs Playwright notes/todos/projects : purge fantômes, refetch visibilitychange, broadcast mutations
+- [x] **ESLint frontend — 0 warning** — `npm run lint` sans avertissements sur les règles React/hooks ciblées
 
 ## Déploiement & Infrastructure
 

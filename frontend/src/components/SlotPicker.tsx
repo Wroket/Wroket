@@ -541,7 +541,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
 export function ScheduledSlotBadge({ slot }: { slot: ScheduledSlot }) {
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 shrink-0 whitespace-nowrap">
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 shrink-0 whitespace-nowrap">
       📅 {formatScheduledSlotLabel(slot)}
     </span>
   );

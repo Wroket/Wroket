@@ -31,7 +31,6 @@ import {
   updateProject,
   reorderProjects,
   getProject as fetchProject,
-  deleteProjectApi,
 } from "@/lib/api";
 
 import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";

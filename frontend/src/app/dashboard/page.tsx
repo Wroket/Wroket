@@ -42,12 +42,13 @@ import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import { useResourceSync } from "@/lib/useResourceSync";
 import type { TranslationKey } from "@/lib/i18n";
 import type { Quadrant } from "@/lib/todoConstants";
+import { QUADRANT_BADGES } from "@/app/todos/_components/sortUtils";
 
 const QUADRANT_LABELS: Record<Quadrant, { tKey: TranslationKey; emoji: string; cls: string }> = {
-  "do-first": { tKey: "filter.doFirst", emoji: "🔥", cls: "bg-red-500 text-white" },
-  schedule:   { tKey: "filter.schedule", emoji: "📅", cls: "bg-blue-500 text-white" },
-  delegate:   { tKey: "filter.delegate", emoji: "⚡", cls: "bg-amber-500 text-white" },
-  eliminate:  { tKey: "filter.eliminate", emoji: "⏸️", cls: "bg-emerald-400 text-white" },
+  "do-first": { tKey: "filter.doFirst", emoji: "🔥", cls: QUADRANT_BADGES["do-first"].cls },
+  schedule: { tKey: "filter.schedule", emoji: "📅", cls: QUADRANT_BADGES.schedule.cls },
+  delegate: { tKey: "filter.delegate", emoji: "⚡", cls: QUADRANT_BADGES.delegate.cls },
+  eliminate: { tKey: "filter.eliminate", emoji: "⏸️", cls: QUADRANT_BADGES.eliminate.cls },
 };
 
 function dateToLocalYmd(d: Date): string {
@@ -87,7 +88,7 @@ function dashboardUpcomingTimingBadge(td: Todo, t: TranslationFunction): { text:
     const timePart = new Date(slotMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
     return {
       text: dayInfo ? `${dayInfo.text} · ${timePart}` : timePart,
-      cls: dayInfo?.cls ?? "bg-sky-500 text-white dark:bg-sky-600 dark:text-sky-50",
+      cls: dayInfo?.cls ?? "rounded-full bg-sky-100 text-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
     };
   };
 
@@ -95,7 +96,7 @@ function dashboardUpcomingTimingBadge(td: Todo, t: TranslationFunction): { text:
   if (hasD && hasS && slotMs < deadlineStartMs) return slotDayTimeBadge();
   if (hasD) {
     const info = deadlineLabel(td.deadline, t);
-    return info ?? { text: "—", cls: "bg-zinc-300 text-zinc-700 dark:bg-slate-600 dark:text-slate-300" };
+    return info ?? { text: "—", cls: "rounded-full bg-zinc-200 text-zinc-800 dark:bg-slate-600/50 dark:text-slate-300" };
   }
   return slotDayTimeBadge();
 }

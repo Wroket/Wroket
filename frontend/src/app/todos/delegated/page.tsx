@@ -13,6 +13,7 @@ import {
   TodoStatus,
 } from "@/lib/api";
 import { displayTodoTitle } from "@/lib/todoDisplay";
+import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useLocale } from "@/lib/LocaleContext";
 import { useUserLookup } from "@/lib/userUtils";
 
@@ -204,12 +205,8 @@ export default function DelegatedPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${
-                          todo.priority === "high" ? "bg-red-500 text-white" :
-                          todo.priority === "medium" ? "bg-amber-500 text-white" :
-                          "bg-emerald-400 text-white"
-                        }`}>
-                          {todo.priority === "high" ? t("priority.high") : todo.priority === "medium" ? t("priority.medium") : t("priority.low")}
+                        <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>
+                          {t(PRIORITY_BADGES[todo.priority].tKey)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
