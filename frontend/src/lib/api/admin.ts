@@ -29,12 +29,23 @@ export interface AdminUser {
   earlyBird: boolean;
 }
 
-export interface InviteLogEntry {
+export type InviteConversionStatus = "converted" | "pending" | "existing_account";
+
+export interface AdminInviteLogEntry {
+  id: string;
   fromEmail: string;
   fromName: string;
   toEmail: string;
   sentAt: string;
+  reminderSentAt: string | null;
+  accepted: boolean;
+  status: InviteConversionStatus;
+  canResend: boolean;
+  eligibleResendAt: string | null;
 }
+
+/** @deprecated Use AdminInviteLogEntry */
+export type InviteLogEntry = AdminInviteLogEntry;
 
 export interface SessionInfo {
   uid: string;
@@ -70,10 +81,29 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   return res.json();
 }
 
-export async function getAdminInvites(): Promise<InviteLogEntry[]> {
+export async function getAdminInvites(): Promise<AdminInviteLogEntry[]> {
   const res = await fetch(`${API_BASE_URL}/admin/invites`, { credentials: "include" });
   if (!res.ok) throw new Error("Accès refusé");
   return res.json();
+}
+
+export async function postAdminInviteRemind(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/invites/remind`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    let msg = "Erreur";
+    try {
+      const j = (await res.json()) as { message?: string };
+      if (typeof j.message === "string") msg = j.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
 }
 
 export async function getAdminActivity(params?: {

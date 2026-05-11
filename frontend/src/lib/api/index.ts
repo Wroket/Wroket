@@ -239,10 +239,13 @@ export {
   postAdminUserBillingPortalSession,
   patchAdminUserBillingPlan,
   patchAdminUserEarlyBird,
+  postAdminInviteRemind,
 } from "./admin";
 export type {
   AdminStats,
   AdminUser,
+  AdminInviteLogEntry,
+  InviteConversionStatus,
   InviteLogEntry,
   SessionInfo,
   IntegrationOverview,

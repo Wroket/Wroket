@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/AppShell";
 import {
@@ -8,7 +8,8 @@ import {
   getAdminActivity, getAdminSessions, getAdminIntegrations,
   getAdminUserExport, deleteAdminUser, getAdminCompletionRates,
   postAdminUserBillingPortalSession, patchAdminUserBillingPlan, patchAdminUserEarlyBird,
-  AdminStats, AdminUser, InviteLogEntry,
+  postAdminInviteRemind,
+  AdminStats, AdminUser, AdminInviteLogEntry,
   ActivityLogEntry, SessionInfo, IntegrationOverview, CompletionRate,
   type BillingPlan,
 } from "@/lib/api";
@@ -48,7 +49,9 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("stats");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [invites, setInvites] = useState<InviteLogEntry[]>([]);
+  const [invites, setInvites] = useState<AdminInviteLogEntry[]>([]);
+  const [inviteRemindId, setInviteRemindId] = useState<string | null>(null);
+  const [inviteFlash, setInviteFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -101,6 +104,29 @@ export default function AdminPage() {
   const loadCompletionRates = useCallback(() => {
     getAdminCompletionRates().then(setCompletionRates).catch(() => {});
   }, []);
+
+  const refreshInvites = useCallback(() => {
+    getAdminInvites().then(setInvites).catch(() => {});
+  }, []);
+
+  const handleInviteRemind = async (id: string) => {
+    setInviteRemindId(id);
+    setInviteFlash(null);
+    try {
+      await postAdminInviteRemind(id);
+      setInviteFlash({ kind: "ok", text: t("admin.inviteResendOk") });
+      await refreshInvites();
+      const s = await getAdminStats().catch(() => null);
+      if (s) setStats(s);
+    } catch (e) {
+      setInviteFlash({
+        kind: "err",
+        text: e instanceof Error ? e.message : t("admin.inviteResendError"),
+      });
+    } finally {
+      setInviteRemindId(null);
+    }
+  };
 
   useEffect(() => {
     if (tab === "activity" && activity.length === 0) loadActivity();
@@ -328,6 +354,18 @@ export default function AdminPage() {
             {/* Invite log */}
             <div>
               <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.inviteLog")}</h2>
+              {inviteFlash && (
+                <div
+                  role="status"
+                  className={`rounded-lg px-4 py-2 text-sm mb-3 ${
+                    inviteFlash.kind === "ok"
+                      ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200"
+                      : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200"
+                  }`}
+                >
+                  {inviteFlash.text}
+                </div>
+              )}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -335,18 +373,80 @@ export default function AdminPage() {
                       <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteFrom")}</th>
                       <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteTo")}</th>
                       <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteDate")}</th>
+                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteStatus")}</th>
+                      <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteReminderCol")}</th>
+                      <th className="text-right px-4 py-3 font-medium text-zinc-500 dark:text-slate-400 w-32">{t("admin.inviteResend")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invites.map((inv, i) => (
-                      <tr key={`${inv.sentAt}-${i}`} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30">
-                        <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{inv.fromEmail}</td>
-                        <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{inv.toEmail}</td>
-                        <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{formatDate(inv.sentAt)}</td>
-                      </tr>
-                    ))}
+                    {invites.map((inv) => {
+                      const statusKey =
+                        inv.status === "converted"
+                          ? "admin.inviteStatusConverted"
+                          : inv.status === "pending"
+                            ? "admin.inviteStatusPending"
+                            : "admin.inviteStatusExisting";
+                      const statusClass =
+                        inv.status === "converted"
+                          ? "text-emerald-700 dark:text-emerald-400"
+                          : inv.status === "pending"
+                            ? "text-amber-700 dark:text-amber-400"
+                            : "text-zinc-500 dark:text-slate-400";
+                      let reminderCell: ReactNode = "—";
+                      if (inv.reminderSentAt) {
+                        reminderCell = (
+                          <span className="text-xs">
+                            {t("admin.inviteRemindedAt")}{" "}
+                            <span className="text-zinc-700 dark:text-slate-300">{formatDateTime(inv.reminderSentAt)}</span>
+                          </span>
+                        );
+                      } else if (inv.status === "pending" && inv.eligibleResendAt) {
+                        reminderCell = (
+                          <span className="text-xs text-zinc-600 dark:text-slate-400">
+                            {t("admin.inviteEligibleFrom")} {formatDate(inv.eligibleResendAt)}
+                          </span>
+                        );
+                      }
+                      let resendTitle: string | undefined;
+                      if (!inv.canResend) {
+                        if (inv.reminderSentAt) {
+                          resendTitle = `${t("admin.inviteRemindedAt")} ${formatDateTime(inv.reminderSentAt)}`;
+                        } else if (inv.status === "pending" && inv.eligibleResendAt) {
+                          resendTitle = `${t("admin.inviteEligibleFrom")} ${formatDate(inv.eligibleResendAt)}`;
+                        } else if (inv.status === "converted") {
+                          resendTitle = t("admin.inviteNoResendConverted");
+                        } else if (inv.status === "existing_account") {
+                          resendTitle = t("admin.inviteNoResendExisting");
+                        }
+                      }
+                      return (
+                        <tr key={inv.id} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30">
+                          <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{inv.fromEmail}</td>
+                          <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{inv.toEmail}</td>
+                          <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{formatDate(inv.sentAt)}</td>
+                          <td className={`px-4 py-3 text-xs font-medium ${statusClass}`}>{t(statusKey as TranslationKey)}</td>
+                          <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs max-w-[14rem]">{reminderCell}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="inline-flex justify-end max-w-full" title={inv.canResend ? undefined : resendTitle}>
+                              <button
+                                type="button"
+                                disabled={!inv.canResend || inviteRemindId === inv.id}
+                                onClick={() => void handleInviteRemind(inv.id)}
+                                className="inline-flex items-center justify-center rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-800 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-45 disabled:cursor-not-allowed"
+                              >
+                                {inviteRemindId === inv.id ? t("admin.inviteResending") : t("admin.inviteResend")}
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {invites.length === 0 && (
-                      <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.noInvites")}</td></tr>
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">
+                          {t("admin.noInvites")}
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>

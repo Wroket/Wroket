@@ -38,8 +38,8 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
 const FEATURES_KEYS = [
   { titleKey: "landing.f1.title", descKey: "landing.f1.desc", previewId: "eisenhower" },
   { titleKey: "landing.f2.title", descKey: "landing.f2.desc", previewId: "calendar" },
-  { titleKey: "landing.f3.title", descKey: "landing.f3.desc", previewId: "notepad" },
   { titleKey: "landing.f4.title", descKey: "landing.f4.desc", previewId: "kanban" },
+  { titleKey: "landing.f3.title", descKey: "landing.f3.desc", previewId: "notepad" },
   { titleKey: "landing.f5.title", descKey: "landing.f5.desc", previewId: "collab" },
   { titleKey: "landing.f6.title", descKey: "landing.f6.desc", previewId: "notifs" },
 ] as const;
@@ -266,13 +266,14 @@ export default function LandingPage() {
           <Link href="/" className="flex items-center gap-2.5">
             <WroketLockup theme="auto" />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
-              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded"
+              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors w-9 px-2 py-1 rounded"
             >
               {locale === "fr" ? "EN" : "FR"}
             </button>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <button
               onClick={toggleDark}
               className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
@@ -288,21 +289,23 @@ export default function LandingPage() {
                 </svg>
               )}
             </button>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <Link
               href="/pricing"
-              className="text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              className="inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors min-w-[3.5rem]"
             >
               {t("landing.navPricing")}
             </Link>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <Link
               href="/login"
-              className="text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              className="inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors min-w-[12rem]"
             >
               {t("landing.ctaLogin")}
             </Link>
             <Link
               href="/login"
-              className="text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+              className="inline-flex items-center justify-center text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-4 py-2 rounded-lg transition-colors shadow-sm w-[13rem]"
             >
               {t("landing.cta")}
             </Link>
@@ -336,7 +339,9 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            {t("landing.heroSub")}
+            {t("landing.heroSub").split("\n").map((line, i) => (
+              <span key={i}>{i > 0 && <br />}{line}</span>
+            ))}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

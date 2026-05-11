@@ -1,13 +1,189 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 
-const MAIL_TEAM = "mailto:team@wroket.com";
+const CONTACT_EMAIL = "team@wroket.com";
+
+// ─── Contact modal ────────────────────────────────────────────────────────────
+
+type ContactModalProps = {
+  tier: string;
+  onClose: () => void;
+  locale: "fr" | "en";
+};
+
+function ContactModal({ tier, onClose, locale }: ContactModalProps) {
+  const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const firstInputRef = useRef<HTMLInputElement>(null);
+
+  const lbl = {
+    title: locale === "fr" ? "Nous contacter" : "Contact us",
+    subtitle:
+      locale === "fr"
+        ? `Intéressé par le plan ${tier} ? Laissez-nous vos coordonnées.`
+        : `Interested in the ${tier} plan? Leave us your details.`,
+    prenom: locale === "fr" ? "Prénom" : "First name",
+    nom: locale === "fr" ? "Nom" : "Last name",
+    emailLbl: "Email",
+    send: locale === "fr" ? "Envoyer" : "Send",
+    cancel: locale === "fr" ? "Annuler" : "Cancel",
+    successTitle: locale === "fr" ? "Message envoyé !" : "Message sent!",
+    successBody:
+      locale === "fr"
+        ? "Votre client email a été ouvert avec les informations pré-remplies. Nous vous répondrons rapidement."
+        : "Your email client has been opened with the pre-filled information. We'll get back to you shortly.",
+    close: locale === "fr" ? "Fermer" : "Close",
+  };
+
+  useEffect(() => {
+    firstInputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const subject = encodeURIComponent(`Wroket – ${tier}`);
+    const body = encodeURIComponent(
+      `Prénom : ${prenom}\nNom : ${nom}\nEmail : ${email}\n\nPlan demandé : ${tier}`,
+    );
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+    setSent(true);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contact-modal-title"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Panel */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-8">
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+          aria-label={lbl.cancel}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {sent ? (
+          <div className="text-center py-4">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+              <svg className="h-7 w-7 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-50">{lbl.successTitle}</h2>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">{lbl.successBody}</p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-6 inline-flex w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-3 px-4 text-sm transition-colors"
+            >
+              {lbl.close}
+            </button>
+          </div>
+        ) : (
+          <>
+            <h2 id="contact-modal-title" className="text-xl font-bold text-zinc-900 dark:text-slate-50">
+              {lbl.title}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-slate-400">{lbl.subtitle}</p>
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="cm-prenom" className="block text-xs font-medium text-zinc-700 dark:text-slate-300 mb-1">
+                    {lbl.prenom} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="cm-prenom"
+                    ref={firstInputRef}
+                    type="text"
+                    required
+                    value={prenom}
+                    onChange={(e) => setPrenom(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 placeholder-zinc-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder={locale === "fr" ? "Marie" : "Marie"}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cm-nom" className="block text-xs font-medium text-zinc-700 dark:text-slate-300 mb-1">
+                    {lbl.nom} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="cm-nom"
+                    type="text"
+                    required
+                    value={nom}
+                    onChange={(e) => setNom(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 placeholder-zinc-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder={locale === "fr" ? "Dupont" : "Smith"}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="cm-email" className="block text-xs font-medium text-zinc-700 dark:text-slate-300 mb-1">
+                  {lbl.emailLbl} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="cm-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 placeholder-zinc-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="marie@exemple.com"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-zinc-300 dark:border-slate-600 font-semibold py-2.5 px-4 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {lbl.cancel}
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-2.5 px-4 text-sm transition-colors"
+                >
+                  {lbl.send}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tier bullets ─────────────────────────────────────────────────────────────
 
 function TierBullets({ keys }: { keys: TranslationKey[] }) {
   const { t } = useLocale();
@@ -25,11 +201,14 @@ function TierBullets({ keys }: { keys: TranslationKey[] }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function PricingPage() {
   const { t, locale, setLocale } = useLocale();
   const [dark, setDark] = useState(() =>
     typeof window !== "undefined" && localStorage.getItem("wroket-dark") === "1",
   );
+  const [contactTier, setContactTier] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -43,24 +222,38 @@ export default function PricingPage() {
     });
   };
 
+  const openContact = (tier: string) => setContactTier(tier);
+  const closeContact = () => setContactTier(null);
+
   const tierCardBase =
     "relative flex flex-col rounded-2xl border bg-white dark:bg-slate-900 p-6 sm:p-7 shadow-sm transition-shadow";
 
+  const ctaSecondary =
+    "inline-flex w-full justify-center rounded-xl border border-zinc-300 dark:border-slate-600 font-semibold py-3 px-4 text-sm text-zinc-800 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors";
+  const ctaPrimary =
+    "inline-flex w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-3 px-4 text-sm transition-colors";
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100 transition-colors">
+      {/* Modal */}
+      {contactTier && (
+        <ContactModal tier={contactTier} onClose={closeContact} locale={locale} />
+      )}
+
       <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-zinc-100 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <WroketLockup theme="auto" />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
-              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded"
+              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors w-9 px-2 py-1 rounded"
             >
               {locale === "fr" ? "EN" : "FR"}
             </button>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <button
               type="button"
               onClick={toggleDark}
@@ -77,15 +270,17 @@ export default function PricingPage() {
                 </svg>
               )}
             </button>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <Link
               href="/login"
-              className="text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              className="inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors min-w-[12rem]"
             >
               {t("landing.ctaLogin")}
             </Link>
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <Link
               href="/login"
-              className="text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+              className="inline-flex items-center justify-center text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-4 py-2 rounded-lg transition-colors shadow-sm w-[13rem]"
             >
               {t("landing.cta")}
             </Link>
@@ -110,10 +305,7 @@ export default function PricingPage() {
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceFree")}</p>
             <TierBullets keys={["pricing.tier.free.b1", "pricing.tier.free.b2", "pricing.tier.free.b3"]} />
             <div className="mt-auto pt-8">
-              <Link
-                href="/login"
-                className="inline-flex w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-3 px-4 text-sm transition-colors"
-              >
+              <Link href="/login" className={ctaPrimary}>
                 {t("pricing.cta.createAccount")}
               </Link>
             </div>
@@ -126,19 +318,14 @@ export default function PricingPage() {
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceSoon")}</p>
             <TierBullets keys={["pricing.tier.first.b1", "pricing.tier.first.b2", "pricing.tier.first.b3"]} />
             <div className="mt-auto pt-8">
-              <a
-                href={`${MAIL_TEAM}?subject=${encodeURIComponent("Wroket - 1st in")}`}
-                className="inline-flex w-full justify-center rounded-xl border border-zinc-300 dark:border-slate-600 font-semibold py-3 px-4 text-sm text-zinc-800 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-              >
+              <button type="button" onClick={() => openContact(t("settings.plan.first"))} className={ctaSecondary}>
                 {t("pricing.cta.contactUs")}
-              </a>
+              </button>
             </div>
           </div>
 
           {/* Small teams — recommended */}
-          <div
-            className={`${tierCardBase} border-emerald-400 dark:border-emerald-600 ring-2 ring-emerald-500/25 dark:ring-emerald-500/30 shadow-lg shadow-emerald-500/10`}
-          >
+          <div className={`${tierCardBase} border-emerald-400 dark:border-emerald-600 ring-2 ring-emerald-500/25 dark:ring-emerald-500/30 shadow-lg shadow-emerald-500/10`}>
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <span className="inline-flex rounded-full bg-emerald-600 text-white text-xs font-bold px-3 py-1 shadow-md">
                 {t("pricing.recommended")}
@@ -149,12 +336,9 @@ export default function PricingPage() {
             <p className="mt-4 text-2xl font-bold text-emerald-700 dark:text-emerald-400">{t("pricing.priceOnRequest")}</p>
             <TierBullets keys={["pricing.tier.small.b1", "pricing.tier.small.b2", "pricing.tier.small.b3"]} />
             <div className="mt-auto pt-8">
-              <a
-                href={`${MAIL_TEAM}?subject=${encodeURIComponent("Wroket - Small teams")}`}
-                className="inline-flex w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-3 px-4 text-sm transition-colors"
-              >
+              <button type="button" onClick={() => openContact(t("settings.plan.small"))} className={ctaPrimary}>
                 {t("pricing.cta.contactUs")}
-              </a>
+              </button>
             </div>
           </div>
 
@@ -165,12 +349,9 @@ export default function PricingPage() {
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceOnRequest")}</p>
             <TierBullets keys={["pricing.tier.large.b1", "pricing.tier.large.b2", "pricing.tier.large.b3"]} />
             <div className="mt-auto pt-8">
-              <a
-                href={`${MAIL_TEAM}?subject=${encodeURIComponent("Wroket - Large teams")}`}
-                className="inline-flex w-full justify-center rounded-xl border border-zinc-300 dark:border-slate-600 font-semibold py-3 px-4 text-sm text-zinc-800 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-              >
+              <button type="button" onClick={() => openContact(t("settings.plan.large"))} className={ctaSecondary}>
                 {t("pricing.cta.contactUs")}
-              </a>
+              </button>
             </div>
           </div>
         </div>

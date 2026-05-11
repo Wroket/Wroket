@@ -1,6 +1,11 @@
-import { getStore } from "../persistence";
+import crypto from "node:crypto";
+
+import { getStore, scheduleSave } from "../persistence";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import type { BillingPlan } from "./entitlementsService";
 import { resolveBillingPlan } from "./entitlementsService";
+import { normalizeEmail } from "./authService";
+import { sendInviteEmail } from "./emailService";
 
 /**
  * FIX: Do not fall back to a hardcoded email. If ADMIN_EMAILS is not
@@ -130,17 +135,128 @@ export function getAdminStats(): AdminStats {
   };
 }
 
-export interface InviteLogEntry {
+/** Raw row in store.inviteLog (legacy rows may omit id). */
+export interface InviteLogRow {
+  id?: string;
   fromEmail: string;
   fromName: string;
   toEmail: string;
   sentAt: string;
+  reminderSentAt?: string;
 }
 
-export function getInviteLog(): InviteLogEntry[] {
+export type InviteConversionStatus = "converted" | "pending" | "existing_account";
+
+/** Enriched invite row returned by GET /admin/invites. */
+export interface AdminInviteLogEntry {
+  id: string;
+  fromEmail: string;
+  fromName: string;
+  toEmail: string;
+  sentAt: string;
+  reminderSentAt: string | null;
+  accepted: boolean;
+  status: InviteConversionStatus;
+  canResend: boolean;
+  eligibleResendAt: string | null;
+}
+
+const REMINDER_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
+
+function legacyInviteId(sentAt: string, fromEmail: string, toEmail: string): string {
+  const h = crypto.createHash("sha256").update(`${sentAt}|${fromEmail}|${toEmail}`, "utf8").digest("hex");
+  return `legacy-${h.slice(0, 16)}`;
+}
+
+function resolveInviteRowId(row: InviteLogRow): string {
+  if (typeof row.id === "string" && row.id.length > 0) return row.id;
+  return legacyInviteId(row.sentAt, row.fromEmail, row.toEmail);
+}
+
+function getCreatedAtIsoForInviteeEmail(toEmail: string): string | null {
+  const norm = normalizeEmail(toEmail);
   const store = getStore();
-  const log = (store.inviteLog ?? []) as InviteLogEntry[];
-  return [...log].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+  for (const u of Object.values(store.users ?? {})) {
+    const row = u as Record<string, unknown>;
+    if (normalizeEmail(String(row.email ?? "")) !== norm) continue;
+    const ca = row.createdAt;
+    if (typeof ca === "string" && ca.length > 0) return ca;
+    return null;
+  }
+  return null;
+}
+
+function inviteConversionStatus(sentAtMs: number, inviteeCreatedAt: string | null): InviteConversionStatus {
+  if (!inviteeCreatedAt) return "pending";
+  if (new Date(inviteeCreatedAt).getTime() >= sentAtMs) return "converted";
+  return "existing_account";
+}
+
+function enrichInviteRow(row: InviteLogRow, nowMs: number): AdminInviteLogEntry {
+  const sentAtMs = new Date(row.sentAt).getTime();
+  const createdAt = getCreatedAtIsoForInviteeEmail(row.toEmail);
+  const status = inviteConversionStatus(sentAtMs, createdAt);
+  const accepted = status === "converted";
+  const reminderSentAt =
+    typeof row.reminderSentAt === "string" && row.reminderSentAt.length > 0 ? row.reminderSentAt : null;
+  const eligibleMs = sentAtMs + REMINDER_DELAY_MS;
+  const eligibleResendAt = status === "pending" ? new Date(eligibleMs).toISOString() : null;
+  const canResend =
+    status === "pending" && !reminderSentAt && nowMs >= eligibleMs;
+
+  return {
+    id: resolveInviteRowId(row),
+    fromEmail: row.fromEmail,
+    fromName: row.fromName,
+    toEmail: row.toEmail,
+    sentAt: row.sentAt,
+    reminderSentAt,
+    accepted,
+    status,
+    canResend,
+    eligibleResendAt,
+  };
+}
+
+export function getInviteLog(): AdminInviteLogEntry[] {
+  const store = getStore();
+  const log = (store.inviteLog ?? []) as InviteLogRow[];
+  const nowMs = Date.now();
+  return [...log]
+    .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
+    .map((row) => enrichInviteRow(row, nowMs));
+}
+
+function findInviteRowByResolvedId(inviteId: string): InviteLogRow | null {
+  const store = getStore();
+  const log = (store.inviteLog ?? []) as InviteLogRow[];
+  for (const row of log) {
+    if (resolveInviteRowId(row) === inviteId) return row;
+  }
+  return null;
+}
+
+export async function resendInviteReminder(inviteId: string): Promise<void> {
+  const row = findInviteRowByResolvedId(inviteId);
+  if (!row) {
+    throw new NotFoundError("Invitation introuvable.");
+  }
+  const nowMs = Date.now();
+  const enriched = enrichInviteRow(row, nowMs);
+  if (!enriched.canResend) {
+    if (enriched.status !== "pending") {
+      throw new ValidationError(
+        "Relance impossible : le destinataire avait déjà un compte ou s'est inscrit suite à cette invitation.",
+      );
+    }
+    if (enriched.reminderSentAt) {
+      throw new ValidationError("Une relance a déjà été envoyée pour cette invitation.");
+    }
+    throw new ValidationError("La relance n'est possible qu'à partir du 7e jour après l'envoi.");
+  }
+  await sendInviteEmail(row.toEmail, row.fromName, "fr");
+  row.reminderSentAt = new Date().toISOString();
+  scheduleSave("inviteLog");
 }
 
 export function getAdminUsers(): AdminUserSummary[] {

@@ -1,7 +1,9 @@
 import { Response } from "express";
 
+import { ValidationError } from "../utils/errors";
+
 import { AuthenticatedRequest } from "./authController";
-import { getAdminStats, getAdminUsers, getInviteLog } from "../services/adminService";
+import { getAdminStats, getAdminUsers, getInviteLog, resendInviteReminder } from "../services/adminService";
 import { getActivityLog, logActivity } from "../services/activityLogService";
 import {
   findUserByUid,
@@ -29,6 +31,16 @@ export async function adminUsers(_req: AuthenticatedRequest, res: Response) {
 
 export async function adminInviteLog(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getInviteLog());
+}
+
+export async function adminInviteRemind(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const raw = req.body as { id?: unknown };
+  const id = typeof raw?.id === "string" ? raw.id.trim() : "";
+  if (!id) {
+    throw new ValidationError("Identifiant d'invitation requis");
+  }
+  await resendInviteReminder(id);
+  res.status(200).json({ ok: true });
 }
 
 const MAX_ACTIVITY_LIMIT = 500;

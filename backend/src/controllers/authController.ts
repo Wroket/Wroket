@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Request, Response } from "express";
 
 import {
@@ -103,7 +104,13 @@ function logInvite(fromEmail: string, fromName: string, toEmail: string): void {
   const store = getStore();
   if (!store.inviteLog) store.inviteLog = [];
   const log = store.inviteLog as unknown[];
-  log.push({ fromEmail, fromName, toEmail, sentAt: new Date().toISOString() });
+  log.push({
+    id: randomUUID(),
+    fromEmail,
+    fromName,
+    toEmail,
+    sentAt: new Date().toISOString(),
+  });
   if (log.length > MAX_INVITE_LOG) {
     store.inviteLog = log.slice(-MAX_INVITE_LOG);
   }

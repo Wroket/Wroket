@@ -1,4 +1,4 @@
-export type Locale = "fr" | "en";
+﻿export type Locale = "fr" | "en";
 
 const translations = {
   // ── App Shell / Header ──
@@ -36,6 +36,19 @@ const translations = {
   "admin.inviteFrom": { fr: "Envoyé par", en: "Sent by" },
   "admin.inviteTo": { fr: "Destinataire", en: "Recipient" },
   "admin.inviteDate": { fr: "Date", en: "Date" },
+  "admin.inviteStatus": { fr: "Statut", en: "Status" },
+  "admin.inviteStatusConverted": { fr: "Inscrit (après invitation)", en: "Signed up (after invite)" },
+  "admin.inviteStatusPending": { fr: "En attente", en: "Pending" },
+  "admin.inviteStatusExisting": { fr: "Compte déjà existant", en: "Account already existed" },
+  "admin.inviteReminderCol": { fr: "Relance", en: "Reminder" },
+  "admin.inviteRemindedAt": { fr: "Relancé le", en: "Reminded on" },
+  "admin.inviteEligibleFrom": { fr: "Relance possible à partir du", en: "Reminder available from" },
+  "admin.inviteResend": { fr: "Relancer", en: "Resend" },
+  "admin.inviteResending": { fr: "Envoi…", en: "Sending…" },
+  "admin.inviteResendOk": { fr: "Relance envoyée.", en: "Reminder sent." },
+  "admin.inviteResendError": { fr: "Échec de la relance.", en: "Reminder failed." },
+  "admin.inviteNoResendConverted": { fr: "Pas de relance : inscription enregistrée.", en: "No reminder: signup recorded." },
+  "admin.inviteNoResendExisting": { fr: "Pas de relance : le destinataire avait déjà un compte.", en: "No reminder: recipient already had an account." },
   "admin.noInvites": { fr: "Aucune invitation envoyée", en: "No invitations sent" },
   "admin.userList": { fr: "Liste des utilisateurs", en: "User list" },
   "admin.email": { fr: "Email", en: "Email" },
@@ -1458,8 +1471,8 @@ const translations = {
 
   "landing.heroTitle": { fr: "Organisez, planifiez,\ncollaborez.", en: "Organize, schedule,\ncollaborate." },
   "landing.heroSub": {
-    fr: "Décidez en un coup d’œil quoi traiter en premier, puis placez-le dans votre agenda réel : vue Radar, créneaux intelligents et agendas Google — le tout dans une interface simple et rapide.",
-    en: "See at a glance what to tackle first, then put it on your real calendar: Radar view, smart slots, and Google calendars — all in a simple, fast interface.",
+    fr: "D\u00e9cidez en un coup d\u2019\u0153il quelle t\u00e2che traiter en priorit\u00e9 et r\u00e9servez un temps d\u00e9di\u00e9.\nVue Radar, cr\u00e9neaux intelligents et agendas \u2014 le tout dans une interface simple et rapide.",
+    en: "Decide at a glance which task to tackle first and reserve dedicated time for it.\nRadar view, smart slots, and calendars \u2014 all in a simple, fast interface.",
   },
   "landing.cta": { fr: "Commencer maintenant", en: "Get started" },
   "landing.ctaLogin": { fr: "J'ai déjà un compte", en: "I already have an account" },
@@ -1486,8 +1499,8 @@ const translations = {
 
   "pricing.heroTitle": { fr: "Des paliers clairs pour grandir avec Wroket", en: "Clear tiers to grow with Wroket" },
   "pricing.heroSub": {
-    fr: "Du solo aux équipes : commencez gratuitement, puis activez intégrations et collaboration quand vous en avez besoin. Tarifs indicatifs — contactez-nous pour un devis.",
-    en: "From solo to teams: start free, then turn on integrations and collaboration when you need them. Indicative pricing — contact us for a quote.",
+    fr: "Du solo aux équipes : commencez gratuitement, puis activez intégrations et collaboration quand vous en avez besoin.",
+    en: "From solo to teams: start free, then turn on integrations and collaboration when you need them.",
   },
   "pricing.faqTitle": { fr: "Questions fréquentes", en: "FAQ" },
   "pricing.faq1q": { fr: "Comment changer de palier ?", en: "How do I change tiers?" },
