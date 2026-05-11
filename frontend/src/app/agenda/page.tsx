@@ -27,6 +27,7 @@ import {
   type AuthMeResponse,
   type Recurrence,
   type GoogleAccountPublic,
+  type MicrosoftAccountPublic,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useUserLookup } from "@/lib/userUtils";
@@ -45,6 +46,7 @@ import {
   formatHour,
   hexToTintBg,
 } from "./_utils/calendarUtils";
+import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
@@ -56,8 +58,10 @@ export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [wroketEvents, setWroketEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
+  const [microsoftEvents, setMicrosoftEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [googleAccounts, setGoogleAccounts] = useState<GoogleAccountPublic[]>([]);
+  const [microsoftAccounts, setMicrosoftAccounts] = useState<MicrosoftAccountPublic[]>([]);
   const [hiddenAccounts, setHiddenAccounts] = useState<Set<string>>(new Set());
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
   const calendarMenuRef = useRef<HTMLDivElement>(null);
@@ -89,11 +93,12 @@ export default function AgendaPage() {
 
   const accountColorMap = useMemo(() => {
     const map = new Map<string, string>();
-    googleAccounts.forEach((acc, i) => {
+    const combined = [...googleAccounts, ...microsoftAccounts];
+    combined.forEach((acc, i) => {
       map.set(acc.email, ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]);
     });
     return map;
-  }, [googleAccounts]);
+  }, [googleAccounts, microsoftAccounts]);
 
   const sortedProjectOptions = useMemo(() => {
     const roots = projects.filter((p) => !p.parentProjectId);
@@ -127,6 +132,7 @@ export default function AgendaPage() {
         const [me, projs] = await Promise.all([getMe(), getProjects()]);
         if (!cancelled) {
           setGoogleAccounts(me.googleAccounts ?? []);
+          setMicrosoftAccounts(me.microsoftAccounts ?? []);
           setProjects(projs.filter((p) => p.status === "active"));
         }
       } catch { /* ignore */ }
@@ -207,6 +213,7 @@ export default function AgendaPage() {
         if (!cancelled) {
           setWroketEvents(data.wroketEvents);
           setGoogleEvents(data.googleEvents);
+          setMicrosoftEvents(data.microsoftEvents ?? []);
         }
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
@@ -244,7 +251,17 @@ export default function AgendaPage() {
     [googleEvents, hiddenAccounts],
   );
 
-  const allEvents = useMemo(() => [...wroketEvents, ...visibleGoogleEvents], [wroketEvents, visibleGoogleEvents]);
+  const visibleMicrosoftEvents = useMemo(
+    () => microsoftEvents.filter((ev) => !ev.accountEmail || !hiddenAccounts.has(ev.accountEmail)),
+    [microsoftEvents, hiddenAccounts],
+  );
+
+  const allEvents = useMemo(
+    () => [...wroketEvents, ...visibleGoogleEvents, ...visibleMicrosoftEvents],
+    [wroketEvents, visibleGoogleEvents, visibleMicrosoftEvents],
+  );
+
+  const linkedCalendarCount = googleAccounts.length + microsoftAccounts.length;
 
   const eventsForDay = useCallback(
     (day: Date, allDay: boolean) =>
@@ -300,6 +317,12 @@ export default function AgendaPage() {
   const getAccountColor = (accountEmail?: string): string => {
     if (!accountEmail) return ACCOUNT_COLORS[0];
     return accountColorMap.get(accountEmail) ?? ACCOUNT_COLORS[0];
+  };
+
+  const externalEventTitle = (ev: CalendarEvent): string => {
+    const fallback =
+      ev.source === "microsoft" ? t("agenda.microsoftEvent") : t("agenda.googleEvent");
+    return `${ev.summary} (${ev.accountEmail ?? fallback})`;
   };
 
   // ── Quick create on double-click ──
@@ -374,6 +397,7 @@ export default function AgendaPage() {
       const data = await getCalendarEvents(dateRange.start, dateRange.end);
       setWroketEvents(data.wroketEvents);
       setGoogleEvents(data.googleEvents);
+      setMicrosoftEvents(data.microsoftEvents ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -427,6 +451,7 @@ export default function AgendaPage() {
     const data = await getCalendarEvents(dateRange.start, dateRange.end);
     setWroketEvents(data.wroketEvents);
     setGoogleEvents(data.googleEvents);
+    setMicrosoftEvents(data.microsoftEvents ?? []);
   }, [dateRange]);
 
   // Refresh when tab becomes visible or another tab mutates todos/calendar slots.
@@ -566,9 +591,9 @@ export default function AgendaPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 {t("agenda.calendars")}
-                {googleAccounts.length > 0 && (
-                  <span className="ml-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                    {googleAccounts.length - hiddenAccounts.size}
+                {linkedCalendarCount > 0 && (
+                  <span className="ml-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full min-w-[1rem] h-4 px-0.5 flex items-center justify-center">
+                    {linkedCalendarCount - hiddenAccounts.size}
                   </span>
                 )}
                 <svg className={`w-3 h-3 transition-transform ${calendarMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -578,14 +603,43 @@ export default function AgendaPage() {
 
               {calendarMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-zinc-200 dark:border-slate-700 z-50 overflow-hidden">
-                  {googleAccounts.length > 0 ? (
+                  {linkedCalendarCount > 0 ? (
                     <div className="max-h-64 overflow-y-auto py-1">
+                      {googleAccounts.length > 0 && (
+                        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-slate-500">
+                          {t("agenda.sectionGoogle")}
+                        </div>
+                      )}
                       {googleAccounts.map((acc) => {
                         const color = accountColorMap.get(acc.email) ?? ACCOUNT_COLORS[0];
                         const visible = !hiddenAccounts.has(acc.email);
                         return (
                           <label
-                            key={acc.id}
+                            key={`g-${acc.id}`}
+                            className="flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={visible}
+                              onChange={() => toggleAccountVisibility(acc.email)}
+                              className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                            <span className="text-xs text-zinc-700 dark:text-slate-200 flex-1 truncate font-medium">{acc.email}</span>
+                          </label>
+                        );
+                      })}
+                      {microsoftAccounts.length > 0 && (
+                        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-slate-500 border-t border-zinc-100 dark:border-slate-700/80 mt-1">
+                          {t("agenda.sectionOutlook")}
+                        </div>
+                      )}
+                      {microsoftAccounts.map((acc) => {
+                        const color = accountColorMap.get(acc.email) ?? ACCOUNT_COLORS[0];
+                        const visible = !hiddenAccounts.has(acc.email);
+                        return (
+                          <label
+                            key={`m-${acc.id}`}
                             className="flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
                           >
                             <input
@@ -601,8 +655,9 @@ export default function AgendaPage() {
                       })}
                     </div>
                   ) : (
-                    <div className="px-3 py-3 text-center">
+                    <div className="px-3 py-3 text-center space-y-1">
                       <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.noGoogleAccounts")}</p>
+                      <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.noMicrosoftAccounts")}</p>
                     </div>
                   )}
                   <div className="border-t border-zinc-100 dark:border-slate-700 px-3 py-2">
@@ -711,9 +766,9 @@ export default function AgendaPage() {
                                     window.open(ev.meetingUrl!, "_blank", "noopener");
                                   }}
                                   className="mt-0.5 text-[9px] underline underline-offset-2 opacity-90 hover:opacity-100"
-                                  title={t("meet.joinMeet")}
+                                  title={t(meetingJoinI18nKey(ev.meetingProvider))}
                                 >
-                                  {t("meet.joinMeet")}
+                                  {t(meetingJoinI18nKey(ev.meetingProvider))}
                                 </button>
                               )}
                             </div>
@@ -768,9 +823,7 @@ export default function AgendaPage() {
                           const isWroket = ev.source === "wroket";
                           const qc = isWroket ? QUADRANT_COLORS[classifyEvent(ev)] : null;
                           const acctColor = !isWroket ? getAccountColor(ev.accountEmail) : "";
-                          const googleTitle = !isWroket
-                            ? `${ev.summary} (${ev.accountEmail ?? t("agenda.googleEvent")})`
-                            : undefined;
+                          const externalTitle = !isWroket ? externalEventTitle(ev) : undefined;
                           return (
                             <div
                               key={`${ev.id}-${day.toDateString()}`}
@@ -791,7 +844,7 @@ export default function AgendaPage() {
                               title={
                                 isWroket && qc
                                   ? `${ev.summary} — ${qc.icon} ${qc.label}\n${t("agenda.bookedFromWroket")}`
-                                  : googleTitle
+                                  : externalTitle
                               }
                               onClick={
                                 isWroket
@@ -816,9 +869,9 @@ export default function AgendaPage() {
                                     window.open(ev.meetingUrl!, "_blank", "noopener");
                                   }}
                                   className="text-[9px] underline underline-offset-2 opacity-90 hover:opacity-100 mt-0.5"
-                                  title={t("meet.joinMeet")}
+                                  title={t(meetingJoinI18nKey(ev.meetingProvider))}
                                 >
-                                  {t("meet.joinMeet")}
+                                  {t(meetingJoinI18nKey(ev.meetingProvider))}
                                 </button>
                               )}
                               {pos.height >= 44 && (
@@ -923,9 +976,9 @@ export default function AgendaPage() {
                                     window.open(ev.meetingUrl!, "_blank", "noopener");
                                   }}
                                   className="block text-[8px] underline underline-offset-2 opacity-90 hover:opacity-100"
-                                  title={t("meet.joinMeet")}
+                                  title={t(meetingJoinI18nKey(ev.meetingProvider))}
                                 >
-                                  {t("meet.joinMeet")}
+                                  {t(meetingJoinI18nKey(ev.meetingProvider))}
                                 </button>
                               )}
                             </div>

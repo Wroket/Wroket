@@ -478,14 +478,14 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-100 dark:bg-slate-950 transition-colors">
+    <div className="min-h-screen flex flex-col bg-zinc-100 dark:bg-slate-950 transition-colors [--app-mobile-header:4.5rem]">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:rounded focus:bg-slate-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white">
         {t("a11y.skipToContent")}
       </a>
 
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 shrink-0 bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
-        <div className="px-4 md:px-6 py-4 flex items-center justify-between">
+        <div className="px-4 md:px-6 py-4 flex items-center justify-between min-h-[var(--app-mobile-header)]">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -829,9 +829,9 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
         <nav
           aria-label={t("a11y.mainNavigation")}
-          className={`absolute inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 flex flex-col h-full min-h-0 overflow-hidden transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+          className={`absolute left-0 bottom-0 top-[var(--app-mobile-header)] w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 flex flex-col min-h-0 overflow-hidden transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
         >
-          <div className="flex-1 min-h-0 overflow-y-auto py-4 px-3 flex flex-col gap-1">
+          <div className="flex-1 min-h-0 overflow-y-auto py-3 px-3 flex flex-col gap-1">
           {NAV_ITEMS.slice(0, 1).map((item) => (
             <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
           ))}

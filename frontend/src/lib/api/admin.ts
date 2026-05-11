@@ -40,6 +40,7 @@ export interface SessionInfo {
 export interface IntegrationOverview {
   webhooks: { total: number; active: number; byPlatform: Record<string, number> };
   googleCalendarConnected: number;
+  microsoftCalendarConnected: number;
 }
 
 export interface CompletionRate {

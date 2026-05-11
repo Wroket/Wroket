@@ -360,6 +360,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <StatCard label={t("admin.integrations.webhooks")} value={integrations.webhooks.total} sub={`${integrations.webhooks.active} actifs`} />
               <StatCard label={t("admin.integrations.google")} value={integrations.googleCalendarConnected} />
+              <StatCard label={t("admin.integrations.microsoft")} value={integrations.microsoftCalendarConnected ?? 0} />
             </div>
             {Object.keys(integrations.webhooks.byPlatform).length > 0 && (
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4">

@@ -4,6 +4,7 @@ import {
   COOKIE_NAME,
   login as loginService,
   loginWithGoogle,
+  loginWithMicrosoft,
   logout as logoutService,
   register as registerService,
   updateProfile as updateProfileService,
@@ -40,6 +41,11 @@ import { exportUserData, deleteUserData } from "../services/rgpdService";
 import { getActivityLog } from "../services/activityLogService";
 import { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail, sendEmailOtpEmail } from "../services/emailService";
 import { getGoogleSsoAuthUrl, exchangeGoogleSsoCode } from "../services/googleSsoService";
+import {
+  exchangeMicrosoftSsoCode,
+  getMicrosoftSsoAuthUrl,
+  isMicrosoftSsoConfigured,
+} from "../services/microsoftSsoService";
 import { consumeSsoLoginState } from "../utils/oauthState";
 import { AppError, ValidationError } from "../utils/errors";
 import { flushNow, getStore, scheduleSave } from "../persistence";
@@ -235,6 +241,87 @@ export async function googleSsoCallback(req: Request, res: Response) {
   }
 }
 
+export async function microsoftSsoUrl(req: Request, res: Response) {
+  if (!isMicrosoftSsoConfigured()) {
+    res.status(503).json({ message: "Microsoft SSO non configuré sur ce serveur" });
+    return;
+  }
+  try {
+    const loginHint = typeof req.query.login_hint === "string" ? req.query.login_hint : undefined;
+    const { url, state } = getMicrosoftSsoAuthUrl(loginHint);
+    res.cookie("oauth_state", state, {
+      ...baseCookieOpts(),
+      maxAge: 10 * 60 * 1000,
+    });
+    res.status(200).json({ url });
+  } catch (err) {
+    console.error("[auth] Microsoft SSO URL error:", err);
+    res.status(503).json({ message: "Microsoft SSO non disponible" });
+  }
+}
+
+export async function microsoftSsoCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const oauthError = typeof req.query.error === "string" ? req.query.error : undefined;
+  const oauthDesc = typeof req.query.error_description === "string" ? req.query.error_description : undefined;
+  if (oauthError) {
+    console.warn("[auth] Microsoft SSO redirect error:", oauthError, oauthDesc ?? "");
+    res.redirect(`${frontendUrl}/login?error=microsoft_sso_failed`);
+    return;
+  }
+
+  const code = req.query.code as string | undefined;
+  const stateParam = req.query.state as string | undefined;
+
+  const cookies = parseCookies(req.headers.cookie);
+  const storedState = cookies.oauth_state;
+
+  res.clearCookie("oauth_state", clearCookieOpts());
+
+  if (!code || !stateParam) {
+    res.redirect(`${frontendUrl}/login?error=microsoft_sso_failed`);
+    return;
+  }
+
+  if (!consumeSsoLoginState(stateParam)) {
+    res.redirect(`${frontendUrl}/login?error=microsoft_sso_failed`);
+    return;
+  }
+  if (storedState && stateParam !== storedState) {
+    console.warn("[auth] Microsoft SSO: oauth_state cookie differed from ?state= (ignored after HMAC ok)");
+  }
+
+  try {
+    const userInfo = await exchangeMicrosoftSsoCode(code);
+    const timezone = cookies.tz || undefined;
+
+    const result = loginWithMicrosoft({
+      email: userInfo.email,
+      firstName: userInfo.firstName,
+      lastName: userInfo.lastName,
+      timezone,
+    });
+
+    await flushNow();
+
+    if ("requiresTwoFactor" in result && result.requiresTwoFactor) {
+      res.redirect(`${frontendUrl}/login?pending2fa=${encodeURIComponent(result.pendingToken)}`);
+      return;
+    }
+
+    const session = result as LoginSuccess;
+    res.cookie(COOKIE_NAME, session.sessionToken, {
+      ...baseCookieOpts(),
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.redirect(`${frontendUrl}/dashboard`);
+  } catch (err) {
+    console.error("[auth] Microsoft SSO callback error:", err);
+    res.redirect(`${frontendUrl}/login?error=microsoft_sso_failed`);
+  }
+}
+
 export async function login(req: Request, res: Response) {
   const { email, password, timezone } = req.body as { email?: unknown; password?: unknown; timezone?: unknown };
   if (typeof email !== "string" || typeof password !== "string") {
@@ -409,6 +496,9 @@ function serializeAuthMeResponse(user: AuthUser) {
     skipNonWorkingDays: user.skipNonWorkingDays,
     googleCalendarConnected: user.googleCalendarConnected,
     googleAccounts: user.googleAccounts,
+    microsoftCalendarConnected: user.microsoftCalendarConnected,
+    microsoftAccounts: user.microsoftAccounts,
+    preferredBookingProvider: user.preferredBookingProvider,
     twoFactorEnabled: user.twoFactorEnabled,
     twoFactorDisableRequiresPassword: twoFactorDisableRequiresPassword(user.uid),
     emailOtp2faEnabled: user.emailOtp2faEnabled === true,

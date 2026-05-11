@@ -149,10 +149,11 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
         onBooked(result.todo);
         toast.success(t("schedule.booked"));
       }
-    } catch {
+    } catch (e) {
       setPresentation("modal");
       setOpen(true);
-      toast.error(t("toast.updateError"));
+      const msg = e instanceof Error && e.message ? e.message : t("toast.updateError");
+      toast.error(msg);
     } finally {
       setBooking(false);
     }

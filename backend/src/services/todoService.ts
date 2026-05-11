@@ -14,6 +14,8 @@ export type Effort = "light" | "medium" | "heavy";
 export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
 export type AssignmentStatus = "pending" | "accepted" | "declined";
 
+export type BookingCalendarProvider = "google" | "microsoft";
+
 export interface ScheduledSlot {
   start: string; // ISO datetime
   end: string;   // ISO datetime
@@ -24,12 +26,14 @@ export interface ScheduledSlot {
   bookingCalendarId?: string | null;
   /** Google account id used to create/manage the external booking. */
   bookingAccountId?: string | null;
+  /** External calendar API used for this booking. Absent/undefined means google (legacy data). */
+  bookingProvider?: BookingCalendarProvider;
   /** Google Meet join URL when a meeting was created from this task. */
   meetingUrl?: string | null;
   /** Last known invitee list for the linked meeting event. */
   meetingInvitees?: string[] | null;
-  /** Provider that created the meeting — currently only google-meet. */
-  meetingProvider?: "google-meet" | null;
+  /** Provider that created the linked conference (Meet or Teams). */
+  meetingProvider?: "google-meet" | "microsoft-teams" | null;
 }
 
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
@@ -130,6 +134,14 @@ function normalizeScheduledSlotForCreate(slot: ScheduledSlot | null | undefined)
   if (slot.calendarEventId !== undefined && slot.calendarEventId !== null && typeof slot.calendarEventId !== "string") {
     throw new ValidationError("scheduledSlot.calendarEventId doit être une chaîne ou null");
   }
+  const bookingProvider =
+    slot.bookingProvider === "microsoft" || slot.bookingProvider === "google"
+      ? slot.bookingProvider
+      : undefined;
+  const meetingProvider =
+    slot.meetingProvider === "google-meet" || slot.meetingProvider === "microsoft-teams"
+      ? slot.meetingProvider
+      : null;
   return {
     start: slot.start,
     end: slot.end,
@@ -139,12 +151,13 @@ function normalizeScheduledSlotForCreate(slot: ScheduledSlot | null | undefined)
       slot.bookingCalendarId === undefined || slot.bookingCalendarId === null ? null : slot.bookingCalendarId,
     bookingAccountId:
       slot.bookingAccountId === undefined || slot.bookingAccountId === null ? null : slot.bookingAccountId,
+    ...(bookingProvider ? { bookingProvider } : {}),
     bookedByUid: slot.bookedByUid,
     meetingUrl: slot.meetingUrl ?? null,
     meetingInvitees: Array.isArray(slot.meetingInvitees)
       ? slot.meetingInvitees.filter((v): v is string => typeof v === "string" && v.length > 0).slice(0, 50)
       : null,
-    meetingProvider: slot.meetingProvider ?? null,
+    meetingProvider,
   };
 }
 
@@ -242,6 +255,13 @@ export function todoToClientJson(todo: Todo): Todo {
           start: todo.scheduledSlot.start,
           end: todo.scheduledSlot.end,
           calendarEventId: todo.scheduledSlot.calendarEventId,
+          bookingCalendarId: todo.scheduledSlot.bookingCalendarId ?? null,
+          bookingAccountId: todo.scheduledSlot.bookingAccountId ?? null,
+          bookingProvider: todo.scheduledSlot.bookingProvider,
+          bookedByUid: todo.scheduledSlot.bookedByUid,
+          meetingUrl: todo.scheduledSlot.meetingUrl ?? null,
+          meetingInvitees: todo.scheduledSlot.meetingInvitees ?? null,
+          meetingProvider: todo.scheduledSlot.meetingProvider ?? null,
         }
       : null,
     suggestedSlot: todo.suggestedSlot,
@@ -1076,6 +1096,14 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
       if (slot.calendarEventId !== undefined && slot.calendarEventId !== null && typeof slot.calendarEventId !== "string") {
         throw new ValidationError("scheduledSlot.calendarEventId doit être une chaîne ou undefined");
       }
+      const bp =
+        slot.bookingProvider === "microsoft" || slot.bookingProvider === "google"
+          ? slot.bookingProvider
+          : undefined;
+      const mp =
+        slot.meetingProvider === "google-meet" || slot.meetingProvider === "microsoft-teams"
+          ? slot.meetingProvider
+          : null;
       const normalized: ScheduledSlot = {
         start: slot.start,
         end: slot.end,
@@ -1091,12 +1119,13 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
           slot.bookingAccountId === undefined || slot.bookingAccountId === null
             ? null
             : slot.bookingAccountId,
+        ...(bp ? { bookingProvider: bp } : {}),
         bookedByUid: slot.bookedByUid,
         meetingUrl: slot.meetingUrl ?? null,
         meetingInvitees: Array.isArray(slot.meetingInvitees)
           ? slot.meetingInvitees.filter((v): v is string => typeof v === "string" && v.length > 0).slice(0, 50)
           : null,
-        meetingProvider: slot.meetingProvider ?? null,
+        meetingProvider: mp,
       };
       const prev = todo.scheduledSlot;
       if (

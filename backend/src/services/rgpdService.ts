@@ -96,7 +96,7 @@ export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserD
 
 const SENSITIVE_FIELDS = [
   "passwordHashB64", "passwordSaltB64",
-  "googleCalendarTokens", "googleAccounts",
+  "googleCalendarTokens", "googleAccounts", "microsoftAccounts",
   "emailVerifyToken", "resetToken", "resetTokenExpiry",
   "totpSecretB64", "totpPendingSecretB64", "totpEnabled",
   "emailOtp2faEnabled", "email2faEnrollHash", "email2faDisableHash",

@@ -8,8 +8,9 @@ export interface CalendarEvent {
   start: string;
   end: string;
   allDay: boolean;
-  source: "wroket" | "google";
+  source: "wroket" | "google" | "microsoft";
   meetingUrl?: string | null;
+  meetingProvider?: "google-meet" | "microsoft-teams" | null;
   priority?: string;
   effort?: string;
   deadline?: string | null;
@@ -23,6 +24,7 @@ export interface CalendarEvent {
 export interface CalendarEventsResponse {
   wroketEvents: CalendarEvent[];
   googleEvents: CalendarEvent[];
+  microsoftEvents?: CalendarEvent[];
 }
 
 export async function getTaskSlots(todoId: string): Promise<{
@@ -60,7 +62,16 @@ export async function bookTaskSlot(todoId: string, start: string, end: string, f
   if (res.status === 409) {
     return res.json() as Promise<BookSlotResult>;
   }
-  if (!res.ok) throw new Error("Impossible de réserver le créneau");
+  if (!res.ok) {
+    let msg = "Impossible de réserver le créneau";
+    try {
+      const j = (await res.json()) as { message?: string };
+      if (typeof j.message === "string" && j.message.trim()) msg = j.message.trim();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
   const todo = await res.json() as Todo;
   return { todo };
 }
@@ -121,8 +132,46 @@ export async function disconnectGoogleAccount(accountId: string): Promise<void> 
   if (!res.ok) throw new Error("Erreur de déconnexion");
 }
 
+export async function getMicrosoftAuthUrl(): Promise<{ url: string }> {
+  const res = await fetch(`${API_BASE_URL}/calendar/microsoft/auth-url`, { credentials: "include" });
+  if (!res.ok) throw new Error("Erreur d'authentification Microsoft");
+  return res.json();
+}
+
+export async function disconnectMicrosoftCalendar(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/microsoft/disconnect`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error("Erreur de déconnexion");
+}
+
+export async function getMicrosoftAccountCalendars(accountId: string): Promise<GoogleCalendarEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/calendar/microsoft/accounts/${encodeURIComponent(accountId)}/calendars`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger les calendriers");
+  return res.json();
+}
+
+export async function saveMicrosoftAccountCalendars(accountId: string, calendars: GoogleCalendarEntry[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/microsoft/accounts/${encodeURIComponent(accountId)}/calendars`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ calendars }),
+  });
+  if (!res.ok) throw new Error("Impossible de sauvegarder");
+}
+
+export async function disconnectMicrosoftAccount(accountId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/microsoft/disconnect/${encodeURIComponent(accountId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur de déconnexion");
+}
+
 /**
- * Create a Google Meet conference for the given task.
+ * Create a video conference for the given task (Google Meet or Microsoft Teams),
+ * depending on the user's connected calendar and booking preference.
  * Returns the updated Todo (with meetingUrl set on scheduledSlot).
  */
 export async function createTaskMeet(todoId: string, payload?: CreateTaskMeetPayload): Promise<Todo> {

@@ -3,7 +3,7 @@ import { Response } from "express";
 import { AuthenticatedRequest } from "./authController";
 import { getAdminStats, getAdminUsers, getInviteLog } from "../services/adminService";
 import { getActivityLog } from "../services/activityLogService";
-import { getActiveSessions, countGoogleCalendarConnected } from "../services/authService";
+import { getActiveSessions, countGoogleCalendarConnected, countMicrosoftCalendarConnected } from "../services/authService";
 import { getWebhooksOverview } from "../services/webhookService";
 import { exportUserData, deleteUserData } from "../services/rgpdService";
 import { getStore } from "../persistence";
@@ -44,6 +44,7 @@ export async function adminIntegrations(_req: AuthenticatedRequest, res: Respons
   res.status(200).json({
     webhooks: getWebhooksOverview(),
     googleCalendarConnected: countGoogleCalendarConnected(),
+    microsoftCalendarConnected: countMicrosoftCalendarConnected(),
   });
 }
 

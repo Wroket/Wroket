@@ -61,6 +61,14 @@ export interface GoogleAccount {
   calendars: GoogleCalendarEntry[];
 }
 
+/** Outlook / Microsoft Graph — same shape as {@link GoogleAccount} */
+export interface MicrosoftAccount {
+  id: string;
+  email: string;
+  tokens: GoogleCalendarTokens;
+  calendars: GoogleCalendarEntry[];
+}
+
 function isWritableBookingCalendar(cal: GoogleCalendarEntry): boolean {
   const id = cal.calendarId.toLowerCase();
   const isSystem = id.includes("group.v.calendar.google.com") || id.includes("holiday") || id.includes("weeknum");
@@ -127,6 +135,70 @@ function normalizeGlobalBookingDefault(
   }
 }
 
+function isWritableOutlookCalendar(cal: GoogleCalendarEntry): boolean {
+  return !!cal.enabled && cal.canWriteBooking !== false;
+}
+
+function normalizeMicrosoftBookingDefault(
+  accounts: MicrosoftAccount[],
+  preferred?: { accountId: string; calendarId: string } | null,
+): void {
+  let chosen: { accountId: string; calendarId: string } | null = null;
+
+  for (const account of accounts) {
+    account.calendars = account.calendars.map((cal) => ({
+      ...cal,
+      enabled: !!cal.enabled,
+      canWriteBooking: cal.canWriteBooking !== false,
+      defaultForBooking: !!cal.defaultForBooking && isWritableOutlookCalendar(cal),
+    }));
+  }
+
+  if (preferred) {
+    const account = accounts.find((a) => a.id === preferred.accountId);
+    const cal = account?.calendars.find((c) => c.calendarId === preferred.calendarId);
+    if (account && cal && isWritableOutlookCalendar(cal)) {
+      chosen = preferred;
+    }
+  }
+
+  if (!chosen) {
+    for (const account of accounts) {
+      const selected = account.calendars.find((c) => !!c.defaultForBooking && isWritableOutlookCalendar(c));
+      if (selected) {
+        chosen = { accountId: account.id, calendarId: selected.calendarId };
+        break;
+      }
+    }
+  }
+
+  if (!chosen) {
+    for (const account of accounts) {
+      const writablePrimary = account.calendars.find((c) => !!c.primary && isWritableOutlookCalendar(c));
+      if (writablePrimary) {
+        chosen = { accountId: account.id, calendarId: writablePrimary.calendarId };
+        break;
+      }
+      const firstWritable = account.calendars.find((c) => isWritableOutlookCalendar(c));
+      if (firstWritable) {
+        chosen = { accountId: account.id, calendarId: firstWritable.calendarId };
+        break;
+      }
+    }
+  }
+
+  for (const account of accounts) {
+    account.calendars = account.calendars.map((cal) => ({
+      ...cal,
+      defaultForBooking:
+        !!chosen &&
+        account.id === chosen.accountId &&
+        cal.calendarId === chosen.calendarId &&
+        isWritableOutlookCalendar(cal),
+    }));
+  }
+}
+
 /** Public version exposed to frontend (no tokens) */
 export interface GoogleAccountPublic {
   id: string;
@@ -150,6 +222,8 @@ export interface AuthUser {
   skipNonWorkingDays: boolean;
   googleCalendarConnected: boolean;
   googleAccounts: GoogleAccountPublic[];
+  microsoftCalendarConnected: boolean;
+  microsoftAccounts: GoogleAccountPublic[];
   emailVerified: boolean;
   /** True when TOTP and/or email OTP 2FA is active */
   twoFactorEnabled: boolean;
@@ -173,6 +247,8 @@ export interface AuthUser {
    * 0 = never auto-delete. Default when unset: 30.
    */
   archivedTaskRetentionDays: number;
+  /** Preferred calendar provider for new bookings; unset means infer (Google first, then Microsoft). */
+  preferredBookingProvider?: "google" | "microsoft";
 }
 
 interface StoredUser {
@@ -189,6 +265,7 @@ interface StoredUser {
   /** @deprecated migrated to googleAccounts */
   googleCalendars?: GoogleCalendarEntry[];
   googleAccounts?: GoogleAccount[];
+  microsoftAccounts?: MicrosoftAccount[];
   skipNonWorkingDays?: boolean;
   emailVerified?: boolean;
   emailVerifyToken?: string;
@@ -218,6 +295,8 @@ interface StoredUser {
   notificationDigestHour?: number;
   /** 0 = never purge archived tasks; 1–365 = days until permanent removal (default applied when unset). */
   archivedTaskRetentionDays?: number;
+  /** Where new slot bookings are written when both Google and Microsoft are connected. */
+  preferredBookingProvider?: "google" | "microsoft";
   /** Pending enrollment / disable flows — email OTP verification */
   email2faEnrollHash?: string;
   email2faEnrollExpiresAt?: number;
@@ -307,6 +386,10 @@ function resolveGoogleAccounts(user: StoredUser): GoogleAccount[] {
   return user.googleAccounts ?? [];
 }
 
+function resolveMicrosoftAccounts(user: StoredUser): MicrosoftAccount[] {
+  return user.microsoftAccounts ?? [];
+}
+
 function readNotificationDeliveryMode(user: StoredUser): NotificationDeliveryMode {
   const m = user.notificationDeliveryMode;
   if (m === "none" || m === "email" || m === "slack" || m === "teams" || m === "google_chat") return m;
@@ -340,6 +423,7 @@ export function getArchivedTaskRetentionDaysForPurge(uid: string): number {
 
 function toAuthUser(user: StoredUser): AuthUser {
   const accounts = resolveGoogleAccounts(user);
+  const msAccounts = resolveMicrosoftAccounts(user);
   return {
     uid: user.uid,
     email: user.email,
@@ -350,6 +434,8 @@ function toAuthUser(user: StoredUser): AuthUser {
     skipNonWorkingDays: user.skipNonWorkingDays ?? false,
     googleCalendarConnected: accounts.length > 0,
     googleAccounts: accounts.map((a) => ({ id: a.id, email: a.email, calendars: a.calendars })),
+    microsoftCalendarConnected: msAccounts.length > 0,
+    microsoftAccounts: msAccounts.map((a) => ({ id: a.id, email: a.email, calendars: a.calendars })),
     emailVerified: user.emailVerified ?? false,
     twoFactorEnabled: !!(
       (user.totpEnabled && user.totpSecretB64) || user.emailOtp2faEnabled
@@ -363,6 +449,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     notificationOutboundFrequency: readNotificationOutboundFrequency(user),
     notificationDigestHour: typeof user.notificationDigestHour === "number" ? Math.max(0, Math.min(23, Math.floor(user.notificationDigestHour))) : 8,
     archivedTaskRetentionDays: readArchivedTaskRetentionDays(user),
+    preferredBookingProvider: user.preferredBookingProvider,
   };
 }
 
@@ -934,6 +1021,11 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
   return issueSessionToken(uid);
 }
 
+/** Same as Google SSO — Microsoft / Entra ID has already validated email. */
+export function loginWithMicrosoft(profile: { email: string; firstName: string; lastName: string; timezone?: string }): LoginResult {
+  return loginWithGoogle(profile);
+}
+
 /** After password or Google pre-auth, validate TOTP and/or email OTP and open session */
 export function verifyTwoFactorLogin(pendingToken: string, code: string): LoginSuccess {
   const row = getPendingRow(pendingToken);
@@ -1312,7 +1404,184 @@ export function setGoogleAccountCalendars(uid: string, accountId: string, calend
     };
   });
   normalizeGlobalBookingDefault(accounts, chosenDefault ? { accountId, calendarId: chosenDefault } : null);
+  user.preferredBookingProvider = "google";
+  clearMicrosoftBookingDefaultFlags(user);
   persistUsers();
+}
+
+function clearMicrosoftBookingDefaultFlags(user: StoredUser): void {
+  const ms = resolveMicrosoftAccounts(user);
+  for (const a of ms) {
+    a.calendars = a.calendars.map((c) => ({ ...c, defaultForBooking: false }));
+  }
+}
+
+function clearGoogleBookingDefaultFlags(user: StoredUser): void {
+  migrateGoogleAccounts(user);
+  const gs = resolveGoogleAccounts(user);
+  for (const a of gs) {
+    a.calendars = a.calendars.map((c) => ({ ...c, defaultForBooking: false }));
+  }
+}
+
+// ── Microsoft / Outlook (Graph) accounts ──
+
+const MAX_MICROSOFT_ACCOUNTS = 5;
+
+export function getMicrosoftAccounts(uid: string): MicrosoftAccount[] {
+  const user = usersByUid.get(uid);
+  if (!user) return [];
+  return resolveMicrosoftAccounts(user);
+}
+
+export function addMicrosoftAccount(uid: string, email: string, tokens: GoogleCalendarTokens): MicrosoftAccount {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const accounts = user.microsoftAccounts ?? [];
+  const existing = accounts.find((a) => a.email.toLowerCase() === email.toLowerCase());
+  if (existing) {
+    if (tokens.refreshToken) {
+      existing.tokens = tokens;
+    } else {
+      existing.tokens.accessToken = tokens.accessToken;
+      existing.tokens.expiresAt = tokens.expiresAt;
+    }
+    persistUsers();
+    return existing;
+  }
+  if (accounts.length >= MAX_MICROSOFT_ACCOUNTS) {
+    throw new ValidationError(`Maximum ${MAX_MICROSOFT_ACCOUNTS} comptes Microsoft autorisés`);
+  }
+  const account: MicrosoftAccount = {
+    id: crypto.randomUUID(),
+    email,
+    tokens,
+    calendars: [],
+  };
+  accounts.push(account);
+  user.microsoftAccounts = accounts;
+  persistUsers();
+  return account;
+}
+
+export function getMicrosoftAccountTokens(uid: string, accountId: string): GoogleCalendarTokens | null {
+  const accounts = getMicrosoftAccounts(uid);
+  return accounts.find((a) => a.id === accountId)?.tokens ?? null;
+}
+
+export function updateMicrosoftAccountTokens(uid: string, accountId: string, tokens: GoogleCalendarTokens): void {
+  const user = usersByUid.get(uid);
+  if (!user) return;
+  const accounts = resolveMicrosoftAccounts(user);
+  const account = accounts.find((a) => a.id === accountId);
+  if (account) {
+    account.tokens = tokens;
+    persistUsers();
+  }
+}
+
+export function removeMicrosoftAccount(uid: string, accountId: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const accounts = user.microsoftAccounts ?? [];
+  const exists = accounts.some((a) => a.id === accountId);
+  if (!exists) throw new NotFoundError("Compte Microsoft introuvable");
+  user.microsoftAccounts = accounts.filter((a) => a.id !== accountId);
+  persistUsers();
+}
+
+export function removeAllMicrosoftAccounts(uid: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) return;
+  delete user.microsoftAccounts;
+  persistUsers();
+}
+
+export function setMicrosoftAccountCalendars(uid: string, accountId: string, calendars: GoogleCalendarEntry[]): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const accounts = resolveMicrosoftAccounts(user);
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) throw new NotFoundError("Compte Microsoft introuvable");
+
+  let chosenDefault: string | null = null;
+  for (const cal of calendars) {
+    if (cal.defaultForBooking && cal.canWriteBooking !== false) {
+      chosenDefault = cal.calendarId;
+      break;
+    }
+  }
+  account.calendars = calendars.map((cal) => {
+    const enabled = !!cal.enabled;
+    const canWriteBooking = cal.canWriteBooking !== false;
+    const defaultForBooking = chosenDefault
+      ? cal.calendarId === chosenDefault && enabled && canWriteBooking
+      : false;
+    return {
+      ...cal,
+      enabled,
+      canWriteBooking,
+      defaultForBooking,
+    };
+  });
+  normalizeMicrosoftBookingDefault(accounts, chosenDefault ? { accountId, calendarId: chosenDefault } : null);
+  user.preferredBookingProvider = "microsoft";
+  clearGoogleBookingDefaultFlags(user);
+  persistUsers();
+}
+
+export function getMicrosoftBookingTarget(uid: string): { accountId: string; calendarId: string } | null {
+  const accounts = getMicrosoftAccounts(uid);
+  if (accounts.length === 0) return null;
+
+  for (const account of accounts) {
+    const selected = account.calendars.find((c) => c.defaultForBooking && isWritableOutlookCalendar(c));
+    if (selected) return { accountId: account.id, calendarId: selected.calendarId };
+  }
+
+  for (const account of accounts) {
+    const writablePrimary = account.calendars.find((c) => !!c.primary && isWritableOutlookCalendar(c));
+    if (writablePrimary) return { accountId: account.id, calendarId: writablePrimary.calendarId };
+    const firstWritable = account.calendars.find((c) => isWritableOutlookCalendar(c));
+    if (firstWritable) return { accountId: account.id, calendarId: firstWritable.calendarId };
+  }
+
+  const firstAcc = accounts[0];
+  const firstCal = firstAcc?.calendars[0];
+  // Mirror Google: OAuth stores tokens before the user saves "Mes agendas".
+  // Empty calendarId is resolved at booking time via Graph default calendar.
+  if (!firstCal) return { accountId: firstAcc.id, calendarId: "" };
+  return { accountId: firstAcc.id, calendarId: firstCal.calendarId };
+}
+
+export type ResolvedBookingTarget =
+  | { provider: "google"; accountId: string; calendarId: string }
+  | { provider: "microsoft"; accountId: string; calendarId: string };
+
+/**
+ * Where to write new calendar bookings. Uses preferredBookingProvider when both integrations exist;
+ * otherwise picks the only connected provider or falls back to Google first then Microsoft.
+ */
+export function resolveBookingTarget(uid: string): ResolvedBookingTarget | null {
+  const user = usersByUid.get(uid);
+  const pref = user?.preferredBookingProvider;
+  const g = getGoogleBookingTarget(uid);
+  const m = getMicrosoftBookingTarget(uid);
+
+  if (pref === "microsoft") {
+    if (m) return { provider: "microsoft", ...m };
+    if (g) return { provider: "google", ...g };
+    return null;
+  }
+  if (pref === "google") {
+    if (g) return { provider: "google", ...g };
+    if (m) return { provider: "microsoft", ...m };
+    return null;
+  }
+
+  if (g) return { provider: "google", ...g };
+  if (m) return { provider: "microsoft", ...m };
+  return null;
 }
 
 export function getGoogleBookingTarget(uid: string): { accountId: string; calendarId: string } | null {
@@ -1371,6 +1640,14 @@ export function countGoogleCalendarConnected(): number {
   for (const user of usersByUid.values()) {
     migrateGoogleAccounts(user);
     if ((user.googleAccounts ?? []).length > 0) count++;
+  }
+  return count;
+}
+
+export function countMicrosoftCalendarConnected(): number {
+  let count = 0;
+  for (const user of usersByUid.values()) {
+    if ((user.microsoftAccounts ?? []).length > 0) count++;
   }
   return count;
 }

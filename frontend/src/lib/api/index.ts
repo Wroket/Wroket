@@ -5,6 +5,7 @@ export type {
   SlotProposal,
   GoogleCalendarEntry,
   GoogleAccountPublic,
+  MicrosoftAccountPublic,
   AuthMeResponse,
   ActivityLogEntry,
   NotificationDeliveryMode,
@@ -31,6 +32,7 @@ export {
   forgotPasswordApi,
   resetPasswordApi,
   getGoogleSsoUrl,
+  getMicrosoftSsoUrl,
   shareInviteApi,
   getMe,
   updateProfile,
@@ -172,6 +174,11 @@ export {
   getAccountCalendars,
   saveAccountCalendars,
   disconnectGoogleAccount,
+  getMicrosoftAuthUrl,
+  disconnectMicrosoftCalendar,
+  getMicrosoftAccountCalendars,
+  saveMicrosoftAccountCalendars,
+  disconnectMicrosoftAccount,
 } from "./calendar";
 export type { CalendarEvent, CalendarEventsResponse } from "./calendar";
 

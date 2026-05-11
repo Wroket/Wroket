@@ -36,7 +36,7 @@ import { enqueuePendingMention } from "../services/pendingMentionService";
 import { createNotification } from "../services/notificationService";
 import { isActiveCollaborator } from "../services/teamService";
 import { getAttachmentCounts } from "../services/attachmentService";
-import { deleteGoogleCalendarEventForTodo } from "../services/googleCalendarService";
+import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
 import { getProjectById, listProjects } from "../services/projectService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity, getTaskActivity } from "../services/activityLogService";
@@ -175,8 +175,8 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     todo.scheduledSlot &&
     new Date(todo.scheduledSlot.start).getTime() > Date.now()
   ) {
-    deleteGoogleCalendarEventForTodo(todo).catch((err) => {
-      console.warn("[todo.update] Google Calendar event cleanup failed:", err);
+    deleteExternalBookingForTodo(todo).catch((err) => {
+      console.warn("[todo.update] External calendar event cleanup failed:", err);
     });
     todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
   }
@@ -308,8 +308,8 @@ function scheduleCalendarCleanupForSnapshots(todos: Todo[]): void {
       todo.scheduledSlot &&
       new Date(todo.scheduledSlot.start).getTime() > Date.now()
     ) {
-      deleteGoogleCalendarEventForTodo(todo).catch((err) => {
-        console.warn("[todo] Google Calendar event cleanup failed:", err);
+      deleteExternalBookingForTodo(todo).catch((err) => {
+        console.warn("[todo] External calendar event cleanup failed:", err);
       });
     }
   }
@@ -362,8 +362,8 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
     todo.scheduledSlot &&
     new Date(todo.scheduledSlot.start).getTime() > Date.now()
   ) {
-    deleteGoogleCalendarEventForTodo(todo).catch((err) => {
-      console.warn("[todo.remove] Google Calendar event cleanup failed:", err);
+    deleteExternalBookingForTodo(todo).catch((err) => {
+      console.warn("[todo.remove] External calendar event cleanup failed:", err);
     });
     todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
   }

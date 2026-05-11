@@ -15,13 +15,19 @@ import { findPhaseById } from "../services/projectService";
 import {
   findUserByUid,
   DEFAULT_WORKING_HOURS,
-  getGoogleCalendarTokens,
   getGoogleAccounts,
+  resolveBookingTarget,
   addGoogleAccount,
   removeGoogleAccount,
   removeAllGoogleAccounts,
   setGoogleAccountCalendars,
   getGoogleBookingTarget,
+  getMicrosoftBookingTarget,
+  getMicrosoftAccounts,
+  addMicrosoftAccount,
+  removeMicrosoftAccount,
+  removeAllMicrosoftAccounts,
+  setMicrosoftAccountCalendars,
   type GoogleCalendarEntry,
 } from "../services/authService";
 import { NotFoundError, ValidationError } from "../utils/errors";
@@ -35,11 +41,25 @@ import {
   createGoogleCalendarEvent,
   createGoogleMeetEvent,
   deleteGoogleCalendarEvent,
-  deleteGoogleCalendarEventForTodo,
   patchGoogleCalendarEvent,
   mapGoogleMeetCreateError,
   WROKET_CALENDAR_BOOKING_NOTE,
 } from "../services/googleCalendarService";
+import {
+  exchangeCalendarCodeForTokens,
+  fetchMicrosoftAccountEmail,
+  getMicrosoftCalendarAuthUrl,
+  getDefaultMicrosoftCalendarId,
+  listMicrosoftCalendarListForAccount,
+  listMicrosoftEventsForAccount,
+  isMicrosoftCalendarOAuthConfigured,
+  createMicrosoftCalendarEvent,
+  createMicrosoftTeamsCalendarEvent,
+  patchMicrosoftCalendarEvent,
+  deleteMicrosoftCalendarEvent,
+  mapMicrosoftTeamsMeetCreateError,
+} from "../services/microsoftCalendarService";
+import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 
 /** Advance a Date in-place by the recurrence step, preserving time-of-day. */
@@ -64,6 +84,7 @@ interface WroketEvent {
   recurring?: boolean;
   delegated?: boolean;
   meetingUrl?: string | null;
+  meetingProvider?: "google-meet" | "microsoft-teams" | null;
 }
 
 const MAX_EMITTED = 200;
@@ -104,6 +125,7 @@ function pushRecurrences(
       deadline: t.deadline,
       recurring: true,
       meetingUrl: t.scheduledSlot?.meetingUrl ?? null,
+      meetingProvider: t.scheduledSlot?.meetingProvider ?? null,
     });
     emitted++;
   }
@@ -147,6 +169,31 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
         }
       }
     } catch { /* Google Calendar unavailable */ }
+  }
+
+  const msAccounts = getMicrosoftAccounts(uid);
+  if (msAccounts.length > 0) {
+    const now = new Date();
+    const searchEnd = new Date(now.getTime() + 31 * 24 * 3600_000);
+    const msFetches: Promise<{ start: string; end: string; allDay: boolean }[]>[] = [];
+    for (const account of msAccounts) {
+      for (const cal of account.calendars) {
+        if (!cal.enabled || msFetches.length >= 10) continue;
+        msFetches.push(
+          listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, now.toISOString(), searchEnd.toISOString())
+            .then((events) => events.map((e) => ({ start: e.start, end: e.end, allDay: e.allDay }))),
+        );
+      }
+    }
+    try {
+      const results = await Promise.all(msFetches);
+      for (const events of results) {
+        for (const ev of events) {
+          if (ev.allDay) continue;
+          googleBusySlots.push({ start: new Date(ev.start), end: new Date(ev.end) });
+        }
+      }
+    } catch { /* Outlook unavailable */ }
   }
 
   let effectiveStartDate = todo.startDate;
@@ -226,6 +273,32 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
     } catch { /* Google Calendar unavailable — skip */ }
   }
 
+  const msAccounts = getMicrosoftAccounts(uid);
+  if (msAccounts.length > 0) {
+    const timeMin = start.toISOString();
+    const timeMax = end.toISOString();
+    const msFetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
+    for (const account of msAccounts) {
+      for (const cal of account.calendars) {
+        if (!cal.enabled || msFetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
+        msFetches.push(listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax));
+      }
+    }
+    try {
+      const results = await Promise.all(msFetches);
+      for (const events of results) {
+        for (const ev of events) {
+          if (ev.allDay) continue;
+          const evStart = new Date(ev.start);
+          const evEnd = new Date(ev.end);
+          if (start < evEnd && end > evStart) {
+            conflicts.push({ id: `ms:${ev.id}`, title: ev.summary, start: ev.start, end: ev.end });
+          }
+        }
+      }
+    } catch { /* Outlook unavailable */ }
+  }
+
   return conflicts;
 }
 
@@ -267,38 +340,144 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   let calendarEventId: string | null = null;
   let bookingCalendarId: string | null = null;
   let bookingAccountId: string | null = null;
-  const tokens = getGoogleCalendarTokens(uid);
-  if (tokens) {
-    const user = findUserByUid(uid);
-    const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
-    const bookingTarget = getGoogleBookingTarget(uid);
-    bookingCalendarId = bookingTarget?.calendarId ?? "primary";
-    bookingAccountId = bookingTarget?.accountId ?? null;
-    const existingEventId = todo.scheduledSlot?.calendarEventId ?? null;
-    if (existingEventId) {
-      const existingBookingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? bookingCalendarId;
-      const existingBookingAccountId = todo.scheduledSlot?.bookingAccountId ?? bookingAccountId;
-      const patched = await patchGoogleCalendarEvent(
-        uid,
-        existingEventId,
-        todo.title,
-        start,
-        end,
-        tz,
-        undefined,
-        existingBookingCalendarId,
-        existingBookingAccountId ?? undefined,
-      );
-      if (patched) {
-        calendarEventId = existingEventId;
-        bookingCalendarId = existingBookingCalendarId;
-        bookingAccountId = existingBookingAccountId;
+  let bookingProvider: "google" | "microsoft" | undefined;
+
+  const hasCalendarIntegration =
+    getGoogleAccounts(uid).length > 0 || getMicrosoftAccounts(uid).length > 0;
+  const bookingTarget = resolveBookingTarget(uid);
+
+  if (hasCalendarIntegration && !bookingTarget) {
+    throw new ValidationError(
+      "Configurez un calendrier par défaut pour la réservation (Mes agendas).",
+    );
+  }
+
+  const user = findUserByUid(uid);
+  const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+
+  if (bookingTarget) {
+    bookingCalendarId = bookingTarget.calendarId;
+    bookingAccountId = bookingTarget.accountId;
+    bookingProvider = bookingTarget.provider;
+
+    let existingEventId = todo.scheduledSlot?.calendarEventId ?? null;
+    let existingProvider = todo.scheduledSlot?.bookingProvider ?? "google";
+
+    if (existingEventId && existingProvider !== bookingTarget.provider) {
+      await deleteExternalBookingForTodo(todo);
+      existingEventId = null;
+    }
+
+    if (bookingTarget.provider === "google") {
+      const googleTarget = { accountId: bookingTarget.accountId, calendarId: bookingTarget.calendarId };
+      if (existingEventId && existingProvider === "google") {
+        const existingBookingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? bookingCalendarId ?? "primary";
+        const existingBookingAccountId = todo.scheduledSlot?.bookingAccountId ?? bookingAccountId;
+        const patched = await patchGoogleCalendarEvent(
+          uid,
+          existingEventId,
+          todo.title,
+          start,
+          end,
+          tz,
+          undefined,
+          existingBookingCalendarId,
+          existingBookingAccountId ?? undefined,
+        );
+        if (patched) {
+          calendarEventId = existingEventId;
+          bookingCalendarId = existingBookingCalendarId;
+          bookingAccountId = existingBookingAccountId;
+        } else {
+          await deleteGoogleCalendarEvent(
+            uid,
+            existingEventId,
+            existingBookingCalendarId,
+            existingBookingAccountId ?? undefined,
+          );
+          calendarEventId = await createGoogleCalendarEvent(
+            uid,
+            todo.title,
+            start,
+            end,
+            tz,
+            undefined,
+            googleTarget,
+          );
+        }
       } else {
-        await deleteGoogleCalendarEvent(uid, existingEventId, existingBookingCalendarId, existingBookingAccountId ?? undefined);
-        calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz, undefined, bookingTarget ?? undefined);
+        calendarEventId = await createGoogleCalendarEvent(
+          uid,
+          todo.title,
+          start,
+          end,
+          tz,
+          undefined,
+          googleTarget,
+        );
+      }
+      if (!calendarEventId) {
+        throw new ValidationError(
+          "Impossible de créer l'événement Google Calendar. Vérifiez la connexion et le calendrier par défaut.",
+        );
       }
     } else {
-      calendarEventId = await createGoogleCalendarEvent(uid, todo.title, start, end, tz, undefined, bookingTarget ?? undefined);
+      const msAccountId = bookingTarget.accountId;
+      let msCalId =
+        typeof bookingTarget.calendarId === "string" ? bookingTarget.calendarId.trim() : "";
+      if (!msCalId) {
+        const resolved = await getDefaultMicrosoftCalendarId(uid, msAccountId);
+        if (!resolved) {
+          throw new ValidationError(
+            "Impossible de déterminer le calendrier Outlook par défaut. Ouvrez Mes agendas, sélectionnez un calendrier, puis réessayez.",
+          );
+        }
+        msCalId = resolved;
+      }
+      if (existingEventId && existingProvider === "microsoft") {
+        const patchAccountId = todo.scheduledSlot?.bookingAccountId ?? msAccountId;
+        const patched = await patchMicrosoftCalendarEvent(
+          uid,
+          patchAccountId,
+          existingEventId,
+          todo.title,
+          start,
+          end,
+        );
+        if (patched) {
+          calendarEventId = existingEventId;
+          bookingAccountId = patchAccountId;
+          bookingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? msCalId;
+        } else {
+          await deleteMicrosoftCalendarEvent(uid, patchAccountId, existingEventId).catch(() => null);
+          calendarEventId = await createMicrosoftCalendarEvent(
+            uid,
+            msAccountId,
+            msCalId,
+            todo.title,
+            start,
+            end,
+          );
+          bookingAccountId = msAccountId;
+          bookingCalendarId = msCalId;
+        }
+      } else {
+        calendarEventId = await createMicrosoftCalendarEvent(
+          uid,
+          msAccountId,
+          msCalId,
+          todo.title,
+          start,
+          end,
+        );
+      }
+      if (!calendarEventId) {
+        throw new ValidationError(
+          "Impossible de créer l'événement Outlook. Vérifiez la connexion et le calendrier par défaut.",
+        );
+      }
+      bookingAccountId = msAccountId;
+      bookingCalendarId = msCalId;
     }
   }
 
@@ -310,6 +489,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
       bookedByUid: uid,
       bookingCalendarId,
       bookingAccountId,
+      ...(bookingProvider ? { bookingProvider } : {}),
     },
   });
 
@@ -325,7 +505,7 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const { todo } = found;
 
   if (todo.scheduledSlot?.calendarEventId) {
-    await deleteGoogleCalendarEventForTodo(todo);
+    await deleteExternalBookingForTodo(todo);
   }
 
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
@@ -378,6 +558,123 @@ export async function disconnectGoogle(req: AuthenticatedRequest, res: Response)
   res.status(200).json({ message: "Google Calendar disconnected" });
 }
 
+export async function microsoftCalendarAuthUrl(req: AuthenticatedRequest, res: Response) {
+  if (!isMicrosoftCalendarOAuthConfigured()) {
+    res.status(503).json({ message: "Microsoft Calendar OAuth non configuré sur ce serveur" });
+    return;
+  }
+  const state = createOAuthState(req.user!.uid);
+  const url = getMicrosoftCalendarAuthUrl(state);
+  res.status(200).json({ url });
+}
+
+export async function microsoftCalendarCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const code = req.query.code as string | undefined;
+  const state = req.query.state as string | undefined;
+
+  if (!code || !state) {
+    res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+    return;
+  }
+
+  const uid = consumeOAuthState(state);
+  if (!uid) {
+    res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+    return;
+  }
+
+  try {
+    const tokens = await exchangeCalendarCodeForTokens(code);
+    const email = await fetchMicrosoftAccountEmail(tokens.accessToken);
+    const account = addMicrosoftAccount(uid, email, tokens);
+    if (account.calendars.length === 0) {
+      try {
+        const list = await listMicrosoftCalendarListForAccount(uid, account.id);
+        if (list.length > 0) {
+          const pick =
+            list.find((c) => c.primary && c.canWriteBooking !== false) ??
+            list.find((c) => c.canWriteBooking !== false) ??
+            list[0];
+          const entries: GoogleCalendarEntry[] = list.map((cal) => ({
+            calendarId: cal.id,
+            label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
+            color: cal.backgroundColor,
+            enabled: cal.id === pick.id && cal.canWriteBooking !== false,
+            defaultForBooking: cal.id === pick.id && cal.canWriteBooking !== false,
+            canWriteBooking: cal.canWriteBooking,
+            primary: !!cal.primary,
+          }));
+          setMicrosoftAccountCalendars(uid, account.id, entries);
+        }
+      } catch (seedErr) {
+        console.error("[microsoft-cal] post-connect calendar seed failed:", seedErr);
+      }
+    }
+    res.redirect(`${frontendUrl}/agenda/manage?microsoft=connected`);
+  } catch (err) {
+    console.error("[microsoft-cal] callback error:", err);
+    res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+  }
+}
+
+export async function disconnectMicrosoft(req: AuthenticatedRequest, res: Response) {
+  const accountId = req.params.accountId as string | undefined;
+  if (accountId) {
+    removeMicrosoftAccount(req.user!.uid, accountId);
+  } else {
+    removeAllMicrosoftAccounts(req.user!.uid);
+  }
+  res.status(200).json({ message: "Outlook disconnected" });
+}
+
+export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const accountId = String(req.params.accountId);
+
+  const accounts = getMicrosoftAccounts(uid);
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) throw new NotFoundError("Compte Microsoft introuvable");
+
+  const available = await listMicrosoftCalendarListForAccount(uid, accountId);
+  const savedMap = new Map(account.calendars.map((c) => [c.calendarId, c]));
+  const isPriorityAccount = accounts.length > 0 && accounts[0]?.id === accountId;
+
+  const merged = available.map((cal) => ({
+    calendarId: cal.id,
+    label: cal.summary,
+    color: cal.backgroundColor,
+    enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : (isPriorityAccount ? !!cal.primary : false),
+    defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : false,
+    canWriteBooking: savedMap.has(cal.id) ? savedMap.get(cal.id)!.canWriteBooking !== false : !!cal.canWriteBooking,
+    primary: cal.primary ?? false,
+  }));
+
+  res.status(200).json(merged);
+}
+
+export async function saveMicrosoftCalendarSelection(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const accountId = String(req.params.accountId);
+
+  const { calendars } = req.body as { calendars?: GoogleCalendarEntry[] };
+  if (!Array.isArray(calendars)) throw new ValidationError("calendars array required");
+  if (calendars.length > 50) throw new ValidationError("Trop de calendriers (max 50)");
+
+  const entries: GoogleCalendarEntry[] = calendars.map((c) => ({
+    calendarId: String(c.calendarId).substring(0, 200),
+    label: String(c.label).substring(0, 100),
+    color: String(c.color).substring(0, 20),
+    enabled: !!c.enabled,
+    defaultForBooking: !!c.defaultForBooking,
+    canWriteBooking: c.canWriteBooking !== false,
+    primary: !!c.primary,
+  }));
+
+  setMicrosoftAccountCalendars(uid, accountId, entries);
+  res.status(200).json({ message: "OK", calendars: entries });
+}
+
 export async function getCalendarEvents(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const start = req.query.start as string;
@@ -421,6 +718,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       allDay: false, source: "wroket",
       priority: t.priority, effort: t.effort, deadline: t.deadline,
       meetingUrl: t.scheduledSlot.meetingUrl ?? null,
+      meetingProvider: t.scheduledSlot.meetingProvider ?? null,
     });
 
     if (t.recurrence) {
@@ -440,6 +738,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       priority: t.priority, effort: t.effort, deadline: t.deadline,
       delegated: true,
       meetingUrl: t.scheduledSlot.meetingUrl ?? null,
+      meetingProvider: t.scheduledSlot.meetingProvider ?? null,
     });
 
     if (t.recurrence) {
@@ -490,7 +789,55 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   }
   const filteredGoogleEvents = allGoogleEvents.filter((e) => !wroketGoogleIds.has(e.id));
 
-  res.status(200).json({ wroketEvents, googleEvents: filteredGoogleEvents });
+  type MEvent = { id: string; summary: string; start: string; end: string; allDay: boolean; source: "microsoft"; calendarId?: string; calendarColor?: string; accountEmail?: string };
+  let allMicrosoftEvents: MEvent[] = [];
+
+  const msAcc = getMicrosoftAccounts(uid);
+  if (msAcc.length > 0) {
+    const msFetches: Promise<MEvent[]>[] = [];
+    for (const account of msAcc) {
+      if (msFetches.length >= MAX_CALENDAR_FETCHES) break;
+      const enabledCals = account.calendars.filter((c) => c.enabled);
+      if (enabledCals.length > 0) {
+        for (const cal of enabledCals) {
+          if (msFetches.length >= MAX_CALENDAR_FETCHES) break;
+          msFetches.push(
+            listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, start, end)
+              .then((events) => events.map((e) => ({
+                ...e,
+                calendarId: cal.calendarId,
+                calendarColor: cal.color,
+                accountEmail: account.email,
+              }))),
+          );
+        }
+      } else {
+        const calId =
+          account.calendars[0]?.calendarId ?? await getDefaultMicrosoftCalendarId(uid, account.id);
+        if (calId) {
+          msFetches.push(
+            listMicrosoftEventsForAccount(uid, account.id, calId, start, end)
+              .then((events) => events.map((e) => ({
+                ...e,
+                calendarId: calId,
+                calendarColor: account.calendars[0]?.color,
+                accountEmail: account.email,
+              }))),
+          );
+        }
+      }
+    }
+    const msResults = await Promise.all(msFetches);
+    allMicrosoftEvents = msResults.flat();
+  }
+
+  const filteredMicrosoftEvents = allMicrosoftEvents.filter((e) => !wroketGoogleIds.has(e.id));
+
+  res.status(200).json({
+    wroketEvents,
+    googleEvents: filteredGoogleEvents,
+    microsoftEvents: filteredMicrosoftEvents,
+  });
 }
 
 /** List all calendars for a specific Google account */
@@ -544,17 +891,19 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
 
 /**
  * POST /calendar/meet/:todoId
- * Creates a Google Calendar event with a Meet conference attached and stores
- * the join URL on the task's scheduledSlot. If the task has no slot yet, a
- * 1-hour window starting now is used as a placeholder; the user can reschedule
- * via the agenda.
+ * Creates a Google Meet or Microsoft Teams conference on the user's default booking calendar
+ * (see resolveBookingTarget) and stores the join URL on the task's scheduledSlot.
+ * If the task has no slot yet, a 1-hour window starting now is used as a placeholder.
  */
 export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
 
-  if (!getGoogleCalendarTokens(uid)) {
-    throw new ValidationError("Compte Google Calendar non connecté. Connectez-le dans les paramètres.");
+  const bookingTarget = resolveBookingTarget(uid);
+  if (!bookingTarget) {
+    throw new ValidationError(
+      "Connectez Google Calendar ou Outlook pour créer une réunion liée à la tâche.",
+    );
   }
 
   const found = findTodoForUser(uid, todoId);
@@ -628,42 +977,100 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const slotEnd = requestEnd ?? existingEnd ?? new Date(now.getTime() + 60 * 60 * 1000).toISOString();
 
   const runCreation = async (): Promise<Todo> => {
-    // Delete any existing plain calendar event before replacing with Meet one.
-    const existingEventId = todo.scheduledSlot?.calendarEventId;
-    if (existingEventId) {
-      const existingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? getGoogleBookingTarget(uid)?.calendarId ?? "primary";
-      const existingAccountId = todo.scheduledSlot?.bookingAccountId ?? getGoogleBookingTarget(uid)?.accountId;
-      await deleteGoogleCalendarEvent(uid, existingEventId, existingCalendarId, existingAccountId).catch(() => null);
+    // Delete any existing plain calendar event before replacing with Meet/Teams one.
+    if (todo.scheduledSlot?.calendarEventId) {
+      await deleteExternalBookingForTodo(todo).catch(() => null);
     }
 
-    const bookingTarget = getGoogleBookingTarget(uid);
-    let result: { eventId: string; meetingUrl: string } | null = null;
-    try {
-      result = await createGoogleMeetEvent(uid, summary, slotStart, slotEnd, tz, description, attendees, bookingTarget ?? undefined);
-    } catch (err) {
-      const raw = err instanceof Error ? err.message : "Erreur inconnue Google Calendar";
-      const mapped = mapGoogleMeetCreateError(raw);
-      console.error("[meet_create_controller_error]", JSON.stringify({ uid, todoId, raw }));
-      throw new ValidationError(`Impossible de créer la réunion Google Meet. ${mapped}`);
+    if (bookingTarget.provider === "google") {
+      let result: { eventId: string; meetingUrl: string } | null = null;
+      try {
+        result = await createGoogleMeetEvent(
+          uid,
+          summary,
+          slotStart,
+          slotEnd,
+          tz,
+          description,
+          attendees,
+          { accountId: bookingTarget.accountId, calendarId: bookingTarget.calendarId },
+        );
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : "Erreur inconnue Google Calendar";
+        const mapped = mapGoogleMeetCreateError(raw);
+        console.error("[meet_create_controller_error]", JSON.stringify({ uid, todoId, raw }));
+        throw new ValidationError(`Impossible de créer la réunion Google Meet. ${mapped}`);
+      }
+      if (!result) {
+        throw new ValidationError(
+          "Impossible de créer la réunion Google Meet. Vérifiez les permissions d'écriture du calendrier par défaut.",
+        );
+      }
+
+      const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
+        scheduledSlot: {
+          start: slotStart,
+          end: slotEnd,
+          calendarEventId: result.eventId,
+          bookedByUid: uid,
+          bookingCalendarId: bookingTarget.calendarId ?? "primary",
+          bookingAccountId: bookingTarget.accountId ?? null,
+          bookingProvider: "google",
+          meetingUrl: result.meetingUrl,
+          meetingInvitees: attendees,
+          meetingProvider: "google-meet",
+        },
+      });
+      console.info("[meet_create_controller_ok]", JSON.stringify({ uid, todoId, eventId: result.eventId, bookingTarget }));
+      return updated;
     }
-    if (!result) {
-      throw new ValidationError("Impossible de créer la réunion Google Meet. Vérifiez les permissions d'écriture du calendrier par défaut.");
+
+    const desc = description ?? WROKET_CALENDAR_BOOKING_NOTE;
+    let msCalForTeams =
+      typeof bookingTarget.calendarId === "string" ? bookingTarget.calendarId.trim() : "";
+    if (!msCalForTeams) {
+      const resolved = await getDefaultMicrosoftCalendarId(uid, bookingTarget.accountId);
+      if (!resolved) {
+        throw new ValidationError(
+          "Impossible de déterminer le calendrier Outlook par défaut pour la réunion.",
+        );
+      }
+      msCalForTeams = resolved;
+    }
+    let teamsResult: { eventId: string; joinUrl: string };
+    try {
+      teamsResult = await createMicrosoftTeamsCalendarEvent(
+        uid,
+        bookingTarget.accountId,
+        msCalForTeams,
+        summary,
+        slotStart,
+        slotEnd,
+        desc,
+        attendees,
+      );
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "Erreur inconnue Microsoft Graph";
+      const mapped = mapMicrosoftTeamsMeetCreateError(raw);
+      console.error("[teams_meet_create_controller_error]", JSON.stringify({ uid, todoId, raw }));
+      throw new ValidationError(`Impossible de créer la réunion Microsoft Teams. ${mapped}`);
     }
 
     const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
       scheduledSlot: {
         start: slotStart,
         end: slotEnd,
-        calendarEventId: result.eventId,
+        calendarEventId: teamsResult.eventId,
         bookedByUid: uid,
-        bookingCalendarId: bookingTarget?.calendarId ?? "primary",
-        bookingAccountId: bookingTarget?.accountId ?? null,
-        meetingUrl: result.meetingUrl,
+        bookingCalendarId: msCalForTeams,
+        bookingAccountId: bookingTarget.accountId,
+        bookingProvider: "microsoft",
+        meetingUrl: teamsResult.joinUrl,
         meetingInvitees: attendees,
-        meetingProvider: "google-meet",
+        meetingProvider: "microsoft-teams",
       },
     });
-    console.info("[meet_create_controller_ok]", JSON.stringify({ uid, todoId, eventId: result.eventId, bookingTarget }));
+    console.info("[teams_meet_create_controller_ok]", JSON.stringify({ uid, todoId, eventId: teamsResult.eventId, bookingTarget }));
     return updated;
   };
 
@@ -679,7 +1086,7 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
 
 /**
  * PATCH /calendar/meet/:todoId
- * Updates an existing Google Meet event linked to a task.
+ * Updates an existing Google Meet or Microsoft Teams event linked to a task.
  */
 export async function updateMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
@@ -690,6 +1097,10 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
   if (!todo.scheduledSlot?.calendarEventId || !todo.scheduledSlot?.meetingUrl) {
     throw new ValidationError("Aucune réunion existante à modifier.");
   }
+
+  const isMicrosoftTeams =
+    todo.scheduledSlot.meetingProvider === "microsoft-teams" ||
+    (todo.scheduledSlot.bookingProvider === "microsoft" && !todo.scheduledSlot.meetingProvider);
 
   const body = (req.body ?? {}) as {
     start?: string;
@@ -727,6 +1138,39 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
     : WROKET_CALENDAR_BOOKING_NOTE;
   const user = findUserByUid(uid);
   const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+
+  if (isMicrosoftTeams) {
+    const bookingAccountId =
+      todo.scheduledSlot.bookingAccountId ?? getMicrosoftBookingTarget(uid)?.accountId;
+    if (!bookingAccountId) {
+      throw new ValidationError("Compte Outlook introuvable pour mettre à jour la réunion Teams.");
+    }
+    const ok = await patchMicrosoftCalendarEvent(
+      uid,
+      bookingAccountId,
+      todo.scheduledSlot.calendarEventId,
+      summary,
+      requestStart,
+      requestEnd,
+      description,
+      attendees,
+    );
+    if (!ok) throw new ValidationError("Impossible de modifier la réunion Microsoft Teams.");
+
+    const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
+      scheduledSlot: {
+        ...todo.scheduledSlot,
+        start: requestStart,
+        end: requestEnd,
+        meetingInvitees: attendees,
+        meetingProvider: "microsoft-teams",
+        bookingProvider: "microsoft",
+      },
+    });
+    res.status(200).json(todoToClientJson(updated));
+    return;
+  }
+
   const bookingCalendarId = todo.scheduledSlot.bookingCalendarId ?? getGoogleBookingTarget(uid)?.calendarId ?? "primary";
   const bookingAccountId = todo.scheduledSlot.bookingAccountId ?? getGoogleBookingTarget(uid)?.accountId;
   const ok = await patchGoogleCalendarEvent(
@@ -756,9 +1200,8 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
 
 /**
  * DELETE /calendar/meet/:todoId
- * Removes the meeting URL from the task slot. Deletes the Google Calendar event
- * if one was associated. The slot itself (start/end) is preserved if it existed
- * independently before the Meet was created.
+ * Removes the meeting URL from the task slot and deletes the linked calendar event
+ * (Google or Outlook). The slot times are preserved when they already existed.
  */
 export async function clearMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
@@ -769,20 +1212,25 @@ export async function clearMeet(req: AuthenticatedRequest, res: Response) {
   const { todo } = found;
 
   if (todo.scheduledSlot?.calendarEventId) {
-    await deleteGoogleCalendarEventForTodo(todo).catch(() => null);
+    await deleteExternalBookingForTodo(todo).catch(() => null);
   }
 
+  const slot = todo.scheduledSlot;
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
-    scheduledSlot: todo.scheduledSlot
-      ? {
-          ...todo.scheduledSlot,
-          calendarEventId: null,
-          bookingCalendarId: null,
-          bookingAccountId: null,
-          meetingUrl: null,
-          meetingInvitees: null,
-          meetingProvider: null,
-        }
+    scheduledSlot: slot
+      ? (() => {
+          const { bookingProvider: _bp, ...rest } = slot;
+          void _bp;
+          return {
+            ...rest,
+            calendarEventId: null,
+            bookingCalendarId: null,
+            bookingAccountId: null,
+            meetingUrl: null,
+            meetingInvitees: null,
+            meetingProvider: null,
+          };
+        })()
       : null,
   });
 

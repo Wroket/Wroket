@@ -283,6 +283,23 @@ export async function getGoogleSsoUrl(loginHint?: string): Promise<string> {
   return data.url;
 }
 
+export async function getMicrosoftSsoUrl(loginHint?: string): Promise<string> {
+  const params = loginHint ? `?login_hint=${encodeURIComponent(loginHint)}` : "";
+  const res = await fetch(`${API_BASE_URL}/auth/microsoft/url${params}`, {
+    credentials: "include",
+  });
+  const data = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
+  if (!res.ok) {
+    throw new Error(
+      typeof data.message === "string" && data.message.trim()
+        ? data.message
+        : "Erreur d'authentification Microsoft",
+    );
+  }
+  if (typeof data.url !== "string") throw new Error("Réponse API invalide");
+  return data.url;
+}
+
 export async function shareInviteApi(email: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/auth/share-invite`, {
     method: "POST",

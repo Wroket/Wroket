@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   getMe,
   getGoogleSsoUrl,
+  getMicrosoftSsoUrl,
   login,
   register,
   resendVerificationApi,
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resending, setResending] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [microsoftLoading, setMicrosoftLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [twoFaPendingToken, setTwoFaPendingToken] = useState<string | null>(null);
   const [twoFactorMethods, setTwoFactorMethods] = useState<TwoFactorMethod[] | null>(null);
@@ -59,8 +61,15 @@ export default function LoginPage() {
     let params = new URLSearchParams(window.location.search);
     const pending2fa = params.get("pending2fa");
 
-    if (params.get("error") === "google_sso_failed") {
+    const err = params.get("error");
+    if (err === "google_sso_failed") {
       setError(t("login.googleSsoError"));
+      params.delete("error");
+      const q = params.toString();
+      window.history.replaceState({}, "", q ? `/login?${q}` : "/login");
+      params = new URLSearchParams(window.location.search);
+    } else if (err === "microsoft_sso_failed") {
+      setError(t("login.microsoftSsoError"));
       params.delete("error");
       const q = params.toString();
       window.history.replaceState({}, "", q ? `/login?${q}` : "/login");
@@ -133,6 +142,21 @@ export default function LoginPage() {
     } catch {
       setError(t("login.googleSsoError"));
       setGoogleLoading(false);
+    }
+  };
+
+  const handleMicrosoftSso = async () => {
+    setMicrosoftLoading(true);
+    setError(null);
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      document.cookie = `tz=${encodeURIComponent(tz)};path=/;max-age=300;SameSite=Lax`;
+      const hint = localStorage.getItem("wroket-login-email") ?? undefined;
+      const url = await getMicrosoftSsoUrl(hint);
+      window.location.href = url;
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : t("login.microsoftSsoError"));
+      setMicrosoftLoading(false);
     }
   };
 
@@ -349,7 +373,7 @@ export default function LoginPage() {
 
         <button
           type="button"
-          disabled={googleLoading}
+          disabled={googleLoading || microsoftLoading}
           onClick={handleGoogleSso}
           className="w-full flex items-center justify-center gap-3 rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-slate-200 shadow-sm hover:bg-zinc-50 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         >
@@ -360,6 +384,21 @@ export default function LoginPage() {
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
           </svg>
           {googleLoading ? "..." : t("login.googleSso")}
+        </button>
+
+        <button
+          type="button"
+          disabled={googleLoading || microsoftLoading}
+          onClick={handleMicrosoftSso}
+          className="mt-2 w-full flex items-center justify-center gap-3 rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-slate-200 shadow-sm hover:bg-zinc-50 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 21 21" aria-hidden>
+            <path fill="#f25022" d="M1 1h9v9H1z" />
+            <path fill="#7fba00" d="M11 1h9v9h-9z" />
+            <path fill="#00a4ef" d="M1 11h9v9H1z" />
+            <path fill="#ffb900" d="M11 11h9v9h-9z" />
+          </svg>
+          {microsoftLoading ? "..." : t("login.microsoftSso")}
         </button>
 
         <div className="relative flex items-center justify-center my-1">

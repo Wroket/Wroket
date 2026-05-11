@@ -14,15 +14,19 @@ export interface WorkingHours {
   daysOfWeek: number[];
 }
 
+export type BookingCalendarProvider = "google" | "microsoft";
+
 export interface ScheduledSlot {
   start: string;
   end: string;
   calendarEventId: string | null;
   bookingCalendarId?: string | null;
   bookingAccountId?: string | null;
+  /** External calendar used for this booking; omit or google for legacy tasks */
+  bookingProvider?: BookingCalendarProvider;
   meetingUrl?: string | null;
   meetingInvitees?: string[] | null;
-  meetingProvider?: "google-meet" | null;
+  meetingProvider?: "google-meet" | "microsoft-teams" | null;
 }
 
 export interface SuggestedSlot {
@@ -52,6 +56,9 @@ export interface GoogleAccountPublic {
   calendars: GoogleCalendarEntry[];
 }
 
+/** Same shape as Google; Outlook calendars use the same entry fields from the API. */
+export type MicrosoftAccountPublic = GoogleAccountPublic;
+
 export type NotificationDeliveryMode = "none" | "email" | "slack" | "teams" | "google_chat";
 export type NotificationOutboundFrequency = "immediate" | "hourly_digest" | "daily_digest";
 
@@ -77,9 +84,11 @@ export interface AuthMeResponse {
   lastName: string;
   effortMinutes: { light: number; medium: number; heavy: number };
   googleAccounts?: GoogleAccountPublic[];
+  microsoftAccounts?: MicrosoftAccountPublic[];
   workingHours: WorkingHours;
   skipNonWorkingDays: boolean;
   googleCalendarConnected: boolean;
+  microsoftCalendarConnected?: boolean;
   /** True when TOTP 2FA is enabled */
   twoFactorEnabled?: boolean;
   /** When true, disabling 2FA requires the account password (email/password users). SSO-only accounts use TOTP only. */
@@ -101,6 +110,8 @@ export interface AuthMeResponse {
   notificationDigestHour?: number;
   /** Days before archived tasks are permanently removed; 0 = never. Default 30. */
   archivedTaskRetentionDays?: number;
+  /** Where new bookings are written when both Google and Outlook are connected. */
+  preferredBookingProvider?: "google" | "microsoft";
 }
 
 export interface ActivityLogEntry {

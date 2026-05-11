@@ -45,6 +45,7 @@ import {
   Team,
 } from "@/lib/api";
 import { clearTaskMeet, createTaskMeet, getTaskSlots, updateTaskMeet } from "@/lib/api/calendar";
+import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
@@ -1977,8 +1978,9 @@ export default function TodosPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded border border-emerald-300 dark:border-emerald-700 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    title={t(meetingJoinI18nKey(meetOptionsTodo.scheduledSlot.meetingProvider))}
                   >
-                    {t("meet.joinMeet")}
+                    {t(meetingJoinI18nKey(meetOptionsTodo.scheduledSlot.meetingProvider))}
                   </a>
                 </>
               )}

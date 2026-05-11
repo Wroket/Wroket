@@ -49,10 +49,10 @@ steps:
       - '1'
       # ADMIN_EMAILS omitted here (value contains commas) — applied in the next step via `services update`.
       - '--update-env-vars'
-      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs,TODOS_STORAGE_MODE=dual,TODOS_DOC_COLLECTION=todos_v2'
-      # Required in production (server.ts): Calendar OAuth + Google SSO state signing. Create in Secret Manager if missing.
+      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,MICROSOFT_TENANT_ID=common,MICROSOFT_SSO_REDIRECT_URI=https://api.wroket.com/auth/microsoft/callback,MICROSOFT_GRAPH_REDIRECT_URI=https://api.wroket.com/calendar/microsoft/callback,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs,TODOS_STORAGE_MODE=dual,TODOS_DOC_COLLECTION=todos_v2'
+      # Required in production (server.ts): OAuth state signing + Microsoft SSO client credentials from Secret Manager.
       - '--set-secrets'
-      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest'
+      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest'
 
   # Single-var update: comma inside ADMIN_EMAILS needs alternate delimiter (gcloud topic escaping).
   - name: 'gcr.io/cloud-builders/gcloud'

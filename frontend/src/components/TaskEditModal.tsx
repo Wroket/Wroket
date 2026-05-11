@@ -20,6 +20,7 @@ import {
   downloadAttachment,
   deleteAttachmentApi,
 } from "@/lib/api";
+import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 import type {
   Todo,
   Priority,
@@ -443,8 +444,9 @@ export default function TaskEditModal({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline underline-offset-2 hover:opacity-80"
+                    title={t(meetingJoinI18nKey(todo.scheduledSlot.meetingProvider))}
                   >
-                    {t("meet.joinMeet")}
+                    {t(meetingJoinI18nKey(todo.scheduledSlot.meetingProvider))}
                   </a>
                 </div>
               </div>

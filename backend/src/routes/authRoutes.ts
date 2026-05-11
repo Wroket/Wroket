@@ -19,6 +19,8 @@ import {
   resetPassword,
   googleSsoUrl,
   googleSsoCallback,
+  microsoftSsoUrl,
+  microsoftSsoCallback,
   shareInvite,
   verifyTwoFactor,
   totpSetup,
@@ -97,6 +99,8 @@ authRoutes.post("/forgot-password", authLimiter, forgotPassword);
 authRoutes.post("/reset-password", authLimiter, resetPassword);
 authRoutes.get("/google/url", authLimiter, googleSsoUrl);
 authRoutes.get("/google/callback", authLimiter, googleSsoCallback);
+authRoutes.get("/microsoft/url", authLimiter, microsoftSsoUrl);
+authRoutes.get("/microsoft/callback", authLimiter, microsoftSsoCallback);
 authRoutes.post("/share-invite", requireAuth, authLimiter, shareInvite);
 authRoutes.get("/me", requireAuth, getMe);
 authRoutes.post("/2fa/setup", requireAuth, twoFaManageLimiter, totpSetup);
