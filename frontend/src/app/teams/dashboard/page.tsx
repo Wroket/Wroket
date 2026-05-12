@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import AppShell from "@/components/AppShell";
 import TaskEditModal from "@/components/TaskEditModal";
+import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
@@ -17,6 +18,7 @@ import {
   getProjects,
   getCommentCounts,
   updateTodo,
+  deleteTodo,
   lookupUser,
   type Team,
   type TeamCollaborator,
@@ -62,6 +64,7 @@ export default function TeamDashboardPage() {
   const [collabSubmitting, setCollabSubmitting] = useState(false);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [teamDeleteDialog, setTeamDeleteDialog] = useState<{ todo: Todo; subtaskCount: number } | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     priority: "medium" as Priority,
@@ -241,6 +244,30 @@ export default function TeamDashboardPage() {
       syncBaseline();
     },
     [editingTodo, viewOnly, replaceTodoInData, syncBaseline],
+  );
+
+  const executeTeamDeleteTask = useCallback(
+    async (mode: "promote" | "deleteAll") => {
+      const row = teamDeleteDialog;
+      if (!row || !data) return;
+      const todo = row.todo;
+      setTeamDeleteDialog(null);
+      try {
+        const subs = data.todos.filter((td) => td.parentId === todo.id);
+        if (subs.length > 0) {
+          if (mode === "promote") {
+            await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+          } else {
+            await Promise.all(subs.map((s) => deleteTodo(s.id)));
+          }
+        }
+        await deleteTodo(todo.id);
+        if (selectedTeamId) await loadDashboard(selectedTeamId);
+      } catch {
+        toast.error(t("toast.deleteError"));
+      }
+    },
+    [teamDeleteDialog, data, selectedTeamId, loadDashboard, toast, t],
   );
 
   const formatDate = (iso: string) =>
@@ -730,6 +757,24 @@ export default function TeamDashboardPage() {
         freeTierContentLocks={
           !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
         }
+        onRequestDeleteTask={
+          !viewOnly && editingTodo?.userId === user?.uid
+            ? async (td) => {
+                const subtaskCount = data ? data.todos.filter((x) => x.parentId === td.id).length : 0;
+                await closeEditModal();
+                setTeamDeleteDialog({ todo: td, subtaskCount });
+              }
+            : undefined
+        }
+      />
+
+      <DeleteTaskDialog
+        open={!!teamDeleteDialog}
+        taskTitle={teamDeleteDialog?.todo.title ?? ""}
+        subtaskCount={teamDeleteDialog?.subtaskCount ?? 0}
+        onCancel={() => setTeamDeleteDialog(null)}
+        onDeleteAndPromote={() => void executeTeamDeleteTask("promote")}
+        onDeleteAll={() => void executeTeamDeleteTask("deleteAll")}
       />
     </AppShell>
   );

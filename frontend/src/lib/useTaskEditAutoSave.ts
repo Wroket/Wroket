@@ -15,7 +15,7 @@ export type TaskEditFormSnapshot = {
   projectId: string | null;
 };
 
-function toPayload(form: TaskEditFormSnapshot): UpdateTodoPayload {
+function basePayload(form: TaskEditFormSnapshot): UpdateTodoPayload {
   return {
     title: form.title,
     priority: form.priority as UpdateTodoPayload["priority"],
@@ -30,8 +30,38 @@ function toPayload(form: TaskEditFormSnapshot): UpdateTodoPayload {
   };
 }
 
-function serialize(form: TaskEditFormSnapshot): string {
-  return JSON.stringify(toPayload(form));
+/**
+ * When the user changes estimated duration vs the last saved value, align the scheduled slot end
+ * (start + minutes). We intentionally do NOT send `scheduledSlot` on every autosave: the backend
+ * clears `suggestedSlot` whenever `scheduledSlot` is updated, and unrelated PATCHes must not touch the slot.
+ */
+function buildPayload(form: TaskEditFormSnapshot, todo: Todo | null): UpdateTodoPayload {
+  const payload = basePayload(form);
+  const formEst = form.estimatedMinutes ?? null;
+  const todoEst = todo?.estimatedMinutes ?? null;
+  const estimateChanged =
+    todo != null &&
+    formEst != null &&
+    formEst > 0 &&
+    formEst !== todoEst;
+  if (
+    estimateChanged &&
+    todo.scheduledSlot?.start &&
+    todo.scheduledSlot?.end
+  ) {
+    const startMs = new Date(todo.scheduledSlot.start).getTime();
+    if (!Number.isNaN(startMs)) {
+      payload.scheduledSlot = {
+        ...todo.scheduledSlot,
+        end: new Date(startMs + formEst * 60_000).toISOString(),
+      };
+    }
+  }
+  return payload;
+}
+
+function serializeForBaseline(form: TaskEditFormSnapshot, todo: Todo | null): string {
+  return JSON.stringify(buildPayload(form, todo));
 }
 
 /**
@@ -52,12 +82,14 @@ export function useTaskEditAutoSave(options: {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const formRef = useRef(editForm);
   formRef.current = editForm;
+  const editingTodoRef = useRef<Todo | null>(null);
+  editingTodoRef.current = editingTodo;
   const todoIdRef = useRef<string | null>(null);
   const inFlightRef = useRef(0);
   const [saving, setSaving] = useState(false);
 
   const syncBaseline = useCallback(() => {
-    baselineRef.current = serialize(formRef.current);
+    baselineRef.current = serializeForBaseline(formRef.current, editingTodoRef.current);
   }, []);
 
   useEffect(() => {
@@ -68,7 +100,7 @@ export function useTaskEditAutoSave(options: {
     }
     if (todoIdRef.current !== editingTodo.id) {
       todoIdRef.current = editingTodo.id;
-      baselineRef.current = serialize(formRef.current);
+      baselineRef.current = serializeForBaseline(formRef.current, editingTodo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline only when switching tasks
   }, [editingTodo?.id]);
@@ -78,28 +110,30 @@ export function useTaskEditAutoSave(options: {
     if (!editingTodo) return;
     if (!formRef.current.title.trim()) return;
 
-    const next = serialize(formRef.current);
+    const next = serializeForBaseline(formRef.current, editingTodoRef.current);
     if (next === baselineRef.current) return;
 
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       const form = formRef.current;
-      if (!editingTodo || editingTodo.id !== todoIdRef.current) return;
+      const td = editingTodoRef.current;
+      if (!td || td.id !== todoIdRef.current) return;
       if (!form.title.trim()) return;
-      const payload = toPayload(form);
+      const payload = buildPayload(form, td);
       if (JSON.stringify(payload) === baselineRef.current) return;
 
       inFlightRef.current += 1;
       setSaving(true);
       try {
-        const updated = await updateTodo(editingTodo.id, payload);
+        const updated = await updateTodo(td.id, payload);
         const merged: TaskEditFormSnapshot = {
           ...form,
           title: updated.title,
           tags: updated.tags ?? form.tags,
           recurrence: updated.recurrence ?? form.recurrence,
         };
-        baselineRef.current = serialize(merged);
+        editingTodoRef.current = updated;
+        baselineRef.current = serializeForBaseline(merged, updated);
         onSaved(updated);
       } catch (e) {
         onError?.(e instanceof Error ? e.message : "Save failed");
@@ -114,23 +148,25 @@ export function useTaskEditAutoSave(options: {
 
   const flush = useCallback(async () => {
     if (!enabled) return;
-    if (!editingTodo) return;
+    const td = editingTodoRef.current;
+    if (!td) return;
     const form = formRef.current;
     if (!form.title.trim()) return;
-    const next = serialize(form);
+    const next = serializeForBaseline(form, td);
     if (next === baselineRef.current) return;
     clearTimeout(timerRef.current);
     inFlightRef.current += 1;
     setSaving(true);
     try {
-      const updated = await updateTodo(editingTodo.id, toPayload(form));
+      const updated = await updateTodo(td.id, buildPayload(form, td));
       const merged: TaskEditFormSnapshot = {
         ...form,
         title: updated.title,
         tags: updated.tags ?? form.tags,
         recurrence: updated.recurrence ?? form.recurrence,
       };
-      baselineRef.current = serialize(merged);
+      editingTodoRef.current = updated;
+      baselineRef.current = serializeForBaseline(merged, updated);
       onSaved(updated);
     } catch (e) {
       onError?.(e instanceof Error ? e.message : "Save failed");

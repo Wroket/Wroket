@@ -78,6 +78,7 @@ export interface UpdateTodoPayload {
   assignedTo?: string | null;
   assignmentStatus?: AssignmentStatus | null;
   suggestedSlot?: SuggestedSlot | null;
+  scheduledSlot?: ScheduledSlot | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
 }

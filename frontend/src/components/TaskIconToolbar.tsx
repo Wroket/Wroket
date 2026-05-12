@@ -236,8 +236,8 @@ export default function TaskIconToolbar({
       <button
         type="button"
         onClick={wrap(() => onDelete(todo))}
-        aria-label={t("a11y.delete")}
-        title={t("a11y.delete")}
+        aria-label={t("a11y.deleteTask")}
+        title={t("a11y.deleteTask")}
         className={toolbarNeutralButton}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

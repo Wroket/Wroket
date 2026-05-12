@@ -503,7 +503,8 @@ export default function ManageCalendarsPage() {
         open={inAppSyncDialogOpen}
         title={t("agenda.inAppSlotsSyncTitle")}
         message={t("agenda.inAppSlotsSyncMessage").replace("{{count}}", String(inAppSyncPendingCount))}
-        variant="info"
+        variant="primary"
+        verticalActions
         confirmLabel={inAppSyncRunning ? "…" : t("agenda.inAppSlotsSyncConfirm")}
         secondaryLabel={inAppSyncRunning ? undefined : t("agenda.inAppSlotsSyncForce")}
         onSecondary={inAppSyncRunning ? undefined : () => void runInAppSlotSync(false)}

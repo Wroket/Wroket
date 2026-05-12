@@ -6,6 +6,7 @@ import { purgeAttachmentsForTodoIds } from "./attachmentService";
 import { removeCommentsForTodos } from "./commentService";
 import { detachNotesFromTodoIds } from "./noteService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
+import { scheduleExternalCleanupForFutureSlots } from "./calendarBookingCleanup";
 import { syncOwnerTodosV2, loadAllTodosV2ByOwner } from "./todoDocStore";
 import {
   FREE_QUOTA_CODE_RECURRENCE,
@@ -580,6 +581,14 @@ export function listProjectTodos(projectId: string): Todo[] {
  * Active tasks are moved to "completed"; already archived tasks are left unchanged.
  */
 export async function archiveTodosByProjectId(projectId: string): Promise<number> {
+  const snapshotsForCalendar: Todo[] = [];
+  todosByUser.forEach((todos) => {
+    todos.forEach((todo) => {
+      if (todo.projectId !== projectId || todo.status !== "active") return;
+      snapshotsForCalendar.push(structuredClone(todo));
+    });
+  });
+
   const now = new Date().toISOString();
   const owners = new Set<string>();
   let updated = 0;
@@ -598,6 +607,7 @@ export async function archiveTodosByProjectId(projectId: string): Promise<number
   if (owners.size > 0) {
     await persistTodos(...owners);
   }
+  scheduleExternalCleanupForFutureSlots(snapshotsForCalendar);
   return updated;
 }
 
@@ -653,6 +663,9 @@ function collectDescendantTodoIds(todos: Map<string, Todo>, rootId: string): str
  * including descendant subtasks in each owner's store. Used when a project is deleted.
  */
 export async function permanentlyPurgeTodosByProjectId(projectId: string): Promise<number> {
+  const snapshotsForCalendar = listProjectTodos(projectId).map((t) => structuredClone(t));
+  scheduleExternalCleanupForFutureSlots(snapshotsForCalendar);
+
   const seedsByOwner = new Map<string, Set<string>>();
   todosByUser.forEach((todos, ownerUid) => {
     todos.forEach((todo) => {

@@ -1870,6 +1870,10 @@ export default function TodosPage() {
         freeTierContentLocks={
           !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
         }
+        onRequestDeleteTask={async (t) => {
+          await closeEditModal();
+          requestDelete(t);
+        }}
       />
 
       <SubtaskModal

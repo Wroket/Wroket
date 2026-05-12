@@ -12,7 +12,9 @@ export interface ConfirmDialogProps {
   secondaryLabel?: string;
   onSecondary?: () => void;
   cancelLabel?: string;
-  variant?: "danger" | "warning" | "info";
+  variant?: "danger" | "warning" | "info" | "primary";
+  /** Stack actions vertically (full-width buttons, primary first). */
+  verticalActions?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -21,6 +23,8 @@ const VARIANT_BUTTON: Record<string, string> = {
   danger: "bg-red-600 hover:bg-red-700 focus:ring-red-500",
   warning: "bg-amber-600 hover:bg-amber-700 focus:ring-amber-500",
   info: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
+  primary:
+    "bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-600",
 };
 
 export default function ConfirmDialog({
@@ -32,6 +36,7 @@ export default function ConfirmDialog({
   onSecondary,
   cancelLabel,
   variant = "danger",
+  verticalActions = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -75,6 +80,16 @@ export default function ConfirmDialog({
 
   if (!open) return null;
 
+  const confirmBtnClass = `px-4 py-2 text-sm rounded-md text-white transition-colors
+    focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-800
+    ${VARIANT_BUTTON[variant] ?? VARIANT_BUTTON.danger}`;
+  const secondaryBtnClass =
+    "px-4 py-2 text-sm rounded-md border border-amber-500/80 dark:border-amber-600 " +
+    "text-amber-900 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors";
+  const cancelBtnClass =
+    "px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600 " +
+    "text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors";
+
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
@@ -91,36 +106,40 @@ export default function ConfirmDialog({
         >
           {title}
         </h2>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400">{message}</p>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button
-            ref={cancelBtnRef}
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600
-              text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
-          >
-            {resolvedCancelLabel}
-          </button>
-          {secondaryLabel && onSecondary ? (
-            <button
-              type="button"
-              onClick={onSecondary}
-              className="px-4 py-2 text-sm rounded-md border border-amber-500/80 dark:border-amber-600
-                text-amber-900 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
-            >
-              {secondaryLabel}
+        <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400 whitespace-pre-line">{message}</p>
+        {verticalActions ? (
+          <div className="mt-6 flex flex-col gap-2">
+            <button type="button" onClick={onConfirm} className={`inline-flex w-full items-center justify-center ${confirmBtnClass}`}>
+              {resolvedConfirmLabel}
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`px-4 py-2 text-sm rounded-md text-white transition-colors
-              focus:outline-none focus:ring-2 focus:ring-offset-2 ${VARIANT_BUTTON[variant]}`}
-          >
-            {resolvedConfirmLabel}
-          </button>
-        </div>
+            {secondaryLabel && onSecondary ? (
+              <button
+                type="button"
+                onClick={onSecondary}
+                className={`inline-flex w-full items-center justify-center ${secondaryBtnClass}`}
+              >
+                {secondaryLabel}
+              </button>
+            ) : null}
+            <button ref={cancelBtnRef} type="button" onClick={onCancel} className={`inline-flex w-full items-center justify-center ${cancelBtnClass}`}>
+              {resolvedCancelLabel}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <button ref={cancelBtnRef} type="button" onClick={onCancel} className={cancelBtnClass}>
+              {resolvedCancelLabel}
+            </button>
+            {secondaryLabel && onSecondary ? (
+              <button type="button" onClick={onSecondary} className={secondaryBtnClass}>
+                {secondaryLabel}
+              </button>
+            ) : null}
+            <button type="button" onClick={onConfirm} className={confirmBtnClass}>
+              {resolvedConfirmLabel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import DashboardImportModal from "@/components/DashboardImportModal";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
+import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import TaskImportModal from "@/components/TaskImportModal";
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
@@ -19,6 +20,7 @@ import {
   getProjects,
   getCommentCounts,
   updateTodo,
+  deleteTodo,
   lookupUser,
   type Todo,
   type AppNotification,
@@ -116,6 +118,7 @@ export default function DashboardPage() {
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [confirmDeleteTask, setConfirmDeleteTask] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     priority: "medium" as Priority,
@@ -213,6 +216,36 @@ export default function DashboardPage() {
     setMyTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     setAssignedTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   }, []);
+
+  const getDashboardSubtasks = useCallback(
+    (parentId: string) => myTodos.filter((td) => td.parentId === parentId),
+    [myTodos],
+  );
+
+  const executeDashboardDeleteTask = useCallback(
+    async (mode: "promote" | "deleteAll") => {
+      const todo = confirmDeleteTask;
+      if (!todo) return;
+      setConfirmDeleteTask(null);
+      try {
+        const subs = getDashboardSubtasks(todo.id);
+        if (subs.length > 0) {
+          if (mode === "promote") {
+            const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+            promoted.forEach((u) => replaceTodoInLists(u));
+          } else {
+            const deletedSubs = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+            deletedSubs.forEach((u) => replaceTodoInLists(u));
+          }
+        }
+        const updated = await deleteTodo(todo.id);
+        replaceTodoInLists(updated);
+      } catch {
+        toast.error(t("toast.deleteError"));
+      }
+    },
+    [confirmDeleteTask, getDashboardSubtasks, replaceTodoInLists, toast, t],
+  );
 
   const openRadarEdit = useCallback(
     (todo: Todo) => {
@@ -765,6 +798,19 @@ export default function DashboardPage() {
         freeTierContentLocks={
           !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
         }
+        onRequestDeleteTask={async (td) => {
+          await closeEditModal();
+          setConfirmDeleteTask(td);
+        }}
+      />
+
+      <DeleteTaskDialog
+        open={!!confirmDeleteTask}
+        taskTitle={confirmDeleteTask?.title ?? ""}
+        subtaskCount={confirmDeleteTask ? getDashboardSubtasks(confirmDeleteTask.id).length : 0}
+        onCancel={() => setConfirmDeleteTask(null)}
+        onDeleteAndPromote={() => void executeDashboardDeleteTask("promote")}
+        onDeleteAll={() => void executeDashboardDeleteTask("deleteAll")}
       />
     </AppShell>
   );

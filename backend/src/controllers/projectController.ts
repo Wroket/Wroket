@@ -11,6 +11,7 @@ import {
   addPhase,
   updatePhase,
   deletePhase,
+  listChildProjects,
   canAccessProject,
   canEditProject,
   canEditProjectContent,
@@ -158,10 +159,22 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
   const project = getProjectById(id);
-  deleteProject(req.user!.uid, req.user!.email, id);
+  // Direct child subprojects only (deeper nesting is unchanged by this delete — same as archive cascade).
+  const directChildren = listChildProjects(id);
+  for (const child of directChildren) {
+    await permanentlyPurgeTodosByProjectId(child.id);
+    deleteProject(uid, email, child.id);
+    logActivity(uid, email, "delete", "project", child.id, {
+      name: child.name,
+      cascadeFrom: id,
+    });
+  }
+  deleteProject(uid, email, id);
   await permanentlyPurgeTodosByProjectId(id);
-  logActivity(req.user!.uid, req.user!.email, "delete", "project", id, project?.name ? { name: project.name } : undefined);
+  logActivity(uid, email, "delete", "project", id, project?.name ? { name: project.name } : undefined);
   res.status(204).end();
 }
 

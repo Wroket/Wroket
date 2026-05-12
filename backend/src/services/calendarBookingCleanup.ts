@@ -3,6 +3,24 @@ import { deleteMicrosoftCalendarEvent } from "./microsoftCalendarService";
 import type { Todo } from "./todoService";
 
 /**
+ * Fire-and-forget: remove future external calendar events for the given todos (e.g. before project archive/delete purge).
+ * Skips todos without a linked event or with a slot in the past (same rule as todoController calendar cleanup).
+ */
+export function scheduleExternalCleanupForFutureSlots(todos: Todo[]): void {
+  for (const todo of todos) {
+    if (!todo.scheduledSlot?.calendarEventId) continue;
+    if (new Date(todo.scheduledSlot.start).getTime() <= Date.now()) continue;
+    deleteExternalBookingForTodo(todo).catch((err) => {
+      console.warn(
+        "[calendar-cleanup] todoId=%s failed: %s",
+        todo.id,
+        err instanceof Error ? err.message : String(err),
+      );
+    });
+  }
+}
+
+/**
  * Deletes the external calendar event tied to a todo's scheduled slot (Google or Outlook).
  * Tries bookedByUid, then owner, then assignee.
  */

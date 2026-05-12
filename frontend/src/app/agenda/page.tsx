@@ -7,6 +7,7 @@ import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
+import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useToast } from "@/components/Toast";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
@@ -18,6 +19,7 @@ import {
   getProjects,
   createTodo,
   updateTodo,
+  deleteTodo,
   bookTaskSlot,
   lookupUser,
   getInAppScheduledSlotsPendingCount,
@@ -90,6 +92,7 @@ export default function AgendaPage() {
   const quickAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [deleteTaskDialog, setDeleteTaskDialog] = useState<{ todo: Todo; subtaskCount: number } | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
@@ -582,6 +585,32 @@ export default function AgendaPage() {
       await refreshCalendarForRange();
     }
   }, [editingTodo?.id, refreshCalendarForRange, syncBaseline, canSyncExternalSlots]);
+
+  const executeAgendaDeleteTask = useCallback(
+    async (mode: "promote" | "deleteAll") => {
+      const row = deleteTaskDialog;
+      if (!row) return;
+      const todo = row.todo;
+      setDeleteTaskDialog(null);
+      try {
+        const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
+        const all = [...owned, ...assigned];
+        const subs = all.filter((td) => td.parentId === todo.id);
+        if (subs.length > 0) {
+          if (mode === "promote") {
+            await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+          } else {
+            await Promise.all(subs.map((s) => deleteTodo(s.id)));
+          }
+        }
+        await deleteTodo(todo.id);
+        await refreshCalendarForRange();
+      } catch {
+        toast.error(t("toast.deleteError"));
+      }
+    },
+    [deleteTaskDialog, refreshCalendarForRange, toast, t],
+  );
 
   const handleEditAssignLookup = (email: string) => {
     setEditAssignEmail(email);
@@ -1248,17 +1277,36 @@ export default function AgendaPage() {
           onAssignLookup={() => {}}
           onClearAssign={() => setEditForm((f) => ({ ...f, assignedTo: null }))}
           userDisplayName={displayName}
+          projects={projects}
           effortDefaults={user?.effortMinutes}
           currentUserUid={user?.uid}
-        onPersistTags={persistEditTags}
-        freeTierContentLocks={
-          !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
-        }
-        canSyncToCalendar={
-          canSyncExternalSlots && !!editingTodo && editingTodo.userId === user?.uid
-        }
-        onExternalSlotSynced={handleExternalSlotSynced}
-      />
+          isTaskOwner={!editingTodo || editingTodo.userId === user?.uid}
+          onPersistTags={persistEditTags}
+          freeTierContentLocks={
+            !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
+          }
+          canSyncToCalendar={canSyncExternalSlots && !!editingTodo && editingTodo.userId === user?.uid}
+          onExternalSlotSynced={handleExternalSlotSynced}
+          onRequestDeleteTask={async (td) => {
+            await closeEditModal();
+            try {
+              const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
+              const subtaskCount = [...owned, ...assigned].filter((x) => x.parentId === td.id).length;
+              setDeleteTaskDialog({ todo: td, subtaskCount });
+            } catch {
+              setDeleteTaskDialog({ todo: td, subtaskCount: 0 });
+            }
+          }}
+        />
+
+        <DeleteTaskDialog
+          open={!!deleteTaskDialog}
+          taskTitle={deleteTaskDialog?.todo.title ?? ""}
+          subtaskCount={deleteTaskDialog?.subtaskCount ?? 0}
+          onCancel={() => setDeleteTaskDialog(null)}
+          onDeleteAndPromote={() => void executeAgendaDeleteTask("promote")}
+          onDeleteAll={() => void executeAgendaDeleteTask("deleteAll")}
+        />
       </div>
     </AppShell>
   );

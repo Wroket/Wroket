@@ -558,6 +558,7 @@ const translations = {
   "edit.cancel": { fr: "Annuler", en: "Cancel" },
   "edit.save": { fr: "Enregistrer", en: "Save" },
   "edit.done": { fr: "Terminer", en: "Done" },
+  "edit.deleteTask": { fr: "Supprimer la tâche", en: "Delete task" },
   "edit.saving": { fr: "Enregistrement…", en: "Saving…" },
   "edit.recurrence": { fr: "Récurrence", en: "Recurrence" },
   "edit.recurrenceDaily": { fr: "Quotidien", en: "Daily" },
@@ -1184,7 +1185,10 @@ const translations = {
   "task.deleteSubtaskOne": { fr: "sous-tâche", en: "subtask" },
   "task.deleteSubtaskMany": { fr: "sous-tâches", en: "subtasks" },
   "task.deleteConfirmMessage": { fr: "Que souhaitez-vous faire des sous-tâches ?", en: "What do you want to do with the subtasks?" },
-  "task.deleteConfirmSimple": { fr: "Êtes-vous sûr de vouloir supprimer cette tâche ?", en: "Are you sure you want to delete this task?" },
+  "task.deleteConfirmSimple": {
+    fr: "La tâche sera déplacée vers les archives (page Archiver). Vous pourrez la restaurer ou la supprimer définitivement plus tard.",
+    en: "The task will be moved to your archive (Archive page). You can restore or permanently delete it later.",
+  },
   "task.deletePromoteSubtasks": { fr: "Conserver les sous-tâches", en: "Keep subtasks" },
   "task.deleteAll": { fr: "Tout supprimer", en: "Delete all" },
   "task.delete": { fr: "Supprimer", en: "Delete" },
@@ -1355,14 +1359,17 @@ const translations = {
     en: "Sync Wroket slots to your calendar?",
   },
   "agenda.inAppSlotsSyncMessage": {
-    fr: "Vous avez {{count}} tâche(s) avec un créneau planifié uniquement dans Wroket (pas encore sur votre agenda connecté). Les créer sur le calendrier par défaut de réservation ? « Synchroniser » évite les chevauchements ; « Malgré les conflits » crée quand même les événements (risque de doublons). Au plus 100 créneaux par synchronisation ; relancez si besoin.",
-    en: "You have {{count}} task(s) with a time block only in Wroket (not yet on your connected calendar). Create them on your default booking calendar? \"Sync (skip overlaps)\" avoids busy times; \"Despite overlaps\" still creates events (duplicates possible). Up to 100 slots per sync; run again if needed.",
+    fr: "Vous avez {{count}} tâche(s) avec un créneau planifié dans Wroket qui n'est pas encore sur votre agenda connecté.\nChoisissez comment les créer sur votre calendrier de réservation par défaut.",
+    en: "You have {{count}} task(s) with a Wroket-only time block that is not yet on your connected calendar.\nChoose how to add them to your default booking calendar.",
   },
-  "agenda.inAppSlotsSyncConfirm": { fr: "Synchroniser (éviter les conflits)", en: "Sync (skip overlaps)" },
-  "agenda.inAppSlotsSyncForce": { fr: "Malgré les conflits", en: "Despite overlaps" },
+  "agenda.inAppSlotsSyncConfirm": { fr: "Synchroniser sans créer de doublons", en: "Sync without overlaps" },
+  "agenda.inAppSlotsSyncForce": {
+    fr: "Synchroniser même si chevauchement (risque de doublons)",
+    en: "Sync even if overlapping (may duplicate)",
+  },
   "agenda.inAppSlotsSyncAllSkippedConflicts": {
-    fr: "Aucun créneau créé : tous semblaient en conflit avec votre agenda ou d'autres tâches. Réessayez avec « Malgré les conflits » si vous acceptez le chevauchement.",
-    en: "No slots were created: each one looked busy against your calendar or other tasks. Try \"Despite overlaps\" if you accept overlapping events.",
+    fr: "Aucun créneau créé : tous semblaient en conflit avec votre agenda ou d'autres tâches. Réessayez avec « Synchroniser même si chevauchement (risque de doublons) » si vous acceptez le chevauchement.",
+    en: "No slots were created: each one looked busy against your calendar or other tasks. Try \"Sync even if overlapping (may duplicate)\" if you accept overlapping events.",
   },
   "agenda.inAppSlotsSyncSuccess": {
     fr: "{{synced}} créneau(x) ajouté(s) à l'agenda{{skipped}}.",
@@ -1412,8 +1419,8 @@ const translations = {
     en: "Slot added to your calendar.",
   },
   "agenda.inAppSlotsSyncTaskSkipped": {
-    fr: "Non créé : chevauchement détecté. Utilisez « Mes agendas » puis « Malgré les conflits » si besoin.",
-    en: "Not created: overlap detected. Use Manage calendars → Despite overlaps if needed.",
+    fr: "Non créé : chevauchement détecté. Utilisez « Mes agendas » puis « Synchroniser même si chevauchement (risque de doublons) » si besoin.",
+    en: "Not created: overlap detected. Use Manage calendars → Sync even if overlapping (may duplicate) if needed.",
   },
   "agenda.inAppSlotsSyncTaskFailed": {
     fr: "La synchronisation du créneau a échoué.",
@@ -1864,6 +1871,7 @@ const translations = {
   "a11y.edit": { fr: "Modifier", en: "Edit" },
   "a11y.taskAttachments": { fr: "Pièces jointes (ouvrir l'édition)", en: "Attachments (open editor)" },
   "a11y.delete": { fr: "Supprimer", en: "Delete" },
+  "a11y.deleteTask": { fr: "Supprimer la tâche (archives)", en: "Delete task (moves to archive)" },
   "meet.createMeet": { fr: "Créer une réunion (Meet ou Teams)", en: "Create meeting (Meet or Teams)" },
   "meet.joinMeet": { fr: "Rejoindre la vidéoconférence", en: "Join video call" },
   "meet.joinGoogleMeet": { fr: "Rejoindre Google Meet", en: "Join Google Meet" },
@@ -1897,7 +1905,10 @@ const translations = {
   "a11y.mainNavigation": { fr: "Navigation principale", en: "Main navigation" },
   "a11y.reorderRow": { fr: "Réordonner", en: "Reorder" },
   "a11y.dragReorderHint": { fr: "Glisser pour réordonner", en: "Drag to reorder" },
-  "a11y.cancelTask": { fr: "Annuler la tâche", en: "Cancel task" },
+  "a11y.cancelTask": {
+    fr: "Marquer comme non réalisée (abandon, pas les archives)",
+    en: "Mark as not doing (abandoned status, not moved to archive)",
+  },
 
   // ── Error boundary ──
   "error.boundary.message": { fr: "Une erreur inattendue est survenue.", en: "An unexpected error occurred." },

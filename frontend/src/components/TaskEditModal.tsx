@@ -84,6 +84,8 @@ export interface TaskEditModalProps {
   canSyncToCalendar?: boolean;
   /** After pushing in-app slot to external calendar (refresh parent state). */
   onExternalSlotSynced?: () => void | Promise<void>;
+  /** Soft-delete (archives / corbeille Wroket) — parent opens confirmation then calls delete API. */
+  onRequestDeleteTask?: (todo: Todo) => void | Promise<void>;
 }
 
 export default function TaskEditModal({
@@ -114,6 +116,7 @@ export default function TaskEditModal({
   freeTierContentLocks = false,
   canSyncToCalendar = false,
   onExternalSlotSynced,
+  onRequestDeleteTask,
 }: TaskEditModalProps) {
   void _onAssignLookup;
   const { t } = useLocale();
@@ -1130,21 +1133,32 @@ export default function TaskEditModal({
 
         </div>
 
-        <div className="flex items-center mt-5">
-          {!todo.parentId && onOpenSubtasks && !viewOnly && (
-            <button
-              type="button"
-              onClick={() => onOpenSubtasks(todo)}
-              className="flex items-center gap-1.5 rounded border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
-              title={t("subtask.add")}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              {t("subtask.addShort")}
-            </button>
-          )}
-          <div className="flex gap-2 ml-auto items-center">
+        <div className="flex flex-col gap-3 mt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {!todo.parentId && onOpenSubtasks && !viewOnly && (
+              <button
+                type="button"
+                onClick={() => onOpenSubtasks(todo)}
+                className="flex items-center gap-1.5 rounded border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                title={t("subtask.add")}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {t("subtask.addShort")}
+              </button>
+            )}
+            {isTaskOwner && !viewOnly && onRequestDeleteTask && todo.status === "active" && (
+              <button
+                type="button"
+                onClick={() => void onRequestDeleteTask(todo)}
+                className="rounded border border-red-200 dark:border-red-800/80 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              >
+                {t("edit.deleteTask")}
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 sm:ml-auto items-center justify-end">
             {saving && (
               <span className="text-xs text-zinc-400 dark:text-slate-500">{t("edit.saving")}</span>
             )}
