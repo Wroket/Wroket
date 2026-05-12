@@ -50,7 +50,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 2. **Reliability Pack — Todo Persistence**
    - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
 3. **Plan & Billing Core (P1)**
-   - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (placeholder tarifs).
+   - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (comparatif, FAQ, modal contact prénom/nom/email + envoi serveur SMTP Nodemailer, accusé réception FR/EN, anti-doublon 7 jours), billing équipe (sièges, collaborateurs externes, entitlements effectifs, sync subscription → `Team`), admin — journal invitations avec statut conversion et relance à J+7.
    - **Reste** : Stripe Checkout bout-en-bout (upgrade self-service), alignement terminologie roadmap historique Free/Pro/Team vs paliers code `free` / `first` / `small` / `large`.
 4. **Polish Abonnement + tarifs** — Panneau Paramètres → Abonnement en cards + liens vers `/pricing` (charge ~1–2 j).
 5. **Microsoft path (SSO + Outlook MVP)**
@@ -215,6 +215,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Réinitialisation de mot de passe** — Flux "mot de passe oublié" par email avec token sécurisé
 - [x] **Emails d'invitation** — "Faites découvrir Wroket" : envoi d'email d'invitation avec logo, template HTML
 - [x] **Administration** — Dashboard admin : stats users/tâches/projets/équipes, liste utilisateurs, historique invitations
+- [x] **Admin — invitations « Faites découvrir Wroket »** — Statut par ligne : inscrit après invitation / en attente / compte déjà existant ; relance email unique possible à partir de J+7 si toujours en attente (`POST /admin/invites/remind`, `reminderSentAt`, id UUID sur nouvelles entrées du `inviteLog`)
 - [x] **Rôles dans les équipes** — Owner (propriétaire implicite) / Admin (gestion team, rôles, invitations + r/w projet) / Super-user (r/w tâches, phases, sous-projets) / User (lecture seule)
 - [x] **Validation deadline** — Interdiction de créer une tâche avec échéance passée (backend + frontend)
 - [x] **SlotPicker amélioré** — Auto-ouverture après création de tâche + mode manuel (date/heure libre)
@@ -229,7 +230,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Commandes slash** — `/task`, `/assign`, `/deadline`, `/project`, `/date`, `/time`, `/datetime`, `/code`, `/warning` dans l’éditeur de notes (contenteditable) ; conflit Tab résolu (menu slash ouvert vs indentation)
 - [x] **Aide contextuelle notes** — Bouton ampoule avec liste des commandes et info hors ligne
 - [x] **Timezone utilisateur** — Détection automatique du fuseau horaire navigateur, auto-correction des profils UTC, dropdown dans les paramètres avec alerte de désynchronisation
-- [x] **Page d'accueil** — Landing page marketing bilingue FR/EN : hero avec mini-visuel interactif (tags, slots planifiés), 6 flip cards avec icônes SVG et previews (Vue Radar, Agenda multi-comptes, Notes, Kanban, Collaboration, Notifications), CTA, footer
+- [x] **Page d'accueil** — Landing page marketing bilingue FR/EN : hero (sous-titre FR/EN alignés), mini-visuel interactif (tags, slots planifiés), 6 flip cards (1re ligne : priorité Radar, agenda, projets Kanban), CTA, footer ; navbar droite : séparateurs visuels, largeurs fixes (langue / CTA) pour éviter les sauts au changement de langue
 - [x] **Tutoriel mis à jour** — 7 étapes exhaustives (tâches, vues, projets/Kanban, agenda, notes, équipes, démarrage)
 - [x] **Aide contextuelle par page** — Bouton ampoule (PageHelpButton) avec popup portal sur chaque page (Dashboard, Tâches, Projets, Agenda, Notes, Paramètres), puces des features disponibles
 - [x] **Favicon Wroket** — Logo Wroket (fond blanc) dans les onglets navigateur (icon.png + apple-icon.png)
@@ -250,6 +251,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Nouvellement implémenté
 
+- [x] **P1 — Pricing, billing équipe, admin invitations (2026-05)** — `/pricing` : modal contact (prénom, nom, email) + `POST /marketing/pricing-contact` (SMTP, accusé réception, dédup 7 j), cartes alignées, sous-titre sans mention « tarifs indicatifs » ; landing + pricing : navbar (séparateurs, largeurs fixes anti-saut i18n) ; **billing workspace** : sièges, collaborateurs externes, entitlements effectifs, sync Stripe subscription → `Team` ; **admin** : journal invitations avec statut (conversion / en attente / compte existant) et relance unique à partir de J+7 (`POST /admin/invites/remind`).
 - [x] **Recherche globale** — Barre de recherche dans le header (debounced 300ms), recherche textuelle dans tâches (titre + tags), projets (nom + description + tags), notes (titre + contenu), résultats groupés par type
 - [x] **Tâches récurrentes** — Récurrence quotidienne/hebdomadaire/mensuelle avec intervalle configurable, date de fin optionnelle, clonage automatique à la complétion avec deadline recalculée, badge 🔄 sur les tâches récurrentes
 - [x] **Pièces jointes** — Upload de fichiers sur les tâches (max 5 Mo, max 5 par tâche), stockage local (UPLOAD_DIR), téléchargement, suppression, API REST avec multer
@@ -390,8 +392,9 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 *Bloc P1 : rendre l’offre lisible et facturable avant d’empiler les features « Business ».*
 
 - [x] **Paliers & entitlements (code)** — `billingPlan` + `entitlements` sur l’utilisateur (`free` / `first` / `small` / `large`) ; pack **intégrations** (Small+) = webhooks, livraison externe des notifications, OAuth Google/Outlook agenda + Meet/Teams ; **teamReporting** (Large) pour le reporting équipe.
+- [x] **Billing équipe (workspace)** — `Team.billingPlan`, `seatCount`, collaborateurs externes (`collaborators` / routes `ext-collaborators`), quota sièges à l’ajout membre (`PaymentRequiredError`), **entitlements effectifs** (union perso + plan équipe) pour intégrations / reporting équipe ; webhooks Stripe mettent à jour plan + quantité sur l’équipe ; UI `/teams/dashboard` (bannière plan/sièges, gestion collaborateurs externes).
 - [x] **Stripe — persistance & portail** — Webhooks enrichis (`checkout.session.completed`, `customer.subscription.updated|deleted`), champs `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `billingCurrentPeriodEnd` exposés dans `GET /auth/me` ; `POST /billing/create-portal-session` (Customer Portal à activer dans le dashboard Stripe).
-- [x] **Page `/pricing` publique** — Comparatif marketing 4 paliers, FAQ, CTA mailto / inscription ; liée depuis la landing et depuis Paramètres → Abonnement.
+- [x] **Page `/pricing` publique** — Comparatif marketing 4 paliers, FAQ, CTA inscription + **modal contact** (prénom, nom, email) avec envoi serveur SMTP (`/marketing/pricing-contact`, rate limit, dédup) ; alignement cartes (CTA, prix) ; liée depuis la landing et depuis Paramètres → Abonnement ; navbar alignée comme la landing.
 - [ ] **Plan system (Free / Pro / Team)** — *Roadmap historique / doc produit* — alignement terminologie et limites chiffrées (quotas) avec les paliers code ; middleware de feature gating fin, prompts d’upgrade homogènes
   - Free : 25 tâches actives, pas d'archives (purge auto 7j), 3 notes, pas de récurrence, pas de pièces jointes, Google Calendar en lecture seule, planification manuelle uniquement
   - Pro ($9/mois ou $89/an) : tâches illimitées, archives complètes, planification intelligente + détection de conflits, récurrence + jours ouvrés, notes et pièces jointes illimitées, Google Calendar lecture/écriture (multi-comptes), import/export CSV, webhooks

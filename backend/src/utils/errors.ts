@@ -28,3 +28,13 @@ export class PaymentRequiredError extends AppError {
     super(402, message);
   }
 }
+
+/** HTTP 409 with optional machine-readable code for clients. */
+export class ConflictError extends AppError {
+  constructor(
+    message: string,
+    public readonly code?: string,
+  ) {
+    super(409, message);
+  }
+}

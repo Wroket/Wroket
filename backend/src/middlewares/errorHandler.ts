@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 
-import { AppError } from "../utils/errors";
+import { AppError, ConflictError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { RequestWithId } from "./requestId";
 
@@ -40,7 +40,11 @@ export const errorHandler = (
         message: err.message,
       });
     }
-    res.status(err.statusCode).json({ message: err.message, requestId: reqId });
+    const body: Record<string, unknown> = { message: err.message, requestId: reqId };
+    if (err instanceof ConflictError && err.code) {
+      body.code = err.code;
+    }
+    res.status(err.statusCode).json(body);
     return;
   }
 

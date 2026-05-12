@@ -22,6 +22,7 @@ import attachmentRoutes from "./routes/attachmentRoutes";
 import syncEventsRoutes from "./routes/syncEventsRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
 import billingRoutes from "./routes/billingRoutes";
+import marketingRoutes from "./routes/marketingRoutes";
 
 dotenv.config();
 
@@ -81,6 +82,7 @@ app.use(noStoreCache);
 app.use("/billing", apiLimiter, billingRoutes);
 
 app.use("/", healthRoutes);
+app.use("/marketing", marketingRoutes);
 app.use("/auth", authRoutes);
 app.use("/todos", apiLimiter, todoRoutes);
 app.use("/notifications", apiLimiter, notificationRoutes);

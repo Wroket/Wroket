@@ -8,6 +8,11 @@ const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 /** Shown in the From header (with display name "Wroket"). Prefer EMAIL_FROM in prod so SMTP_USER (auth account) is not exposed. */
 const FROM_ADDRESS = process.env.EMAIL_FROM || SMTP_USER || "noreply@wroket.com";
+const PRICING_CONTACT_TO = (process.env.PRICING_CONTACT_TO ?? "team@wroket.com").trim();
+
+export function isSmtpConfiguredForOutbound(): boolean {
+  return Boolean(SMTP_USER && SMTP_PASS);
+}
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -404,4 +409,119 @@ export async function sendNotificationEmail(
   } catch (err) {
     console.error("[email] Failed to send notification to %s: %s", toEmail, err);
   }
+}
+
+export interface PricingContactLeadPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  tier: string;
+  locale: "fr" | "en";
+}
+
+/**
+ * Sends pricing contact: (1) team inbox with Reply-To visitor, (2) ack to visitor.
+ * Returns which sends succeeded. If SMTP is not configured, both are false (caller should 503).
+ */
+export async function sendPricingContactLeadEmails(
+  p: PricingContactLeadPayload,
+): Promise<{ teamSent: boolean; ackSent: boolean }> {
+  if (!isSmtpConfiguredForOutbound()) {
+    return { teamSent: false, ackSent: false };
+  }
+
+  const safeFirst = escapeHtml(p.firstName);
+  const safeLast = escapeHtml(p.lastName);
+  const safeEmail = escapeHtml(p.email);
+  const safeTier = escapeHtml(p.tier);
+  const t = getTransporter();
+
+  const teamSubject =
+    p.locale === "fr"
+      ? `Wroket — Contact tarifs : ${safeTier}`
+      : `Wroket — Pricing contact: ${safeTier}`;
+
+  const teamHtml =
+    p.locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Demande depuis la page Tarifs</h2>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Prénom</td><td style="padding:6px 0;color:#334155">${safeFirst}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Nom</td><td style="padding:6px 0;color:#334155">${safeLast}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Email</td><td style="padding:6px 0;color:#334155">${safeEmail}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Plan</td><td style="padding:6px 0;color:#334155">${safeTier}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#64748b">Répondre directement pour joindre le demandeur (Reply-To).</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Request from the Pricing page</h2>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">First name</td><td style="padding:6px 0;color:#334155">${safeFirst}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Last name</td><td style="padding:6px 0;color:#334155">${safeLast}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Email</td><td style="padding:6px 0;color:#334155">${safeEmail}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Plan</td><td style="padding:6px 0;color:#334155">${safeTier}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#64748b">Reply to this message to reach the sender (Reply-To).</p>
+        ${emailFooter()}
+      </div>`;
+
+  let teamSent = false;
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: PRICING_CONTACT_TO,
+      replyTo: p.email.trim(),
+      subject: teamSubject,
+      html: teamHtml,
+    });
+    teamSent = true;
+    console.log("[email] Pricing contact sent to team for %s (tier %s)", p.email, p.tier);
+  } catch (err) {
+    console.error("[email] Failed to send pricing contact to team: %s", err);
+  }
+
+  if (!teamSent) {
+    return { teamSent: false, ackSent: false };
+  }
+
+  const ackSubject =
+    p.locale === "fr"
+      ? "Wroket — Nous avons bien reçu votre demande"
+      : "Wroket — We have received your request";
+
+  const ackHtml =
+    p.locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Merci ${safeFirst}</h2>
+        <p style="color:#475569;line-height:1.6">Nous avons bien reçu votre demande concernant le plan <strong>${safeTier}</strong>. Notre équipe vous répondra dans les meilleurs délais à l’adresse <strong>${safeEmail}</strong>.</p>
+        <p style="font-size:13px;color:#64748b">Si vous n’êtes pas à l’origine de ce message, vous pouvez l’ignorer.</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Thank you, ${safeFirst}</h2>
+        <p style="color:#475569;line-height:1.6">We have received your request about the <strong>${safeTier}</strong> plan. Our team will get back to you as soon as possible at <strong>${safeEmail}</strong>.</p>
+        <p style="font-size:13px;color:#64748b">If you did not submit this request, you can safely ignore this email.</p>
+        ${emailFooter()}
+      </div>`;
+
+  let ackSent = false;
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: p.email.trim(),
+      subject: ackSubject,
+      html: ackHtml,
+    });
+    ackSent = true;
+    console.log("[email] Pricing contact ack sent to %s", p.email);
+  } catch (err) {
+    console.error("[email] Failed to send pricing contact ack to %s: %s", p.email, err);
+  }
+
+  return { teamSent, ackSent };
 }

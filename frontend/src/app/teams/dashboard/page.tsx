@@ -575,7 +575,7 @@ export default function TeamDashboardPage() {
                 )}
                 {extCollaborators.length === 0 && (
                   <p className="px-4 py-4 text-sm text-zinc-400 dark:text-slate-500">
-                    Aucun collaborateur externe. Invitez des personnes extérieures à l'équipe qui garderont leur propre plan.
+                    Aucun collaborateur externe. Invitez des personnes extérieures à l&apos;équipe qui garderont leur propre plan.
                   </p>
                 )}
                 {canManageCurrentTeam && (

@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
 import { useLocale } from "@/lib/LocaleContext";
+import { postPricingContact } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
-
-const CONTACT_EMAIL = "team@wroket.com";
 
 // ─── Contact modal ────────────────────────────────────────────────────────────
 
@@ -18,10 +17,15 @@ type ContactModalProps = {
 };
 
 function ContactModal({ tier, onClose, locale }: ContactModalProps) {
+  const { t } = useLocale();
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [ackSent, setAckSent] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   const lbl = {
@@ -35,11 +39,6 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
     emailLbl: "Email",
     send: locale === "fr" ? "Envoyer" : "Send",
     cancel: locale === "fr" ? "Annuler" : "Cancel",
-    successTitle: locale === "fr" ? "Message envoyé !" : "Message sent!",
-    successBody:
-      locale === "fr"
-        ? "Votre client email a été ouvert avec les informations pré-remplies. Nous vous répondrons rapidement."
-        : "Your email client has been opened with the pre-filled information. We'll get back to you shortly.",
     close: locale === "fr" ? "Fermer" : "Close",
   };
 
@@ -50,14 +49,43 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const sendLead = async (confirmResubmit: boolean) => {
+    setFormError(null);
+    setShowDuplicate(false);
+    setSubmitting(true);
+    try {
+      const result = await postPricingContact({
+        firstName: prenom.trim(),
+        lastName: nom.trim(),
+        email: email.trim(),
+        tier,
+        locale,
+        confirmResubmit,
+      });
+      if (result.ok) {
+        setAckSent(result.ackSent);
+        setSent(true);
+        return;
+      }
+      if (result.status === 409) {
+        setShowDuplicate(true);
+        return;
+      }
+      setFormError(result.message || t("pricing.contact.submitError"));
+    } catch {
+      setFormError(t("pricing.contact.submitError"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`Wroket – ${tier}`);
-    const body = encodeURIComponent(
-      `Prénom : ${prenom}\nNom : ${nom}\nEmail : ${email}\n\nPlan demandé : ${tier}`,
-    );
-    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
-    setSent(true);
+    void sendLead(false);
+  };
+
+  const handleConfirmResubmit = () => {
+    void sendLead(true);
   };
 
   return (
@@ -95,8 +123,10 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-50">{lbl.successTitle}</h2>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">{lbl.successBody}</p>
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-50">{t("pricing.contact.successTitle")}</h2>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">
+              {ackSent ? t("pricing.contact.successBody") : t("pricing.contact.successBodyNoAck")}
+            </p>
             <button
               type="button"
               onClick={onClose}
@@ -111,6 +141,30 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
               {lbl.title}
             </h2>
             <p className="mt-1 text-sm text-zinc-500 dark:text-slate-400">{lbl.subtitle}</p>
+
+            {showDuplicate && (
+              <div
+                role="alert"
+                className="mt-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-100"
+              >
+                <p className="font-semibold">{t("pricing.contact.duplicateTitle")}</p>
+                <p className="mt-1 text-amber-800 dark:text-amber-200/90">{t("pricing.contact.duplicateBody")}</p>
+                <button
+                  type="button"
+                  onClick={handleConfirmResubmit}
+                  disabled={submitting}
+                  className="mt-3 w-full rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 text-white font-semibold py-2 px-3 text-sm disabled:opacity-50"
+                >
+                  {t("pricing.contact.confirmResubmit")}
+                </button>
+              </div>
+            )}
+
+            {formError && (
+              <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">
+                {formError}
+              </p>
+            )}
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -170,9 +224,10 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-2.5 px-4 text-sm transition-colors"
+                  disabled={submitting}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold py-2.5 px-4 text-sm transition-colors disabled:opacity-50"
                 >
-                  {lbl.send}
+                  {submitting ? t("pricing.contact.sending") : lbl.send}
                 </button>
               </div>
             </form>

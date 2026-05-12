@@ -251,3 +251,6 @@ export type {
   IntegrationOverview,
   CompletionRate,
 } from "./admin";
+
+export { postPricingContact } from "./marketing";
+export type { PostPricingContactBody, PostPricingContactResult } from "./marketing";

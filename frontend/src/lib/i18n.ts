@@ -1530,6 +1530,23 @@ const translations = {
   "pricing.cta.createAccount": { fr: "Créer un compte", en: "Create an account" },
   "pricing.cta.notifyUs": { fr: "Nous prévenir", en: "Notify us" },
   "pricing.cta.contactUs": { fr: "Contactez-nous", en: "Contact us" },
+  "pricing.contact.successTitle": { fr: "Message envoyé !", en: "Message sent!" },
+  "pricing.contact.successBody": {
+    fr: "Votre demande a été transmise à notre équipe. Vous devriez aussi recevoir un accusé de réception à l’adresse indiquée.",
+    en: "Your request has been sent to our team. You should also receive a confirmation email at the address you provided.",
+  },
+  "pricing.contact.successBodyNoAck": {
+    fr: "Votre demande a été transmise à notre équipe. L’accusé de réception n’a pas pu être envoyé ; vérifiez vos courriers indésirables ou contactez team@wroket.com.",
+    en: "Your request was sent to our team. We could not send the confirmation email; check spam or contact team@wroket.com.",
+  },
+  "pricing.contact.duplicateTitle": { fr: "Demande déjà en cours", en: "Request already in progress" },
+  "pricing.contact.duplicateBody": {
+    fr: "Une demande a déjà été envoyée récemment avec cette adresse e-mail. Pour envoyer une nouvelle demande, confirmez ci-dessous.",
+    en: "A request was already sent recently with this email address. To send another request, confirm below.",
+  },
+  "pricing.contact.confirmResubmit": { fr: "Confirmer une nouvelle demande", en: "Confirm a new request" },
+  "pricing.contact.sending": { fr: "Envoi en cours…", en: "Sending…" },
+  "pricing.contact.submitError": { fr: "L’envoi a échoué. Réessayez.", en: "Could not send. Please try again." },
   "pricing.tier.free.tagline": { fr: "Pour démarrer et structurer vos priorités.", en: "To get started and structure your priorities." },
   "pricing.tier.free.b1": { fr: "Tâches et projets personnels", en: "Personal tasks and projects" },
   "pricing.tier.free.b2": { fr: "Agenda interne Wroket", en: "Built-in Wroket calendar" },
