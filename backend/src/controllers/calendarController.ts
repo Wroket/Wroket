@@ -32,6 +32,7 @@ import {
   setMicrosoftAccountCalendars,
   getEntitlementsForUid,
   type GoogleCalendarEntry,
+  type ResolvedBookingTarget,
 } from "../services/authService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 import {
@@ -1309,6 +1310,100 @@ function isInAppOnlyScheduledSlot(todo: Todo): boolean {
   return true;
 }
 
+type InAppPushResult =
+  | { outcome: "synced"; calendarEventId: string }
+  | { outcome: "skipped"; message?: string }
+  | { outcome: "failed"; message: string };
+
+async function pushScheduledSlotToCalendar(
+  uid: string,
+  email: string,
+  todo: Todo,
+  bookingTarget: ResolvedBookingTarget,
+  options: { skipIfConflict: boolean; tz: string },
+): Promise<InAppPushResult> {
+  const slot = todo.scheduledSlot!;
+  const start = slot.start;
+  const end = slot.end;
+  try {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (options.skipIfConflict) {
+      const conflicts = await findConflicts(uid, todo.id, startDate, endDate);
+      if (conflicts.length > 0) {
+        console.warn("[in-app-sync] todoId=%s skipped (conflict)", todo.id);
+        return { outcome: "skipped", message: "Chevauchement avec l'agenda ou une autre tâche." };
+      }
+    }
+
+    let calendarEventId: string | null = null;
+    let bookingCalendarId: string | null = bookingTarget.calendarId;
+    let bookingAccountId: string | null = bookingTarget.accountId;
+    const bookingProvider = bookingTarget.provider;
+
+    if (bookingTarget.provider === "google") {
+      const googleTarget = { accountId: bookingTarget.accountId, calendarId: bookingTarget.calendarId };
+      calendarEventId = await createGoogleCalendarEvent(
+        uid,
+        todo.title,
+        start,
+        end,
+        options.tz,
+        undefined,
+        googleTarget,
+      );
+      if (!calendarEventId) {
+        const msg = "Google Calendar: impossible de créer l'événement";
+        console.warn("[in-app-sync] todoId=%s failed: %s", todo.id, msg);
+        return { outcome: "failed", message: msg };
+      }
+    } else {
+      let msCalId = typeof bookingTarget.calendarId === "string" ? bookingTarget.calendarId.trim() : "";
+      if (!msCalId) {
+        const resolved = await getDefaultMicrosoftCalendarId(uid, bookingTarget.accountId);
+        if (!resolved) {
+          const msg = "Outlook: calendrier par défaut introuvable";
+          console.warn("[in-app-sync] todoId=%s failed: %s", todo.id, msg);
+          return { outcome: "failed", message: msg };
+        }
+        msCalId = resolved;
+      }
+      calendarEventId = await createMicrosoftCalendarEvent(
+        uid,
+        bookingTarget.accountId,
+        msCalId,
+        todo.title,
+        start,
+        end,
+      );
+      bookingCalendarId = msCalId;
+      if (!calendarEventId) {
+        const msg = "Outlook: impossible de créer l'événement";
+        console.warn("[in-app-sync] todoId=%s failed: %s", todo.id, msg);
+        return { outcome: "failed", message: msg };
+      }
+    }
+
+    await updateTodo(uid, email, todo.id, {
+      scheduledSlot: {
+        ...slot,
+        start,
+        end,
+        calendarEventId,
+        bookedByUid: uid,
+        bookingCalendarId,
+        bookingAccountId,
+        bookingProvider,
+      },
+    });
+    return { outcome: "synced", calendarEventId };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erreur";
+    console.warn("[in-app-sync] todoId=%s failed: %s", todo.id, msg);
+    return { outcome: "failed", message: msg };
+  }
+}
+
 /**
  * GET /calendar/in-app-slots/pending-count
  * How many owned tasks have a Wroket-only scheduled slot (no external calendar event yet).
@@ -1318,6 +1413,64 @@ export async function getInAppScheduledSlotsCount(req: AuthenticatedRequest, res
   assertCalendarIntegrations(uid);
   const count = listAllTodos(uid).filter(isInAppOnlyScheduledSlot).length;
   res.status(200).json({ count });
+}
+
+/**
+ * POST /calendar/in-app-slots/:todoId/sync
+ * Push a single in-app slot to the user's default external calendar.
+ * Body: { skipIfConflict?: boolean } (default false: deliberate single-task push).
+ */
+export async function syncSingleInAppScheduledSlot(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  assertCalendarIntegrations(uid);
+  const todoId = (req.params.todoId as string | undefined)?.trim() ?? "";
+  if (!todoId) {
+    throw new ValidationError("Identifiant de tâche requis.");
+  }
+
+  const found = findTodoForUser(uid, todoId);
+  if (!found?.isOwner) {
+    throw new NotFoundError("Tâche introuvable.");
+  }
+
+  if (!isInAppOnlyScheduledSlot(found.todo)) {
+    throw new ValidationError(
+      "Cette tâche n'a pas de créneau Wroket à synchroniser (déjà liée à un agenda externe, ou tâche inactive / archivée).",
+    );
+  }
+
+  const bookingTarget = resolveBookingTarget(uid);
+  if (!bookingTarget) {
+    throw new ValidationError(
+      "Configurez un calendrier par défaut pour la réservation (Mes agendas).",
+    );
+  }
+
+  const user = findUserByUid(uid);
+  const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+  const skipIfConflict = (req.body as { skipIfConflict?: boolean } | null)?.skipIfConflict === true;
+
+  const result = await pushScheduledSlotToCalendar(uid, email, found.todo, bookingTarget, { skipIfConflict, tz });
+
+  if (result.outcome === "synced") {
+    res.status(200).json({
+      outcome: "synced" as const,
+      calendarEventId: result.calendarEventId,
+    });
+    return;
+  }
+  if (result.outcome === "skipped") {
+    res.status(200).json({
+      outcome: "skipped" as const,
+      message: result.message,
+    });
+    return;
+  }
+  res.status(200).json({
+    outcome: "failed" as const,
+    message: result.message,
+  });
 }
 
 /**
@@ -1347,83 +1500,13 @@ export async function syncInAppScheduledSlots(req: AuthenticatedRequest, res: Re
   const failed: { todoId: string; message: string }[] = [];
 
   for (const todo of candidates) {
-    const slot = todo.scheduledSlot!;
-    const start = slot.start;
-    const end = slot.end;
-    try {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      if (skipIfConflict) {
-        const conflicts = await findConflicts(uid, todo.id, startDate, endDate);
-        if (conflicts.length > 0) {
-          skippedConflicts++;
-          continue;
-        }
-      }
-
-      let calendarEventId: string | null = null;
-      let bookingCalendarId: string | null = bookingTarget.calendarId;
-      let bookingAccountId: string | null = bookingTarget.accountId;
-      const bookingProvider = bookingTarget.provider;
-
-      if (bookingTarget.provider === "google") {
-        const googleTarget = { accountId: bookingTarget.accountId, calendarId: bookingTarget.calendarId };
-        calendarEventId = await createGoogleCalendarEvent(
-          uid,
-          todo.title,
-          start,
-          end,
-          tz,
-          undefined,
-          googleTarget,
-        );
-        if (!calendarEventId) {
-          failed.push({ todoId: todo.id, message: "Google Calendar: impossible de créer l'événement" });
-          continue;
-        }
-      } else {
-        let msCalId = typeof bookingTarget.calendarId === "string" ? bookingTarget.calendarId.trim() : "";
-        if (!msCalId) {
-          const resolved = await getDefaultMicrosoftCalendarId(uid, bookingTarget.accountId);
-          if (!resolved) {
-            failed.push({ todoId: todo.id, message: "Outlook: calendrier par défaut introuvable" });
-            continue;
-          }
-          msCalId = resolved;
-        }
-        calendarEventId = await createMicrosoftCalendarEvent(
-          uid,
-          bookingTarget.accountId,
-          msCalId,
-          todo.title,
-          start,
-          end,
-        );
-        bookingCalendarId = msCalId;
-        if (!calendarEventId) {
-          failed.push({ todoId: todo.id, message: "Outlook: impossible de créer l'événement" });
-          continue;
-        }
-      }
-
-      await updateTodo(uid, email, todo.id, {
-        scheduledSlot: {
-          ...slot,
-          start,
-          end,
-          calendarEventId,
-          bookedByUid: uid,
-          bookingCalendarId,
-          bookingAccountId,
-          bookingProvider,
-        },
-      });
+    const result = await pushScheduledSlotToCalendar(uid, email, todo, bookingTarget, { skipIfConflict, tz });
+    if (result.outcome === "synced") {
       synced++;
-    } catch (e) {
-      failed.push({
-        todoId: todo.id,
-        message: e instanceof Error ? e.message : "Erreur",
-      });
+    } else if (result.outcome === "skipped") {
+      skippedConflicts++;
+    } else {
+      failed.push({ todoId: todo.id, message: result.message });
     }
   }
 

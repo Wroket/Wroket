@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -88,18 +88,37 @@ export default function ManageCalendarsPage() {
     if (!loaded.some((a) => a.provider === "google" || a.provider === "microsoft")) return;
     try {
       const { count } = await getInAppScheduledSlotsPendingCount();
+      setInAppSyncPendingCount(count);
       if (count > 0) {
-        setInAppSyncPendingCount(count);
         setInAppSyncDialogOpen(true);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.warn("[manage] pending-count failed", e);
+      toast.error(t("agenda.inAppSlotsSyncCountError"));
     }
   };
+
+  const refreshPendingCountOnly = useCallback(async () => {
+    if (!canUseCalendarIntegrations || !accounts.some((a) => a.provider === "google" || a.provider === "microsoft")) {
+      setInAppSyncPendingCount(0);
+      return;
+    }
+    try {
+      const { count } = await getInAppScheduledSlotsPendingCount();
+      setInAppSyncPendingCount(count);
+    } catch {
+      setInAppSyncPendingCount(0);
+    }
+  }, [accounts, canUseCalendarIntegrations]);
 
   useEffect(() => {
     void loadAccounts();
   }, []);
+
+  useEffect(() => {
+    if (authLoading || loading) return;
+    void refreshPendingCountOnly();
+  }, [authLoading, loading, refreshPendingCountOnly]);
 
   useEffect(() => {
     const google = searchParams.get("google") === "connected";
@@ -252,10 +271,15 @@ export default function ManageCalendarsPage() {
         toast.info(t("agenda.inAppSlotsSyncAllSkippedConflicts"));
       }
       if (result.failed.length > 0) {
-        toast.error(t("agenda.inAppSlotsSyncPartialFailures").replace("{{n}}", String(result.failed.length)));
+        let errMsg = t("agenda.inAppSlotsSyncPartialFailures").replace("{{n}}", String(result.failed.length));
+        const detail = result.failed[0]?.message;
+        if (detail) {
+          errMsg += t("agenda.inAppSlotsSyncFirstFailure").replace("{{detail}}", detail);
+        }
+        toast.error(errMsg);
       }
       setInAppSyncDialogOpen(false);
-      setInAppSyncPendingCount(0);
+      await refreshPendingCountOnly();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncConfirm"));
     } finally {
@@ -304,6 +328,39 @@ export default function ManageCalendarsPage() {
             </p>
           )}
         </div>
+
+        {!loading && canUseCalendarIntegrations && accounts.some((a) => a.provider === "google" || a.provider === "microsoft") && (
+          <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/90 dark:bg-slate-800/50 p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-slate-100">{t("agenda.inAppSlotsSyncCardTitle")}</h2>
+            {inAppSyncPendingCount > 0 ? (
+              <>
+                <p className="text-sm text-zinc-600 dark:text-slate-300">
+                  {t("agenda.inAppSlotsSyncCardCount").replace("{{count}}", String(inAppSyncPendingCount))}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={inAppSyncRunning}
+                    onClick={() => void runInAppSlotSync(true)}
+                    className="rounded-lg bg-slate-700 dark:bg-slate-600 px-3 py-2 text-xs font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
+                  >
+                    {inAppSyncRunning ? "…" : t("agenda.inAppSlotsSyncConfirm")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={inAppSyncRunning}
+                    onClick={() => void runInAppSlotSync(false)}
+                    className="rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-950/50 disabled:opacity-50 transition-colors"
+                  >
+                    {t("agenda.inAppSlotsSyncForce")}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-zinc-500 dark:text-slate-400">{t("agenda.inAppSlotsSyncCardEmpty")}</p>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-slate-500">{t("agenda.sectionGoogle")}</p>

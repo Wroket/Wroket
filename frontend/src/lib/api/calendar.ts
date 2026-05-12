@@ -281,3 +281,25 @@ export async function syncInAppScheduledSlotsToCalendar(
   }
   return res.json();
 }
+
+export interface SyncOneInAppScheduledSlotResponse {
+  outcome: "synced" | "skipped" | "failed";
+  calendarEventId?: string;
+  message?: string;
+}
+
+export async function syncOneScheduledSlotToCalendar(
+  todoId: string,
+  body: { skipIfConflict?: boolean } = {},
+): Promise<SyncOneInAppScheduledSlotResponse> {
+  const res = await fetch(`${API_BASE_URL}/calendar/in-app-slots/${encodeURIComponent(todoId)}/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de synchroniser le créneau");
+  }
+  return res.json();
+}

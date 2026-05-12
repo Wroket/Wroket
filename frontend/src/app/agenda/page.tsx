@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -19,6 +20,8 @@ import {
   updateTodo,
   bookTaskSlot,
   lookupUser,
+  getInAppScheduledSlotsPendingCount,
+  syncInAppScheduledSlotsToCalendar,
   type CalendarEvent,
   type Todo,
   type Project,
@@ -32,7 +35,7 @@ import {
 import { useLocale } from "@/lib/LocaleContext";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import { useUserLookup } from "@/lib/userUtils";
-import { useResourceSync } from "@/lib/useResourceSync";
+import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
 import {
   HOUR_HEIGHT,
   DAY_START_HOUR,
@@ -51,6 +54,7 @@ import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
+  const router = useRouter();
   const { user, refresh } = useAuth();
   const { toast } = useToast();
   const { resolveUser, displayName, cacheRef: userCacheRef } = useUserLookup();
@@ -91,6 +95,8 @@ export default function AgendaPage() {
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [syncBannerRunning, setSyncBannerRunning] = useState(false);
 
   const accountColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -263,6 +269,27 @@ export default function AgendaPage() {
   );
 
   const linkedCalendarCount = googleAccounts.length + microsoftAccounts.length;
+
+  const canSyncExternalSlots = !!(user?.entitlements?.integrations && linkedCalendarCount > 0);
+
+  useEffect(() => {
+    if (!canSyncExternalSlots) {
+      setPendingSyncCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { count } = await getInAppScheduledSlotsPendingCount();
+        if (!cancelled) setPendingSyncCount(count);
+      } catch {
+        if (!cancelled) setPendingSyncCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canSyncExternalSlots, googleAccounts, microsoftAccounts]);
 
   const eventsForDay = useCallback(
     (day: Date, allDay: boolean) =>
@@ -460,6 +487,44 @@ export default function AgendaPage() {
     setMicrosoftEvents(data.microsoftEvents ?? []);
   }, [dateRange]);
 
+  const handleBannerSync = useCallback(async () => {
+    if (syncBannerRunning) return;
+    setSyncBannerRunning(true);
+    try {
+      const result = await syncInAppScheduledSlotsToCalendar({ skipIfConflict: true });
+      broadcastResourceChange("todos");
+      const skippedSuffix =
+        result.skippedConflicts > 0
+          ? t("agenda.inAppSlotsSyncSkippedSuffix").replace("{{n}}", String(result.skippedConflicts))
+          : "";
+      toast.success(
+        t("agenda.inAppSlotsSyncSuccess")
+          .replace("{{synced}}", String(result.synced))
+          .replace("{{skipped}}", skippedSuffix),
+      );
+      if (result.synced === 0 && result.skippedConflicts > 0) {
+        toast.info(t("agenda.inAppSlotsSyncAllSkippedConflicts"));
+      }
+      if (result.failed.length > 0) {
+        let errMsg = t("agenda.inAppSlotsSyncPartialFailures").replace("{{n}}", String(result.failed.length));
+        const detail = result.failed[0]?.message;
+        if (detail) errMsg += t("agenda.inAppSlotsSyncFirstFailure").replace("{{detail}}", detail);
+        toast.error(errMsg);
+      }
+      try {
+        const { count } = await getInAppScheduledSlotsPendingCount();
+        setPendingSyncCount(count);
+      } catch {
+        setPendingSyncCount(0);
+      }
+      await refreshCalendarForRange();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncBannerSync"));
+    } finally {
+      setSyncBannerRunning(false);
+    }
+  }, [syncBannerRunning, t, toast, refreshCalendarForRange]);
+
   // Refresh when tab becomes visible or another tab mutates todos/calendar slots.
   useResourceSync("agenda", refreshCalendarForRange, { pollIntervalMs: 120_000 });
 
@@ -495,6 +560,28 @@ export default function AgendaPage() {
     },
     [editingTodo, refreshCalendarForRange, syncBaseline],
   );
+
+  const handleExternalSlotSynced = useCallback(async () => {
+    const id = editingTodo?.id;
+    if (!id) return;
+    try {
+      const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
+      const next = owned.find((t) => t.id === id) ?? assigned.find((t) => t.id === id);
+      if (next) setEditingTodo(next);
+      await refreshCalendarForRange();
+      syncBaseline();
+      if (canSyncExternalSlots) {
+        try {
+          const { count } = await getInAppScheduledSlotsPendingCount();
+          setPendingSyncCount(count);
+        } catch {
+          setPendingSyncCount(0);
+        }
+      }
+    } catch {
+      await refreshCalendarForRange();
+    }
+  }, [editingTodo?.id, refreshCalendarForRange, syncBaseline, canSyncExternalSlots]);
 
   const handleEditAssignLookup = (email: string) => {
     setEditAssignEmail(email);
@@ -680,6 +767,31 @@ export default function AgendaPage() {
             </div>
           </div>
         </div>
+
+        {pendingSyncCount > 0 && canSyncExternalSlots && (
+          <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/25 dark:text-amber-100">
+            <p className="text-sm font-medium">
+              {t("agenda.inAppSlotsSyncBanner").replace("{{count}}", String(pendingSyncCount))}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={syncBannerRunning}
+                onClick={() => void handleBannerSync()}
+                className="rounded-lg bg-slate-800 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
+              >
+                {syncBannerRunning ? "…" : t("agenda.inAppSlotsSyncBannerSync")}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/agenda/manage")}
+                className="rounded-lg border border-amber-300 dark:border-amber-700/60 bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-slate-800 transition-colors"
+              >
+                {t("agenda.inAppSlotsSyncBannerManage")}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Loading overlay */}
         {loading && (
@@ -1142,6 +1254,10 @@ export default function AgendaPage() {
         freeTierContentLocks={
           !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
         }
+        canSyncToCalendar={
+          canSyncExternalSlots && !!editingTodo && editingTodo.userId === user?.uid
+        }
+        onExternalSlotSynced={handleExternalSlotSynced}
       />
       </div>
     </AppShell>

@@ -19,7 +19,9 @@ import {
   uploadAttachment,
   downloadAttachment,
   deleteAttachmentApi,
+  syncOneScheduledSlotToCalendar,
 } from "@/lib/api";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
 import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 import type {
   Todo,
@@ -78,6 +80,10 @@ export interface TaskEditModalProps {
   onManageMeet?: (todo: Todo) => void;
   /** When true, disable recurrence and new attachments (Free-tier task owner). */
   freeTierContentLocks?: boolean;
+  /** Calendar integrations entitlement + linked account (agenda page). */
+  canSyncToCalendar?: boolean;
+  /** After pushing in-app slot to external calendar (refresh parent state). */
+  onExternalSlotSynced?: () => void | Promise<void>;
 }
 
 export default function TaskEditModal({
@@ -106,6 +112,8 @@ export default function TaskEditModal({
   viewOnly = false,
   onManageMeet,
   freeTierContentLocks = false,
+  canSyncToCalendar = false,
+  onExternalSlotSynced,
 }: TaskEditModalProps) {
   void _onAssignLookup;
   const { t } = useLocale();
@@ -178,6 +186,7 @@ export default function TaskEditModal({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [slotPushRunning, setSlotPushRunning] = useState(false);
 
   const loadComments = useCallback(async (todoId: string) => {
     try {
@@ -428,6 +437,46 @@ export default function TaskEditModal({
           </svg>
         </button>
         {detailsOpen && <div className="space-y-3">
+          {isTaskOwner &&
+            canSyncToCalendar &&
+            !viewOnly &&
+            todo.scheduledSlot?.start &&
+            todo.scheduledSlot?.end &&
+            !todo.scheduledSlot?.calendarEventId && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-800/60 dark:bg-blue-950/35 dark:text-blue-100">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span className="font-medium">{t("agenda.inAppSlotsSyncTaskButton")}</span>
+                <button
+                  type="button"
+                  disabled={slotPushRunning}
+                  onClick={() => {
+                    void (async () => {
+                      setSlotPushRunning(true);
+                      try {
+                        const r = await syncOneScheduledSlotToCalendar(todo.id, { skipIfConflict: false });
+                        if (r.outcome === "synced") {
+                          broadcastResourceChange("todos");
+                          toast.success(t("agenda.inAppSlotsSyncTaskSuccess"));
+                          await onExternalSlotSynced?.();
+                        } else if (r.outcome === "skipped") {
+                          toast.info(t("agenda.inAppSlotsSyncTaskSkipped"));
+                        } else {
+                          toast.error(r.message?.trim() ? r.message : t("agenda.inAppSlotsSyncTaskFailed"));
+                        }
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncTaskFailed"));
+                      } finally {
+                        setSlotPushRunning(false);
+                      }
+                    })();
+                  }}
+                  className="shrink-0 rounded border border-blue-300 dark:border-blue-600 bg-white/90 dark:bg-slate-900/50 px-2.5 py-1 text-[11px] font-medium hover:bg-blue-100/80 dark:hover:bg-blue-950/50 disabled:opacity-50"
+                >
+                  {slotPushRunning ? "…" : t("agenda.inAppSlotsSyncTaskPush")}
+                </button>
+              </div>
+            </div>
+          )}
           {todo.scheduledSlot?.meetingUrl && (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
               <div className="flex items-center justify-between gap-2">

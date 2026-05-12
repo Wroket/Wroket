@@ -196,12 +196,14 @@ export {
   disconnectMicrosoftAccount,
   getInAppScheduledSlotsPendingCount,
   syncInAppScheduledSlotsToCalendar,
+  syncOneScheduledSlotToCalendar,
 } from "./calendar";
 export type {
   CalendarEvent,
   CalendarEventsResponse,
   InAppSlotsPendingCountResponse,
   SyncInAppScheduledSlotsResponse,
+  SyncOneInAppScheduledSlotResponse,
 } from "./calendar";
 
 export {

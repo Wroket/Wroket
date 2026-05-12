@@ -1376,6 +1376,49 @@ const translations = {
     fr: "{{n}} créneau(x) n'ont pas pu être synchronisés.",
     en: "{{n}} slot(s) could not be synced.",
   },
+  "agenda.inAppSlotsSyncFirstFailure": {
+    fr: " Détail : {{detail}}",
+    en: " Detail: {{detail}}",
+  },
+  "agenda.inAppSlotsSyncCountError": {
+    fr: "Impossible de compter les créneaux à synchroniser. Réessayez ou ouvrez Mes agendas.",
+    en: "Could not count slots to sync. Retry or open Manage calendars.",
+  },
+  "agenda.inAppSlotsSyncCardTitle": {
+    fr: "Créneaux Wroket et agenda externe",
+    en: "Wroket slots and external calendar",
+  },
+  "agenda.inAppSlotsSyncCardEmpty": {
+    fr: "Tous vos créneaux planifiés sont déjà liés à un agenda connecté (ou aucun créneau actif).",
+    en: "All your scheduled slots are linked to a connected calendar (or you have no active slot).",
+  },
+  "agenda.inAppSlotsSyncCardCount": {
+    fr: "{{count}} créneau(x) planifié(s) dans Wroket ne figure(nt) pas encore sur votre agenda connecté.",
+    en: "{{count}} slot(s) booked in Wroket are not yet on your connected calendar.",
+  },
+  "agenda.inAppSlotsSyncBanner": {
+    fr: "{{count}} créneau(x) uniquement dans Wroket — pas encore sur votre agenda connecté.",
+    en: "{{count}} slot(s) only in Wroket — not yet on your connected calendar.",
+  },
+  "agenda.inAppSlotsSyncBannerSync": { fr: "Synchroniser", en: "Sync now" },
+  "agenda.inAppSlotsSyncBannerManage": { fr: "Mes agendas", en: "Manage calendars" },
+  "agenda.inAppSlotsSyncTaskButton": {
+    fr: "Créneau dans Wroket uniquement",
+    en: "Slot only in Wroket",
+  },
+  "agenda.inAppSlotsSyncTaskPush": { fr: "Pousser dans mon agenda", en: "Push to my calendar" },
+  "agenda.inAppSlotsSyncTaskSuccess": {
+    fr: "Créneau ajouté à votre agenda.",
+    en: "Slot added to your calendar.",
+  },
+  "agenda.inAppSlotsSyncTaskSkipped": {
+    fr: "Non créé : chevauchement détecté. Utilisez « Mes agendas » puis « Malgré les conflits » si besoin.",
+    en: "Not created: overlap detected. Use Manage calendars → Despite overlaps if needed.",
+  },
+  "agenda.inAppSlotsSyncTaskFailed": {
+    fr: "La synchronisation du créneau a échoué.",
+    en: "Could not sync this slot.",
+  },
   "agenda.sectionGoogle": { fr: "Google Calendar", en: "Google Calendar" },
   "agenda.sectionOutlook": { fr: "Outlook (Microsoft 365)", en: "Outlook (Microsoft 365)" },
   "agenda.microsoftEvent": { fr: "Événement Outlook", en: "Outlook event" },
