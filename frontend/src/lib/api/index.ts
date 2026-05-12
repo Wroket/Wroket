@@ -7,6 +7,7 @@ export type {
   GoogleAccountPublic,
   MicrosoftAccountPublic,
   AuthMeResponse,
+  FreeQuotaSnapshot,
   BillingPlan,
   Entitlements,
   ActivityLogEntry,

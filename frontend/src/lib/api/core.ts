@@ -82,6 +82,15 @@ export interface Entitlements {
   teamReporting: boolean;
 }
 
+export interface FreeQuotaSnapshot {
+  maxActiveTasksPersonal: number;
+  activeTasksPersonal: number;
+  maxProjectsPersonal: number;
+  activeProjectsPersonal: number;
+  maxNotes: number;
+  notesCount: number;
+}
+
 export interface AuthMeResponse {
   uid: string;
   email: string;
@@ -129,6 +138,8 @@ export interface AuthMeResponse {
   stripeSubscriptionId?: string | null;
   stripeSubscriptionStatus?: string | null;
   billingCurrentPeriodEnd?: string | null;
+  /** Present when `billingPlan` is `free` and not early bird — server-side usage for volume caps. */
+  freeQuotas?: FreeQuotaSnapshot | null;
 }
 
 export interface ActivityLogEntry {
