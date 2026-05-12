@@ -76,6 +76,8 @@ export interface TaskEditModalProps {
   viewOnly?: boolean;
   /** Open the meeting management modal for this task. */
   onManageMeet?: (todo: Todo) => void;
+  /** When true, disable recurrence and new attachments (Free-tier task owner). */
+  freeTierContentLocks?: boolean;
 }
 
 export default function TaskEditModal({
@@ -103,6 +105,7 @@ export default function TaskEditModal({
   onTodoCommentsChanged,
   viewOnly = false,
   onManageMeet,
+  freeTierContentLocks = false,
 }: TaskEditModalProps) {
   void _onAssignLookup;
   const { t } = useLocale();
@@ -745,15 +748,15 @@ export default function TaskEditModal({
             <label
               className={
                 "flex items-center gap-2 " +
-                (deadlineIsPast || !isTaskOwner ? "cursor-not-allowed opacity-70" : "cursor-pointer")
+                (deadlineIsPast || !isTaskOwner || freeTierContentLocks ? "cursor-not-allowed opacity-70" : "cursor-pointer")
               }
             >
               <input
                 type="checkbox"
                 checked={!!form.recurrence}
-                disabled={deadlineIsPast || !isTaskOwner}
+                disabled={deadlineIsPast || !isTaskOwner || freeTierContentLocks}
                 onChange={(e) => {
-                  if (deadlineIsPast || !isTaskOwner) return;
+                  if (deadlineIsPast || !isTaskOwner || freeTierContentLocks) return;
                   if (e.target.checked) {
                     onFormChange({ recurrence: { frequency: "weekly", interval: 1 } });
                   } else {
@@ -766,7 +769,10 @@ export default function TaskEditModal({
                 🔄 {t("edit.recurrenceEnabled")}
               </span>
             </label>
-            {deadlineIsPast && isTaskOwner && (
+            {freeTierContentLocks && isTaskOwner && (
+              <p className="text-[10px] text-amber-700 dark:text-amber-300/90">{t("quota.free.recurrenceDisabled")}</p>
+            )}
+            {deadlineIsPast && isTaskOwner && !freeTierContentLocks && (
               <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("edit.recurrenceNeedsDeadline")}</p>
             )}
             {form.recurrence && (
@@ -777,7 +783,7 @@ export default function TaskEditModal({
                   </label>
                   <select
                     value={form.recurrence.frequency}
-                    disabled={!isTaskOwner}
+                    disabled={!isTaskOwner || freeTierContentLocks}
                     onChange={(e) => {
                       const freq = e.target.value as RecurrenceFrequency;
                       onFormChange({
@@ -803,7 +809,7 @@ export default function TaskEditModal({
                     type="number"
                     min={1}
                     max={365}
-                    disabled={form.recurrence.frequency === "daily" || !isTaskOwner}
+                    disabled={form.recurrence.frequency === "daily" || !isTaskOwner || freeTierContentLocks}
                     value={form.recurrence.interval}
                     onChange={(e) =>
                       onFormChange({ recurrence: { ...form.recurrence!, interval: Math.max(1, Number(e.target.value) || 1) } })
@@ -823,7 +829,7 @@ export default function TaskEditModal({
                     type="date"
                     value={form.recurrence.endDate ?? ""}
                     min={new Date().toISOString().split("T")[0]}
-                    disabled={!isTaskOwner}
+                    disabled={!isTaskOwner || freeTierContentLocks}
                     onChange={(e) =>
                       onFormChange({ recurrence: { ...form.recurrence!, endDate: e.target.value || undefined } })
                     }
@@ -872,7 +878,7 @@ export default function TaskEditModal({
               <h4 className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("edit.attachments")}</h4>
               <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{t("edit.maxSize")}</p>
             </div>
-            {isTaskOwner && (
+            {isTaskOwner && !freeTierContentLocks && (
               <>
                 <input
                   ref={attachmentInputRef}
@@ -891,6 +897,11 @@ export default function TaskEditModal({
                   {t("edit.addFile")}
                 </button>
               </>
+            )}
+            {isTaskOwner && freeTierContentLocks && (
+              <p className="text-[10px] text-amber-700 dark:text-amber-300/90 shrink-0 max-w-[14rem] text-right">
+                {t("quota.free.attachmentsDisabled")}
+              </p>
             )}
           </div>
           {attachments.length === 0 ? (
