@@ -21,6 +21,7 @@ import {
 } from "@dnd-kit/sortable";
 
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
 import DashboardImportModal from "@/components/DashboardImportModal";
 import PageHelpButton from "@/components/PageHelpButton";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -36,6 +37,8 @@ import {
 import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";
 import { formatMins, getHealthConfig, PROJECT_TEMPLATES } from "./types";
 import type { Project, Team, Todo, TranslationKey, ProjectHealth } from "./types";
+import type { AuthMeResponse } from "@/lib/api";
+import { personalProjectsCreateBlocked } from "@/lib/freeQuota";
 
 type ProjectUndoAction =
   | { type: "archive"; projectId: string; previousStatus: "active" | "archived" }
@@ -47,7 +50,7 @@ interface ProjectListViewProps {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   teams: Team[];
   allProjectTodos: Todo[];
-  user: { uid: string; email?: string; effortMinutes?: { light: number; medium: number; heavy: number } } | null;
+  user: AuthMeResponse | null;
   t: (key: TranslationKey) => string;
   locale: string;
   loadProjects: () => Promise<unknown>;
@@ -69,6 +72,7 @@ export default function ProjectListView({
 }: ProjectListViewProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { refresh } = useAuth();
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -285,6 +289,10 @@ export default function ProjectListView({
 
   const handleCreate = async () => {
     if (!createName.trim() || creating) return;
+    if (!createTeamId && personalProjectsCreateBlocked(user)) {
+      toast.error(t("quota.free.projectLimitHint"));
+      return;
+    }
     setCreating(true);
     try {
       const created = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
@@ -292,6 +300,7 @@ export default function ProjectListView({
       setShowCreate(false);
       resetCreateForm();
       setCreating(false);
+      void refresh();
 
       const template = templateId !== "none" ? PROJECT_TEMPLATES.find((tpl) => tpl.id === templateId) : null;
       if (!template) return;
@@ -330,18 +339,6 @@ export default function ProjectListView({
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleArchiveRestore = async (project: Project) => {
-    const previousStatus = project.status as "active" | "archived";
-    const newStatus = previousStatus === "active" ? "archived" : "active";
-    try {
-      const updated = await updateProject(project.id, { status: newStatus });
-      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setLastAction({ type: "archive", projectId: project.id, previousStatus });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
     }
   };
 
@@ -556,10 +553,7 @@ export default function ProjectListView({
                     <div className="flex items-start justify-between">
                       <h3 className="font-semibold text-zinc-900 dark:text-slate-100 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">{project.name}</h3>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <button onClick={(e) => { e.stopPropagation(); handleArchiveRestore(project); }} className="text-zinc-400 hover:text-amber-500 transition-colors" title={t("projects.archive")}>
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-                        </button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(project); }} className="text-zinc-400 hover:text-amber-600 transition-colors" title={t("projects.archive")}>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(project); }} className="text-zinc-400 hover:text-amber-600 transition-colors" title={t("projects.archive")} aria-label={t("projects.archive")}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
@@ -775,7 +769,7 @@ export default function ProjectListView({
                 >
                   {t("projects.cancel")}
                 </button>
-                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
+                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating || (!createTeamId && personalProjectsCreateBlocked(user))} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
               </div>
             </div>
           </div>

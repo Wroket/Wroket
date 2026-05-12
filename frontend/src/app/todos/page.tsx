@@ -208,15 +208,29 @@ export default function TodosPage() {
     return all;
   }, [personalTodos, assignedTodos, delegatedTodos, scope]);
 
+  /** Active tasks linked to a project id that is not in the loaded active project list (deleted/archived server-side or stale client). */
+  const knownProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
+  const todosForMatrix = useMemo(
+    () =>
+      todos.filter((t) => {
+        if (t.status !== "active" || !t.projectId) return true;
+        return knownProjectIds.has(t.projectId);
+      }),
+    [todos, knownProjectIds],
+  );
+
   const scopeCounts = useMemo(() => {
-    const isActive = (t: Todo) => t.status === "active" && !t.parentId;
+    const isActive = (t: Todo) =>
+      t.status === "active" &&
+      !t.parentId &&
+      (!t.projectId || knownProjectIds.has(t.projectId));
     const ap = personalTodos.filter(isActive);
     const aa = assignedTodos.filter(isActive);
     const ad = delegatedTodos.filter(isActive);
     const allSet = new Set<string>();
     [...ap, ...aa, ...ad].forEach((t) => allSet.add(t.id));
     return { all: allSet.size, personal: ap.length, assigned: aa.length, delegated: ad.length };
-  }, [personalTodos, assignedTodos, delegatedTodos]);
+  }, [personalTodos, assignedTodos, delegatedTodos, knownProjectIds]);
 
   const replaceTodoInLists = useCallback((updated: Todo) => {
     setMyTodos((prev) => replaceTodoInArray(prev, updated));
@@ -848,7 +862,7 @@ export default function TodosPage() {
   const hasAdvancedFilters = filterProject !== null || filterAssignee !== null || filterDeadline !== "all" || filterTag !== null;
 
   const advancedFiltered = useMemo(() => {
-    if (!hasAdvancedFilters) return todos;
+    if (!hasAdvancedFilters) return todosForMatrix;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const endOfToday = new Date(now);
@@ -857,7 +871,7 @@ export default function TodosPage() {
     endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
     endOfWeek.setHours(23, 59, 59, 999);
 
-    return todos.filter((t) => {
+    return todosForMatrix.filter((t) => {
       if (filterProject === "__none__") {
         if (t.projectId) return false;
       } else if (filterProject) {
@@ -888,7 +902,7 @@ export default function TodosPage() {
 
       return true;
     });
-  }, [todos, filterProject, filterAssignee, filterDeadline, filterTag, hasAdvancedFilters]);
+  }, [todosForMatrix, filterProject, filterAssignee, filterDeadline, filterTag, hasAdvancedFilters]);
 
   const activeTodos = useMemo(() => advancedFiltered.filter((t) => t.status === "active" && !t.parentId), [advancedFiltered]);
   const completedTodos = useMemo(() => advancedFiltered.filter((t) => t.status === "completed" && !t.parentId), [advancedFiltered]);
@@ -1041,11 +1055,11 @@ export default function TodosPage() {
 
   const uniqueAssignees = useMemo(() => {
     const uids = new Set<string>();
-    for (const t of todos) {
+    for (const t of todosForMatrix) {
       if (t.assignedTo) uids.add(t.assignedTo);
     }
     return Array.from(uids);
-  }, [todos]);
+  }, [todosForMatrix]);
 
   const filterCounts = useMemo<Record<FilterKey, number>>(() => ({
     "do-first": grouped["do-first"].length,
@@ -1492,7 +1506,7 @@ export default function TodosPage() {
 
                 {/* Tag filter */}
                 {(() => {
-                  const allTags = [...new Set(todos.flatMap((td) => td.tags ?? []))].sort();
+                  const allTags = [...new Set(todosForMatrix.flatMap((td) => td.tags ?? []))].sort();
                   if (allTags.length === 0) return null;
                   return (
                     <div className="flex flex-col gap-1">

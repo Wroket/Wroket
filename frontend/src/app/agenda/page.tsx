@@ -30,6 +30,7 @@ import {
   type MicrosoftAccountPublic,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import { useUserLookup } from "@/lib/userUtils";
 import { useResourceSync } from "@/lib/useResourceSync";
 import {
@@ -50,7 +51,7 @@ import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const { toast } = useToast();
   const { resolveUser, displayName, cacheRef: userCacheRef } = useUserLookup();
   type ViewMode = "day" | "week" | "month";
@@ -375,6 +376,10 @@ export default function AgendaPage() {
 
   const handleQuickCreate = async () => {
     if (!quickCreateTitle.trim() || quickCreating) return;
+    if (personalTaskCreateBlocked(user, quickCreateProjectId, projects)) {
+      toast.error(t("quota.free.taskLimitHint"));
+      return;
+    }
     setQuickCreating(true);
     try {
       const todo = await createTodo({
@@ -398,6 +403,7 @@ export default function AgendaPage() {
       setWroketEvents(data.wroketEvents);
       setGoogleEvents(data.googleEvents);
       setMicrosoftEvents(data.microsoftEvents ?? []);
+      void refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -1111,7 +1117,7 @@ export default function AgendaPage() {
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => setShowQuickCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("cancel")}</button>
-                <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-1.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("settings.save")}</button>
+                <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating || personalTaskCreateBlocked(user, quickCreateProjectId, projects)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-1.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("settings.save")}</button>
               </div>
             </div>
           </div>
@@ -1132,8 +1138,11 @@ export default function AgendaPage() {
           userDisplayName={displayName}
           effortDefaults={user?.effortMinutes}
           currentUserUid={user?.uid}
-          onPersistTags={persistEditTags}
-        />
+        onPersistTags={persistEditTags}
+        freeTierContentLocks={
+          !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
+        }
+      />
       </div>
     </AppShell>
   );

@@ -1,8 +1,9 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
-import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
-import { findUserByUid, findUserByEmail } from "./authService";
+import { ForbiddenError, NotFoundError, ValidationError, PaymentRequiredError } from "../utils/errors";
+import { findUserByUid, findUserByEmail, shouldApplyFreeTierVolumeQuotas } from "./authService";
+import { FREE_QUOTA_CODE_PROJECTS, FREE_TIER_MAX_PERSONAL_PROJECTS } from "./freeTierQuotaConstants";
 import { getTeam, canManageProjects, getTeamRole } from "./teamService";
 
 export type ProjectStatus = "active" | "archived";
@@ -319,6 +320,28 @@ export function listChildProjects(parentId: string): Project[] {
   return out;
 }
 
+/** Active projects owned by the user outside any team (counts toward Free-tier cap). */
+export function countPersonalActiveProjectsForQuota(uid: string): number {
+  let n = 0;
+  for (const p of projectsById.values()) {
+    if (p.ownerUid !== uid) continue;
+    if (p.teamId) continue;
+    if (p.status !== "active") continue;
+    n++;
+  }
+  return n;
+}
+
+function assertFreeTierCanCreatePersonalProject(uid: string): void {
+  if (!shouldApplyFreeTierVolumeQuotas(uid)) return;
+  if (countPersonalActiveProjectsForQuota(uid) >= FREE_TIER_MAX_PERSONAL_PROJECTS) {
+    throw new PaymentRequiredError(
+      `Le palier gratuit est limité à ${FREE_TIER_MAX_PERSONAL_PROJECTS} projets personnels actifs. Passez à un palier payant ou créez des projets dans une équipe.`,
+      FREE_QUOTA_CODE_PROJECTS,
+    );
+  }
+}
+
 export function createProject(uid: string, userEmail: string, input: CreateProjectInput): Project {
   if (!input.name || input.name.trim().length === 0) {
     throw new ValidationError("Le nom du projet est requis");
@@ -341,6 +364,10 @@ export function createProject(uid: string, userEmail: string, input: CreateProje
     if (!canAccessProject(uid, userEmail, parent)) {
       throw new ForbiddenError("Accès au projet parent refusé");
     }
+  }
+
+  if (!input.teamId) {
+    assertFreeTierCanCreatePersonalProject(uid);
   }
 
   const now = new Date().toISOString();

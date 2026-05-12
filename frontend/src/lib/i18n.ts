@@ -124,13 +124,13 @@ const translations = {
   "archives.purgeDone": { fr: "{count} tâche(s) supprimée(s).", en: "Removed {count} task(s)." },
   "archives.deleteProjectForever": { fr: "Supprimer le projet", en: "Delete project" },
   "archives.deleteProjectConfirm": {
-    fr: "Supprimer définitivement ce projet archivé ? Les tâches et données associées peuvent être affectées. Action irréversible.",
-    en: "Permanently delete this archived project? Related tasks and data may be affected. This cannot be undone.",
+    fr: "Supprimer définitivement ce projet archivé ? Toutes les tâches du projet (y compris sous-tâches, commentaires et pièces jointes) seront supprimées définitivement pour tous les contributeurs. Action irréversible.",
+    en: "Permanently delete this archived project? All tasks in the project (including subtasks, comments, and attachments) will be permanently removed for everyone involved. This cannot be undone.",
   },
   "archives.emptyProjects": { fr: "Supprimer tous les projets archivés", en: "Delete all archived projects" },
   "archives.emptyProjectsConfirm": {
-    fr: "Supprimer définitivement les {count} projet(s) archivé(s) affiché(s) ? Action irréversible.",
-    en: "Permanently delete all {count} archived project(s) listed here? This cannot be undone.",
+    fr: "Supprimer définitivement les {count} projet(s) archivé(s) affiché(s) ? Les tâches de chaque projet seront supprimées définitivement (sous-tâches, commentaires, pièces jointes). Action irréversible.",
+    en: "Permanently delete all {count} archived project(s) listed here? Tasks in each project will be permanently removed (subtasks, comments, attachments). This cannot be undone.",
   },
   "archives.projectsRemoved": { fr: "{count} projet(s) supprimé(s).", en: "Removed {count} project(s)." },
   "archives.confirmRestoreTaskTitle": { fr: "Restaurer la tâche ?", en: "Restore this task?" },
@@ -1342,6 +1342,27 @@ const translations = {
   },
   "agenda.googleConnected": { fr: "Google Calendar connecté", en: "Google Calendar connected" },
   "agenda.outlookConnected": { fr: "Outlook connecté", en: "Outlook connected" },
+  "agenda.inAppSlotsSyncTitle": {
+    fr: "Synchroniser les créneaux Wroket ?",
+    en: "Sync Wroket slots to your calendar?",
+  },
+  "agenda.inAppSlotsSyncMessage": {
+    fr: "Vous avez {{count}} tâche(s) avec un créneau planifié uniquement dans Wroket (pas encore sur votre agenda connecté). Les créer sur le calendrier par défaut de réservation ? Les créneaux qui se chevauchent avec un événement existant ou une autre tâche seront ignorés. Au plus 100 créneaux sont traités par synchronisation ; vous pouvez relancer ensuite si besoin.",
+    en: "You have {{count}} task(s) with a time block only in Wroket (not yet on your connected calendar). Create them on your default booking calendar? Slots that overlap an existing event or another task will be skipped. Up to 100 slots are processed per sync; run again if needed.",
+  },
+  "agenda.inAppSlotsSyncConfirm": { fr: "Synchroniser", en: "Sync" },
+  "agenda.inAppSlotsSyncSuccess": {
+    fr: "{{synced}} créneau(x) ajouté(s) à l'agenda{{skipped}}.",
+    en: "{{synced}} slot(s) added to the calendar{{skipped}}.",
+  },
+  "agenda.inAppSlotsSyncSkippedSuffix": {
+    fr: " ; {{n}} ignoré(s) (conflit)",
+    en: "; {{n}} skipped (conflict)",
+  },
+  "agenda.inAppSlotsSyncPartialFailures": {
+    fr: "{{n}} créneau(x) n'ont pas pu être synchronisés.",
+    en: "{{n}} slot(s) could not be synced.",
+  },
   "agenda.sectionGoogle": { fr: "Google Calendar", en: "Google Calendar" },
   "agenda.sectionOutlook": { fr: "Outlook (Microsoft 365)", en: "Outlook (Microsoft 365)" },
   "agenda.microsoftEvent": { fr: "Événement Outlook", en: "Outlook event" },

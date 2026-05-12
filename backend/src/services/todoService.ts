@@ -1,13 +1,18 @@
 import crypto from "crypto";
 
 import { getStore, scheduleTodoShardPersist, todoShardIndex, flushNow } from "../persistence";
-import { findUserByUid, DEFAULT_WORKING_HOURS, getArchivedTaskRetentionDaysForPurge } from "./authService";
+import { findUserByUid, DEFAULT_WORKING_HOURS, getArchivedTaskRetentionDaysForPurge, shouldApplyFreeTierVolumeQuotas } from "./authService";
 import { purgeAttachmentsForTodoIds } from "./attachmentService";
 import { removeCommentsForTodos } from "./commentService";
 import { detachNotesFromTodoIds } from "./noteService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { syncOwnerTodosV2, loadAllTodosV2ByOwner } from "./todoDocStore";
-import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import {
+  FREE_QUOTA_CODE_RECURRENCE,
+  FREE_QUOTA_CODE_TASKS,
+  FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL,
+} from "./freeTierQuotaConstants";
+import { ForbiddenError, NotFoundError, ValidationError, PaymentRequiredError } from "../utils/errors";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
@@ -511,6 +516,52 @@ export function listTodosForUsers(userIds: string[]): Todo[] {
   return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+function isPersonalProjectIdForQuota(projectId: string | null): boolean {
+  if (!projectId) return true;
+  const p = getProjectById(projectId);
+  if (!p) return true;
+  return !p.teamId;
+}
+
+function todoBelongsToPersonalWorkspaceForQuota(todo: Todo): boolean {
+  return isPersonalProjectIdForQuota(todo.projectId);
+}
+
+/** Active todos in the owner's personal workspace (excludes tasks on team-linked projects). */
+export function countPersonalActiveTodosForQuota(uid: string): number {
+  return listTodos(uid).filter(todoBelongsToPersonalWorkspaceForQuota).length;
+}
+
+function assertFreeTierCanAddPersonalActiveTodo(uid: string): void {
+  if (!shouldApplyFreeTierVolumeQuotas(uid)) return;
+  if (countPersonalActiveTodosForQuota(uid) >= FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL) {
+    throw new PaymentRequiredError(
+      `Le palier gratuit est limité à ${FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL} tâches actives hors projets d'équipe. Passez à un palier payant pour lever cette limite.`,
+      FREE_QUOTA_CODE_TASKS,
+    );
+  }
+}
+
+function assertFreeTierNoRecurrence(uid: string, recurrence: Recurrence | null | undefined): void {
+  if (!recurrence) return;
+  if (!shouldApplyFreeTierVolumeQuotas(uid)) return;
+  throw new PaymentRequiredError(
+    "La récurrence des tâches n'est pas disponible sur le palier gratuit. Passez à un palier payant.",
+    FREE_QUOTA_CODE_RECURRENCE,
+  );
+}
+
+function projectedPersonalActiveTodoDelta(
+  prevStatus: TodoStatus,
+  prevProjectId: string | null,
+  nextStatus: TodoStatus,
+  nextProjectId: string | null,
+): number {
+  const was = prevStatus === "active" && isPersonalProjectIdForQuota(prevProjectId);
+  const next = nextStatus === "active" && isPersonalProjectIdForQuota(nextProjectId);
+  return (next ? 1 : 0) - (was ? 1 : 0);
+}
+
 /**
  * Returns all todos (any status) belonging to a project, across all users.
  */
@@ -537,31 +588,6 @@ export async function archiveTodosByProjectId(projectId: string): Promise<number
       if (todo.projectId !== projectId) return;
       if (todo.status === "active") {
         todo.status = "completed";
-        todo.statusChangedAt = now;
-        todo.updatedAt = now;
-        updated++;
-        owners.add(ownerUid);
-      }
-    });
-  });
-  if (owners.size > 0) {
-    await persistTodos(...owners);
-  }
-  return updated;
-}
-
-/**
- * Soft-delete every task linked to a project (status => deleted).
- */
-export async function softDeleteTodosByProjectId(projectId: string): Promise<number> {
-  const now = new Date().toISOString();
-  const owners = new Set<string>();
-  let updated = 0;
-  todosByUser.forEach((todos, ownerUid) => {
-    todos.forEach((todo) => {
-      if (todo.projectId !== projectId) return;
-      if (todo.status !== "deleted") {
-        todo.status = "deleted";
         todo.statusChangedAt = now;
         todo.updatedAt = now;
         updated++;
@@ -620,6 +646,48 @@ function collectDescendantTodoIds(todos: Map<string, Todo>, rootId: string): str
     }
   }
   return [...ids];
+}
+
+/**
+ * Permanently removes every task (any status) linked to `projectId`, across all owners,
+ * including descendant subtasks in each owner's store. Used when a project is deleted.
+ */
+export async function permanentlyPurgeTodosByProjectId(projectId: string): Promise<number> {
+  const seedsByOwner = new Map<string, Set<string>>();
+  todosByUser.forEach((todos, ownerUid) => {
+    todos.forEach((todo) => {
+      if (todo.projectId !== projectId) return;
+      let set = seedsByOwner.get(ownerUid);
+      if (!set) {
+        set = new Set();
+        seedsByOwner.set(ownerUid, set);
+      }
+      set.add(todo.id);
+    });
+  });
+
+  let totalRemoved = 0;
+  for (const [ownerUid, seeds] of seedsByOwner) {
+    const own = getUserTodos(ownerUid);
+    const finalIds = new Set<string>();
+    for (const id of seeds) {
+      const todo = own.get(id);
+      if (!todo) continue;
+      const isRoot = !todo.parentId || !seeds.has(todo.parentId);
+      if (!isRoot) continue;
+      for (const chainId of collectDescendantTodoIds(own, id)) {
+        finalIds.add(chainId);
+      }
+    }
+    if (finalIds.size === 0) continue;
+    const idList = [...finalIds];
+    totalRemoved += idList.length;
+    await purgeAttachmentsForTodoIds(idList);
+    removeCommentsForTodos(idList);
+    detachNotesFromTodoIds(ownerUid, finalIds);
+    await hardRemoveTodosByIds(idList);
+  }
+  return totalRemoved;
 }
 
 /**
@@ -858,6 +926,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 
   if (input.recurrence) {
     validateRecurrence(input.recurrence);
+    assertFreeTierNoRecurrence(userId, input.recurrence);
     if (input.deadline && !input.allowPastDeadline) {
       const today = new Date().toISOString().split("T")[0];
       if (input.deadline < today) {
@@ -883,6 +952,10 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 
   const status: TodoStatus =
     input.status && VALID_STATUSES.includes(input.status) ? input.status : "active";
+
+  if (status === "active" && isPersonalProjectIdForQuota(resolvedProjectId)) {
+    assertFreeTierCanAddPersonalActiveTodo(userId);
+  }
 
   let assignmentStatus: AssignmentStatus | null = null;
   if (input.assignedTo) {
@@ -949,6 +1022,21 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   const found = findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
+
+  if (isOwner && shouldApplyFreeTierVolumeQuotas(todo.userId)) {
+    const nextStatus = (input.status !== undefined ? input.status : todo.status) as TodoStatus;
+    const nextProjectId = input.projectId !== undefined ? input.projectId : todo.projectId;
+    const delta = projectedPersonalActiveTodoDelta(todo.status, todo.projectId, nextStatus, nextProjectId);
+    if (delta !== 0) {
+      const cur = countPersonalActiveTodosForQuota(todo.userId);
+      if (cur + delta > FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL) {
+        throw new PaymentRequiredError(
+          `Le palier gratuit est limité à ${FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL} tâches actives hors projets d'équipe. Passez à un palier payant pour lever cette limite.`,
+          FREE_QUOTA_CODE_TASKS,
+        );
+      }
+    }
+  }
 
   // Only the owner may *change* assignee. Assignees often save the full form with
   // the same assignedTo — that must not be rejected (comments, title, etc.).
@@ -1147,6 +1235,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   if (input.recurrence !== undefined) {
     if (input.recurrence) {
       validateRecurrence(input.recurrence);
+      assertFreeTierNoRecurrence(todo.userId, input.recurrence);
       const effectiveDeadline = input.deadline ?? todo.deadline;
       if (effectiveDeadline) {
         const today = new Date().toISOString().split("T")[0];
@@ -1176,6 +1265,9 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     const nextDeadline = calculateNextDueDate(todo.deadline, frequency, interval, workingDays);
     const pastEnd = endDate && nextDeadline > endDate;
     if (!pastEnd) {
+      if (todoBelongsToPersonalWorkspaceForQuota(todo)) {
+        assertFreeTierCanAddPersonalActiveTodo(todo.userId);
+      }
       const ownerTodos = getUserTodos(todo.userId);
       const now2 = new Date().toISOString();
       const clone: Todo = {

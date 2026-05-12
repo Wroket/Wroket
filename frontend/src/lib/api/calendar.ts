@@ -248,3 +248,36 @@ export async function clearTaskMeet(todoId: string): Promise<Todo> {
   if (!res.ok) throw new Error("Impossible de supprimer le meeting");
   return res.json() as Promise<Todo>;
 }
+
+export interface InAppSlotsPendingCountResponse {
+  count: number;
+}
+
+export async function getInAppScheduledSlotsPendingCount(): Promise<InAppSlotsPendingCountResponse> {
+  const res = await fetch(`${API_BASE_URL}/calendar/in-app-slots/pending-count`, { credentials: "include" });
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de compter les créneaux");
+  }
+  return res.json();
+}
+
+export interface SyncInAppScheduledSlotsResponse {
+  synced: number;
+  skippedConflicts: number;
+  failed: { todoId: string; message: string }[];
+}
+
+export async function syncInAppScheduledSlotsToCalendar(
+  body: { skipIfConflict?: boolean } = {},
+): Promise<SyncInAppScheduledSlotsResponse> {
+  const res = await fetch(`${API_BASE_URL}/calendar/in-app-slots/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de synchroniser les créneaux");
+  }
+  return res.json();
+}

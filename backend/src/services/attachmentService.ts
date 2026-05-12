@@ -5,8 +5,10 @@ import path from "path";
 import type { Readable } from "stream";
 
 import { getStore, scheduleSave } from "../persistence";
-import { ValidationError, NotFoundError } from "../utils/errors";
+import { ValidationError, NotFoundError, PaymentRequiredError } from "../utils/errors";
 import { logger } from "../utils/logger";
+import { shouldApplyFreeTierVolumeQuotas } from "./authService";
+import { FREE_QUOTA_CODE_ATTACHMENTS } from "./freeTierQuotaConstants";
 
 const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"));
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -240,6 +242,12 @@ export async function addAttachment(
   file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
 ): Promise<Attachment> {
   if (!ownerUid) throw new NotFoundError("Tâche introuvable");
+  if (shouldApplyFreeTierVolumeQuotas(ownerUid)) {
+    throw new PaymentRequiredError(
+      "Les pièces jointes sur les tâches ne sont pas disponibles sur le palier gratuit. Passez à un palier payant.",
+      FREE_QUOTA_CODE_ATTACHMENTS,
+    );
+  }
   if (file.size > MAX_FILE_SIZE) throw new ValidationError("Fichier trop volumineux (max 5 Mo)");
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) throw new ValidationError("Type de fichier non autorisé");
 

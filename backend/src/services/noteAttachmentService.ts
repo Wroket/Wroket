@@ -16,7 +16,7 @@ import path from "path";
 import type { Readable } from "stream";
 
 import { getStore, scheduleSave } from "../persistence";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError, PaymentRequiredError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import {
   addAttachment as addTaskAttachment,
@@ -26,7 +26,8 @@ import {
 } from "./attachmentService";
 import { canViewNote, getNote } from "./noteService";
 import { getTodoStoreOwnerId } from "./todoService";
-import { findUserByUid } from "./authService";
+import { findUserByUid, shouldApplyFreeTierVolumeQuotas } from "./authService";
+import { FREE_QUOTA_CODE_ATTACHMENTS } from "./freeTierQuotaConstants";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS_PER_NOTE = 10;
@@ -102,6 +103,12 @@ export async function addNoteAttachment(
   }
 
   // Note-only path.
+  if (shouldApplyFreeTierVolumeQuotas(requestingUid)) {
+    throw new PaymentRequiredError(
+      "Les pièces jointes sur les notes ne sont pas disponibles sur le palier gratuit. Passez à un palier payant.",
+      FREE_QUOTA_CODE_ATTACHMENTS,
+    );
+  }
   const store = getNoteAttachmentStore();
   const list = store[noteId] ?? [];
   if (list.length >= MAX_ATTACHMENTS_PER_NOTE) {

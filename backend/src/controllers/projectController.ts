@@ -24,11 +24,15 @@ import {
   type ProjectAccessEntry,
 } from "../services/projectService";
 import {
+  cascadeArchiveActiveSubprojects,
+  cascadeRestoreArchivedSubprojects,
+} from "../services/projectArchiveCascadeService";
+import {
   listProjectTodos,
   clearProjectPhaseReferences,
   createTodo,
   archiveTodosByProjectId,
-  softDeleteTodosByProjectId,
+  permanentlyPurgeTodosByProjectId,
 } from "../services/todoService";
 import { listComments } from "../services/commentService";
 import {
@@ -139,11 +143,16 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     }
     input.tags = body.tags;
   }
-  const project = updateProject(req.user!.uid, req.user!.email, id, input);
+  const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
+  const project = updateProject(uid, email, id, input);
   if (input.status === "archived" && previous?.status !== "archived") {
     await archiveTodosByProjectId(project.id);
+    await cascadeArchiveActiveSubprojects(uid, email, project.id);
+  } else if (input.status === "active" && previous?.status === "archived") {
+    cascadeRestoreArchivedSubprojects(uid, email, project.id);
   }
-  logActivity(req.user!.uid, req.user!.email, "update", "project", project.id, { name: project.name });
+  logActivity(uid, email, "update", "project", project.id, { name: project.name });
   res.status(200).json(project);
 }
 
@@ -151,7 +160,7 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const project = getProjectById(id);
   deleteProject(req.user!.uid, req.user!.email, id);
-  await softDeleteTodosByProjectId(id);
+  await permanentlyPurgeTodosByProjectId(id);
   logActivity(req.user!.uid, req.user!.email, "delete", "project", id, project?.name ? { name: project.name } : undefined);
   res.status(204).end();
 }

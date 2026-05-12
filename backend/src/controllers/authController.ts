@@ -33,6 +33,7 @@ import {
   disableEmailOtp2fa as disableEmailOtp2faService,
 } from "../services/authService";
 import { isAdmin as emailIsInAdminAllowlist } from "../services/adminService";
+import { getFreeQuotaSnapshot } from "../services/quotaUsageService";
 import { purgeArchivedTodosPastRetentionForUser } from "../services/todoService";
 import {
   getPendingTwoFactorMethods,
@@ -493,6 +494,7 @@ export async function logout(req: Request, res: Response) {
 
 /** Body for GET/PUT /auth/me — keep in sync with frontend `AuthMeResponse`. */
 function serializeAuthMeResponse(user: AuthUser) {
+  const snap = getFreeQuotaSnapshot(user.uid);
   return {
     uid: user.uid,
     email: user.email,
@@ -522,6 +524,7 @@ function serializeAuthMeResponse(user: AuthUser) {
     archivedTaskRetentionDays: user.archivedTaskRetentionDays,
     /** Mirrors `ADMIN_EMAILS` on the API — used for /admin nav without duplicating the list in the client. */
     isAdmin: emailIsInAdminAllowlist(user.email),
+    ...(snap ? { freeQuotas: snap } : {}),
   };
 }
 

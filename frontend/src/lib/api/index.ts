@@ -194,8 +194,15 @@ export {
   getMicrosoftAccountCalendars,
   saveMicrosoftAccountCalendars,
   disconnectMicrosoftAccount,
+  getInAppScheduledSlotsPendingCount,
+  syncInAppScheduledSlotsToCalendar,
 } from "./calendar";
-export type { CalendarEvent, CalendarEventsResponse } from "./calendar";
+export type {
+  CalendarEvent,
+  CalendarEventsResponse,
+  InAppSlotsPendingCountResponse,
+  SyncInAppScheduledSlotsResponse,
+} from "./calendar";
 
 export {
   getNotes,

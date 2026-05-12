@@ -19,6 +19,7 @@ import AppShell from "@/components/AppShell";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
@@ -195,6 +196,11 @@ export default function ProjectDetailView({
   const [fullScreen, setFullScreen] = useState(false);
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
+  const [projectArchiveConfirm, setProjectArchiveConfirm] = useState<{
+    title: string;
+    message: string;
+    action: () => void;
+  } | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -1296,9 +1302,52 @@ export default function ProjectDetailView({
                 <button onClick={() => { setEditing(true); setEditName(selectedProject.name); setEditDesc(selectedProject.description); }} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
                   {t("projects.edit")}
                 </button>
-                <button onClick={() => handleArchiveRestore(selectedProject)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">
-                  {t((selectedProject.status === "active" ? "projects.archive" : "projects.restore"))}
-                </button>
+                {selectedProject.status === "active" ? (
+                  <button
+                    type="button"
+                    title={t("projects.archive")}
+                    aria-label={t("projects.archive")}
+                    onClick={() => {
+                      const id = selectedProject.id;
+                      const name = selectedProject.name;
+                      setProjectArchiveConfirm({
+                        title: t("projects.archive"),
+                        message: `« ${name} » — ${t("projects.confirmArchiveHint")}`,
+                        action: () => {
+                          setProjectArchiveConfirm(null);
+                          void (async () => {
+                            try {
+                              const updated = await updateProject(id, { status: "archived" });
+                              setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+                              setSelectedProject(updated);
+                              await refreshProject(id);
+                              onTaskImportSuccess?.();
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Error");
+                            }
+                          })();
+                        },
+                      });
+                    }}
+                    className="rounded border border-zinc-300 dark:border-slate-600 p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 hover:text-amber-600 dark:hover:text-amber-500 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    title={t("projects.restore")}
+                    aria-label={t("projects.restore")}
+                    onClick={() => void handleArchiveRestore(selectedProject)}
+                    className="rounded border border-zinc-300 dark:border-slate-600 p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                  </button>
+                )}
                 <ExportImportDropdown
                   exportCsv={() => exportProjectData(selectedProject.id, "csv")}
                   exportJson={() => exportProjectData(selectedProject.id, "json")}
@@ -2277,6 +2326,16 @@ export default function ProjectDetailView({
             </div>
           );
         })()}
+
+        <ConfirmDialog
+          open={!!projectArchiveConfirm}
+          title={projectArchiveConfirm?.title ?? ""}
+          message={projectArchiveConfirm?.message ?? ""}
+          onConfirm={() => projectArchiveConfirm?.action()}
+          onCancel={() => setProjectArchiveConfirm(null)}
+          variant="warning"
+          confirmLabel={t("projects.archive")}
+        />
 
         <DeleteTaskDialog
           open={!!taskToDelete}

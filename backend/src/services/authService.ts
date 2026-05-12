@@ -1044,6 +1044,14 @@ export function getBillingPlanForUid(uid: string): BillingPlan {
   return user ? readBillingPlan(user) : "free";
 }
 
+/** When true, enforce Free-tier volume limits (tasks/projects/notes, …) — see docs/plan-quotas.md */
+export function shouldApplyFreeTierVolumeQuotas(uid: string): boolean {
+  const u = usersByUid.get(uid);
+  if (!u) return false;
+  if (u.earlyBird) return false;
+  return readBillingPlan(u) === "free";
+}
+
 export function getEntitlementsForUid(uid: string): Entitlements {
   const user = usersByUid.get(uid);
   if (!user) return getEntitlements("free");

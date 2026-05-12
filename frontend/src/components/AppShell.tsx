@@ -23,6 +23,7 @@ import type { TranslationKey } from "@/lib/i18n";
 import TutorialModal, { useTutorial } from "@/components/TutorialModal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
+import FreeQuotaBanner from "@/components/FreeQuotaBanner";
 
 interface AppShellProps {
   children: ReactNode;
@@ -1151,6 +1152,7 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* ── Main content ── */}
         <main id="main-content" role="main" className="flex-1 min-w-0 py-6 px-4 md:px-6 lg:px-8">
+          {me ? <FreeQuotaBanner /> : null}
           {children}
         </main>
       </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -12,12 +13,15 @@ import { useToast } from "@/components/Toast";
 import SlashCommandMenu, { type SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
 import { clearNotesLocalStorage, useOfflineNotes } from "@/lib/useOfflineNotes";
-import { createTodo, getProjects, getTodos, getTeams, getMe, purgeArchivedNoteApi } from "@/lib/api";
+import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
+import { personalNotesCreateBlocked } from "@/lib/freeQuota";
 
 function NotesPageInner() {
   const { t } = useLocale();
   const { toast } = useToast();
+  const { user: authUser } = useAuth();
+  const currentUid = authUser?.uid ?? null;
   const searchParams = useSearchParams();
   const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload, pushToServer } = useOfflineNotes();
   const [resyncing, setResyncing] = useState(false);
@@ -29,7 +33,6 @@ function NotesPageInner() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [currentUid, setCurrentUid] = useState<string | null>(null);
   const [collabEmailInput, setCollabEmailInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -54,7 +57,6 @@ function NotesPageInner() {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
     getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
     getTeams().then(setTeams).catch(() => setTeams([]));
-    getMe().then((me) => setCurrentUid(me.uid)).catch(() => {});
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
@@ -93,6 +95,10 @@ function NotesPageInner() {
   }, [listScoped, search]);
 
   const handleNew = useCallback(() => {
+    if (personalNotesCreateBlocked(authUser)) {
+      toast.error(t("quota.free.noteLimitHint"));
+      return;
+    }
     const opts =
       homeView === "list" && activeFolder ? { folder: activeFolder } : undefined;
     const id = addNote(undefined, opts);
@@ -102,7 +108,7 @@ function NotesPageInner() {
     setCollabEmailInput("");
     setMobileShowEditor(true);
     setTimeout(() => titleRef.current?.focus(), 50);
-  }, [addNote, homeView, activeFolder]);
+  }, [addNote, homeView, activeFolder, authUser, toast, t]);
 
   const handleOpenFolderTile = useCallback((folder: string | null) => {
     setActiveFolder(folder);
@@ -123,6 +129,10 @@ function NotesPageInner() {
   const handleCreateFolderSubmit = useCallback(() => {
     const name = createFolderName.trim();
     if (!name) return;
+    if (personalNotesCreateBlocked(authUser)) {
+      toast.error(t("quota.free.noteLimitHint"));
+      return;
+    }
     if (folderNames.includes(name)) {
       setCreateFolderOpen(false);
       setCreateFolderName("");
@@ -137,7 +147,7 @@ function NotesPageInner() {
     setSelectedId(id);
     setMobileShowEditor(true);
     setTimeout(() => titleRef.current?.focus(), 50);
-  }, [createFolderName, folderNames, addNote, handleOpenFolderTile]);
+  }, [createFolderName, folderNames, addNote, handleOpenFolderTile, authUser, toast, t]);
 
   const executeDeleteFolder = useCallback(async () => {
     const folderName = deleteFolderModal;

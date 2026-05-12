@@ -24,7 +24,10 @@ export class ValidationError extends AppError {
 }
 
 export class PaymentRequiredError extends AppError {
-  constructor(message = "Payment required") {
+  constructor(
+    message = "Payment required",
+    public readonly code?: string,
+  ) {
     super(402, message);
   }
 }

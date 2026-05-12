@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 
-import { AppError, ConflictError } from "../utils/errors";
+import { AppError, ConflictError, PaymentRequiredError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { RequestWithId } from "./requestId";
 
@@ -42,6 +42,8 @@ export const errorHandler = (
     }
     const body: Record<string, unknown> = { message: err.message, requestId: reqId };
     if (err instanceof ConflictError && err.code) {
+      body.code = err.code;
+    } else if (err instanceof PaymentRequiredError && err.code) {
       body.code = err.code;
     }
     res.status(err.statusCode).json(body);

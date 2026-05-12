@@ -7,6 +7,7 @@ import {
   microsoftCalendarAuthUrl, microsoftCalendarCallback, disconnectMicrosoft,
   listMicrosoftCalendars, saveMicrosoftCalendarSelection,
   createMeet, updateMeet, clearMeet,
+  getInAppScheduledSlotsCount, syncInAppScheduledSlots,
 } from "../controllers/calendarController";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -33,5 +34,7 @@ calendarRoutes.get("/events", getCalendarEvents);
 calendarRoutes.post("/meet/:todoId", createMeet);
 calendarRoutes.patch("/meet/:todoId", updateMeet);
 calendarRoutes.delete("/meet/:todoId", clearMeet);
+calendarRoutes.get("/in-app-slots/pending-count", getInAppScheduledSlotsCount);
+calendarRoutes.post("/in-app-slots/sync", syncInAppScheduledSlots);
 
 export default calendarRoutes;

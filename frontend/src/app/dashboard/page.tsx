@@ -191,7 +191,15 @@ export default function DashboardPage() {
   }, [personalTodos, assignedTodos, delegatedTodos]);
 
   const rootTodosScope = useMemo(() => allTodosScope.filter((td) => !td.parentId), [allTodosScope]);
-  const active = useMemo(() => rootTodosScope.filter((td) => td.status === "active"), [rootTodosScope]);
+  /** Active projects only (same as /todos) — used to exclude tasks stuck to archived/deleted projects. */
+  const knownProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
+  const isActiveRootInPlay = (td: Todo) =>
+    td.status === "active" &&
+    (!td.projectId || knownProjectIds.has(td.projectId));
+  const active = useMemo(
+    () => rootTodosScope.filter(isActiveRootInPlay),
+    [rootTodosScope, knownProjectIds],
+  );
 
   const radarSubtaskCounts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -286,9 +294,23 @@ export default function DashboardPage() {
     },
     [editingTodo, replaceTodoInLists, syncBaseline],
   );
-  const completed = useMemo(() => rootTodosScope.filter((td) => td.status === "completed"), [rootTodosScope]);
-  const activeAssigned = useMemo(() => assignedTodos.filter((td) => td.status === "active" && !td.parentId), [assignedTodos]);
-  const activeDelegated = useMemo(() => delegatedTodos.filter((td) => td.status === "active" && !td.parentId), [delegatedTodos]);
+  const completed = useMemo(
+    () =>
+      rootTodosScope.filter(
+        (td) =>
+          td.status === "completed" &&
+          (!td.projectId || knownProjectIds.has(td.projectId)),
+      ),
+    [rootTodosScope, knownProjectIds],
+  );
+  const activeAssigned = useMemo(
+    () => assignedTodos.filter((td) => td.status === "active" && !td.parentId && isActiveRootInPlay(td)),
+    [assignedTodos, knownProjectIds],
+  );
+  const activeDelegated = useMemo(
+    () => delegatedTodos.filter((td) => td.status === "active" && !td.parentId && isActiveRootInPlay(td)),
+    [delegatedTodos, knownProjectIds],
+  );
 
   const grouped = useMemo<Record<Quadrant, Todo[]>>(() => ({
     "do-first": active.filter((td) => classify(td) === "do-first"),
@@ -740,6 +762,9 @@ export default function DashboardPage() {
         onTodoCommentsChanged={() => {
           getCommentCounts().catch(() => {});
         }}
+        freeTierContentLocks={
+          !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
+        }
       />
     </AppShell>
   );

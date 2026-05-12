@@ -124,6 +124,9 @@ export async function updateProject(id: string, payload: UpdateProjectPayload): 
   }
   const result = (await res.json()) as Project;
   broadcastResourceChange("projects");
+  if (payload.status !== undefined) {
+    broadcastResourceChange("todos");
+  }
   return result;
 }
 
@@ -134,6 +137,7 @@ export async function deleteProjectApi(id: string): Promise<void> {
     throw new Error(extractApiMessage(body, "Erreur lors de la suppression du projet"));
   }
   broadcastResourceChange("projects");
+  broadcastResourceChange("todos");
 }
 
 export async function reorderProjects(projectIds: string[]): Promise<void> {

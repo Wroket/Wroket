@@ -1,0 +1,17 @@
+/** Volume quotas for resolved billing plan `free` — see docs/plan-quotas.md */
+export const FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL = 25;
+export const FREE_TIER_MAX_PERSONAL_PROJECTS = 3;
+export const FREE_TIER_MAX_PERSONAL_NOTES = 3;
+
+export const FREE_QUOTA_CODE_TASKS = "FREE_QUOTA_TASKS";
+export const FREE_QUOTA_CODE_PROJECTS = "FREE_QUOTA_PROJECTS";
+export const FREE_QUOTA_CODE_NOTES = "FREE_QUOTA_NOTES";
+export const FREE_QUOTA_CODE_RECURRENCE = "FREE_QUOTA_RECURRENCE";
+export const FREE_QUOTA_CODE_ATTACHMENTS = "FREE_QUOTA_ATTACHMENTS";
+
+export type FreeQuotaCode =
+  | typeof FREE_QUOTA_CODE_TASKS
+  | typeof FREE_QUOTA_CODE_PROJECTS
+  | typeof FREE_QUOTA_CODE_NOTES
+  | typeof FREE_QUOTA_CODE_RECURRENCE
+  | typeof FREE_QUOTA_CODE_ATTACHMENTS;

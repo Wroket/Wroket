@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
 import { useToast } from "@/components/Toast";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   getMe,
   getGoogleAuthUrl,
@@ -15,9 +16,12 @@ import {
   getMicrosoftAccountCalendars,
   saveMicrosoftAccountCalendars,
   disconnectMicrosoftAccount,
+  getInAppScheduledSlotsPendingCount,
+  syncInAppScheduledSlotsToCalendar,
   type GoogleAccountPublic,
   type GoogleCalendarEntry,
 } from "@/lib/api";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
 import { useLocale } from "@/lib/LocaleContext";
 import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
@@ -35,6 +39,10 @@ function hasBothCalendarProviders(accs: AccountWithCals[]): boolean {
   return accs.some((a) => a.provider === "google") && accs.some((a) => a.provider === "microsoft");
 }
 
+function hasWritableBookingDefault(loaded: AccountWithCals[]): boolean {
+  return loaded.some((a) => a.cals?.some((c) => c.defaultForBooking && c.canWriteBooking !== false));
+}
+
 export default function ManageCalendarsPage() {
   const { t } = useLocale();
   const { user, loading: authLoading } = useAuth();
@@ -45,10 +53,13 @@ export default function ManageCalendarsPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [preferredBookingProvider, setPreferredBookingProvider] = useState<"google" | "microsoft" | undefined>();
+  const [inAppSyncDialogOpen, setInAppSyncDialogOpen] = useState(false);
+  const [inAppSyncPendingCount, setInAppSyncPendingCount] = useState(0);
+  const [inAppSyncRunning, setInAppSyncRunning] = useState(false);
 
   const canUseCalendarIntegrations = !authLoading && user?.entitlements?.integrations === true;
 
-  const loadAccounts = async () => {
+  const loadAccounts = async (): Promise<AccountWithCals[] | null> => {
     try {
       const me = await getMe();
       setPreferredBookingProvider(me.preferredBookingProvider);
@@ -69,8 +80,25 @@ export default function ManageCalendarsPage() {
         }),
       );
       setAccounts(withCals);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+      return withCals;
+    } catch {
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tryOfferInAppSlotSync = async (loaded: AccountWithCals[]) => {
+    if (!hasWritableBookingDefault(loaded)) return;
+    try {
+      const { count } = await getInAppScheduledSlotsPendingCount();
+      if (count > 0) {
+        setInAppSyncPendingCount(count);
+        setInAppSyncDialogOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
   };
 
   useEffect(() => {
@@ -78,10 +106,16 @@ export default function ManageCalendarsPage() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get("microsoft") !== "connected") return;
-    toast.success(t("agenda.outlookConnected"));
+    const google = searchParams.get("google") === "connected";
+    const microsoft = searchParams.get("microsoft") === "connected";
+    if (!google && !microsoft) return;
+    toast.success(google ? t("agenda.googleConnected") : t("agenda.outlookConnected"));
     router.replace("/agenda/manage", { scroll: false });
-    void loadAccounts();
+    void (async () => {
+      const loaded = await loadAccounts();
+      if (!loaded) return;
+      await tryOfferInAppSlotSync(loaded);
+    })();
   }, [searchParams, router, toast, t]);
 
   const handleConnectGoogle = async () => {
@@ -197,9 +231,42 @@ export default function ManageCalendarsPage() {
         await saveMicrosoftAccountCalendars(accountId, account.cals);
       }
       toast.success(t("agenda.calendarsSaved"));
-      await loadAccounts();
+      const reloaded = await loadAccounts();
+      if (reloaded) await tryOfferInAppSlotSync(reloaded);
     } catch { /* ignore */ }
     finally { setSavingKey(null); }
+  };
+
+  const handleConfirmInAppSlotSync = async () => {
+    if (inAppSyncRunning) return;
+    setInAppSyncRunning(true);
+    try {
+      const result = await syncInAppScheduledSlotsToCalendar({ skipIfConflict: true });
+      broadcastResourceChange("todos");
+      const skippedSuffix =
+        result.skippedConflicts > 0
+        ? t("agenda.inAppSlotsSyncSkippedSuffix").replace("{{n}}", String(result.skippedConflicts))
+          : "";
+      toast.success(
+        t("agenda.inAppSlotsSyncSuccess")
+          .replace("{{synced}}", String(result.synced))
+          .replace("{{skipped}}", skippedSuffix),
+      );
+      if (result.failed.length > 0) {
+        toast.error(t("agenda.inAppSlotsSyncPartialFailures").replace("{{n}}", String(result.failed.length)));
+      }
+      setInAppSyncDialogOpen(false);
+      setInAppSyncPendingCount(0);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncConfirm"));
+    } finally {
+      setInAppSyncRunning(false);
+    }
+  };
+
+  const closeInAppSyncDialog = () => {
+    if (inAppSyncRunning) return;
+    setInAppSyncDialogOpen(false);
   };
 
   return (
@@ -376,6 +443,17 @@ export default function ManageCalendarsPage() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={inAppSyncDialogOpen}
+        title={t("agenda.inAppSlotsSyncTitle")}
+        message={t("agenda.inAppSlotsSyncMessage").replace("{{count}}", String(inAppSyncPendingCount))}
+        variant="info"
+        confirmLabel={inAppSyncRunning ? "…" : t("agenda.inAppSlotsSyncConfirm")}
+        onCancel={closeInAppSyncDialog}
+        onConfirm={() => {
+          void handleConfirmInAppSlotSync();
+        }}
+      />
     </AppShell>
   );
 }

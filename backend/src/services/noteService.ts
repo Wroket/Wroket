@@ -1,9 +1,10 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError, PaymentRequiredError } from "../utils/errors";
 import { getTeam, getTeamRole } from "./teamService";
-import { normalizeEmail, findUserByEmail, findUserByUid } from "./authService";
+import { normalizeEmail, findUserByEmail, findUserByUid, shouldApplyFreeTierVolumeQuotas } from "./authService";
+import { FREE_QUOTA_CODE_NOTES, FREE_TIER_MAX_PERSONAL_NOTES } from "./freeTierQuotaConstants";
 
 export interface Note {
   id: string;
@@ -156,6 +157,16 @@ function validateSharing(userId: string, shared?: boolean, teamId?: string): voi
   }
 }
 
+/** Notes without team sharing (count toward Free-tier cap). */
+export function countPersonalNotesForQuota(userId: string): number {
+  let n = 0;
+  for (const note of getUserNotes(userId).values()) {
+    if (note.teamId) continue;
+    n++;
+  }
+  return n;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createNote(userId: string, input: CreateNoteInput): Note {
@@ -183,6 +194,15 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
   if (clientId && getUserArchivedNotes(userId).has(clientId)) {
     getUserArchivedNotes(userId).delete(clientId);
     persistArchived();
+  }
+
+  if (!teamId && shouldApplyFreeTierVolumeQuotas(userId)) {
+    if (countPersonalNotesForQuota(userId) >= FREE_TIER_MAX_PERSONAL_NOTES) {
+      throw new PaymentRequiredError(
+        `Le palier gratuit est limité à ${FREE_TIER_MAX_PERSONAL_NOTES} notes personnelles. Passez à un palier payant pour lever cette limite.`,
+        FREE_QUOTA_CODE_NOTES,
+      );
+    }
   }
 
   const now = new Date().toISOString();

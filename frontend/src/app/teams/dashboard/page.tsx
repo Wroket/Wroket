@@ -727,6 +727,9 @@ export default function TeamDashboardPage() {
         onTodoCommentsChanged={() => {
           getCommentCounts().catch(() => {});
         }}
+        freeTierContentLocks={
+          !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
+        }
       />
     </AppShell>
   );
