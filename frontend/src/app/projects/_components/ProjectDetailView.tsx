@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 
+import { useAuth } from "@/components/AuthContext";
 import AppShell from "@/components/AppShell";
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
@@ -56,6 +57,7 @@ import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
+import { personalProjectsCreateBlocked } from "@/lib/freeQuota";
 
 import PageHelpButton from "@/components/PageHelpButton";
 import DashboardImportModal from "@/components/DashboardImportModal";
@@ -74,7 +76,7 @@ interface ProjectDetailViewProps {
   projectTodos: Todo[];
   setProjectTodos: React.Dispatch<React.SetStateAction<Todo[]>>;
   loadingTodos: boolean;
-  user: { uid: string; effortMinutes?: { light: number; medium: number; heavy: number } } | null;
+  user: AuthMeResponse | null;
   t: (key: TranslationKey) => string;
   locale: string;
   loadProjects: () => Promise<unknown>;
@@ -98,6 +100,7 @@ export default function ProjectDetailView({
   onTaskImportSuccess,
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
+  const { refresh } = useAuth();
   const router = useRouter();
   const { resolveUser, displayName, cacheRef } = useUserLookup();
   const meUid = user?.uid ?? null;
@@ -390,6 +393,8 @@ export default function ProjectDetailView({
       const updated = await updateProject(project.id, { status: newStatus });
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       if (selectedProject.id === updated.id) setSelectedProject(updated);
+      await refreshProject(project.id);
+      onTaskImportSuccess?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
@@ -940,6 +945,10 @@ export default function ProjectDetailView({
 
   const handleCreateSubProject = async () => {
     if (!subName.trim()) return;
+    if (!selectedProject.teamId && personalProjectsCreateBlocked(user)) {
+      toast.error(t("quota.free.projectLimitHint"));
+      return;
+    }
     setCreatingSub(true);
     try {
       const sub = await createProject({ name: subName.trim(), teamId: selectedProject.teamId, parentProjectId: selectedProject.id });
@@ -947,6 +956,7 @@ export default function ProjectDetailView({
       setSubName("");
       setShowCreateSub(false);
       toast.success(t("projects.addSubProject"));
+      void refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {
@@ -2185,6 +2195,10 @@ export default function ProjectDetailView({
           onTodoCommentsChanged={() => {
             getCommentCounts().then(setCommentCounts).catch(() => {});
           }}
+          projects={projects}
+          freeTierContentLocks={
+            !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
+          }
         />
 
         <SubtaskModal

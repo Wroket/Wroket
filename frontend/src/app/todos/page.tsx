@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
-import BulkDeleteTaskDialog from "@/components/BulkDeleteTaskDialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -16,6 +16,7 @@ import TaskEditModal from "@/components/TaskEditModal";
 import TodoCard from "@/components/TodoCard";
 import TaskIconToolbar from "@/components/TaskIconToolbar";
 import { useToast } from "@/components/Toast";
+import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
 import {
@@ -77,6 +78,8 @@ const RADAR_MODE_LABEL_KEYS: Record<RadarMode, TranslationKey> = {
   roi: "matrix.radarModeRoi",
   load: "matrix.radarModeLoad",
 };
+
+type BulkTaskConfirm = { kind: "bulk-delete"; todos: Todo[]; subtaskCount: number };
 
 function replaceTodoInArray(list: Todo[], updated: Todo): Todo[] {
   const i = list.findIndex((t) => t.id === updated.id);
@@ -159,7 +162,7 @@ function mapMeetErrorToMessageKey(message: string): TranslationKey {
 
 export default function TodosPage() {
   const { t } = useLocale();
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const userTimeZone = user?.workingHours?.timezone ?? "UTC";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -303,7 +306,7 @@ export default function TodosPage() {
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Todo | null>(null);
-  const [confirmBulkDelete, setConfirmBulkDelete] = useState<Todo[] | null>(null);
+  const [bulkTaskConfirm, setBulkTaskConfirm] = useState<BulkTaskConfirm | null>(null);
   const assignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -452,6 +455,11 @@ export default function TodosPage() {
       return;
     }
 
+    if (personalTaskCreateBlocked(user, selectedProjectId, projects)) {
+      setFormError(t("quota.free.taskLimitHint"));
+      return;
+    }
+
     createInFlightRef.current = true;
     setSubmitting(true);
 
@@ -509,6 +517,7 @@ export default function TodosPage() {
       setMyTodos((prev) => prev.map((t) => t.id === tmpId ? created : t));
       setJustCreatedId(created.id);
       setTimeout(() => setJustCreatedId(null), 10000);
+      void refresh();
     } catch (err) {
       setMyTodos((prev) => prev.filter((t) => t.id !== tmpId));
       setFormError(err instanceof Error ? err.message : "Impossible de créer la tâche");
@@ -573,6 +582,10 @@ export default function TodosPage() {
 
   const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; startDate: string; deadline: string }) => {
     if (!subtaskParent) return;
+    if (personalTaskCreateBlocked(user, subtaskParent.projectId ?? null, projects)) {
+      toast.error(t("quota.free.taskLimitHint"));
+      return;
+    }
     setSubtaskSubmitting(true);
     try {
       const todo = await createTodo({
@@ -584,6 +597,7 @@ export default function TodosPage() {
         parentId: subtaskParent.id,
       });
       setMyTodos(prev => [todo, ...prev]);
+      void refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -952,47 +966,78 @@ export default function TodosPage() {
   };
 
   const handleBulkComplete = useCallback(async (items: Todo[]) => {
-    for (const todo of items) {
-      if (todo.status !== "completed") {
-        await handleStatusChange(todo, "completed");
+    try {
+      for (const todo of items) {
+        if (todo.status !== "completed") {
+          await handleStatusChange(todo, "completed");
+        }
       }
+    } finally {
+      bumpRefresh();
     }
-  }, [handleStatusChange]);
+  }, [handleStatusChange, bumpRefresh]);
 
   const handleBulkArchive = useCallback(async (items: Todo[]) => {
     let subsArchived = 0;
-    for (const todo of items) {
-      if (todo.status !== "active") continue;
-      const subs = getSubtasks(todo.id);
-      for (const sub of subs) {
-        if (sub.status === "active") {
-          await handleStatusChange(sub, "cancelled");
-          subsArchived++;
-        }
-      }
-      await handleStatusChange(todo, "cancelled");
-    }
-    if (subsArchived > 0) {
-      toast.info(t("bulk.archiveInfoSubtasks").replace("{{count}}", String(subsArchived)));
-    }
-  }, [handleStatusChange, getSubtasks, toast, t]);
-
-  const executeBulkDelete = useCallback(async () => {
-    if (!confirmBulkDelete?.length) return;
-    const items = confirmBulkDelete;
-    const subtasksTotal = items.reduce((n, todo) => n + getSubtasks(todo.id).length, 0);
-    setConfirmBulkDelete(null);
     try {
       for (const todo of items) {
-        await performDeleteTask(todo, "deleteAll");
+        if (todo.status !== "active") continue;
+        const subs = getSubtasks(todo.id);
+        for (const sub of subs) {
+          if (sub.status === "active") {
+            await handleStatusChange(sub, "cancelled");
+            subsArchived++;
+          }
+        }
+        await handleStatusChange(todo, "cancelled");
       }
-      if (subtasksTotal > 0) {
-        toast.info(t("bulk.deleteInfoSubtasks").replace("{{count}}", String(subtasksTotal)));
+      if (subsArchived > 0) {
+        toast.info(t("bulk.archiveInfoSubtasks").replace("{{count}}", String(subsArchived)));
       }
-    } catch {
-      toast.error(t("toast.deleteError"));
+    } finally {
+      bumpRefresh();
     }
-  }, [confirmBulkDelete, toast, t, performDeleteTask, getSubtasks]);
+  }, [handleStatusChange, getSubtasks, toast, t, bumpRefresh]);
+
+  const requestBulkDelete = useCallback(
+    (items: Todo[]) => {
+      if (!meUid || items.length === 0) return;
+      const owned = items.filter((td) => td.userId === meUid);
+      const skipped = items.length - owned.length;
+      if (owned.length === 0) {
+        toast.error(t("bulk.deleteNoOwnedInSelection"));
+        return;
+      }
+      if (skipped > 0) {
+        toast.info(t("bulk.deleteSkippedForReceived").replace("{{count}}", String(skipped)));
+      }
+      const subtaskCount = owned.reduce((n, todo) => n + getSubtasks(todo.id).length, 0);
+      setBulkTaskConfirm({ kind: "bulk-delete", todos: owned, subtaskCount });
+    },
+    [meUid, getSubtasks, toast, t],
+  );
+
+  const handleBulkTaskConfirm = () => {
+    const c = bulkTaskConfirm;
+    setBulkTaskConfirm(null);
+    if (!c || c.kind !== "bulk-delete" || c.todos.length === 0) return;
+    const items = c.todos;
+    const subtasksTotal = c.subtaskCount;
+    void (async () => {
+      try {
+        for (const todo of items) {
+          await performDeleteTask(todo, "deleteAll");
+        }
+        if (subtasksTotal > 0) {
+          toast.info(t("bulk.deleteInfoSubtasks").replace("{{count}}", String(subtasksTotal)));
+        }
+      } catch {
+        toast.error(t("toast.deleteError"));
+      } finally {
+        bumpRefresh();
+      }
+    })();
+  };
 
   const uniqueAssignees = useMemo(() => {
     const uids = new Set<string>();
@@ -1065,7 +1110,7 @@ export default function TodosPage() {
               />
               <button
                 type="submit"
-                disabled={submitting || !!assignError}
+                disabled={submitting || !!assignError || personalTaskCreateBlocked(user, selectedProjectId, projects)}
                 className="rounded bg-slate-700 dark:bg-slate-600 px-6 py-2 sm:py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 whitespace-nowrap transition-colors h-[38px] sm:h-[42px] shrink-0"
               >
                 {submitting ? t("todos.adding") : t("todos.add")}
@@ -1520,7 +1565,7 @@ export default function TodosPage() {
               onReorder={handleReorder}
               onBulkComplete={handleBulkComplete}
               onBulkArchive={handleBulkArchive}
-              onBulkDelete={(items) => setConfirmBulkDelete(items)}
+              onBulkDelete={requestBulkDelete}
             />
           ) : mainView === "cards" ? (
             <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
@@ -1808,7 +1853,9 @@ export default function TodosPage() {
           getCommentCounts().then(setCommentCounts).catch(() => {});
           getAttachmentCounts().then(setAttachmentCounts).catch(() => {});
         }}
-        onManageMeet={editingTodo ? (() => openMeetOptions(editingTodo)) : undefined}
+        freeTierContentLocks={
+          !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
+        }
       />
 
       <SubtaskModal
@@ -1832,12 +1879,25 @@ export default function TodosPage() {
         onDeleteAll={() => confirmDelete && executeDelete(confirmDelete, "deleteAll")}
       />
 
-      <BulkDeleteTaskDialog
-        open={!!confirmBulkDelete?.length}
-        count={confirmBulkDelete?.length ?? 0}
-        subtaskCount={confirmBulkDelete?.reduce((n, todo) => n + getSubtasks(todo.id).length, 0) ?? 0}
-        onCancel={() => setConfirmBulkDelete(null)}
-        onConfirm={() => void executeBulkDelete()}
+      <ConfirmDialog
+        open={bulkTaskConfirm !== null}
+        title={t("bulk.deleteTitle")}
+        message={
+          bulkTaskConfirm
+            ? [
+                t("bulk.deleteBody").replace("{{count}}", String(bulkTaskConfirm.todos.length)),
+                bulkTaskConfirm.subtaskCount > 0
+                  ? t("bulk.deleteSubtasksNote").replace("{{count}}", String(bulkTaskConfirm.subtaskCount))
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\n\n")
+            : ""
+        }
+        variant="danger"
+        confirmLabel={t("bulk.delete")}
+        onCancel={() => setBulkTaskConfirm(null)}
+        onConfirm={handleBulkTaskConfirm}
       />
 
       {meetOptionsTodo && (

@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useResourceSync } from "@/lib/useResourceSync";
+import { useTodoListSync } from "@/lib/useTodoListSync";
 
 import ProjectDetailView from "./_components/ProjectDetailView";
 import ProjectListView from "./_components/ProjectListView";
@@ -80,8 +81,9 @@ export default function ProjectsPage() {
     router.replace(`/projects?${params.toString()}`, { scroll: false });
   }, [searchParams, router, refreshAllTodos, loadProjects]);
 
-  // Refresh when tab becomes visible or another tab mutates project data.
+  // Refresh project list when another tab mutates projects; refresh aggregated todos when todos change elsewhere.
   useResourceSync("projects", loadProjects, { pollIntervalMs: 120_000 });
+  useTodoListSync(refreshAllTodos, { pollIntervalMs: 120_000 });
 
   useEffect(() => {
     loadProjects().then((loadedProjects) => {

@@ -193,6 +193,11 @@ export default function TaskList({
     [displayOrder, selectedIds],
   );
 
+  const canBulkDelete = useMemo(() => {
+    if (!meUid || selectedTodos.length === 0) return false;
+    return selectedTodos.some((row) => row.userId === meUid);
+  }, [meUid, selectedTodos]);
+
   const handleBulkCompleteClick = useCallback(async () => {
     if (selectedTodos.length === 0) return;
     await onBulkComplete(selectedTodos);
@@ -278,7 +283,9 @@ export default function TaskList({
                         <button
                           type="button"
                           onClick={handleBulkDeleteClick}
-                          className="inline-flex items-center justify-center shrink-0 text-xs font-medium whitespace-nowrap px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                          disabled={!canBulkDelete}
+                          title={!canBulkDelete ? t("bulk.deleteNoOwnedInSelection") : undefined}
+                          className="inline-flex items-center justify-center shrink-0 text-xs font-medium whitespace-nowrap px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
                         >
                           {t("bulk.delete")}
                         </button>

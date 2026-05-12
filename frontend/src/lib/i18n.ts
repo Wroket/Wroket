@@ -458,6 +458,14 @@ const translations = {
   "bulk.deleteSubtasksNote": { fr: "Les sous-tâches rattachées ({{count}} au total) seront supprimées en même temps.", en: "Linked subtasks ({{count}} in total) will be deleted as well." },
   "bulk.deleteInfoSubtasks": { fr: "{{count}} sous-tâche(s) ont été supprimées avec les tâches parentes.", en: "{{count}} subtask(s) were deleted with their parent tasks." },
   "bulk.archiveInfoSubtasks": { fr: "{{count}} sous-tâche(s) active(s) ont également été archivées.", en: "{{count}} active subtask(s) were also archived." },
+  "bulk.deleteNoOwnedInSelection": {
+    fr: "Aucune tâche sélectionnée n’est supprimable : seules vos propres tâches peuvent être supprimées en masse (pas les tâches qu’un tiers vous a assignées).",
+    en: "None of the selected tasks can be bulk-deleted: only tasks you own can be removed this way (not tasks assigned to you by someone else).",
+  },
+  "bulk.deleteSkippedForReceived": {
+    fr: "{{count}} tâche(s) qui ne vous appartiennent pas ont été exclues — la suppression multiple ne porte que sur vos tâches.",
+    en: "{{count}} task(s) you don’t own were skipped — bulk delete only applies to your own tasks.",
+  },
   "a11y.selectTaskRow": { fr: "Sélectionner cette tâche", en: "Select this task" },
   "a11y.selectAllTasks": { fr: "Sélectionner toutes les tâches visibles", en: "Select all visible tasks" },
 
@@ -1547,6 +1555,43 @@ const translations = {
   "pricing.contact.confirmResubmit": { fr: "Confirmer une nouvelle demande", en: "Confirm a new request" },
   "pricing.contact.sending": { fr: "Envoi en cours…", en: "Sending…" },
   "pricing.contact.submitError": { fr: "L’envoi a échoué. Réessayez.", en: "Could not send. Please try again." },
+  "quota.free.bannerTitle": {
+    fr: "Limite du palier gratuit atteinte",
+    en: "Free plan limit reached",
+  },
+  "quota.free.lineTasks": {
+    fr: "{used}/{max} tâches actives (hors projets d’équipe)",
+    en: "{used}/{max} active tasks (outside team projects)",
+  },
+  "quota.free.lineProjects": {
+    fr: "{used}/{max} projets personnels actifs",
+    en: "{used}/{max} active personal projects",
+  },
+  "quota.free.lineNotes": {
+    fr: "{used}/{max} notes personnelles",
+    en: "{used}/{max} personal notes",
+  },
+  "quota.free.upgradeLink": { fr: "Voir les offres et passer au palier supérieur", en: "View plans and upgrade" },
+  "quota.free.taskLimitHint": {
+    fr: "Limite de tâches actives atteinte pour le palier gratuit. Choisissez un projet d’équipe ou passez à une offre payante.",
+    en: "Active task limit reached on the free plan. Pick a team project or upgrade.",
+  },
+  "quota.free.noteLimitHint": {
+    fr: "Limite de notes personnelles atteinte sur le palier gratuit.",
+    en: "Personal note limit reached on the free plan.",
+  },
+  "quota.free.projectLimitHint": {
+    fr: "Limite de projets personnels atteinte. Sélectionnez une équipe ou passez à une offre payante.",
+    en: "Personal project limit reached. Pick a team or upgrade.",
+  },
+  "quota.free.recurrenceDisabled": {
+    fr: "La récurrence n’est pas disponible sur le palier gratuit.",
+    en: "Recurrence is not available on the free plan.",
+  },
+  "quota.free.attachmentsDisabled": {
+    fr: "Les pièces jointes ne sont pas disponibles sur le palier gratuit.",
+    en: "Attachments are not available on the free plan.",
+  },
   "pricing.tier.free.tagline": { fr: "Pour démarrer et structurer vos priorités.", en: "To get started and structure your priorities." },
   "pricing.tier.free.b1": { fr: "Tâches et projets personnels", en: "Personal tasks and projects" },
   "pricing.tier.free.b2": { fr: "Agenda interne Wroket", en: "Built-in Wroket calendar" },
