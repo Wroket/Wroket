@@ -19,6 +19,8 @@ export interface AdminUser {
   emailVerified: boolean;
   googleSso: boolean;
   taskCount: number;
+  /** Projects owned by this user (all statuses). */
+  projectCount: number;
   noteCount: number;
   createdAt: string;
   lastLoginAt: string;
@@ -93,6 +95,23 @@ export async function postAdminInviteRemind(id: string): Promise<void> {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    let msg = "Erreur";
+    try {
+      const j = (await res.json()) as { message?: string };
+      if (typeof j.message === "string") msg = j.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+}
+
+export async function deleteAdminInvite(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/invites/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
   });
   if (!res.ok) {
     let msg = "Erreur";

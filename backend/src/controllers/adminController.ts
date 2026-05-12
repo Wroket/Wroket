@@ -3,7 +3,13 @@ import { Response } from "express";
 import { ValidationError } from "../utils/errors";
 
 import { AuthenticatedRequest } from "./authController";
-import { getAdminStats, getAdminUsers, getInviteLog, resendInviteReminder } from "../services/adminService";
+import {
+  deleteInviteLogEntry,
+  getAdminStats,
+  getAdminUsers,
+  getInviteLog,
+  resendInviteReminder,
+} from "../services/adminService";
 import { getActivityLog, logActivity } from "../services/activityLogService";
 import {
   findUserByUid,
@@ -41,6 +47,20 @@ export async function adminInviteRemind(req: AuthenticatedRequest, res: Response
   }
   await resendInviteReminder(id);
   res.status(200).json({ ok: true });
+}
+
+export function adminInviteDelete(req: AuthenticatedRequest, res: Response): void {
+  const raw = req.params.id as string | undefined;
+  const id = raw ? decodeURIComponent(raw).trim() : "";
+  if (!id) {
+    throw new ValidationError("Identifiant d'invitation requis");
+  }
+  const { fromEmail, toEmail } = deleteInviteLogEntry(id);
+  logActivity(req.user!.uid, req.user!.email ?? "", "admin_invite_delete", "invite", id, {
+    fromEmail,
+    toEmail,
+  });
+  res.status(204).end();
 }
 
 const MAX_ACTIVITY_LIMIT = 500;

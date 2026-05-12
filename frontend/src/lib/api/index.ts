@@ -248,6 +248,7 @@ export {
   patchAdminUserBillingPlan,
   patchAdminUserEarlyBird,
   postAdminInviteRemind,
+  deleteAdminInvite,
 } from "./admin";
 export type {
   AdminStats,

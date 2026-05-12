@@ -5,6 +5,7 @@ import {
   adminUsers,
   adminInviteLog,
   adminInviteRemind,
+  adminInviteDelete,
   adminActivity,
   adminSessions,
   adminIntegrations,
@@ -33,6 +34,7 @@ adminRoutes.patch("/users/:uid/early-bird", adminUserEarlyBirdPatch);
 adminRoutes.delete("/users/:uid", adminUserDelete);
 adminRoutes.get("/invites", adminInviteLog);
 adminRoutes.post("/invites/remind", adminInviteRemind);
+adminRoutes.delete("/invites/:id", adminInviteDelete);
 adminRoutes.get("/activity", adminActivity);
 adminRoutes.get("/sessions", adminSessions);
 adminRoutes.get("/integrations", adminIntegrations);

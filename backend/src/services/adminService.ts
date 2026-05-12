@@ -35,6 +35,8 @@ export interface AdminUserSummary {
   emailVerified: boolean;
   googleSso: boolean;
   taskCount: number;
+  /** Projects owned by this user (all statuses). */
+  projectCount: number;
   noteCount: number;
   createdAt: string;
   lastLoginAt: string;
@@ -259,11 +261,31 @@ export async function resendInviteReminder(inviteId: string): Promise<void> {
   scheduleSave("inviteLog");
 }
 
+export function deleteInviteLogEntry(inviteId: string): { fromEmail: string; toEmail: string } {
+  const store = getStore();
+  const log = (store.inviteLog ?? []) as InviteLogRow[];
+  const idx = log.findIndex((row) => resolveInviteRowId(row) === inviteId);
+  if (idx === -1) {
+    throw new NotFoundError("Invitation introuvable.");
+  }
+  const removed = log[idx];
+  store.inviteLog = [...log.slice(0, idx), ...log.slice(idx + 1)];
+  scheduleSave("inviteLog");
+  return { fromEmail: removed.fromEmail, toEmail: removed.toEmail };
+}
+
 export function getAdminUsers(): AdminUserSummary[] {
   const store = getStore();
   const users = Object.values(store.users ?? {}) as Array<Record<string, unknown>>;
   const todoStore = store.todos ?? {};
   const noteStoreAll = store.notes ?? {};
+  const projects = Object.values(store.projects ?? {}) as Array<Record<string, unknown>>;
+  const projectCountByUid = new Map<string, number>();
+  for (const p of projects) {
+    const ou = p.ownerUid as string | undefined;
+    if (!ou) continue;
+    projectCountByUid.set(ou, (projectCountByUid.get(ou) ?? 0) + 1);
+  }
 
   // Determine last login from active sessions
   const sessionStore = (store.sessions ?? {}) as Record<string, Record<string, unknown>>;
@@ -282,6 +304,7 @@ export function getAdminUsers(): AdminUserSummary[] {
     const taskCount = Object.keys(userTodos).length;
     const userNotes = (noteStoreAll as Record<string, Record<string, unknown>>)[uid] ?? {};
     const noteCount = Object.keys(userNotes).length;
+    const projectCount = projectCountByUid.get(uid) ?? 0;
     const hash = u.passwordHashB64 as string | undefined;
     const lastLogin = lastLoginMap.get(uid);
 
@@ -297,6 +320,7 @@ export function getAdminUsers(): AdminUserSummary[] {
       emailVerified: !!u.emailVerified,
       googleSso: !!(hash && hash.length > 80),
       taskCount,
+      projectCount,
       noteCount,
       createdAt: (u.createdAt as string) ?? "",
       lastLoginAt: lastLogin ? new Date(lastLogin).toISOString() : "",

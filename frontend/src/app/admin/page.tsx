@@ -9,6 +9,7 @@ import {
   getAdminUserExport, deleteAdminUser, getAdminCompletionRates,
   postAdminUserBillingPortalSession, patchAdminUserBillingPlan, patchAdminUserEarlyBird,
   postAdminInviteRemind,
+  deleteAdminInvite,
   AdminStats, AdminUser, AdminInviteLogEntry,
   ActivityLogEntry, SessionInfo, IntegrationOverview, CompletionRate,
   type BillingPlan,
@@ -51,6 +52,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [invites, setInvites] = useState<AdminInviteLogEntry[]>([]);
   const [inviteRemindId, setInviteRemindId] = useState<string | null>(null);
+  const [inviteDeletingId, setInviteDeletingId] = useState<string | null>(null);
   const [inviteFlash, setInviteFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
@@ -125,6 +127,24 @@ export default function AdminPage() {
       });
     } finally {
       setInviteRemindId(null);
+    }
+  };
+
+  const handleInviteDelete = async (id: string) => {
+    if (!window.confirm(t("admin.inviteDeleteConfirm"))) return;
+    setInviteDeletingId(id);
+    setInviteFlash(null);
+    try {
+      await deleteAdminInvite(id);
+      setInviteFlash({ kind: "ok", text: t("admin.inviteDeleteOk") });
+      await refreshInvites();
+    } catch (e) {
+      setInviteFlash({
+        kind: "err",
+        text: e instanceof Error ? e.message : t("admin.inviteDeleteError"),
+      });
+    } finally {
+      setInviteDeletingId(null);
     }
   };
 
@@ -376,6 +396,7 @@ export default function AdminPage() {
                       <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteStatus")}</th>
                       <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.inviteReminderCol")}</th>
                       <th className="text-right px-4 py-3 font-medium text-zinc-500 dark:text-slate-400 w-32">{t("admin.inviteResend")}</th>
+                      <th className="text-right px-4 py-3 font-medium text-zinc-500 dark:text-slate-400 w-28">{t("admin.inviteDelete")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -438,12 +459,25 @@ export default function AdminPage() {
                               </button>
                             </span>
                           </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              disabled={inviteDeletingId === inv.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleInviteDelete(inv.id);
+                              }}
+                              className="inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-45 disabled:cursor-not-allowed"
+                            >
+                              {inviteDeletingId === inv.id ? t("loading") : t("admin.inviteDelete")}
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
                     {invites.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">
+                        <td colSpan={7} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">
                           {t("admin.noInvites")}
                         </td>
                       </tr>
@@ -480,6 +514,7 @@ export default function AdminPage() {
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.verified")}</th>
                     <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400 whitespace-nowrap">{t("admin.billing.planCol")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.taskCount")}</th>
+                    <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.userProjectCount")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.notes")}</th>
                     <th className="text-center px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.completionRate")}</th>
                     <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.joined")}</th>
@@ -514,6 +549,7 @@ export default function AdminPage() {
                         </td>
                         <td className="px-4 py-3 text-zinc-800 dark:text-slate-200 text-xs whitespace-nowrap">{t(ADMIN_PLAN_LABEL_KEY[effPlan])}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.taskCount}</td>
+                        <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.projectCount ?? 0}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.noteCount ?? 0}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{rate ? `${rate.rate}%` : "—"}</td>
                         <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{formatDate(u.createdAt)}</td>
