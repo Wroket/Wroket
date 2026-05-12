@@ -39,10 +39,6 @@ function hasBothCalendarProviders(accs: AccountWithCals[]): boolean {
   return accs.some((a) => a.provider === "google") && accs.some((a) => a.provider === "microsoft");
 }
 
-function hasWritableBookingDefault(loaded: AccountWithCals[]): boolean {
-  return loaded.some((a) => a.cals?.some((c) => c.defaultForBooking && c.canWriteBooking !== false));
-}
-
 export default function ManageCalendarsPage() {
   const { t } = useLocale();
   const { user, loading: authLoading } = useAuth();
@@ -89,7 +85,7 @@ export default function ManageCalendarsPage() {
   };
 
   const tryOfferInAppSlotSync = async (loaded: AccountWithCals[]) => {
-    if (!hasWritableBookingDefault(loaded)) return;
+    if (!loaded.some((a) => a.provider === "google" || a.provider === "microsoft")) return;
     try {
       const { count } = await getInAppScheduledSlotsPendingCount();
       if (count > 0) {
@@ -237,21 +233,24 @@ export default function ManageCalendarsPage() {
     finally { setSavingKey(null); }
   };
 
-  const handleConfirmInAppSlotSync = async () => {
+  const runInAppSlotSync = async (skipIfConflict: boolean) => {
     if (inAppSyncRunning) return;
     setInAppSyncRunning(true);
     try {
-      const result = await syncInAppScheduledSlotsToCalendar({ skipIfConflict: true });
+      const result = await syncInAppScheduledSlotsToCalendar({ skipIfConflict });
       broadcastResourceChange("todos");
       const skippedSuffix =
         result.skippedConflicts > 0
-        ? t("agenda.inAppSlotsSyncSkippedSuffix").replace("{{n}}", String(result.skippedConflicts))
+          ? t("agenda.inAppSlotsSyncSkippedSuffix").replace("{{n}}", String(result.skippedConflicts))
           : "";
       toast.success(
         t("agenda.inAppSlotsSyncSuccess")
           .replace("{{synced}}", String(result.synced))
           .replace("{{skipped}}", skippedSuffix),
       );
+      if (result.synced === 0 && result.skippedConflicts > 0 && skipIfConflict) {
+        toast.info(t("agenda.inAppSlotsSyncAllSkippedConflicts"));
+      }
       if (result.failed.length > 0) {
         toast.error(t("agenda.inAppSlotsSyncPartialFailures").replace("{{n}}", String(result.failed.length)));
       }
@@ -449,9 +448,11 @@ export default function ManageCalendarsPage() {
         message={t("agenda.inAppSlotsSyncMessage").replace("{{count}}", String(inAppSyncPendingCount))}
         variant="info"
         confirmLabel={inAppSyncRunning ? "…" : t("agenda.inAppSlotsSyncConfirm")}
+        secondaryLabel={inAppSyncRunning ? undefined : t("agenda.inAppSlotsSyncForce")}
+        onSecondary={inAppSyncRunning ? undefined : () => void runInAppSlotSync(false)}
         onCancel={closeInAppSyncDialog}
         onConfirm={() => {
-          void handleConfirmInAppSlotSync();
+          void runInAppSlotSync(true);
         }}
       />
     </AppShell>

@@ -564,7 +564,30 @@ export async function googleCallback(req: Request, res: Response) {
   try {
     const tokens = await exchangeCodeForTokens(code);
     const email = await fetchGoogleAccountEmail(tokens.accessToken);
-    addGoogleAccount(uid, email, tokens);
+    const account = addGoogleAccount(uid, email, tokens);
+    if (account.calendars.length === 0) {
+      try {
+        const list = await listGoogleCalendarListForAccount(uid, account.id);
+        if (list.length > 0) {
+          const pick =
+            list.find((c) => c.primary && c.canWriteBooking !== false) ??
+            list.find((c) => c.canWriteBooking !== false) ??
+            list[0];
+          const entries: GoogleCalendarEntry[] = list.map((cal) => ({
+            calendarId: cal.id,
+            label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
+            color: cal.backgroundColor,
+            enabled: cal.id === pick.id && cal.canWriteBooking !== false,
+            defaultForBooking: cal.id === pick.id && cal.canWriteBooking !== false,
+            canWriteBooking: cal.canWriteBooking,
+            primary: !!cal.primary,
+          }));
+          setGoogleAccountCalendars(uid, account.id, entries);
+        }
+      } catch (seedErr) {
+        console.error("[google-cal] post-connect calendar seed failed:", seedErr);
+      }
+    }
     res.redirect(`${frontendUrl}/agenda/manage?google=connected`);
   } catch (err) {
     console.error("[google-oauth] Error:", err);

@@ -8,6 +8,9 @@ export interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmLabel?: string;
+  /** Optional third action (e.g. alternate sync mode). Rendered between cancel and confirm. */
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   cancelLabel?: string;
   variant?: "danger" | "warning" | "info";
   onConfirm: () => void;
@@ -25,6 +28,8 @@ export default function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  secondaryLabel,
+  onSecondary,
   cancelLabel,
   variant = "danger",
   onConfirm,
@@ -87,7 +92,7 @@ export default function ConfirmDialog({
           {title}
         </h2>
         <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400">{message}</p>
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
           <button
             ref={cancelBtnRef}
             type="button"
@@ -97,6 +102,16 @@ export default function ConfirmDialog({
           >
             {resolvedCancelLabel}
           </button>
+          {secondaryLabel && onSecondary ? (
+            <button
+              type="button"
+              onClick={onSecondary}
+              className="px-4 py-2 text-sm rounded-md border border-amber-500/80 dark:border-amber-600
+                text-amber-900 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+            >
+              {secondaryLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onConfirm}

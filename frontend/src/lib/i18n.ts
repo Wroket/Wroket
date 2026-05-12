@@ -1347,10 +1347,15 @@ const translations = {
     en: "Sync Wroket slots to your calendar?",
   },
   "agenda.inAppSlotsSyncMessage": {
-    fr: "Vous avez {{count}} tâche(s) avec un créneau planifié uniquement dans Wroket (pas encore sur votre agenda connecté). Les créer sur le calendrier par défaut de réservation ? Les créneaux qui se chevauchent avec un événement existant ou une autre tâche seront ignorés. Au plus 100 créneaux sont traités par synchronisation ; vous pouvez relancer ensuite si besoin.",
-    en: "You have {{count}} task(s) with a time block only in Wroket (not yet on your connected calendar). Create them on your default booking calendar? Slots that overlap an existing event or another task will be skipped. Up to 100 slots are processed per sync; run again if needed.",
+    fr: "Vous avez {{count}} tâche(s) avec un créneau planifié uniquement dans Wroket (pas encore sur votre agenda connecté). Les créer sur le calendrier par défaut de réservation ? « Synchroniser » évite les chevauchements ; « Malgré les conflits » crée quand même les événements (risque de doublons). Au plus 100 créneaux par synchronisation ; relancez si besoin.",
+    en: "You have {{count}} task(s) with a time block only in Wroket (not yet on your connected calendar). Create them on your default booking calendar? \"Sync (skip overlaps)\" avoids busy times; \"Despite overlaps\" still creates events (duplicates possible). Up to 100 slots per sync; run again if needed.",
   },
-  "agenda.inAppSlotsSyncConfirm": { fr: "Synchroniser", en: "Sync" },
+  "agenda.inAppSlotsSyncConfirm": { fr: "Synchroniser (éviter les conflits)", en: "Sync (skip overlaps)" },
+  "agenda.inAppSlotsSyncForce": { fr: "Malgré les conflits", en: "Despite overlaps" },
+  "agenda.inAppSlotsSyncAllSkippedConflicts": {
+    fr: "Aucun créneau créé : tous semblaient en conflit avec votre agenda ou d'autres tâches. Réessayez avec « Malgré les conflits » si vous acceptez le chevauchement.",
+    en: "No slots were created: each one looked busy against your calendar or other tasks. Try \"Despite overlaps\" if you accept overlapping events.",
+  },
   "agenda.inAppSlotsSyncSuccess": {
     fr: "{{synced}} créneau(x) ajouté(s) à l'agenda{{skipped}}.",
     en: "{{synced}} slot(s) added to the calendar{{skipped}}.",
