@@ -9,6 +9,7 @@ import {
   toolbarNeutralButton,
 } from "@/components/taskToolbarStyles";
 import { useLocale } from "@/lib/LocaleContext";
+import { getPhaseSlotDateBounds } from "@/lib/phaseSlotBounds";
 import type { Project, Todo } from "@/lib/api";
 
 export interface TaskIconToolbarProps {
@@ -77,20 +78,9 @@ export default function TaskIconToolbar({
   const { t } = useLocale();
 
   const slotBounds = useMemo(() => {
-    let dateMin: string | undefined;
-    let dateMax: string | undefined;
-    if (todo.phaseId) {
-      for (const proj of projects) {
-        const ph = proj.phases?.find((p) => p.id === todo.phaseId);
-        if (ph) {
-          dateMin = ph.startDate ?? undefined;
-          dateMax = ph.endDate ?? undefined;
-          break;
-        }
-      }
-    }
-    return { dateMin, dateMax };
-  }, [todo.phaseId, projects]);
+    const { min, max } = getPhaseSlotDateBounds(todo, projects);
+    return { dateMin: min, dateMax: max };
+  }, [todo, projects]);
 
   const wrap = (fn: () => void) => (e: React.MouseEvent) => {
     if (isolatePointerEvents) {

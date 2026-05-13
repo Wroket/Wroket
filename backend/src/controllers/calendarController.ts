@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
 import {
   updateTodo,
+  assertScheduledSlotWithinPhaseBounds,
   listTodos,
   listAllTodos,
   isArchived,
@@ -337,6 +338,8 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
 
+  assertScheduledSlotWithinPhaseBounds(todo.phaseId, start, end);
+
   if (!force) {
     const conflicts = await findConflicts(uid, todoId, startDate, endDate);
     if (conflicts.length > 0) {
@@ -501,8 +504,10 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     }
   }
 
+  const prevSlot = todo.scheduledSlot;
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: {
+      ...(prevSlot ?? {}),
       start,
       end,
       calendarEventId,

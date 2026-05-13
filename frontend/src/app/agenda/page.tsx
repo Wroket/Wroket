@@ -33,11 +33,15 @@ import {
   type Recurrence,
   type GoogleAccountPublic,
   type MicrosoftAccountPublic,
+  type SlotConflict,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import { useUserLookup } from "@/lib/userUtils";
 import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
+import { broadcastTodosMutated } from "@/lib/todoSyncBroadcast";
+import { getPhaseSlotDateBounds, isSlotWithinPhaseLocalDays } from "@/lib/phaseSlotBounds";
+import { findAgendaDayElement, snappedStartEndFromPointerLocal } from "./_utils/agendaSlotPointer";
 import {
   HOUR_HEIGHT,
   DAY_START_HOUR,
@@ -135,15 +139,55 @@ export default function AgendaPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const [agendaTodoById, setAgendaTodoById] = useState<Map<string, Todo>>(new Map());
+  const [bookingMoveId, setBookingMoveId] = useState<string | null>(null);
+  const [dragConflict, setDragConflict] = useState<{
+    todoId: string;
+    start: string;
+    end: string;
+    conflicts: SlotConflict[];
+  } | null>(null);
+
+  const dragSessionRef = useRef<{
+    todoId: string;
+    startX: number;
+    startY: number;
+    origStartMs: number;
+    origEndMs: number;
+    dragging: boolean;
+  } | null>(null);
+  const suppressNextWroketClickRef = useRef(false);
+
+  const refreshAgendaTodos = useCallback(async () => {
+    try {
+      const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
+      const m = new Map<string, Todo>();
+      for (const t of owned) m.set(t.id, t);
+      for (const t of assigned) m.set(t.id, t);
+      setAgendaTodoById(m);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [me, projs] = await Promise.all([getMe(), getProjects()]);
+        const [me, projs, owned, assigned] = await Promise.all([
+          getMe(),
+          getProjects(),
+          getTodos(),
+          getAssignedTodos(),
+        ]);
         if (!cancelled) {
           setGoogleAccounts(me.googleAccounts ?? []);
           setMicrosoftAccounts(me.microsoftAccounts ?? []);
           setProjects(projs.filter((p) => p.status === "active"));
+          const m = new Map<string, Todo>();
+          for (const t of owned) m.set(t.id, t);
+          for (const t of assigned) m.set(t.id, t);
+          setAgendaTodoById(m);
         }
       } catch { /* ignore */ }
     })();
@@ -429,6 +473,8 @@ export default function AgendaPage() {
 
       setShowQuickCreate(false);
       toast.success(t("agenda.taskCreated"));
+      broadcastTodosMutated();
+      broadcastResourceChange("agenda");
       const data = await getCalendarEvents(dateRange.start, dateRange.end);
       setWroketEvents(data.wroketEvents);
       setGoogleEvents(data.googleEvents);
@@ -490,6 +536,108 @@ export default function AgendaPage() {
     setMicrosoftEvents(data.microsoftEvents ?? []);
   }, [dateRange]);
 
+  const commitSlotMove = useCallback(
+    async (todoId: string, startIso: string, endIso: string, force?: boolean) => {
+      setBookingMoveId(todoId);
+      try {
+        const result = await bookTaskSlot(todoId, startIso, endIso, force);
+        if (result.conflict && result.conflicts?.length) {
+          setDragConflict({ todoId, start: startIso, end: endIso, conflicts: result.conflicts });
+          return;
+        }
+        if (result.todo) {
+          setDragConflict(null);
+          broadcastTodosMutated();
+          broadcastResourceChange("agenda");
+          toast.success(t("agenda.slotMoved"));
+          setAgendaTodoById((prev) => {
+            const next = new Map(prev);
+            next.set(todoId, result.todo!);
+            return next;
+          });
+          void refresh();
+          await refreshCalendarForRange();
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : t("toast.updateError"));
+      } finally {
+        setBookingMoveId(null);
+      }
+    },
+    [refreshCalendarForRange, refresh, toast, t],
+  );
+
+  const beginWroketDrag = useCallback(
+    (ev: CalendarEvent, e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      if (ev.source !== "wroket" || ev.allDay) return;
+      if (bookingMoveId) return;
+      const el = e.currentTarget;
+      const realId = ev.id.includes("_rec_") ? ev.id.split("_rec_")[0]! : ev.id;
+      dragSessionRef.current = {
+        todoId: realId,
+        startX: e.clientX,
+        startY: e.clientY,
+        origStartMs: new Date(ev.start).getTime(),
+        origEndMs: new Date(ev.end).getTime(),
+        dragging: false,
+      };
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    },
+    [bookingMoveId],
+  );
+
+  const moveWroketDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const s = dragSessionRef.current;
+    if (!s) return;
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+    if (!s.dragging && dx * dx + dy * dy > 64) s.dragging = true;
+  }, []);
+
+  const endWroketDrag = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      try {
+        if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      const s = dragSessionRef.current;
+      dragSessionRef.current = null;
+      if (!s?.dragging) return;
+      e.preventDefault();
+      e.stopPropagation();
+      suppressNextWroketClickRef.current = true;
+      const dayEl = findAgendaDayElement(e.clientX, e.clientY);
+      const ymd = dayEl?.dataset.agendaDay;
+      if (!dayEl || !ymd) {
+        toast.error(t("agenda.dropOutsideGrid"));
+        return;
+      }
+      const durationMs = s.origEndMs - s.origStartMs;
+      const { start, end } = snappedStartEndFromPointerLocal(dayEl, e.clientY, durationMs, ymd);
+      if (
+        Math.abs(new Date(start).getTime() - s.origStartMs) < 30_000 &&
+        Math.abs(new Date(end).getTime() - s.origEndMs) < 30_000
+      ) {
+        return;
+      }
+      const todo = agendaTodoById.get(s.todoId);
+      const bounds = getPhaseSlotDateBounds(todo, projects);
+      if (!isSlotWithinPhaseLocalDays(bounds, new Date(start).getTime(), new Date(end).getTime())) {
+        toast.error(t("agenda.slotOutsidePhase"));
+        return;
+      }
+      void commitSlotMove(s.todoId, start, end, false);
+    },
+    [agendaTodoById, projects, commitSlotMove, toast, t],
+  );
+
   const handleBannerSync = useCallback(async () => {
     if (syncBannerRunning) return;
     setSyncBannerRunning(true);
@@ -530,6 +678,7 @@ export default function AgendaPage() {
 
   // Refresh when tab becomes visible or another tab mutates todos/calendar slots.
   useResourceSync("agenda", refreshCalendarForRange, { pollIntervalMs: 120_000 });
+  useResourceSync("todos", refreshAgendaTodos, { pollIntervalMs: 120_000 });
 
   const onEditAutoSaved = useCallback(
     (updated: Todo) => {
@@ -647,6 +796,7 @@ export default function AgendaPage() {
               title={t("agenda.title")}
               items={[
                 { text: t("help.agenda.editTask") },
+                { text: t("help.agenda.dragWroket") },
                 { text: t("help.agenda.quickCreate") },
                 { text: t("help.agenda.google") },
                 { text: t("help.agenda.colors") },
@@ -950,6 +1100,7 @@ export default function AgendaPage() {
                     return (
                       <div
                         key={dayIdx}
+                        data-agenda-day={`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`}
                         className={`flex-1 min-w-[100px] relative border-r border-zinc-100 dark:border-slate-800 last:border-r-0 ${
                           isToday ? "bg-blue-50/30 dark:bg-blue-950/20" : ""
                         }`}
@@ -971,18 +1122,23 @@ export default function AgendaPage() {
                           const qc = isWroket ? QUADRANT_COLORS[classifyEvent(ev)] : null;
                           const acctColor = !isWroket ? getAccountColor(ev.accountEmail) : "";
                           const externalTitle = !isWroket ? externalEventTitle(ev) : undefined;
+                          const wroketDragEnabled = isWroket && !ev.allDay && !ev.recurring;
+                          const wroketTimedId =
+                            wroketDragEnabled ? (ev.id.includes("_rec_") ? ev.id.split("_rec_")[0]! : ev.id) : null;
+                          const isBookingThis = wroketTimedId !== null && bookingMoveId === wroketTimedId;
                           return (
                             <div
                               key={`${ev.id}-${day.toDateString()}`}
-                              className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm ${
+                              className={`absolute left-1 right-1 rounded px-1.5 py-0.5 overflow-hidden transition-shadow hover:shadow-lg hover:z-30 z-10 border-l-[3px] shadow-sm select-none ${
                                 isWroket && qc
-                                  ? `${qc.bg} ${qc.border} ${qc.text} cursor-pointer`
+                                  ? `${qc.bg} ${qc.border} ${qc.text} ${wroketDragEnabled ? "cursor-grab active:cursor-grabbing touch-none" : "cursor-pointer"}`
                                   : "text-zinc-800 dark:text-slate-200 cursor-default"
                               }`}
                               style={{
                                 top: pos.top,
                                 height: pos.height,
                                 minHeight: 22,
+                                opacity: isBookingThis ? 0.55 : undefined,
                                 ...(!isWroket ? {
                                   borderLeftColor: acctColor,
                                   backgroundColor: hexToTintBg(acctColor, 0.18),
@@ -993,9 +1149,19 @@ export default function AgendaPage() {
                                   ? `${ev.summary} — ${qc.icon} ${qc.label}\n${t("agenda.bookedFromWroket")}`
                                   : externalTitle
                               }
+                              onPointerDown={wroketDragEnabled ? (e) => beginWroketDrag(ev, e) : undefined}
+                              onPointerMove={wroketDragEnabled ? moveWroketDrag : undefined}
+                              onPointerUp={wroketDragEnabled ? endWroketDrag : undefined}
+                              onPointerCancel={wroketDragEnabled ? endWroketDrag : undefined}
                               onClick={
                                 isWroket
                                   ? (e) => {
+                                      if (suppressNextWroketClickRef.current) {
+                                        suppressNextWroketClickRef.current = false;
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        return;
+                                      }
                                       e.stopPropagation();
                                       void openWroketTaskFromCalendarEvent(ev);
                                     }
@@ -1011,6 +1177,7 @@ export default function AgendaPage() {
                               {isWroket && ev.meetingUrl && (
                                 <button
                                   type="button"
+                                  onPointerDown={(e) => e.stopPropagation()}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     window.open(ev.meetingUrl!, "_blank", "noopener");
@@ -1298,6 +1465,49 @@ export default function AgendaPage() {
             }
           }}
         />
+
+        {dragConflict && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agenda-drag-conflict-title"
+          >
+            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+              <h2 id="agenda-drag-conflict-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
+                {t("schedule.conflictTitle")}
+              </h2>
+              <ul className="mt-2 max-h-40 overflow-y-auto text-xs text-zinc-600 dark:text-slate-300 space-y-1">
+                {dragConflict.conflicts.map((c) => (
+                  <li key={c.id} className="truncate">
+                    {c.title}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-slate-600"
+                  onClick={() => setDragConflict(null)}
+                >
+                  {t("schedule.conflictCancel")}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-slate-800 px-3 py-1.5 text-sm text-white dark:bg-slate-600"
+                  onClick={() => {
+                    const d = dragConflict;
+                    if (!d) return;
+                    setDragConflict(null);
+                    void commitSlotMove(d.todoId, d.start, d.end, true);
+                  }}
+                >
+                  {t("schedule.conflictForce")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <DeleteTaskDialog
           open={!!deleteTaskDialog}

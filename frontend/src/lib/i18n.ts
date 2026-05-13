@@ -1457,6 +1457,12 @@ const translations = {
   "agenda.viewMonth": { fr: "Mois", en: "Month" },
   "agenda.newTask": { fr: "Nouvelle tâche", en: "New task" },
   "agenda.taskCreated": { fr: "Tâche créée", en: "Task created" },
+  "agenda.slotMoved": { fr: "Créneau mis à jour", en: "Slot updated" },
+  "agenda.dropOutsideGrid": { fr: "Relâchez le créneau sur la grille horaire", en: "Drop the slot on the time grid" },
+  "agenda.slotOutsidePhase": {
+    fr: "Ce créneau dépasse les dates de la phase du projet.",
+    en: "This slot falls outside the project phase dates.",
+  },
   "agenda.startTime": { fr: "Heure de début", en: "Start time" },
   "agenda.duration": { fr: "Durée (min)", en: "Duration (min)" },
   "help.manage.connect": { fr: "Connectez des comptes Google et/ou Outlook (Microsoft 365) pour agréger vos calendriers", en: "Connect Google and/or Outlook (Microsoft 365) accounts to aggregate your calendars" },
@@ -1535,6 +1541,10 @@ const translations = {
   "help.agenda.viewWeek": { fr: "Vue Semaine : colonnes par jour, fusion Wroket + calendriers externes", en: "Week view: day columns, Wroket plus external calendars merged" },
   "help.agenda.viewMonth": { fr: "Vue Mois : calendrier mensuel condensé", en: "Month view: condensed monthly calendar" },
   "help.agenda.editTask": { fr: "Double-clic sur une tâche Wroket : édition complète (récurrence, projet, assignation…)", en: "Double-click a Wroket task: full edit (recurrence, project, assignee…)" },
+  "help.agenda.dragWroket": {
+    fr: "Glisser-déposer une tâche Wroket sur la grille (vue Jour/Semaine) pour déplacer son créneau ; les occurrences récurrentes ne sont pas déplaçables ainsi.",
+    en: "Drag a Wroket task on the grid (Day/Week) to move its slot; recurring occurrences cannot be moved this way.",
+  },
   "help.agenda.quickCreate": { fr: "Double-clic sur un créneau vide : création rapide (durée, priorité, projet, assignation)", en: "Double-click an empty slot: quick create (duration, priority, project, assignee)" },
   "help.agenda.google": { fr: "Google et Outlook : Agenda > Gérer les agendas (connexion, calendriers visibles, calendrier par défaut pour réservations et Meet/Teams)", en: "Google and Outlook: Agenda > Manage Calendars (connect, visible calendars, default for bookings and Meet/Teams)" },
   "help.agenda.colors": {

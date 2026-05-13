@@ -167,6 +167,50 @@ function normalizeScheduledSlotForCreate(slot: ScheduledSlot | null | undefined)
   };
 }
 
+/** YYYY-MM-DD in UTC for an instant from an ISO datetime string. */
+function utcCalendarDateFromIsoInstant(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * When the task belongs to a phase with start/end dates, the scheduled slot must fall
+ * entirely within those calendar bounds (UTC calendar days; slot end treated as exclusive
+ * for the last occupied day — same spirit as iCal).
+ */
+export function assertScheduledSlotWithinPhaseBounds(
+  phaseId: string | null,
+  slotStartIso: string,
+  slotEndIso: string,
+): void {
+  if (!phaseId) return;
+  const phase = findPhaseById(phaseId);
+  if (!phase) return;
+
+  const startMs = new Date(slotStartIso).getTime();
+  const endMs = new Date(slotEndIso).getTime();
+  if (isNaN(startMs) || isNaN(endMs)) return;
+
+  const firstDay = utcCalendarDateFromIsoInstant(slotStartIso);
+  const lastTick = endMs > startMs ? endMs - 1 : startMs;
+  const lastDay = utcCalendarDateFromIsoInstant(new Date(lastTick).toISOString());
+
+  if (phase.startDate && firstDay < phase.startDate) {
+    throw new ValidationError(
+      `Le créneau ne peut pas commencer avant le début de la phase (${phase.startDate})`,
+    );
+  }
+  if (phase.endDate && lastDay > phase.endDate) {
+    throw new ValidationError(
+      `Le créneau ne peut pas se terminer après la fin de la phase (${phase.endDate})`,
+    );
+  }
+}
+
 function normalizeUserEmail(userEmail: string): string {
   return userEmail.trim().toLowerCase();
 }
@@ -951,6 +995,10 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
   const normalizedSlot: ScheduledSlot | null =
     input.scheduledSlot === undefined ? null : normalizeScheduledSlotForCreate(input.scheduledSlot);
 
+  if (normalizedSlot) {
+    assertScheduledSlotWithinPhaseBounds(resolvedPhaseId, normalizedSlot.start, normalizedSlot.end);
+  }
+
   let normalizedSuggested: SuggestedSlot | null = null;
   if (input.suggestedSlot !== undefined && input.suggestedSlot !== null) {
     const s = input.suggestedSlot;
@@ -1194,6 +1242,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
       if (typeof slot.end !== "string" || isNaN(new Date(slot.end).getTime())) {
         throw new ValidationError("scheduledSlot.end doit être une date ISO valide");
       }
+      assertScheduledSlotWithinPhaseBounds(todo.phaseId, slot.start, slot.end);
       if (slot.calendarEventId !== undefined && slot.calendarEventId !== null && typeof slot.calendarEventId !== "string") {
         throw new ValidationError("scheduledSlot.calendarEventId doit être une chaîne ou undefined");
       }
