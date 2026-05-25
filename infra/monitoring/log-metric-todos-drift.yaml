@@ -1,0 +1,41 @@
+# Cloud Logging log-based metric for the todos legacy ↔ todos_v2 drift detector.
+#
+# Source log line (emitted by backend/src/services/todosDriftMonitor.ts):
+#   severity: ERROR
+#   jsonPayload: { event: "todos-drift", status: "drift", ... }
+#
+# Apply with:
+#   gcloud logging metrics create todos_drift_events \
+#     --config-from-file=infra/monitoring/log-metric-todos-drift.yaml \
+#     --project=involuted-reach-490718-h4
+#
+# Re-apply (idempotent):
+#   gcloud logging metrics update todos_drift_events \
+#     --config-from-file=infra/monitoring/log-metric-todos-drift.yaml \
+#     --project=involuted-reach-490718-h4
+#
+# Note: the metric `name` is passed as the positional CLI argument and must be
+# omitted from this file (the CLI rejects it as an unknown field).
+
+description: "Counts todos drift events emitted by todosDriftMonitor (legacy ↔ todos_v2)"
+
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="wroket-api"
+  severity=ERROR
+  jsonPayload.event="todos-drift"
+  jsonPayload.status="drift"
+
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  labels:
+    - key: worstOwnerUid
+      valueType: STRING
+      description: "Uid of the user with the highest drift count at sample time"
+
+# Extract the worst-offender uid so it surfaces in alert notifications and lets
+# an operator run the reconcile script directly for the right user.
+labelExtractors:
+  worstOwnerUid: 'EXTRACT(jsonPayload.worstOwner.uid)'
