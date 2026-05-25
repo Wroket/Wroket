@@ -11,6 +11,8 @@ export const PUBLIC_PATHS = [
   "/reset-password",
   "/verify-email",
   "/pricing",
+  "/privacy",
+  "/terms",
   "/robots.txt",
   "/sitemap.xml",
 ] as const;

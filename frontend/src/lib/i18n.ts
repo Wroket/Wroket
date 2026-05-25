@@ -1580,6 +1580,8 @@ const translations = {
   "landing.ctaLogin": { fr: "J'ai déjà un compte", en: "I already have an account" },
   "landing.navPricing": { fr: "Tarifs", en: "Pricing" },
   "landing.footerContact": { fr: "Contact", en: "Contact" },
+  "landing.footerPrivacy": { fr: "Confidentialité", en: "Privacy" },
+  "landing.footerTerms": { fr: "CGU", en: "Terms" },
   "landing.featuresTitle": { fr: "Un outil, toutes vos priorités", en: "One tool, all your priorities" },
   "landing.f1.title": { fr: "Priorité automatique", en: "Auto-prioritization" },
   "landing.f1.desc": {

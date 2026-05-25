@@ -454,6 +454,12 @@ export default function LandingPage() {
             <Link href="/pricing" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
               {t("landing.navPricing")}
             </Link>
+            <Link href="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerPrivacy")}
+            </Link>
+            <Link href="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerTerms")}
+            </Link>
             <a href="mailto:team@wroket.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
               {t("landing.footerContact")}
             </a>
