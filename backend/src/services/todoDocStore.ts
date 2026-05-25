@@ -87,6 +87,16 @@ async function upsertWithCondition(dbConn: Firestore, todo: TodoDocWrite): Promi
   }
 }
 
+/**
+ * Mirror the legacy-sourced todo set for `ownerUid` into `todos_v2`.
+ *
+ * In `dual` mode the **legacy store remains the read source of truth**. If a write
+ * race or partial flush ever leaves the in-memory snapshot empty for an owner who
+ * still has real data, the stale-delete pass below would permanently destroy
+ * those rows in `todos_v2`. We therefore only prune `todos_v2` when
+ * `TODOS_STORAGE_MODE=v2` (i.e. v2 IS the source of truth). In dual/legacy mode
+ * we accept that `todos_v2` may carry tombstones until full v2 cutover.
+ */
 export async function syncOwnerTodosV2(ownerUid: string, todos: TodoDocWrite[]): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) return;
@@ -96,6 +106,9 @@ export async function syncOwnerTodosV2(ownerUid: string, todos: TodoDocWrite[]):
     currentIds.add(todo.id);
     await upsertWithCondition(dbConn, todo);
   }
+
+  const mode = (process.env.TODOS_STORAGE_MODE ?? "legacy").trim().toLowerCase();
+  if (mode !== "v2") return;
 
   const staleSnap = await dbConn.collection(COLLECTION).where("ownerUid", "==", ownerUid).get();
   for (const doc of staleSnap.docs) {

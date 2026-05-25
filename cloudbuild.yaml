@@ -43,6 +43,10 @@ steps:
       - '256Mi'
       - '--cpu'
       - '1'
+      # Pinned to a single instance: the in-memory todo/activity caches plus the
+      # legacy single-document `store/activityLog` are not safe to share across
+      # concurrent replicas. Do not raise max-instances without first migrating
+      # writes to per-row Firestore collections (todos_v2 / activity_log_v2).
       - '--min-instances'
       - '1'
       - '--max-instances'

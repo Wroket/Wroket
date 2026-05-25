@@ -1782,6 +1782,12 @@ const translations = {
   "admin.activity.entity": { fr: "Entité", en: "Entity" },
   "admin.activity.date": { fr: "Date", en: "Date" },
   "admin.activity.empty": { fr: "Aucune activité enregistrée", en: "No activity recorded" },
+  "admin.activity.loadMore": { fr: "Charger plus", en: "Load more" },
+  "admin.activity.loadingMore": { fr: "Chargement…", en: "Loading…" },
+  "admin.activity.shownCount": {
+    fr: "{shown} affichée(s) sur {total}",
+    en: "{shown} of {total} shown",
+  },
   "admin.sessions.email": { fr: "Email", en: "Email" },
   "admin.sessions.createdAt": { fr: "Connecté le", en: "Connected on" },
   "admin.sessions.userAgent": { fr: "Navigateur", en: "Browser" },

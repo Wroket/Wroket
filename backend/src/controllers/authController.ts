@@ -708,6 +708,6 @@ export async function myActivity(req: Request, res: Response) {
   const maxLimit = since ? 500 : 200;
   const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 50, maxLimit) : since ? 200 : 50;
   const parsedOffset = Math.max(0, offset ? parseInt(offset, 10) || 0 : 0);
-  const result = getActivityLog({ userId: user.uid, limit: parsedLimit, offset: parsedOffset, since });
+  const result = await getActivityLog({ userId: user.uid, limit: parsedLimit, offset: parsedOffset, since });
   res.status(200).json(result);
 }

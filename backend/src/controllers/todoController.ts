@@ -656,7 +656,7 @@ function csvSafe(value: string): string {
 export async function taskActivity(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
   if (!canAccessTodo(req.user!.uid, todoId)) throw new ForbiddenError("Accès refusé");
-  const entries = getTaskActivity(todoId);
+  const entries = await getTaskActivity(todoId);
   res.status(200).json(entries);
 }
 

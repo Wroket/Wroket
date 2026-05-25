@@ -4,7 +4,6 @@ import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
 import {
   updateTodo,
-  assertScheduledSlotWithinPhaseBounds,
   listTodos,
   listAllTodos,
   isArchived,
@@ -36,6 +35,7 @@ import {
   type ResolvedBookingTarget,
 } from "../services/authService";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import { logActivity } from "../services/activityLogService";
 import {
   getGoogleAuthUrl,
   exchangeCodeForTokens,
@@ -338,8 +338,6 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
 
-  assertScheduledSlotWithinPhaseBounds(todo.phaseId, start, end);
-
   if (!force) {
     const conflicts = await findConflicts(uid, todoId, startDate, endDate);
     if (conflicts.length > 0) {
@@ -504,10 +502,8 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     }
   }
 
-  const prevSlot = todo.scheduledSlot;
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: {
-      ...(prevSlot ?? {}),
       start,
       end,
       calendarEventId,
@@ -517,6 +513,19 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
       ...(bookingProvider ? { bookingProvider } : {}),
     },
   });
+
+  try {
+    logActivity(uid, req.user!.email ?? "", "slot_booked", "todo", todoId, {
+      todoId,
+      title: updated.title,
+      start,
+      end,
+      bookingProvider: bookingProvider ?? null,
+      calendarEventId,
+    });
+  } catch (err) {
+    console.warn("[calendar.bookSlot] activity log failed:", err);
+  }
 
   res.status(200).json(todoToClientJson(updated));
 }
@@ -536,6 +545,15 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: null,
   });
+  try {
+    logActivity(uid, req.user!.email ?? "", "slot_cleared", "todo", todoId, {
+      todoId,
+      title: updated.title,
+      previousCalendarEventId: todo.scheduledSlot?.calendarEventId ?? null,
+    });
+  } catch (err) {
+    console.warn("[calendar.clearSlot] activity log failed:", err);
+  }
   res.status(200).json(todoToClientJson(updated));
 }
 
@@ -594,6 +612,14 @@ export async function googleCallback(req: Request, res: Response) {
         console.error("[google-cal] post-connect calendar seed failed:", seedErr);
       }
     }
+    try {
+      logActivity(uid, email, "calendar_connect", "google_account", account.id, {
+        provider: "google",
+        accountEmail: email,
+      });
+    } catch (logErr) {
+      console.warn("[google-oauth] activity log failed:", logErr);
+    }
     res.redirect(`${frontendUrl}/agenda/manage?google=connected`);
   } catch (err) {
     console.error("[google-oauth] Error:", err);
@@ -608,6 +634,18 @@ export async function disconnectGoogle(req: AuthenticatedRequest, res: Response)
     removeGoogleAccount(req.user!.uid, accountId);
   } else {
     removeAllGoogleAccounts(req.user!.uid);
+  }
+  try {
+    logActivity(
+      req.user!.uid,
+      req.user!.email ?? "",
+      "calendar_disconnect",
+      "google_account",
+      accountId ?? "all",
+      { provider: "google", scope: accountId ? "single" : "all" },
+    );
+  } catch (logErr) {
+    console.warn("[google-oauth] activity log failed:", logErr);
   }
   res.status(200).json({ message: "Google Calendar disconnected" });
 }
@@ -671,6 +709,14 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
         console.error("[microsoft-cal] post-connect calendar seed failed:", seedErr);
       }
     }
+    try {
+      logActivity(uid, email, "calendar_connect", "microsoft_account", account.id, {
+        provider: "microsoft",
+        accountEmail: email,
+      });
+    } catch (logErr) {
+      console.warn("[microsoft-cal] activity log failed:", logErr);
+    }
     res.redirect(`${frontendUrl}/agenda/manage?microsoft=connected`);
   } catch (err) {
     console.error("[microsoft-cal] callback error:", err);
@@ -684,6 +730,18 @@ export async function disconnectMicrosoft(req: AuthenticatedRequest, res: Respon
     removeMicrosoftAccount(req.user!.uid, accountId);
   } else {
     removeAllMicrosoftAccounts(req.user!.uid);
+  }
+  try {
+    logActivity(
+      req.user!.uid,
+      req.user!.email ?? "",
+      "calendar_disconnect",
+      "microsoft_account",
+      accountId ?? "all",
+      { provider: "microsoft", scope: accountId ? "single" : "all" },
+    );
+  } catch (logErr) {
+    console.warn("[microsoft-cal] activity log failed:", logErr);
   }
   res.status(200).json({ message: "Outlook disconnected" });
 }
@@ -1145,6 +1203,17 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   meetCreationInFlight.set(lockKey, op);
   try {
     const updated = await op;
+    try {
+      logActivity(uid, req.user!.email ?? "", "meet_created", "todo", todoId, {
+        todoId,
+        title: updated.title,
+        meetingProvider: updated.scheduledSlot?.meetingProvider ?? null,
+        meetingUrl: updated.scheduledSlot?.meetingUrl ?? null,
+        inviteesCount: attendees.length,
+      });
+    } catch (logErr) {
+      console.warn("[calendar.createMeet] activity log failed:", logErr);
+    }
     res.status(200).json(todoToClientJson(updated));
   } finally {
     meetCreationInFlight.delete(lockKey);
@@ -1235,6 +1304,16 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
         bookingProvider: "microsoft",
       },
     });
+    try {
+      logActivity(uid, req.user!.email ?? "", "meet_updated", "todo", todoId, {
+        todoId,
+        title: updated.title,
+        meetingProvider: "microsoft-teams",
+        inviteesCount: attendees.length,
+      });
+    } catch (logErr) {
+      console.warn("[calendar.updateMeet teams] activity log failed:", logErr);
+    }
     res.status(200).json(todoToClientJson(updated));
     return;
   }
@@ -1263,6 +1342,16 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
       meetingInvitees: attendees,
     },
   });
+  try {
+    logActivity(uid, req.user!.email ?? "", "meet_updated", "todo", todoId, {
+      todoId,
+      title: updated.title,
+      meetingProvider: "google-meet",
+      inviteesCount: attendees.length,
+    });
+  } catch (logErr) {
+    console.warn("[calendar.updateMeet google] activity log failed:", logErr);
+  }
   res.status(200).json(todoToClientJson(updated));
 }
 
@@ -1301,6 +1390,16 @@ export async function clearMeet(req: AuthenticatedRequest, res: Response) {
         })()
       : null,
   });
+
+  try {
+    logActivity(uid, req.user!.email ?? "", "meet_cleared", "todo", todoId, {
+      todoId,
+      title: updated.title,
+      previousMeetingProvider: slot?.meetingProvider ?? null,
+    });
+  } catch (logErr) {
+    console.warn("[calendar.clearMeet] activity log failed:", logErr);
+  }
 
   res.status(200).json(todoToClientJson(updated));
 }
@@ -1459,6 +1558,16 @@ export async function syncSingleInAppScheduledSlot(req: AuthenticatedRequest, re
   const result = await pushScheduledSlotToCalendar(uid, email, found.todo, bookingTarget, { skipIfConflict, tz });
 
   if (result.outcome === "synced") {
+    try {
+      logActivity(uid, email, "slot_synced_external", "todo", todoId, {
+        todoId,
+        title: found.todo.title,
+        bookingProvider: bookingTarget.provider,
+        calendarEventId: result.calendarEventId,
+      });
+    } catch (logErr) {
+      console.warn("[calendar.syncSingleInApp] activity log failed:", logErr);
+    }
     res.status(200).json({
       outcome: "synced" as const,
       calendarEventId: result.calendarEventId,

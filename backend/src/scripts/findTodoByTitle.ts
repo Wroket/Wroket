@@ -81,6 +81,8 @@ interface Hit {
   parentId: string | null;
   projectId: string | null;
   assignedTo: string | null;
+  /** Which store(s) hold this row — useful to spot dual-mode drift. */
+  sources: { legacyShard: boolean; legacyDoc: boolean; v2: boolean };
 }
 
 function matches(row: Record<string, unknown>, needle: string): boolean {
@@ -88,20 +90,45 @@ function matches(row: Record<string, unknown>, needle: string): boolean {
   return title.toLowerCase().includes(needle);
 }
 
-async function readUserTodos(db: Firestore, uid: string): Promise<Record<string, Record<string, unknown>>> {
+interface TodoSources {
+  legacyShard: boolean;
+  legacyDoc: boolean;
+  v2: boolean;
+}
+
+interface UserTodos {
+  /** Merged row per todoId (latest source wins for unique fields). */
+  rows: Record<string, Record<string, unknown>>;
+  /** Per-todo provenance to detect dual-mode drift. */
+  sources: Record<string, TodoSources>;
+}
+
+const V2_COLLECTION = process.env.TODOS_DOC_COLLECTION?.trim() || "todos_v2";
+
+async function readUserTodos(db: Firestore, uid: string): Promise<UserTodos> {
   const shardIdx = todoShardIndex(uid);
-  const [shardSnap, legacySnap] = await Promise.all([
+  const [shardSnap, legacySnap, v2Snap] = await Promise.all([
     db.collection("store").doc(todoShardDocId(shardIdx)).get(),
     db.collection("store").doc("todos").get(),
+    db.collection(V2_COLLECTION).where("ownerUid", "==", uid).get(),
   ]);
 
-  const out: Record<string, Record<string, unknown>> = {};
+  const rows: Record<string, Record<string, unknown>> = {};
+  const sources: Record<string, TodoSources> = {};
+  const markSource = (id: string, key: keyof TodoSources): void => {
+    const cur = sources[id] ?? { legacyShard: false, legacyDoc: false, v2: false };
+    cur[key] = true;
+    sources[id] = cur;
+  };
 
   if (legacySnap.exists) {
     const legacy = legacySnap.data()?.data as Record<string, Record<string, Record<string, unknown>>> | undefined;
     const bucket = legacy?.[uid];
     if (bucket) {
-      for (const [id, row] of Object.entries(bucket)) out[id] = row;
+      for (const [id, row] of Object.entries(bucket)) {
+        rows[id] = row;
+        markSource(id, "legacyDoc");
+      }
     }
   }
 
@@ -109,14 +136,25 @@ async function readUserTodos(db: Firestore, uid: string): Promise<Record<string,
     const shard = shardSnap.data()?.data as Record<string, Record<string, Record<string, unknown>>> | undefined;
     const bucket = shard?.[uid];
     if (bucket) {
-      for (const [id, row] of Object.entries(bucket)) out[id] = row;
+      for (const [id, row] of Object.entries(bucket)) {
+        rows[id] = row;
+        markSource(id, "legacyShard");
+      }
     }
   }
 
-  return out;
+  for (const doc of v2Snap.docs) {
+    const id = doc.id;
+    const row = doc.data() as Record<string, unknown>;
+    // Don't overwrite legacy fields silently — keep what legacy had so we surface drift via `sources`.
+    if (!rows[id]) rows[id] = row;
+    markSource(id, "v2");
+  }
+
+  return { rows, sources };
 }
 
-function toHit(uid: string, todoId: string, row: Record<string, unknown>): Hit {
+function toHit(uid: string, todoId: string, row: Record<string, unknown>, sources: TodoSources): Hit {
   const pick = (k: string): string | null => {
     const v = row[k];
     return typeof v === "string" ? v : null;
@@ -131,7 +169,16 @@ function toHit(uid: string, todoId: string, row: Record<string, unknown>): Hit {
     parentId: pick("parentId"),
     projectId: pick("projectId"),
     assignedTo: pick("assignedTo"),
+    sources,
   };
+}
+
+function formatSources(s: TodoSources): string {
+  const parts: string[] = [];
+  if (s.legacyShard) parts.push("shard");
+  if (s.legacyDoc) parts.push("legacyDoc");
+  if (s.v2) parts.push("v2");
+  return parts.length === 0 ? "-" : parts.join("+");
 }
 
 async function main(): Promise<void> {
@@ -166,16 +213,19 @@ async function main(): Promise<void> {
   if (!uid) process.exit(1);
 
   const needle = args.q.toLowerCase();
-  const todos = await readUserTodos(db, uid);
-  const total = Object.keys(todos).length;
-  console.log("[findTodo] %d todo(s) total for uid %s (shard %d)", total, uid, todoShardIndex(uid));
+  const { rows, sources } = await readUserTodos(db, uid);
+  const total = Object.keys(rows).length;
+  console.log(
+    "[findTodo] %d todo(s) merged for uid %s (shard %d, v2 collection %s)",
+    total, uid, todoShardIndex(uid), V2_COLLECTION,
+  );
 
   const hits: Hit[] = [];
-  for (const [id, row] of Object.entries(todos)) {
+  for (const [id, row] of Object.entries(rows)) {
     if (!matches(row, needle)) continue;
     const status = typeof row.status === "string" ? row.status : "";
     if (!args.includeActive && status === "active") continue;
-    hits.push(toHit(uid, id, row));
+    hits.push(toHit(uid, id, row, sources[id] ?? { legacyShard: false, legacyDoc: false, v2: false }));
     if (hits.length >= args.limit) break;
   }
 
@@ -187,10 +237,25 @@ async function main(): Promise<void> {
   console.log("[findTodo] %d hit(s):", hits.length);
   for (const h of hits) {
     console.log(
-      "  - id=%s  status=%s  statusChangedAt=%s  parentId=%s  projectId=%s  assignedTo=%s  title=%j",
-      h.todoId, h.status, h.statusChangedAt ?? "-", h.parentId ?? "-", h.projectId ?? "-", h.assignedTo ?? "-", h.title
+      "  - id=%s  status=%s  sources=%s  statusChangedAt=%s  parentId=%s  projectId=%s  assignedTo=%s  title=%j",
+      h.todoId, h.status, formatSources(h.sources), h.statusChangedAt ?? "-", h.parentId ?? "-", h.projectId ?? "-", h.assignedTo ?? "-", h.title,
     );
   }
+
+  // Surface dual-mode drift hints regardless of match: counts per source on the full set.
+  let onlyLegacy = 0;
+  let onlyV2 = 0;
+  let both = 0;
+  for (const s of Object.values(sources)) {
+    const hasLegacy = s.legacyShard || s.legacyDoc;
+    if (hasLegacy && s.v2) both++;
+    else if (hasLegacy) onlyLegacy++;
+    else if (s.v2) onlyV2++;
+  }
+  console.log(
+    "[findTodo] dual-mode summary: both=%d  legacyOnly=%d  v2Only=%d",
+    both, onlyLegacy, onlyV2,
+  );
 }
 
 main().catch((err) => {

@@ -56,6 +56,7 @@ export default function AdminPage() {
   const [inviteFlash, setInviteFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [integrations, setIntegrations] = useState<IntegrationOverview | null>(null);
   const [completionRates, setCompletionRates] = useState<CompletionRate[]>([]);
@@ -91,9 +92,36 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const ACTIVITY_PAGE_SIZE = 100;
+
   const loadActivity = useCallback(() => {
-    getAdminActivity({ limit: 100 }).then((r) => { setActivity(r.entries); setActivityTotal(r.total); }).catch(() => {});
+    getAdminActivity({ limit: ACTIVITY_PAGE_SIZE })
+      .then((r) => { setActivity(r.entries); setActivityTotal(r.total); })
+      .catch(() => {});
   }, []);
+
+  const loadMoreActivity = useCallback(async () => {
+    setActivityLoadingMore(true);
+    try {
+      const r = await getAdminActivity({ limit: ACTIVITY_PAGE_SIZE, offset: activity.length });
+      setActivity((prev) => {
+        // Defensive de-dup: if the underlying total grows between fetches the
+        // new page may overlap the tail of `prev`. Filter by id to avoid React
+        // key collisions and visual duplicates.
+        const seen = new Set(prev.map((e) => e.id));
+        const merged = [...prev];
+        for (const e of r.entries) {
+          if (!seen.has(e.id)) merged.push(e);
+        }
+        return merged;
+      });
+      setActivityTotal(r.total);
+    } catch {
+      /* ignore */
+    } finally {
+      setActivityLoadingMore(false);
+    }
+  }, [activity.length]);
 
   const loadSessions = useCallback(() => {
     getAdminSessions().then(setSessions).catch(() => {});
@@ -788,8 +816,13 @@ export default function AdminPage() {
         {/* Activity tab */}
         {tab === "activity" && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
-            <div className="px-4 py-2 text-xs text-zinc-400 dark:text-slate-500 border-b border-zinc-200 dark:border-slate-700">
-              {activityTotal} {t("admin.activity.action").toLowerCase()}(s)
+            <div className="px-4 py-2 text-xs text-zinc-400 dark:text-slate-500 border-b border-zinc-200 dark:border-slate-700 flex items-center justify-between gap-3">
+              <span>
+                {t("admin.activity.shownCount")
+                  .replace("{shown}", String(activity.length))
+                  .replace("{total}", String(activityTotal))}
+              </span>
+              <span>{activityTotal} {t("admin.activity.action").toLowerCase()}(s)</span>
             </div>
             <table className="w-full text-sm">
               <thead>
@@ -825,6 +858,18 @@ export default function AdminPage() {
                 )}
               </tbody>
             </table>
+            {activity.length < activityTotal && (
+              <div className="px-4 py-3 border-t border-zinc-200 dark:border-slate-700 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMoreActivity}
+                  disabled={activityLoadingMore}
+                  className="px-4 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-slate-600 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {activityLoadingMore ? t("admin.activity.loadingMore") : t("admin.activity.loadMore")}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

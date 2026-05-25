@@ -70,7 +70,7 @@ export async function adminActivity(req: AuthenticatedRequest, res: Response) {
   const parsedLimit = limit ? parseInt(limit, 10) : 50;
   const parsedOffset = offset ? parseInt(offset, 10) : 0;
   const rawOffset = Number.isFinite(parsedOffset) ? parsedOffset : 0;
-  const result = getActivityLog({
+  const result = await getActivityLog({
     userId: userId || undefined,
     entityType: entityType || undefined,
     limit: Math.min(Number.isFinite(parsedLimit) ? parsedLimit : 50, MAX_ACTIVITY_LIMIT),
