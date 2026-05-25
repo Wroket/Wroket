@@ -23,8 +23,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://wroket.com"),
   title: "Wroket",
   description: "Wroket — task management app",
+  alternates: { canonical: "/" },
 };
 
 export default function RootLayout({
