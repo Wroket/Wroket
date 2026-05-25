@@ -2,7 +2,14 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import http from "http";
-import { initStore, flushNow, attachLiveInvalidation, detachLiveInvalidation } from "./persistence";
+import {
+  initStore,
+  flushNow,
+  attachLiveInvalidation,
+  detachLiveInvalidation,
+  startWatchdogFlush,
+  stopWatchdogFlush,
+} from "./persistence";
 
 const port = Number(process.env.PORT) || 3000;
 let server: http.Server | null = null;
@@ -26,6 +33,7 @@ async function shutdown(signal: string): Promise<void> {
     stopTodosDriftMonitor();
   } catch { /* not started yet */ }
 
+  stopWatchdogFlush();
   detachLiveInvalidation();
   try {
     await flushNow();
@@ -38,6 +46,35 @@ async function shutdown(signal: string): Promise<void> {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT",  () => shutdown("SIGINT"));
+
+/**
+ * Safety net for crashes that bypass SIGTERM (uncaught throw, unhandled
+ * rejection). We try a best-effort flush — bounded to ~3 s so we don't hang
+ * Cloud Run during its 10 s grace period — then exit with code 1.
+ *
+ * Why: before this handler, an uncaught exception would terminate the process
+ * immediately and any unwritten in-memory mutation (debounced 500 ms write,
+ * pending watchdog tick) was lost. Empirically this is what caused the May
+ * 2026 "tâches v2 sans pendant legacy" drift on prod (see ROADMAP notes).
+ */
+async function crashFlushAndExit(label: string, err: unknown): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.error(`[server] ${label}:`, err);
+  stopWatchdogFlush();
+  detachLiveInvalidation();
+  const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 3_000));
+  try {
+    await Promise.race([flushNow(), timeoutPromise]);
+    console.error("[server] crash flush completed (best effort)");
+  } catch (flushErr) {
+    console.error("[server] crash flush failed:", flushErr);
+  }
+  process.exit(1);
+}
+
+process.on("uncaughtException", (err) => { void crashFlushAndExit("uncaughtException", err); });
+process.on("unhandledRejection", (reason) => { void crashFlushAndExit("unhandledRejection", reason); });
 
 async function main(): Promise<void> {
   await initStore();
@@ -72,6 +109,10 @@ async function main(): Promise<void> {
     console.log(`[server] Backend listening on port ${port}`);
     startReminderJob();
     startTodosDriftMonitor();
+    // 5 s safety-net flush: in addition to the 500 ms debounce, force a write
+    // if anything sits dirty. Prevents the "debounce starve" case where a
+    // continuous stream of writes keeps re-arming the timer.
+    startWatchdogFlush(5_000);
   });
 }
 

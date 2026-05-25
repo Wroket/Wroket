@@ -223,6 +223,36 @@ async function loadFromFirestore(): Promise<StoreData> {
 }
 
 const FIRESTORE_BATCH_LIMIT = 450;
+const FIRESTORE_SAVE_RETRY_ATTEMPTS = 3;
+const FIRESTORE_SAVE_RETRY_BASE_MS = 300;
+
+interface SaveMetrics {
+  lastFlushAt: string | null;
+  lastFlushOpsCount: number;
+  lastFlushDurationMs: number | null;
+  consecutiveFlushFailures: number;
+  failedFlushAttempts: number;
+}
+
+const saveMetrics: SaveMetrics = {
+  lastFlushAt: null,
+  lastFlushOpsCount: 0,
+  lastFlushDurationMs: null,
+  consecutiveFlushFailures: 0,
+  failedFlushAttempts: 0,
+};
+
+/** Exposed for `/health` or admin telemetry without leaking the actual store. */
+export function getPersistenceMetrics(): SaveMetrics & {
+  dirtyDomainsCount: number;
+  dirtyShardsCount: number;
+} {
+  return {
+    ...saveMetrics,
+    dirtyDomainsCount: dirtyDomains.size,
+    dirtyShardsCount: dirtyTodoShards.size,
+  };
+}
 
 async function saveToFirestore(): Promise<void> {
   if (!db || (dirtyDomains.size === 0 && dirtyTodoShards.size === 0)) return;
@@ -245,23 +275,62 @@ async function saveToFirestore(): Promise<void> {
     });
   }
 
+  // Snapshot of what THIS attempt is about to commit. We only clear these from
+  // the dirty sets after a successful commit, so a write that arrives during
+  // the in-flight batch is preserved for the next flush instead of being lost.
   const savingDomains = new Set(dirtyDomains);
   const savingShards = new Set(dirtyTodoShards);
 
-  try {
-    for (let i = 0; i < ops.length; i += FIRESTORE_BATCH_LIMIT) {
-      const chunk = ops.slice(i, i + FIRESTORE_BATCH_LIMIT);
-      const batch = db.batch();
-      for (const { ref, payload } of chunk) {
-        batch.set(ref, payload as FirebaseFirestore.DocumentData);
+  const startedAt = Date.now();
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= FIRESTORE_SAVE_RETRY_ATTEMPTS; attempt++) {
+    try {
+      for (let i = 0; i < ops.length; i += FIRESTORE_BATCH_LIMIT) {
+        const chunk = ops.slice(i, i + FIRESTORE_BATCH_LIMIT);
+        const batch = db.batch();
+        for (const { ref, payload } of chunk) {
+          batch.set(ref, payload as FirebaseFirestore.DocumentData);
+        }
+        await batch.commit();
       }
-      await batch.commit();
+      for (const d of savingDomains) dirtyDomains.delete(d);
+      for (const s of savingShards) dirtyTodoShards.delete(s);
+      saveMetrics.lastFlushAt = new Date().toISOString();
+      saveMetrics.lastFlushOpsCount = ops.length;
+      saveMetrics.lastFlushDurationMs = Date.now() - startedAt;
+      saveMetrics.consecutiveFlushFailures = 0;
+      if (attempt > 1) {
+        console.warn("[persistence] flush succeeded on attempt %d (ops=%d, durMs=%d)", attempt, ops.length, saveMetrics.lastFlushDurationMs);
+      }
+      return;
+    } catch (err) {
+      lastErr = err;
+      saveMetrics.failedFlushAttempts += 1;
+      const backoff = FIRESTORE_SAVE_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+      console.error(
+        "[persistence] Firestore batch save failed (attempt %d/%d, ops=%d, dirtyDomains=%d, dirtyShards=%d): %s",
+        attempt, FIRESTORE_SAVE_RETRY_ATTEMPTS, ops.length, savingDomains.size, savingShards.size, err,
+      );
+      if (attempt < FIRESTORE_SAVE_RETRY_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, backoff));
+      }
     }
-    for (const d of savingDomains) dirtyDomains.delete(d);
-    for (const s of savingShards) dirtyTodoShards.delete(s);
-  } catch (err) {
-    console.error("[persistence] Firestore batch save failed: %s", err);
   }
+  saveMetrics.consecutiveFlushFailures += 1;
+  // Structured log line so a Cloud Logging metric can alert on stuck-dirty state.
+  console.error(
+    "[persistence] flush_exhausted attempts=%d consecutiveFlushFailures=%d dirtyDomains=%d dirtyShards=%d dirtyShardIds=%s lastError=%s",
+    FIRESTORE_SAVE_RETRY_ATTEMPTS,
+    saveMetrics.consecutiveFlushFailures,
+    dirtyDomains.size,
+    dirtyTodoShards.size,
+    Array.from(dirtyTodoShards).slice(0, 20).join(","),
+    lastErr instanceof Error ? lastErr.message : String(lastErr),
+  );
+  // Re-arm the debounce so we don't leave the dirty sets unflushed forever
+  // if subsequent writes don't trigger a new scheduleSave call (e.g. read-mostly
+  // window after a transient Firestore outage).
+  armDebounce();
 }
 
 function armDebounce(): void {
@@ -363,6 +432,34 @@ export async function flushNow(): Promise<void> {
     dirtyTodoShards.clear();
   } else {
     await saveToFirestore();
+  }
+}
+
+let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Periodic safety-net flusher: runs every `intervalMs` and triggers a write
+ * if the dirty sets are non-empty. The 500 ms debounce in `armDebounce` is a
+ * convenience — under sustained mutations it gets re-armed continuously and
+ * can in theory starve for tens of seconds; this watchdog guarantees that no
+ * dirty state lives longer than `intervalMs` regardless of write cadence.
+ *
+ * Idempotent (safe to call multiple times). Stop with `stopWatchdogFlush`
+ * during shutdown to avoid a flush firing after `flushNow` has already run.
+ */
+export function startWatchdogFlush(intervalMs = 5_000): void {
+  if (watchdogTimer || USE_LOCAL) return;
+  watchdogTimer = setInterval(() => {
+    if (dirtyDomains.size === 0 && dirtyTodoShards.size === 0) return;
+    saveToFirestore().catch((err) => console.error("[persistence] watchdog save error: %s", err));
+  }, intervalMs);
+  watchdogTimer.unref();
+}
+
+export function stopWatchdogFlush(): void {
+  if (watchdogTimer) {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
   }
 }
 
