@@ -1,26 +1,15 @@
 import type { Metadata } from "next";
 
+import { buildPageMetadata } from "@/lib/seo";
+
 import TermsPageClient from "./TermsPageClient";
 
-const TITLE = "Conditions d'utilisation";
-const FULL_TITLE = "Conditions d'utilisation — Wroket";
-const DESCRIPTION =
-  "Conditions générales d'utilisation de Wroket : acceptation, accès au service, propriété intellectuelle, responsabilités, données utilisateurs et résiliation.";
-
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: "/terms" },
-  openGraph: {
-    title: FULL_TITLE,
-    description: DESCRIPTION,
-    url: "/terms",
-  },
-  twitter: {
-    title: FULL_TITLE,
-    description: DESCRIPTION,
-  },
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Conditions d'utilisation",
+  description:
+    "Conditions générales d'utilisation de Wroket : acceptation, accès au service, propriété intellectuelle, responsabilités, données utilisateurs et résiliation.",
+  path: "/terms",
+});
 
 const BREADCRUMB_JSON_LD = {
   "@context": "https://schema.org",

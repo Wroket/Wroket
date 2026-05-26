@@ -1,26 +1,15 @@
 import type { Metadata } from "next";
 
+import { buildPageMetadata } from "@/lib/seo";
+
 import PrivacyPageClient from "./PrivacyPageClient";
 
-const TITLE = "Politique de confidentialité";
-const FULL_TITLE = "Politique de confidentialité — Wroket";
-const DESCRIPTION =
-  "Politique de confidentialité Wroket : données collectées, finalités, durée de conservation, droits RGPD et coordonnées du DPO. Conforme aux exigences Google API Services.";
-
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: "/privacy" },
-  openGraph: {
-    title: FULL_TITLE,
-    description: DESCRIPTION,
-    url: "/privacy",
-  },
-  twitter: {
-    title: FULL_TITLE,
-    description: DESCRIPTION,
-  },
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Politique de confidentialité",
+  description:
+    "Politique de confidentialité Wroket : données collectées, finalités, durée de conservation, droits RGPD et coordonnées du DPO. Conforme aux exigences Google API Services.",
+  path: "/privacy",
+});
 
 const BREADCRUMB_JSON_LD = {
   "@context": "https://schema.org",

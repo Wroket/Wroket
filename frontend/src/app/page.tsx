@@ -1,25 +1,19 @@
 import type { Metadata } from "next";
 
+import { buildPageMetadata } from "@/lib/seo";
+
 import HomePageClient from "./HomePageClient";
 
 const TITLE = "Wroket — Travaillez efficacement. Ensemble.";
 const DESCRIPTION =
   "Wroket réunit tâches, agenda et notes pour les équipes performantes. Priorisez avec la matrice d'Eisenhower, planifiez avec Google Calendar et Microsoft 365, collaborez en temps réel.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: { absolute: TITLE },
   description: DESCRIPTION,
-  alternates: { canonical: "/" },
-  openGraph: {
-    title: TITLE,
-    description: "Tâches, agenda et notes pour les équipes performantes.",
-    url: "/",
-  },
-  twitter: {
-    title: TITLE,
-    description: "Tâches, agenda et notes pour les équipes performantes.",
-  },
-};
+  path: "/",
+  shareDescription: "Tâches, agenda et notes pour les équipes performantes.",
+});
 
 // SoftwareApplication JSON-LD — surfaces Wroket as an installable web app in
 // Google's rich results. Pricing is summarized as a free tier (the only fixed

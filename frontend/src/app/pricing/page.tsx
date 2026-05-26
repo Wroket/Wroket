@@ -1,26 +1,15 @@
 import type { Metadata } from "next";
 
+import { buildPageMetadata } from "@/lib/seo";
+
 import PricingPageClient from "./PricingPageClient";
 
-const TITLE = "Tarifs";
-const FULL_TITLE = "Tarifs — Wroket";
-const DESCRIPTION =
-  "Découvrez les paliers Wroket : Free pour démarrer, First pour la puissance produit, Small teams et Large orgs pour la collaboration et le reporting.";
-
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: "/pricing" },
-  openGraph: {
-    title: FULL_TITLE,
-    description: DESCRIPTION,
-    url: "/pricing",
-  },
-  twitter: {
-    title: FULL_TITLE,
-    description: DESCRIPTION,
-  },
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Tarifs",
+  description:
+    "Découvrez les paliers Wroket : Free pour démarrer, First pour la puissance produit, Small teams et Large orgs pour la collaboration et le reporting.",
+  path: "/pricing",
+});
 
 const BREADCRUMB_JSON_LD = {
   "@context": "https://schema.org",
