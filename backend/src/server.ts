@@ -79,7 +79,13 @@ process.on("unhandledRejection", (reason) => { void crashFlushAndExit("unhandled
 async function main(): Promise<void> {
   await initStore();
   const { hydrateTodosFromLegacyStore, hydrateTodosFromV2IfNeeded } = await import("./services/todoService");
-  hydrateTodosFromLegacyStore();
+  // In v2 mode the legacy `store/todos_*` shards are no longer the source of
+  // truth (and Phase 2 cleanup will delete them). Skip the legacy hydration —
+  // hydrateTodosFromV2IfNeeded loads everything we need from `todos_v2`.
+  const todosStorageMode = (process.env.TODOS_STORAGE_MODE?.trim().toLowerCase() ?? "legacy");
+  if (todosStorageMode !== "v2") {
+    hydrateTodosFromLegacyStore();
+  }
   await hydrateTodosFromV2IfNeeded();
   // Attach cross-replica cache invalidation AFTER hydration so that the initial
   // onSnapshot calls (which would replay existing data) are safely skipped.

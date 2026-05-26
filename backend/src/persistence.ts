@@ -531,6 +531,8 @@ export function _applyTodoShardSnapshot(shardId: string, shardIndex: number, dat
 export function attachLiveInvalidation(): void {
   if (USE_LOCAL || !db) return;
 
+  const todosStorageMode = (process.env.TODOS_STORAGE_MODE?.trim().toLowerCase() ?? "legacy");
+
   // Domain documents (notes, projects, teams, todos v1 legacy, etc.)
   for (const domain of DOMAINS) {
     const ref = db.collection("store").doc(domain);
@@ -549,27 +551,74 @@ export function attachLiveInvalidation(): void {
     liveListenerUnsubs.push(unsub);
   }
 
-  // Todo shard documents (todos_0 … todos_127)
-  for (let i = 0; i < TODO_SHARD_COUNT; i++) {
-    const shardId = todoShardDocId(i);
-    const ref = db.collection("store").doc(shardId);
-    const shardIndex = i;
-    let isFirst = true;
-    const unsub = ref.onSnapshot(
+  if (todosStorageMode === "v2") {
+    // v2 source of truth: one Firestore document per todo in TODOS_DOC_COLLECTION.
+    // A single collection-level onSnapshot replaces the 128 shard listeners
+    // and propagates per-row writes to every replica.
+    //
+    // Lazy require to avoid the circular import persistence ↔ todoService.
+    // server.ts already awaits todoService at startup (line ~81), so by the
+    // time attachLiveInvalidation runs the module is fully loaded.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { applyTodoV2DocChange } = require("./services/todoService") as typeof import("./services/todoService");
+    const collectionName = process.env.TODOS_DOC_COLLECTION?.trim() || "todos_v2";
+    let isFirstV2 = true;
+    const unsub = db.collection(collectionName).onSnapshot(
       (snap) => {
-        if (isFirst) { isFirst = false; return; }
-        const data = snap.data()?.data;
-        _applyTodoShardSnapshot(shardId, shardIndex, data);
+        // Skip initial replay (cache already hydrated via hydrateTodosFromV2IfNeeded).
+        if (isFirstV2) { isFirstV2 = false; return; }
+        let added = 0, modified = 0, removed = 0;
+        for (const change of snap.docChanges()) {
+          applyTodoV2DocChange(change.doc.id, change.doc.data(), change.type);
+          if (change.type === "added") added += 1;
+          else if (change.type === "modified") modified += 1;
+          else removed += 1;
+        }
+        if (added + modified + removed > 0) {
+          console.log(
+            JSON.stringify({
+              event: "todos_v2.invalidation.received",
+              collection: collectionName,
+              added,
+              modified,
+              removed,
+              ts: Date.now(),
+            }),
+          );
+        }
       },
       (err) => {
-        console.error(JSON.stringify({ event: "store.invalidation.error", shard: shardId, error: String(err) }));
-      }
+        console.error(JSON.stringify({ event: "todos_v2.invalidation.error", collection: collectionName, error: String(err) }));
+      },
     );
     liveListenerUnsubs.push(unsub);
+  } else {
+    // dual / legacy modes: each shard doc gets its own onSnapshot.
+    for (let i = 0; i < TODO_SHARD_COUNT; i++) {
+      const shardId = todoShardDocId(i);
+      const ref = db.collection("store").doc(shardId);
+      const shardIndex = i;
+      let isFirst = true;
+      const unsub = ref.onSnapshot(
+        (snap) => {
+          if (isFirst) { isFirst = false; return; }
+          const data = snap.data()?.data;
+          _applyTodoShardSnapshot(shardId, shardIndex, data);
+        },
+        (err) => {
+          console.error(JSON.stringify({ event: "store.invalidation.error", shard: shardId, error: String(err) }));
+        }
+      );
+      liveListenerUnsubs.push(unsub);
+    }
   }
 
   console.log(
-    JSON.stringify({ event: "store.invalidation.attached", listenerCount: liveListenerUnsubs.length })
+    JSON.stringify({
+      event: "store.invalidation.attached",
+      listenerCount: liveListenerUnsubs.length,
+      todosMode: todosStorageMode,
+    }),
   );
 }
 

@@ -481,6 +481,66 @@ export function getInMemoryTodoIdsByOwner(): Record<string, string[]> {
   return out;
 }
 
+/**
+ * Apply a `todos_v2` Firestore document change received via `onSnapshot` to the
+ * in-memory map. Used by the cross-replica live invalidation in v2 mode so a
+ * write made by replica A becomes visible to replica B without restart.
+ *
+ * Idempotent on `added`/`modified` via `updatedAt` watermark: if the local copy
+ * is already as fresh or fresher (the typical case for the replica that wrote
+ * it), the snapshot is ignored. `removed` is always applied unconditionally
+ * because Firestore's deletion is authoritative and there's no timestamp to
+ * compare against.
+ */
+export function applyTodoV2DocChange(
+  docId: string,
+  data: Record<string, unknown> | null,
+  changeType: "added" | "modified" | "removed",
+): void {
+  if (changeType === "removed") {
+    const ownerUid = ownerIndex.get(docId);
+    if (!ownerUid) return;
+    todosByUser.get(ownerUid)?.delete(docId);
+    ownerIndex.delete(docId);
+    return;
+  }
+
+  if (!data || typeof data !== "object") return;
+  const ownerUid =
+    typeof data.ownerUid === "string"
+      ? data.ownerUid
+      : typeof data.userId === "string"
+        ? (data.userId as string)
+        : "";
+  if (!ownerUid) return;
+
+  const incoming = data as unknown as Todo;
+  const existing = todosByUser.get(ownerUid)?.get(docId);
+  if (existing && typeof existing.updatedAt === "string" && typeof incoming.updatedAt === "string") {
+    const eMs = new Date(existing.updatedAt).getTime();
+    const iMs = new Date(incoming.updatedAt).getTime();
+    if (!Number.isNaN(eMs) && !Number.isNaN(iMs) && eMs >= iMs) return;
+  }
+
+  let map = todosByUser.get(ownerUid);
+  if (!map) {
+    map = new Map();
+    todosByUser.set(ownerUid, map);
+  }
+  map.set(docId, incoming);
+  ownerIndex.set(docId, ownerUid);
+}
+
+/**
+ * Test-only: reset the in-memory todo maps. Exported for vitest coverage of
+ * `applyTodoV2DocChange` and similar pure cache operations; production code
+ * should never call this.
+ */
+export function _resetTodosForTests(): void {
+  todosByUser.clear();
+  ownerIndex.clear();
+}
+
 function collectArchivedTodoIdsPastRetention(todos: Map<string, Todo>, retentionDays: number): string[] {
   if (retentionDays <= 0) return [];
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
