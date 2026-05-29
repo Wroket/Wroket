@@ -13,6 +13,9 @@ export const PUBLIC_PATHS = [
   "/pricing",
   "/privacy",
   "/terms",
+  "/agenda-taches",
+  "/gestion-taches-equipe",
+  "/matrice-eisenhower",
   "/robots.txt",
   "/sitemap.xml",
 ] as const;

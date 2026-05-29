@@ -5,6 +5,7 @@ import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/components/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "./globals.css";
+import { SITE_DESCRIPTION_FR, SITE_OG_DESCRIPTION_FR } from "@/lib/seo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,9 +20,8 @@ const geistMono = Geist_Mono({
 const SITE_URL = "https://wroket.com";
 const SITE_NAME = "Wroket";
 const DEFAULT_TITLE = "Wroket — Travaillez efficacement. Ensemble.";
-const DEFAULT_DESCRIPTION =
-  "Wroket réunit tâches, agenda et notes pour les équipes performantes. Priorisez avec la matrice d'Eisenhower, planifiez avec Google Calendar et Microsoft 365, collaborez en temps réel.";
-const OG_DESCRIPTION = "Tâches, agenda et notes pour les équipes performantes.";
+const DEFAULT_DESCRIPTION = SITE_DESCRIPTION_FR;
+const OG_DESCRIPTION = SITE_OG_DESCRIPTION_FR;
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -44,13 +44,13 @@ export const metadata: Metadata = {
   keywords: [
     "gestion de tâches",
     "agenda",
-    "notes",
     "collaboration",
     "équipe",
     "productivité",
-    "matrice Eisenhower",
+    "priorisation automatique",
     "Google Calendar",
-    "Microsoft 365",
+    "tâches en équipe",
+    "matrice Eisenhower",
   ],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,

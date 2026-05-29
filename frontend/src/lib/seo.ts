@@ -18,6 +18,12 @@ import type { Metadata } from "next";
 
 const SITE_URL = "https://wroket.com";
 const SITE_NAME = "Wroket";
+export const SITE_TAGLINE_FR = "Wroket priorise pour vous";
+export const SITE_TAGLINE_EN = "Wroket prioritizes for you";
+export const SITE_DESCRIPTION_FR =
+  "Wroket priorise pour vous : tâches, agenda Google Calendar et collaboration d'équipe. Travaillez efficacement. Ensemble.";
+export const SITE_OG_DESCRIPTION_FR =
+  "Wroket priorise pour vous — tâches, agenda et collaboration d'équipe.";
 const OG_IMAGE = "/og.png";
 const OG_IMAGE_ALT = "Wroket — Travaillez efficacement. Ensemble.";
 

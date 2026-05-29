@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
 
-import { buildPageMetadata } from "@/lib/seo";
+import { buildPageMetadata, SITE_DESCRIPTION_FR, SITE_OG_DESCRIPTION_FR } from "@/lib/seo";
 
 import HomePageClient from "./HomePageClient";
 
 const TITLE = "Wroket — Travaillez efficacement. Ensemble.";
-const DESCRIPTION =
-  "Wroket réunit tâches, agenda et notes pour les équipes performantes. Priorisez avec la matrice d'Eisenhower, planifiez avec Google Calendar et Microsoft 365, collaborez en temps réel.";
+const DESCRIPTION = SITE_DESCRIPTION_FR;
 
 export const metadata: Metadata = buildPageMetadata({
   title: { absolute: TITLE },
   description: DESCRIPTION,
   path: "/",
-  shareDescription: "Tâches, agenda et notes pour les équipes performantes.",
+  shareDescription: SITE_OG_DESCRIPTION_FR,
 });
 
 // SoftwareApplication JSON-LD — surfaces Wroket as an installable web app in

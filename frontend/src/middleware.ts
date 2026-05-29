@@ -4,13 +4,24 @@ import type { NextRequest } from "next/server";
 import { isPublicPath } from "@/lib/publicPaths";
 
 const AUTH_COOKIE = "auth_token";
+const CANONICAL_HOST = "wroket.com";
 
 /**
  * Server-side guard: unauthenticated users without a session cookie are redirected
  * before the app shell renders (reduces flash of protected content; not a substitute
  * for API authorization).
+ *
+ * Also canonicalises `www.wroket.com` → `wroket.com` (301) so Google consolidates
+ * indexing on the non-www host instead of reporting www URLs as alternates.
  */
 export function middleware(request: NextRequest) {
+  const host = request.headers.get("host") ?? "";
+  if (host === `www.${CANONICAL_HOST}`) {
+    const canonical = request.nextUrl.clone();
+    canonical.hostname = CANONICAL_HOST;
+    return NextResponse.redirect(canonical, 301);
+  }
+
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
@@ -28,7 +39,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|.*\\.(?:ico|png|jpg|jpeg|gif|svg|webp|woff|woff2)$).*)",
-  ],
+  // Include robots.txt / sitemap.xml / static assets so www requests 301 too.
+  // Only skip Next.js internal asset paths (immutable hashed bundles).
+  matcher: ["/((?!_next/static|_next/image).*)"],
 };

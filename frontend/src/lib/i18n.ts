@@ -1571,10 +1571,33 @@ const translations = {
   "help.dashboard.progress": { fr: "Bilan hebdomadaire et indicateurs de progression", en: "Weekly summary and progress indicators" },
   "help.dashboard.search": { fr: "Barre de recherche en tête de page : tâches, projets, notes", en: "Top search bar: tasks, projects, notes" },
 
+  "landing.tagline": { fr: "Wroket priorise pour vous", en: "Wroket prioritizes for you" },
+  "landing.heroBadge": { fr: "Wroket travaille pour vous", en: "Wroket works for you" },
   "landing.heroTitle": { fr: "Organisez, planifiez,\ncollaborez.", en: "Organize, schedule,\ncollaborate." },
   "landing.heroSub": {
-    fr: "D\u00e9cidez en un coup d\u2019\u0153il quelle t\u00e2che traiter en priorit\u00e9 et r\u00e9servez un temps d\u00e9di\u00e9.\nVue Radar, cr\u00e9neaux intelligents et agendas \u2014 le tout dans une interface simple et rapide.",
-    en: "Decide at a glance which task to tackle first and reserve dedicated time for it.\nRadar view, smart slots, and calendars \u2014 all in a simple, fast interface.",
+    fr: "Wroket priorise pour vous. Bloquez vos t\u00e2ches dans Google Calendar. Collaborez avec votre \u00e9quipe \u2014 sans vous perdre dans vos listes.",
+    en: "Wroket prioritizes for you. Block tasks in Google Calendar. Collaborate with your team \u2014 without drowning in endless lists.",
+  },
+  "landing.howItWorks.title": { fr: "Comment \u00e7a marche", en: "How it works" },
+  "landing.howItWorks.step1.title": { fr: "Cr\u00e9ez ou recevez des t\u00e2ches", en: "Create or receive tasks" },
+  "landing.howItWorks.step1.desc": {
+    fr: "Capturez une id\u00e9e, importez un projet ou recevez une assignation de votre \u00e9quipe.",
+    en: "Capture an idea, import a project, or receive an assignment from your team.",
+  },
+  "landing.howItWorks.step2.title": { fr: "Wroket priorise pour vous", en: "Wroket prioritizes for you" },
+  "landing.howItWorks.step2.desc": {
+    fr: "La Vue Radar calcule urgence et importance \u00e0 partir de l\u2019\u00e9ch\u00e9ance, de la priorit\u00e9 et de l\u2019effort \u2014 sans classement manuel.",
+    en: "Radar view computes urgency and importance from deadline, priority, and effort \u2014 no manual sorting.",
+  },
+  "landing.howItWorks.step3.title": { fr: "Bloquez le cr\u00e9neau dans l\u2019agenda", en: "Block time on your calendar" },
+  "landing.howItWorks.step3.desc": {
+    fr: "Connectez Google Calendar, visualisez vos disponibilit\u00e9s et r\u00e9servez un cr\u00e9neau pour la t\u00e2che qui compte.",
+    en: "Connect Google Calendar, see your availability, and reserve a slot for the task that matters.",
+  },
+  "landing.howItWorks.step4.title": { fr: "Collaborez en \u00e9quipe", en: "Collaborate as a team" },
+  "landing.howItWorks.step4.desc": {
+    fr: "Assignez, commentez avec @mentions et suivez l\u2019avancement \u2014 tout le monde sait quoi traiter en premier.",
+    en: "Assign, comment with @mentions, and track progress \u2014 everyone knows what to tackle first.",
   },
   "landing.cta": { fr: "Commencer maintenant", en: "Get started" },
   "landing.ctaLogin": { fr: "J'ai déjà un compte", en: "I already have an account" },
@@ -1583,23 +1606,122 @@ const translations = {
   "landing.footerPrivacy": { fr: "Confidentialité", en: "Privacy" },
   "landing.footerTerms": { fr: "CGU", en: "Terms" },
   "landing.featuresTitle": { fr: "Un outil, toutes vos priorités", en: "One tool, all your priorities" },
-  "landing.f1.title": { fr: "Priorité automatique", en: "Auto-prioritization" },
+  "landing.f1.title": { fr: "Wroket priorise pour vous", en: "Wroket prioritizes for you" },
   "landing.f1.desc": {
-    fr: "Vue Radar : urgence et importance à partir de l’échéance, de la priorité et de l’effort — puis passez à l’agenda pour bloquer le temps. Récurrentes, sous-tâches, tags et pièces jointes.",
-    en: "Radar view: urgency and importance from deadline, priority, and effort — then move to the calendar to block time. Recurring tasks, subtasks, tags, and attachments.",
+    fr: "Vue Radar : quadrants calcul\u00e9s \u00e0 partir de l\u2019\u00e9ch\u00e9ance, de la priorit\u00e9 et de l\u2019effort. Quatre lentilles (Eisenhower, Pression, ROI, Charge) pour voir ce qui compte vraiment \u2014 sans remplir une matrice \u00e0 la main.",
+    en: "Radar view: quadrants computed from deadline, priority, and effort. Four lenses (Eisenhower, Pressure, ROI, Load) to see what really matters \u2014 without filling a matrix by hand.",
   },
   "landing.f2.title": { fr: "Agenda intelligent", en: "Smart calendar" },
-  "landing.f2.desc": { fr: "Connectez plusieurs comptes Google Calendar. Créneaux proposés selon la priorité et la deadline — les tâches urgentes passent en premier.", en: "Connect multiple Google Calendar accounts. Slots proposed based on priority and deadline — urgent tasks come first." },
+  "landing.f2.desc": {
+    fr: "De la t\u00e2che prioris\u00e9e au cr\u00e9neau bloqu\u00e9 : connectez plusieurs comptes Google Calendar, visualisez vos disponibilit\u00e9s et r\u00e9servez du temps pour ce qui est urgent et important.",
+    en: "From prioritized task to blocked slot: connect multiple Google Calendar accounts, see your availability, and reserve time for what\u2019s urgent and important.",
+  },
   "landing.f3.title": { fr: "Bloc-notes connecté", en: "Connected notepad" },
   "landing.f3.desc": { fr: "Notes hors-ligne avec synchro auto. Commandes slash (/task, /deadline, /assign…). Dossiers, tags et partage avec votre équipe.", en: "Offline notes with auto-sync. Slash commands (/task, /deadline, /assign…). Folders, tags and sharing with your team." },
   "landing.f4.title": { fr: "Projets & Kanban", en: "Projects & Kanban" },
   "landing.f4.desc": { fr: "Phases, vues Board, Kanban (drag & drop) et Gantt. Importez depuis CSV ou JSON. Suivez la progression en temps réel.", en: "Phases, Board, Kanban (drag & drop) and Gantt views. Import from CSV or JSON. Track progress in real time." },
   "landing.f5.title": { fr: "Collaboration", en: "Collaboration" },
-  "landing.f5.desc": { fr: "Équipes avec rôles, assignation de tâches, commentaires avec @mentions et réactions. Webhooks Slack, Discord et Teams.", en: "Teams with roles, task assignment, comments with @mentions and reactions. Slack, Discord and Teams webhooks." },
+  "landing.f5.desc": {
+    fr: "Travaillez efficacement. Ensemble. \u00c9quipes avec r\u00f4les, assignation de t\u00e2ches, commentaires @mentions et webhooks Slack, Discord et Teams \u2014 chacun sait quoi traiter en premier.",
+    en: "Work efficiently. Together. Teams with roles, task assignment, @mention comments, and Slack, Discord, and Teams webhooks \u2014 everyone knows what to tackle first.",
+  },
+  "landing.footerAgendaTasks": { fr: "T\u00e2ches et agenda", en: "Tasks and calendar" },
+  "landing.footerTeamTasks": { fr: "T\u00e2ches en \u00e9quipe", en: "Team task management" },
+  "landing.footerEisenhower": { fr: "Matrice Eisenhower", en: "Eisenhower matrix" },
   "landing.f6.title": { fr: "Notifications & rappels", en: "Notifications & reminders" },
   "landing.f6.desc": { fr: "Alertes en temps réel, rappels avant deadline, notifications d'assignation. Intégrations Slack, Discord et Microsoft Teams.", en: "Real-time alerts, deadline reminders, assignment notifications. Slack, Discord and Microsoft Teams integrations." },
   "landing.flipHint": { fr: "Survolez pour un aperçu", en: "Hover for a preview" },
   "landing.footerTag": { fr: "Vos projets méritent mieux qu'une to-do list.", en: "Your projects deserve more than a to-do list." },
+
+  "marketing.shell.start": { fr: "Commencer maintenant", en: "Get started" },
+  "marketing.shell.viewPricing": { fr: "Voir les tarifs", en: "View pricing" },
+  "marketing.shell.related": { fr: "Voir aussi", en: "See also" },
+
+  "marketing.agenda.metaTitle": { fr: "T\u00e2ches et agenda", en: "Tasks and calendar" },
+  "marketing.agenda.h1": { fr: "Planifiez vos t\u00e2ches directement dans votre agenda", en: "Schedule your tasks directly in your calendar" },
+  "marketing.agenda.intro": {
+    fr: "Une to-do list sans agenda, c\u2019est une liste de souhaits. Wroket relie vos t\u00e2ches \u00e0 Google Calendar pour que la priorit\u00e9 devienne un cr\u00e9neau r\u00e9serv\u00e9.",
+    en: "A to-do list without a calendar is a wish list. Wroket connects your tasks to Google Calendar so priority becomes a reserved slot.",
+  },
+  "marketing.agenda.s1.title": { fr: "Le probl\u00e8me des listes d\u00e9connect\u00e9es", en: "The disconnected-list problem" },
+  "marketing.agenda.s1.p1": {
+    fr: "Vous cochez des t\u00e2ches dans une app et planifiez votre journ\u00e9e ailleurs. R\u00e9sultat : les items importants restent en liste pendant que votre agenda se remplit de r\u00e9unions sans lien avec vos objectifs.",
+    en: "You check off tasks in one app and plan your day elsewhere. Important items stay on the list while your calendar fills with meetings unrelated to your goals.",
+  },
+  "marketing.agenda.s2.title": { fr: "Wroket priorise, puis bloque le temps", en: "Wroket prioritizes, then blocks time" },
+  "marketing.agenda.s2.p1": {
+    fr: "Wroket priorise pour vous via la Vue Radar (urgence et importance calcul\u00e9es). Ensuite, connectez un ou plusieurs comptes Google Calendar : vous voyez vos disponibilit\u00e9s et r\u00e9servez un cr\u00e9neau pour la t\u00e2che qui compte.",
+    en: "Wroket prioritizes for you via Radar view (computed urgency and importance). Then connect one or more Google Calendar accounts: see availability and reserve a slot for the task that matters.",
+  },
+  "marketing.agenda.s3.title": { fr: "Google Calendar et Google Meet", en: "Google Calendar and Google Meet" },
+  "marketing.agenda.s3.p1": {
+    fr: "Synchronisez vos cr\u00e9neaux Wroket avec Google Calendar. Cr\u00e9ez un Google Meet \u00e0 la demande pour une t\u00e2che planifi\u00e9e. Plusieurs agendas (perso + pro) sur une seule vue.",
+    en: "Sync Wroket slots with Google Calendar. Create a Google Meet on demand for a scheduled task. Multiple calendars (personal + work) in one view.",
+  },
+  "marketing.agenda.s4.title": { fr: "Pour qui ?", en: "Who is it for?" },
+  "marketing.agenda.s4.p1": {
+    fr: "Freelances, managers et \u00e9quipes qui veulent passer de \u00ab j\u2019ai une liste \u00bb \u00e0 \u00ab j\u2019ai du temps bloqu\u00e9 pour avancer \u00bb. Commencez gratuitement, sans carte bancaire.",
+    en: "Freelancers, managers, and teams who want to go from \u201cI have a list\u201d to \u201cI have blocked time to make progress.\u201d Start free, no credit card.",
+  },
+
+  "marketing.team.metaTitle": { fr: "Gestion de t\u00e2ches en \u00e9quipe", en: "Team task management" },
+  "marketing.team.h1": { fr: "Collaborez sur vos t\u00e2ches sans chaos", en: "Collaborate on tasks without chaos" },
+  "marketing.team.intro": {
+    fr: "Travaillez efficacement. Ensemble. Wroket combine priorisation automatique, assignation claire et notifications pour que toute l\u2019\u00e9quipe sache quoi traiter en premier.",
+    en: "Work efficiently. Together. Wroket combines automatic prioritization, clear assignment, and notifications so the whole team knows what to tackle first.",
+  },
+  "marketing.team.s1.title": { fr: "Au-del\u00e0 de la to-do solo", en: "Beyond solo to-do" },
+  "marketing.team.s1.p1": {
+    fr: "Partager une liste par e-mail ou un tableur ne scale pas. Wroket offre des \u00e9quipes avec r\u00f4les, invitations par e-mail et visibilit\u00e9 sur qui fait quoi.",
+    en: "Sharing a list by email or spreadsheet doesn\u2019t scale. Wroket offers teams with roles, email invites, and visibility on who does what.",
+  },
+  "marketing.team.s2.title": { fr: "Assignation et commentaires", en: "Assignment and comments" },
+  "marketing.team.s2.p1": {
+    fr: "Assignez une t\u00e2che \u00e0 un coll\u00e8gue, discutez avec @mentions et r\u00e9actions. Les notifications gardent tout le monde align\u00e9 sans multiplier les r\u00e9unions de statut.",
+    en: "Assign a task to a teammate, discuss with @mentions and reactions. Notifications keep everyone aligned without extra status meetings.",
+  },
+  "marketing.team.s3.title": { fr: "Slack, Teams, Discord", en: "Slack, Teams, Discord" },
+  "marketing.team.s3.p1": {
+    fr: "Webhooks vers Slack, Microsoft Teams et Discord (palier Small teams). Recevez les assignations et rappels l\u00e0 o\u00f9 votre \u00e9quipe travaille d\u00e9j\u00e0.",
+    en: "Webhooks to Slack, Microsoft Teams, and Discord (Small teams tier). Get assignments and reminders where your team already works.",
+  },
+  "marketing.team.s4.title": { fr: "Passer en \u00e9quipe", en: "Go team" },
+  "marketing.team.s4.p1": {
+    fr: "Commencez seul sur le palier Free, puis activez les int\u00e9grations et la collaboration quand votre \u00e9quipe grandit. Consultez nos tarifs pour Small teams et Large orgs.",
+    en: "Start solo on Free, then enable integrations and collaboration as your team grows. See pricing for Small teams and Large orgs.",
+  },
+
+  "marketing.eisenhower.metaTitle": { fr: "Matrice d\u2019Eisenhower automatique", en: "Automatic Eisenhower matrix" },
+  "marketing.eisenhower.h1": { fr: "La matrice d\u2019Eisenhower, calcul\u00e9e pour vous", en: "The Eisenhower matrix, computed for you" },
+  "marketing.eisenhower.intro": {
+    fr: "La matrice urgent / important est un classique de la productivit\u00e9. Wroket l\u2019automatise : Wroket priorise pour vous \u2014 vous n\u2019avez pas \u00e0 remplir les quadrants \u00e0 la main.",
+    en: "The urgent / important matrix is a productivity classic. Wroket automates it: Wroket prioritizes for you \u2014 no manual quadrant sorting.",
+  },
+  "marketing.eisenhower.s1.title": { fr: "Les quatre quadrants", en: "The four quadrants" },
+  "marketing.eisenhower.s1.p1": {
+    fr: "Faire en premier (urgent + important), planifier (important), d\u00e9l\u00e9guer (urgent), \u00e9liminer (ni urgent ni important). Le principe est simple ; le classement manuel de dizaines de t\u00e2ches, moins.",
+    en: "Do first (urgent + important), schedule (important), delegate (urgent), eliminate (neither). The principle is simple; manually sorting dozens of tasks, less so.",
+  },
+  "marketing.eisenhower.s2.title": { fr: "Vue Radar : scores automatiques", en: "Radar view: automatic scores" },
+  "marketing.eisenhower.s2.p1": {
+    fr: "Wroket calcule urgence et importance \u00e0 partir de l\u2019\u00e9ch\u00e9ance, de la priorit\u00e9 et de l\u2019effort. Chaque t\u00e2che se place sur la Vue Radar sans drag-and-drop dans une grille.",
+    en: "Wroket computes urgency and importance from deadline, priority, and effort. Each task lands on Radar view without drag-and-drop into a grid.",
+  },
+  "marketing.eisenhower.s3.title": { fr: "Quatre lentilles, pas une seule matrice", en: "Four lenses, not one matrix" },
+  "marketing.eisenhower.s3.p1": {
+    fr: "En plus d\u2019Eisenhower, basculez vers Pression, ROI ou Charge \u00d7 urgence selon le contexte. M\u00eame donn\u00e9es, lectures diff\u00e9rentes pour d\u00e9cider plus vite.",
+    en: "Beyond Eisenhower, switch to Pressure, ROI, or Load \u00d7 urgency depending on context. Same data, different reads to decide faster.",
+  },
+  "marketing.eisenhower.s4.title": { fr: "De la matrice \u00e0 l\u2019agenda", en: "From matrix to calendar" },
+  "marketing.eisenhower.s4.p1": {
+    fr: "Une t\u00e2che \u00ab \u00e0 planifier \u00bb devient un cr\u00e9neau Google Calendar en un flux. Prioriser n\u2019est plus une fin en soi \u2014 c\u2019est le premier pas vers l\u2019action.",
+    en: "A \u201cschedule\u201d task becomes a Google Calendar slot in one flow. Prioritizing isn\u2019t the end goal \u2014 it\u2019s the first step toward action.",
+  },
+
+  "pricing.teamPageLink": {
+    fr: "D\u00e9couvrez la gestion de t\u00e2ches en \u00e9quipe avec Wroket",
+    en: "Discover team task management with Wroket",
+  },
 
   "pricing.heroTitle": { fr: "Des paliers clairs pour grandir avec Wroket", en: "Clear tiers to grow with Wroket" },
   "pricing.heroSub": {

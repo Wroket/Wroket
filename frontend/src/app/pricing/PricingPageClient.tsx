@@ -348,6 +348,11 @@ export default function PricingPage() {
         <div className="relative max-w-4xl mx-auto px-6 py-16 sm:py-20 text-center">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-slate-50">{t("pricing.heroTitle")}</h1>
           <p className="mt-4 text-lg text-zinc-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">{t("pricing.heroSub")}</p>
+          <p className="mt-3 text-sm">
+            <Link href="/gestion-taches-equipe" className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium">
+              {t("pricing.teamPageLink")} →
+            </Link>
+          </p>
         </div>
       </header>
 
@@ -457,9 +462,15 @@ export default function PricingPage() {
             <span className="font-semibold text-zinc-700 dark:text-slate-300">Wroket</span>
             <span suppressHydrationWarning>&copy; {new Date().getFullYear()}</span>
           </div>
-          <div className="flex items-center gap-6 text-sm text-zinc-500 dark:text-slate-400">
-            <Link href="/pricing" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.navPricing")}
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-500 dark:text-slate-400">
+            <Link href="/agenda-taches" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerAgendaTasks")}
+            </Link>
+            <Link href="/gestion-taches-equipe" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerTeamTasks")}
+            </Link>
+            <Link href="/matrice-eisenhower" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerEisenhower")}
             </Link>
             <Link href="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
               {t("landing.footerPrivacy")}

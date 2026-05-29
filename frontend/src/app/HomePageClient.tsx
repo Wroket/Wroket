@@ -38,10 +38,17 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
 const FEATURES_KEYS = [
   { titleKey: "landing.f1.title", descKey: "landing.f1.desc", previewId: "eisenhower" },
   { titleKey: "landing.f2.title", descKey: "landing.f2.desc", previewId: "calendar" },
+  { titleKey: "landing.f5.title", descKey: "landing.f5.desc", previewId: "collab" },
   { titleKey: "landing.f4.title", descKey: "landing.f4.desc", previewId: "kanban" },
   { titleKey: "landing.f3.title", descKey: "landing.f3.desc", previewId: "notepad" },
-  { titleKey: "landing.f5.title", descKey: "landing.f5.desc", previewId: "collab" },
   { titleKey: "landing.f6.title", descKey: "landing.f6.desc", previewId: "notifs" },
+] as const;
+
+const HOW_IT_WORKS_STEPS = [
+  { titleKey: "landing.howItWorks.step1.title", descKey: "landing.howItWorks.step1.desc" },
+  { titleKey: "landing.howItWorks.step2.title", descKey: "landing.howItWorks.step2.desc" },
+  { titleKey: "landing.howItWorks.step3.title", descKey: "landing.howItWorks.step3.desc" },
+  { titleKey: "landing.howItWorks.step4.title", descKey: "landing.howItWorks.step4.desc" },
 ] as const;
 
 function FlipCard({ icon, titleKey, descKey, preview, t }: {
@@ -322,9 +329,9 @@ export default function LandingPage() {
         </div>
 
         <div className="relative max-w-4xl mx-auto px-6 pt-24 pb-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-full px-4 py-1.5 mb-8">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Task management, reimagined</span>
+          <div className="inline-flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-full px-5 py-2 sm:px-6 sm:py-2.5 mb-8">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="text-sm sm:text-base font-semibold text-emerald-700 dark:text-emerald-300">{t("landing.heroBadge")}</span>
           </div>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
@@ -339,9 +346,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            {t("landing.heroSub").split("\n").map((line, i) => (
-              <span key={i}>{i > 0 && <br />}{line}</span>
-            ))}
+            {t("landing.heroSub")}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -400,6 +405,28 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── How it works (indexable narrative) ── */}
+      <section className="py-20 border-b border-zinc-100 dark:border-slate-800">
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">
+            {t("landing.howItWorks.title")}
+          </h2>
+          <ol className="grid sm:grid-cols-2 gap-8">
+            {HOW_IT_WORKS_STEPS.map((step, i) => (
+              <li key={step.titleKey} className="flex gap-4">
+                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white text-sm font-bold flex items-center justify-center">
+                  {i + 1}
+                </span>
+                <div>
+                  <h3 className="font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t(step.titleKey)}</h3>
+                  <p className="text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">{t(step.descKey)}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
       {/* ── Features ── */}
       <section className="py-24 bg-zinc-50 dark:bg-slate-900/50">
         <div className="max-w-6xl mx-auto px-6">
@@ -450,7 +477,16 @@ export default function LandingPage() {
             <span className="font-semibold text-zinc-700 dark:text-slate-300">Wroket</span>
             <span suppressHydrationWarning>&copy; {new Date().getFullYear()}</span>
           </div>
-          <div className="flex items-center gap-6 text-sm text-zinc-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-500 dark:text-slate-400">
+            <Link href="/agenda-taches" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerAgendaTasks")}
+            </Link>
+            <Link href="/gestion-taches-equipe" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerTeamTasks")}
+            </Link>
+            <Link href="/matrice-eisenhower" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              {t("landing.footerEisenhower")}
+            </Link>
             <Link href="/pricing" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
               {t("landing.navPricing")}
             </Link>
