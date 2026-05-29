@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
+import { LandingFooter } from "@/components/marketing/LandingFooter";
 import { useLocale } from "@/lib/LocaleContext";
 import { postPricingContact } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
@@ -296,23 +297,23 @@ export default function PricingPage() {
       )}
 
       <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-zinc-100 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 shrink-0 min-w-0">
             <WroketLockup theme="auto" />
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
-              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors w-9 px-2 py-1 rounded"
+              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded"
             >
               {locale === "fr" ? "EN" : "FR"}
             </button>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden="true" />
             <button
               type="button"
               onClick={toggleDark}
-              className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors shrink-0"
               aria-label={dark ? t("a11y.toggleDarkMode") : t("a11y.toggleLightMode")}
             >
               {dark ? (
@@ -325,17 +326,9 @@ export default function PricingPage() {
                 </svg>
               )}
             </button>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <Link
               href="/login"
-              className="inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors min-w-[12rem]"
-            >
-              {t("landing.ctaLogin")}
-            </Link>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-4 py-2 rounded-lg transition-colors shadow-sm w-[13rem]"
+              className="inline-flex items-center justify-center text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap"
             >
               {t("landing.cta")}
             </Link>
@@ -438,7 +431,7 @@ export default function PricingPage() {
         </section>
 
         <section className="mt-20 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-4">
             <WroketMark />
           </div>
           <p className="text-lg font-semibold text-zinc-800 dark:text-slate-200">{t("landing.footerTag")}</p>
@@ -456,34 +449,7 @@ export default function PricingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-zinc-100 dark:border-slate-800 py-8 mt-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-slate-400">
-            <span className="font-semibold text-zinc-700 dark:text-slate-300">Wroket</span>
-            <span suppressHydrationWarning>&copy; {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-500 dark:text-slate-400">
-            <Link href="/agenda-taches" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerAgendaTasks")}
-            </Link>
-            <Link href="/gestion-taches-equipe" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerTeamTasks")}
-            </Link>
-            <Link href="/matrice-eisenhower" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerEisenhower")}
-            </Link>
-            <Link href="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerPrivacy")}
-            </Link>
-            <Link href="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerTerms")}
-            </Link>
-            <a href="mailto:team@wroket.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerContact")}
-            </a>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter hidePricingLink className="mt-8" />
     </div>
   );
 }

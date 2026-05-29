@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { LocaleProvider } from "@/lib/LocaleContext";
 import { ToastProvider } from "@/components/Toast";
@@ -114,6 +115,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Script id="landing-dark-default" strategy="beforeInteractive">
+          {`(function(){try{if(location.pathname!=='/'&&location.pathname!=='')return;if(localStorage.getItem('wroket-dark')!=='0')document.documentElement.classList.add('dark')}catch(e){if(location.pathname==='/'||location.pathname==='')document.documentElement.classList.add('dark')}})();`}
+        </Script>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSON_LD) }}

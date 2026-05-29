@@ -31,8 +31,8 @@ export function MarketingPageShell({
   relatedLinks = DEFAULT_RELATED,
   ctaHref = "/login",
   ctaLabelKey = "marketing.shell.start",
-  secondaryCtaHref,
-  secondaryCtaLabelKey,
+  secondaryCtaHref = "/pricing",
+  secondaryCtaLabelKey = "marketing.shell.viewPricing",
 }: MarketingPageShellProps) {
   const { t } = useLocale();
 
@@ -61,14 +61,14 @@ export function MarketingPageShell({
           >
             {t(ctaLabelKey)}
           </Link>
-          {secondaryCtaHref && secondaryCtaLabelKey && (
+          {secondaryCtaHref && secondaryCtaLabelKey ? (
             <Link
               href={secondaryCtaHref}
               className="inline-flex items-center justify-center border border-zinc-200 dark:border-slate-700 text-zinc-700 dark:text-slate-300 font-semibold px-6 py-3 rounded-xl hover:border-emerald-400 transition-colors"
             >
               {t(secondaryCtaLabelKey)}
             </Link>
-          )}
+          ) : null}
         </div>
         {relatedLinks.length > 0 && (
           <div className="mt-10 pt-8 border-t border-zinc-100 dark:border-slate-800 not-prose">

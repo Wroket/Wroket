@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
 import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
+import { LandingFooter } from "@/components/marketing/LandingFooter";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 
@@ -249,9 +250,16 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
 
 export default function LandingPage() {
   const { t, locale, setLocale } = useLocale();
-  const [dark, setDark] = useState(() =>
-    typeof window !== "undefined" && localStorage.getItem("wroket-dark") === "1",
-  );
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("wroket-dark") !== "0";
+  });
+
+  useLayoutEffect(() => {
+    const isDark = localStorage.getItem("wroket-dark") !== "0";
+    setDark(isDark);
+    document.documentElement.classList.toggle("dark", isDark);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -269,21 +277,21 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100 transition-colors">
       {/* ── Navbar ── */}
       <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-zinc-100 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 shrink-0 min-w-0">
             <WroketLockup theme="auto" />
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
-              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors w-9 px-2 py-1 rounded"
+              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded"
             >
               {locale === "fr" ? "EN" : "FR"}
             </button>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
+            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden="true" />
             <button
               onClick={toggleDark}
-              className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors shrink-0"
               aria-label={dark ? t("a11y.toggleDarkMode") : t("a11y.toggleLightMode")}
             >
               {dark ? (
@@ -296,23 +304,16 @@ export default function LandingPage() {
                 </svg>
               )}
             </button>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
+            <span className="hidden sm:block w-px h-4 bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden="true" />
             <Link
               href="/pricing"
-              className="inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors min-w-[3.5rem]"
+              className="hidden sm:inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors whitespace-nowrap"
             >
               {t("landing.navPricing")}
             </Link>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700" aria-hidden="true" />
             <Link
               href="/login"
-              className="inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors min-w-[12rem]"
-            >
-              {t("landing.ctaLogin")}
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-4 py-2 rounded-lg transition-colors shadow-sm w-[13rem]"
+              className="inline-flex items-center justify-center text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap"
             >
               {t("landing.cta")}
             </Link>
@@ -453,7 +454,7 @@ export default function LandingPage() {
       {/* ── CTA final ── */}
       <section className="py-24">
         <div className="max-w-2xl mx-auto px-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-6">
+          <div className="w-16 h-16 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-6">
             <WroketMark />
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
@@ -470,38 +471,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-zinc-100 dark:border-slate-800 py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-slate-400">
-            <span className="font-semibold text-zinc-700 dark:text-slate-300">Wroket</span>
-            <span suppressHydrationWarning>&copy; {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-500 dark:text-slate-400">
-            <Link href="/agenda-taches" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerAgendaTasks")}
-            </Link>
-            <Link href="/gestion-taches-equipe" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerTeamTasks")}
-            </Link>
-            <Link href="/matrice-eisenhower" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerEisenhower")}
-            </Link>
-            <Link href="/pricing" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.navPricing")}
-            </Link>
-            <Link href="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerPrivacy")}
-            </Link>
-            <Link href="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerTerms")}
-            </Link>
-            <a href="mailto:team@wroket.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              {t("landing.footerContact")}
-            </a>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }

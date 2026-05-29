@@ -63,10 +63,10 @@ export function WroketLockup({
   const markContainer =
     markContainerClassName ||
     (theme === "light"
-      ? "w-11 h-11 rounded-xl bg-slate-800 flex items-center justify-center"
+      ? "w-11 h-11 rounded-md bg-slate-800 flex items-center justify-center"
       : theme === "dark"
-        ? "w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center"
-        : "w-11 h-11 rounded-xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center");
+        ? "w-11 h-11 rounded-md bg-slate-100 flex items-center justify-center"
+        : "w-11 h-11 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center");
 
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>

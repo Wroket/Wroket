@@ -28,8 +28,6 @@ export default function GestionTachesEquipePageClient() {
         { href: "/agenda-taches", labelKey: "landing.footerAgendaTasks" },
         { href: "/matrice-eisenhower", labelKey: "landing.footerEisenhower" },
       ]}
-      secondaryCtaHref="/pricing"
-      secondaryCtaLabelKey="marketing.shell.viewPricing"
     >
       <MarketingArticle
         h1Key="marketing.team.h1"

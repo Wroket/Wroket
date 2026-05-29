@@ -1578,7 +1578,7 @@ const translations = {
     fr: "Wroket priorise pour vous. Bloquez vos t\u00e2ches dans Google Calendar. Collaborez avec votre \u00e9quipe \u2014 sans vous perdre dans vos listes.",
     en: "Wroket prioritizes for you. Block tasks in Google Calendar. Collaborate with your team \u2014 without drowning in endless lists.",
   },
-  "landing.howItWorks.title": { fr: "Comment \u00e7a marche", en: "How it works" },
+  "landing.howItWorks.title": { fr: "Comment Wroket vous aide", en: "How Wroket helps you" },
   "landing.howItWorks.step1.title": { fr: "Cr\u00e9ez ou recevez des t\u00e2ches", en: "Create or receive tasks" },
   "landing.howItWorks.step1.desc": {
     fr: "Capturez une id\u00e9e, importez un projet ou recevez une assignation de votre \u00e9quipe.",
@@ -1605,6 +1605,8 @@ const translations = {
   "landing.footerContact": { fr: "Contact", en: "Contact" },
   "landing.footerPrivacy": { fr: "Confidentialité", en: "Privacy" },
   "landing.footerTerms": { fr: "CGU", en: "Terms" },
+  "landing.footerNavProduct": { fr: "Produit", en: "Product" },
+  "landing.footerNavLegal": { fr: "Informations", en: "Info" },
   "landing.featuresTitle": { fr: "Un outil, toutes vos priorités", en: "One tool, all your priorities" },
   "landing.f1.title": { fr: "Wroket priorise pour vous", en: "Wroket prioritizes for you" },
   "landing.f1.desc": {
