@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
-import { Locale, initLocale, setLocale as setGlobalLocale, t as globalT, TranslationKey } from "./i18n";
+import { Locale, setLocale as setGlobalLocale, t as globalT, TranslationKey } from "./i18n";
 
 interface LocaleContextValue {
   locale: Locale;
@@ -16,7 +16,16 @@ const LocaleContext = createContext<LocaleContextValue>({
 });
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => initLocale());
+  // Always "fr" on SSR/first paint so server HTML matches client hydration; restore preference after mount.
+  const [locale, setLocaleState] = useState<Locale>("fr");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("wroket-locale");
+    if (stored === "fr" || stored === "en") {
+      setGlobalLocale(stored);
+      setLocaleState(stored);
+    }
+  }, []);
 
   const changeLocale = useCallback((l: Locale) => {
     setGlobalLocale(l);
