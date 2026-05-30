@@ -352,6 +352,8 @@ export async function updateProfile(payload: {
   notificationTypesDisabledOutbound?: NotificationType[];
   notificationOutboundFrequency?: NotificationOutboundFrequency;
   notificationDigestHour?: number;
+  automationNotifyAssigneeOverdue?: boolean;
+  automationNotifyProjectOwnerOverdue?: boolean;
   archivedTaskRetentionDays?: number;
 }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {

@@ -236,6 +236,8 @@ export default function AppShell({ children }: AppShellProps) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifTimeTick, setNotifTimeTick] = useState(0);
+  const prevUnreadCountRef = useRef(0);
+  const browserNotifPermRef = useRef<NotificationPermission | null>(null);
   const panelNotifications = useMemo(
     () =>
       [...notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 20),
@@ -277,11 +279,32 @@ export default function AppShell({ children }: AppShellProps) {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
+    // Initialise permission state (no prompt here).
+    if (typeof Notification !== "undefined") {
+      browserNotifPermRef.current = Notification.permission;
+    }
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const fetchCount = async () => {
       try {
         const c = await getUnreadCount();
-        if (!cancelled) setUnreadCount(c);
+        if (!cancelled) {
+          const prev = prevUnreadCountRef.current;
+          prevUnreadCountRef.current = c;
+          // Fire a browser notification when new unread notifications arrive.
+          if (c > prev && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            const delta = c - prev;
+            const body = delta === 1
+              ? "Vous avez 1 nouvelle notification"
+              : `Vous avez ${delta} nouvelles notifications`;
+            try {
+              new Notification("Wroket", { body, icon: "/favicon.ico", tag: "wroket-notif" });
+            } catch { /* browser may block even with permission */ }
+          }
+          setUnreadCount(c);
+        }
       } catch { /* polling — silent */ }
     };
     fetchCount();
@@ -635,15 +658,31 @@ export default function AppShell({ children }: AppShellProps) {
                 <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),26rem)] sm:w-[26rem] bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50 max-h-[min(70vh,32rem)] flex flex-col">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-slate-800">
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("notif.title")}</h3>
-                    {unreadCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleMarkAllRead}
-                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        {t("notif.markAllRead")}
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {typeof Notification !== "undefined" && Notification.permission === "default" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void Notification.requestPermission().then((perm) => {
+                              browserNotifPermRef.current = perm;
+                            });
+                          }}
+                          className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                          title={t("notif.enableBrowserTitle")}
+                        >
+                          {t("notif.enableBrowser")}
+                        </button>
+                      )}
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllRead}
+                          className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {t("notif.markAllRead")}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="overflow-y-auto flex-1">
                     {panelNotifications.length === 0 ? (

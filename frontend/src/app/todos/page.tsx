@@ -19,6 +19,7 @@ import { useToast } from "@/components/Toast";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
+import TaskTemplatePicker, { type TemplateApplyPayload } from "@/components/TaskTemplatePicker";
 import {
   createTodo,
   createNoteApi,
@@ -273,6 +274,20 @@ export default function TodosPage() {
   const [assignedUser, setAssignedUser] = useState<AuthMeResponse | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [templateTags, setTemplateTags] = useState<string[]>([]);
+  const [templateSubtasks, setTemplateSubtasks] = useState<string[]>([]);
+  const [templateEstimatedMinutes, setTemplateEstimatedMinutes] = useState<number | null>(null);
+
+  const handleApplyTemplate = useCallback((payload: TemplateApplyPayload) => {
+    setPriority(payload.priority);
+    setPriorityTouched(true);
+    setEffort(payload.effort);
+    setEffortTouched(true);
+    setTemplateTags(payload.tags);
+    setTemplateSubtasks(payload.subtasks);
+    setTemplateEstimatedMinutes(payload.estimatedMinutes ?? null);
+    toast.success(t("template.applied"));
+  }, [toast, t]);
   const [, setCollaborators] = useState<Collaborator[]>([]);
   const [, setTeams] = useState<Team[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -518,16 +533,41 @@ export default function TodosPage() {
     setAssignedUser(null);
     setAssignError(null);
     setSelectedProjectId(null);
+    const capturedTags = templateTags.slice();
+    const capturedSubtasks = templateSubtasks.slice();
+    const capturedEstimated = templateEstimatedMinutes;
+    setTemplateTags([]);
+    setTemplateSubtasks([]);
+    setTemplateEstimatedMinutes(null);
 
     try {
       const created = await createTodo({
         title: tmpTodo.title,
         priority: tmpTodo.priority,
         effort: tmpTodo.effort,
+        estimatedMinutes: capturedEstimated,
         deadline: tmpTodo.deadline,
         projectId: tmpTodo.projectId,
         assignedTo: tmpTodo.assignedTo,
+        tags: capturedTags.length > 0 ? capturedTags : undefined,
       });
+      // Create subtasks from template in the background (non-blocking)
+      if (capturedSubtasks.length > 0) {
+        void (async () => {
+          for (const subtaskTitle of capturedSubtasks) {
+            try {
+              const sub = await createTodo({
+                title: subtaskTitle,
+                priority: "medium",
+                effort: "light",
+                parentId: created.id,
+                projectId: created.projectId,
+              });
+              setMyTodos((prev) => [...prev, sub]);
+            } catch { /* non-blocking, ignore subtask creation errors */ }
+          }
+        })();
+      }
       setMyTodos((prev) => prev.map((t) => t.id === tmpId ? created : t));
       setJustCreatedId(created.id);
       setTimeout(() => setJustCreatedId(null), 10000);
@@ -1131,6 +1171,23 @@ export default function TodosPage() {
               </button>
             </div>
             <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
+              <div className="col-span-2 sm:col-span-1">
+                <TaskTemplatePicker onApply={handleApplyTemplate} />
+              </div>
+              {templateTags.length > 0 && (
+                <div className="col-span-2 flex flex-wrap gap-1">
+                  {templateTags.map((tag) => (
+                    <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-zinc-100 dark:bg-slate-800 text-zinc-600 dark:text-slate-300 border border-zinc-200 dark:border-slate-700">
+                      #{tag}
+                    </span>
+                  ))}
+                  {templateSubtasks.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      +{templateSubtasks.length} s-tâches
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="relative">
                 <button
                   type="button"

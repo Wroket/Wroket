@@ -585,10 +585,22 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     return;
   }
 
-  const { firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays, notificationDeliveryMode, notificationDeliveryWebhookUrl, archivedTaskRetentionDays } = req.body as {
+  const {
+    firstName, lastName, effortMinutes, workingHours, skipNonWorkingDays,
+    notificationDeliveryMode, notificationDeliveryWebhookUrl, archivedTaskRetentionDays,
+    notificationTypesDisabledInApp, notificationTypesDisabledOutbound,
+    notificationOutboundFrequency, notificationDigestHour,
+    automationNotifyAssigneeOverdue, automationNotifyProjectOwnerOverdue,
+  } = req.body as {
     firstName?: unknown; lastName?: unknown; effortMinutes?: unknown; workingHours?: unknown; skipNonWorkingDays?: unknown;
     notificationDeliveryMode?: unknown; notificationDeliveryWebhookUrl?: unknown;
     archivedTaskRetentionDays?: unknown;
+    notificationTypesDisabledInApp?: unknown;
+    notificationTypesDisabledOutbound?: unknown;
+    notificationOutboundFrequency?: unknown;
+    notificationDigestHour?: unknown;
+    automationNotifyAssigneeOverdue?: unknown;
+    automationNotifyProjectOwnerOverdue?: unknown;
   };
   if (firstName !== undefined && typeof firstName !== "string") {
     throw new ValidationError("Prénom invalide");
@@ -654,6 +666,18 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     notificationDeliveryMode: notificationDeliveryMode !== undefined ? notificationDeliveryMode as NotificationDeliveryMode : undefined,
     notificationDeliveryWebhookUrl: validatedWebhookUrl,
     archivedTaskRetentionDays: validatedArchivedRetention,
+    notificationTypesDisabledInApp: Array.isArray(notificationTypesDisabledInApp)
+      ? notificationTypesDisabledInApp.filter((t): t is string => typeof t === "string")
+      : undefined,
+    notificationTypesDisabledOutbound: Array.isArray(notificationTypesDisabledOutbound)
+      ? notificationTypesDisabledOutbound.filter((t): t is string => typeof t === "string")
+      : undefined,
+    notificationOutboundFrequency: typeof notificationOutboundFrequency === "string"
+      ? notificationOutboundFrequency as import("../services/authService").NotificationOutboundFrequency
+      : undefined,
+    notificationDigestHour: typeof notificationDigestHour === "number" ? notificationDigestHour : undefined,
+    automationNotifyAssigneeOverdue: automationNotifyAssigneeOverdue !== undefined ? !!automationNotifyAssigneeOverdue : undefined,
+    automationNotifyProjectOwnerOverdue: automationNotifyProjectOwnerOverdue !== undefined ? !!automationNotifyProjectOwnerOverdue : undefined,
   });
   if (validatedArchivedRetention !== undefined) {
     void purgeArchivedTodosPastRetentionForUser(user.uid).catch((err) => {

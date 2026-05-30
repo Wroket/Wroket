@@ -75,6 +75,36 @@ const EMOJI: Record<string, string> = {
 
 function emoji(type: string): string { return EMOJI[type] ?? "🔔"; }
 
+interface DigestActionSummary {
+  overdue: number;
+  dueToday: number;
+  assigned: number;
+  completed: number;
+  other: number;
+}
+
+function buildActionSummary(entries: DigestEntry[]): DigestActionSummary {
+  const summary: DigestActionSummary = { overdue: 0, dueToday: 0, assigned: 0, completed: 0, other: 0 };
+  for (const e of entries) {
+    if (e.type === "deadline_today") summary.dueToday += 1;
+    else if (e.type === "deadline_approaching") summary.overdue += 1;
+    else if (e.type === "task_assigned") summary.assigned += 1;
+    else if (e.type === "task_completed") summary.completed += 1;
+    else summary.other += 1;
+  }
+  return summary;
+}
+
+function formatActionSummaryText(summary: DigestActionSummary): string {
+  const parts: string[] = [];
+  if (summary.dueToday > 0) parts.push(`${summary.dueToday} échéance${summary.dueToday > 1 ? "s" : ""} aujourd'hui`);
+  if (summary.overdue > 0) parts.push(`${summary.overdue} échéance${summary.overdue > 1 ? "s" : ""} proche${summary.overdue > 1 ? "s" : ""}`);
+  if (summary.assigned > 0) parts.push(`${summary.assigned} assignation${summary.assigned > 1 ? "s" : ""}`);
+  if (summary.completed > 0) parts.push(`${summary.completed} complétion${summary.completed > 1 ? "s" : ""}`);
+  if (parts.length === 0) return "Aucune action urgente identifiée.";
+  return `À traiter en priorité : ${parts.join(" · ")}.`;
+}
+
 /** Local hour in a given IANA timezone from a UTC Date. */
 function localHour(date: Date, timezone: string): number {
   try {
@@ -95,6 +125,8 @@ function localHour(date: Date, timezone: string): number {
 function buildDigestEmailHtml(entries: DigestEntry[]): string {
   const frontendUrl = process.env.FRONTEND_URL || "https://wroket.com";
   const lockupUrl = `${frontendUrl}/brand/wroket-lockup-neutral-email.svg`;
+  const summary = buildActionSummary(entries);
+  const summaryText = formatActionSummaryText(summary);
   const rows = entries
     .map((e) => {
       const link = e.data?.todoId
@@ -114,7 +146,8 @@ function buildDigestEmailHtml(entries: DigestEntry[]): string {
     <div style="text-align:center;padding:24px 0 16px">
       <img src="${lockupUrl}" alt="Wroket" width="180" height="54" style="display:inline-block;max-width:100%;height:auto" />
     </div>
-    <h2 style="color:#334155;text-align:center;font-size:16px;margin:0 0 16px">Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}</h2>
+    <h2 style="color:#334155;text-align:center;font-size:16px;margin:0 0 8px">Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}</h2>
+    <p style="color:#475569;text-align:center;font-size:13px;margin:0 0 16px;padding:0 12px">${escapeHtml(summaryText)}</p>
     <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">${rows}</table>
     <div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
       <p style="font-size:11px;color:#94a3b8;margin:0">Wroket — Gestion de tâches collaborative</p>
@@ -126,12 +159,13 @@ function buildDigestEmailHtml(entries: DigestEntry[]): string {
 // ── Slack / Teams / Google Chat digest ───────────────────────────────────────
 
 function buildSlackDigestBlocks(entries: DigestEntry[]): unknown {
+  const summaryText = formatActionSummaryText(buildActionSummary(entries));
   const blocks: unknown[] = [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `🔔 *Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}*`,
+        text: `🔔 *Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}*\n_${escapeSlackMrkdwn(summaryText)}_`,
       },
     },
     { type: "divider" },
@@ -150,8 +184,10 @@ function buildSlackDigestBlocks(entries: DigestEntry[]): unknown {
 }
 
 function buildTeamsDigestCard(entries: DigestEntry[]): unknown {
+  const summaryText = formatActionSummaryText(buildActionSummary(entries));
   const body: unknown[] = [
     { type: "TextBlock", text: `🔔 Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}`, weight: "Bolder", size: "Medium" },
+    { type: "TextBlock", text: summaryText, wrap: true, isSubtle: true, size: "Small", spacing: "Small" },
   ];
   for (const e of entries) {
     body.push({ type: "TextBlock", text: `${emoji(e.type)} **${e.title}**`, wrap: true, spacing: "Small" });
@@ -173,7 +209,12 @@ function buildTeamsDigestCard(entries: DigestEntry[]): unknown {
 }
 
 function buildGoogleChatDigestText(entries: DigestEntry[]): unknown {
-  const lines: string[] = [`🔔 *Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}*`, ""];
+  const summaryText = formatActionSummaryText(buildActionSummary(entries));
+  const lines: string[] = [
+    `🔔 *Résumé Wroket — ${entries.length} notification${entries.length > 1 ? "s" : ""}*`,
+    summaryText,
+    "",
+  ];
   for (const e of entries) {
     lines.push(`${emoji(e.type)} *${e.title}*`);
     lines.push(e.message);

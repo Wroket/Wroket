@@ -266,6 +266,10 @@ export interface AuthUser {
   stripeSubscriptionStatus?: string | null;
   /** ISO 8601 end of current Stripe billing period, when known. */
   billingCurrentPeriodEnd?: string | null;
+  /** Opt-in automation: notify me when assigned tasks are overdue. */
+  automationNotifyAssigneeOverdue?: boolean;
+  /** Opt-in automation: notify me when tasks in my projects are overdue. */
+  automationNotifyProjectOwnerOverdue?: boolean;
 }
 
 interface StoredUser {
@@ -329,6 +333,8 @@ interface StoredUser {
   email2faEnrollExpiresAt?: number;
   email2faDisableHash?: string;
   email2faDisableExpiresAt?: number;
+  automationNotifyAssigneeOverdue?: boolean;
+  automationNotifyProjectOwnerOverdue?: boolean;
 }
 
 interface StoredSession {
@@ -511,6 +517,8 @@ function toAuthUser(user: StoredUser): AuthUser {
     notificationDigestHour: typeof user.notificationDigestHour === "number" ? Math.max(0, Math.min(23, Math.floor(user.notificationDigestHour))) : 8,
     archivedTaskRetentionDays: readArchivedTaskRetentionDays(user),
     preferredBookingProvider: user.preferredBookingProvider,
+    automationNotifyAssigneeOverdue: user.automationNotifyAssigneeOverdue === true,
+    automationNotifyProjectOwnerOverdue: user.automationNotifyProjectOwnerOverdue === true,
   };
 }
 
@@ -856,6 +864,8 @@ export interface UpdateProfileInput {
   notificationOutboundFrequency?: NotificationOutboundFrequency;
   notificationDigestHour?: number;
   archivedTaskRetentionDays?: number;
+  automationNotifyAssigneeOverdue?: boolean;
+  automationNotifyProjectOwnerOverdue?: boolean;
 }
 
 const HH_MM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -973,6 +983,12 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
       throw new ValidationError("archivedTaskRetentionDays doit être 0 (désactivé) ou entre 1 et 365");
     }
     user.archivedTaskRetentionDays = d;
+  }
+  if (input.automationNotifyAssigneeOverdue !== undefined) {
+    user.automationNotifyAssigneeOverdue = !!input.automationNotifyAssigneeOverdue;
+  }
+  if (input.automationNotifyProjectOwnerOverdue !== undefined) {
+    user.automationNotifyProjectOwnerOverdue = !!input.automationNotifyProjectOwnerOverdue;
   }
 
   usersByUid.set(uid, user);

@@ -71,6 +71,7 @@ function assertCalendarIntegrations(uid: string): void {
   if (!getEntitlementsForUid(uid).integrations) {
     throw new ForbiddenError(
       "Google Calendar, Outlook et la réservation sur calendrier externe nécessitent le palier Small teams (pack intégrations) ou le statut early bird (attribué par un administrateur).",
+      "CALENDAR_INTEGRATIONS_PLAN_REQUIRED",
     );
   }
 }
@@ -322,20 +323,24 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const { start, end, force } = req.body as { start: string; end: string; force?: unknown };
 
-  if (!start || !end) throw new ValidationError("start and end required");
-  if (typeof start !== "string" || typeof end !== "string") throw new ValidationError("start and end must be strings");
+  if (!start || !end) throw new ValidationError("start and end required", "CALENDAR_SLOT_MISSING_RANGE");
+  if (typeof start !== "string" || typeof end !== "string") {
+    throw new ValidationError("start and end must be strings", "CALENDAR_SLOT_RANGE_TYPE");
+  }
   const startDate = new Date(start);
   const endDate = new Date(end);
-  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) throw new ValidationError("Invalid date format");
-  if (startDate >= endDate) throw new ValidationError("start must be before end");
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    throw new ValidationError("Invalid date format", "CALENDAR_SLOT_INVALID_DATE");
+  }
+  if (startDate >= endDate) throw new ValidationError("start must be before end", "CALENDAR_SLOT_INVALID_RANGE");
 
   const MAX_SLOT_DAYS = 7;
   if (endDate.getTime() - startDate.getTime() > MAX_SLOT_DAYS * 24 * 3600_000) {
-    throw new ValidationError("Slot duration too long");
+    throw new ValidationError("Slot duration too long", "CALENDAR_SLOT_TOO_LONG");
   }
 
   const found = findTodoForUser(uid, todoId);
-  if (!found) throw new NotFoundError("Tâche introuvable");
+  if (!found) throw new NotFoundError("Tâche introuvable", "CALENDAR_TODO_NOT_FOUND");
   const { todo } = found;
 
   if (!force) {
@@ -347,7 +352,13 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
         start: c.start,
         end: c.end,
       }));
-      res.status(409).json({ conflict: true, conflicts: safeConflicts });
+      const requestId = (req as Request & { id?: string }).id;
+      res.status(409).json({
+        conflict: true,
+        code: "CALENDAR_SLOT_CONFLICT",
+        requestId,
+        conflicts: safeConflicts,
+      });
       return;
     }
   }
@@ -364,12 +375,14 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   if (bookingTarget && !getEntitlementsForUid(uid).integrations) {
     throw new ForbiddenError(
       "La réservation sur Google Calendar ou Outlook nécessite le palier Small teams (pack intégrations) ou le statut early bird (attribué par un administrateur).",
+      "CALENDAR_INTEGRATIONS_PLAN_REQUIRED",
     );
   }
 
   if (hasCalendarIntegration && !bookingTarget) {
     throw new ValidationError(
       "Configurez un calendrier par défaut pour la réservation (Mes agendas).",
+      "CALENDAR_DEFAULT_BOOKING_REQUIRED",
     );
   }
 
@@ -1066,13 +1079,13 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const requestStart = typeof body.start === "string" ? body.start : undefined;
   const requestEnd = typeof body.end === "string" ? body.end : undefined;
   if ((requestStart && !requestEnd) || (!requestStart && requestEnd)) {
-    throw new ValidationError("start et end doivent être fournis ensemble");
+    throw new ValidationError("start et end doivent être fournis ensemble", "MEET_INVALID_RANGE");
   }
   if (requestStart && requestEnd) {
     const s = new Date(requestStart);
     const e = new Date(requestEnd);
     if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || s >= e) {
-      throw new ValidationError("Plage horaire invalide");
+      throw new ValidationError("Plage horaire invalide", "MEET_INVALID_RANGE");
     }
   }
   const attendees = Array.isArray(body.attendees)
@@ -1084,7 +1097,7 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
     : [];
   for (const email of attendees) {
     if (!email.includes("@") || email.length < 5) {
-      throw new ValidationError("Un ou plusieurs invités ont un email invalide");
+      throw new ValidationError("Un ou plusieurs invités ont un email invalide", "MEET_INVALID_INVITEE_EMAIL");
     }
   }
   const summary = typeof body.summary === "string" && body.summary.trim().length > 0
@@ -1232,7 +1245,7 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
   if (!todo.scheduledSlot?.calendarEventId || !todo.scheduledSlot?.meetingUrl) {
-    throw new ValidationError("Aucune réunion existante à modifier.");
+    throw new ValidationError("Aucune réunion existante à modifier.", "MEET_NOT_FOUND");
   }
 
   const isMicrosoftTeams =
@@ -1248,11 +1261,11 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
   };
   const requestStart = typeof body.start === "string" ? body.start : todo.scheduledSlot.start;
   const requestEnd = typeof body.end === "string" ? body.end : todo.scheduledSlot.end;
-  if (!requestStart || !requestEnd) throw new ValidationError("Plage horaire invalide");
+  if (!requestStart || !requestEnd) throw new ValidationError("Plage horaire invalide", "MEET_INVALID_RANGE");
   const s = new Date(requestStart);
   const e = new Date(requestEnd);
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || s >= e) {
-    throw new ValidationError("Plage horaire invalide");
+    throw new ValidationError("Plage horaire invalide", "MEET_INVALID_RANGE");
   }
   const attendees = Array.isArray(body.attendees)
     ? body.attendees
@@ -1263,7 +1276,7 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
     : (todo.scheduledSlot.meetingInvitees ?? []);
   for (const email of attendees) {
     if (!email.includes("@") || email.length < 5) {
-      throw new ValidationError("Un ou plusieurs invités ont un email invalide");
+      throw new ValidationError("Un ou plusieurs invités ont un email invalide", "MEET_INVALID_INVITEE_EMAIL");
     }
   }
 
@@ -1280,7 +1293,7 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
     const bookingAccountId =
       todo.scheduledSlot.bookingAccountId ?? getMicrosoftBookingTarget(uid)?.accountId;
     if (!bookingAccountId) {
-      throw new ValidationError("Compte Outlook introuvable pour mettre à jour la réunion Teams.");
+      throw new ValidationError("Compte Outlook introuvable pour mettre à jour la réunion Teams.", "MEET_ACCOUNT_NOT_FOUND");
     }
     const ok = await patchMicrosoftCalendarEvent(
       uid,
@@ -1292,7 +1305,7 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
       description,
       attendees,
     );
-    if (!ok) throw new ValidationError("Impossible de modifier la réunion Microsoft Teams.");
+    if (!ok) throw new ValidationError("Impossible de modifier la réunion Microsoft Teams.", "MEET_UPDATE_FAILED");
 
     const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
       scheduledSlot: {
@@ -1332,7 +1345,7 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
     bookingAccountId ?? undefined,
     attendees,
   );
-  if (!ok) throw new ValidationError("Impossible de modifier la réunion Google Meet.");
+  if (!ok) throw new ValidationError("Impossible de modifier la réunion Google Meet.", "MEET_UPDATE_FAILED");
 
   const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
     scheduledSlot: {

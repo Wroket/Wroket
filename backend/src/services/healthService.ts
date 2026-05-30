@@ -1,4 +1,5 @@
 import { pingDatastore, getPersistenceMetrics } from "../persistence";
+import { getTodosDriftStatus, type TodosDriftStatus } from "./todosDriftMonitor";
 
 export interface HealthStatus {
   status: "ok";
@@ -34,6 +35,7 @@ export interface ReadinessStatus {
    * No user data is exposed — only counters and timestamps.
    */
   persistence: PersistenceHealthMetrics;
+  todosDrift: TodosDriftStatus;
 }
 
 /**
@@ -49,12 +51,15 @@ export interface ReadinessStatus {
 export async function getReadinessStatus(): Promise<ReadinessStatus> {
   const store = await pingDatastore();
   const persistence = getPersistenceMetrics();
-  const ok = store.ok && persistence.consecutiveFlushFailures === 0;
+  const todosDrift = getTodosDriftStatus();
+  const driftHealthy = todosDrift.status !== "drift" && todosDrift.status !== "error";
+  const ok = store.ok && persistence.consecutiveFlushFailures === 0 && driftHealthy;
   return {
     status: ok ? "ok" : "degraded",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     store,
     persistence,
+    todosDrift,
   };
 }

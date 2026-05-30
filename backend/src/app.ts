@@ -23,6 +23,7 @@ import syncEventsRoutes from "./routes/syncEventsRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
 import billingRoutes from "./routes/billingRoutes";
 import marketingRoutes from "./routes/marketingRoutes";
+import templateRoutes from "./routes/templateRoutes";
 
 dotenv.config();
 
@@ -93,6 +94,7 @@ app.use("/webhooks", apiLimiter, webhookRoutes);
 app.use("/admin", apiLimiter, adminRoutes);
 app.use("/notes", apiLimiter, noteRoutes);
 app.use("/attachments", apiLimiter, attachmentRoutes);
+app.use("/templates", apiLimiter, templateRoutes);
 /** SSE spike: long-lived connections — not counted by per-minute REST limiter. */
 app.use("/sync", syncEventsRoutes);
 

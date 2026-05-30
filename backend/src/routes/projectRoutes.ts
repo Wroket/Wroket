@@ -21,6 +21,8 @@ import {
   convertSubprojectToPhase,
   exportProject,
   importProjectTasks,
+  getSteering,
+  exportSteering,
 } from "../controllers/projectController";
 import { uploadMiddleware, preview, confirm } from "../controllers/importController";
 
@@ -38,6 +40,8 @@ router.get("/all-todos", requireAuth, getAllTodos);
 router.get("/:id/access", requireAuth, getAccess);
 router.put("/:id/access", requireAuth, putAccess);
 router.get("/:id/export", requireAuth, exportProject);
+router.get("/:id/steering", requireAuth, getSteering);
+router.get("/:id/steering/export", requireAuth, exportSteering);
 router.post("/:id/import", requireAuth, upload.single("file"), importProjectTasks);
 router.get("/:id", requireAuth, get);
 router.put("/:id", requireAuth, update);

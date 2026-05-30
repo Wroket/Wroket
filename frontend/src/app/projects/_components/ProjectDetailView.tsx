@@ -64,7 +64,10 @@ import PageHelpButton from "@/components/PageHelpButton";
 import DashboardImportModal from "@/components/DashboardImportModal";
 import TaskImportModal from "@/components/TaskImportModal";
 
-import GanttChart from "./GanttChart";
+import GanttChart, { hasGanttExportData } from "./GanttChart";
+import ProjectSteeringPanel from "./ProjectSteeringPanel";
+import { captureElementToPng, downloadSteeringPdf } from "@/lib/steeringPdfExport";
+import { computeProjectSteering } from "@/lib/projectSteering";
 import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
 import { formatMins } from "./types";
 import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab, Team } from "./types";
@@ -262,6 +265,9 @@ export default function ProjectDetailView({
 
   const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
   const [boardDraggedId, setBoardDraggedId] = useState<string | null>(null);
+  const steeringPanelRef = useRef<HTMLDivElement>(null);
+  const ganttExportRef = useRef<HTMLDivElement>(null);
+  const [exportingSteeringPdf, setExportingSteeringPdf] = useState(false);
 
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -292,6 +298,51 @@ export default function ProjectDetailView({
     }
     return map;
   }, [orderedPhases, projectTodos, locale]);
+
+  const handleExportSteeringPdf = useCallback(async () => {
+    const steeringEl = steeringPanelRef.current;
+    if (!steeringEl) return;
+    setExportingSteeringPdf(true);
+    const prevSteeringBg = steeringEl.style.backgroundColor;
+    const prevSteeringColor = steeringEl.style.color;
+    try {
+      const hideEls = steeringEl.querySelectorAll("[data-export-hide]");
+      hideEls.forEach((el) => { (el as HTMLElement).style.visibility = "hidden"; });
+      steeringEl.style.backgroundColor = "#ffffff";
+      steeringEl.style.color = "#18181b";
+
+      const snap = computeProjectSteering(selectedProject, projectTodos);
+      const steeringPng = await captureElementToPng(steeringEl);
+
+      hideEls.forEach((el) => { (el as HTMLElement).style.visibility = ""; });
+      steeringEl.style.backgroundColor = prevSteeringBg;
+      steeringEl.style.color = prevSteeringColor;
+
+      let ganttPng: string | null = null;
+      if (hasGanttExportData(projectTodos) && ganttExportRef.current) {
+        ganttPng = await captureElementToPng(ganttExportRef.current);
+      }
+
+      await downloadSteeringPdf({
+        projectName: selectedProject.name,
+        locale,
+        generatedAt: snap.generatedAt,
+        steeringPng,
+        ganttPng,
+        ganttTitle: t("gantt.title"),
+        noGanttMessage: t("projects.steeringExportPdfNoGantt"),
+      });
+    } catch (e) {
+      steeringEl.style.backgroundColor = prevSteeringBg;
+      steeringEl.style.color = prevSteeringColor;
+      steeringEl.querySelectorAll("[data-export-hide]").forEach((el) => {
+        (el as HTMLElement).style.visibility = "";
+      });
+      toast.error(e instanceof Error ? e.message : t("toast.steeringPdfError"));
+    } finally {
+      setExportingSteeringPdf(false);
+    }
+  }, [selectedProject, projectTodos, locale, t, toast]);
 
   const subtasksByParent = useMemo(() => {
     const byOrderThenCreation = (a: Todo, b: Todo) => {
@@ -1481,6 +1532,34 @@ export default function ProjectDetailView({
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* PMO steering summary */}
+        {!loadingTodos && (
+          <ProjectSteeringPanel
+            ref={steeringPanelRef}
+            project={selectedProject}
+            todos={projectTodos}
+            t={t}
+            locale={locale}
+            onExportPdf={handleExportSteeringPdf}
+            exportingPdf={exportingSteeringPdf}
+          />
+        )}
+
+        {!loadingTodos && hasGanttExportData(projectTodos) && (
+          <div aria-hidden className="fixed left-[-10000px] top-0 pointer-events-none">
+            <div ref={ganttExportRef} className="bg-white p-4 text-zinc-900">
+              <h3 className="text-sm font-semibold text-zinc-700 mb-4">{t("gantt.title")}</h3>
+              <GanttChart
+                variant="export"
+                phases={orderedPhases}
+                tasks={projectTodos}
+                t={t}
+                locale={locale}
+              />
+            </div>
           </div>
         )}
 

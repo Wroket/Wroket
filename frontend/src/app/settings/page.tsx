@@ -163,17 +163,7 @@ function SettingsContent() {
     SECTIONS.some((s) => s.key === tabParam) ? (tabParam as Section) : "profile",
   );
 
-  const navSections = SECTIONS.filter(
-    (s) => s.key !== "integrations" || user?.entitlements?.integrations === true,
-  );
-
-  useEffect(() => {
-    if (!user) return;
-    if (active === "integrations" && user.entitlements?.integrations !== true) {
-      const t = setTimeout(() => setActive("profile"), 0);
-      return () => clearTimeout(t);
-    }
-  }, [user, active]);
+  const hasIntegrations = user?.entitlements?.integrations === true;
 
   return (
     <AppShell>
@@ -200,7 +190,7 @@ function SettingsContent() {
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
           {/* ── Section nav ── */}
           <nav className="flex md:flex-col md:w-52 md:shrink-0 gap-1 overflow-x-auto pb-1 md:pb-0 md:overflow-x-visible">
-            {navSections.map((s) => (
+            {SECTIONS.map((s) => (
               <button
                 key={s.key}
                 onClick={() => setActive(s.key)}
@@ -223,12 +213,7 @@ function SettingsContent() {
             {active === "languages" && <LanguagesSection />}
             {active === "tasks" && <TasksSection />}
             {active === "subscription" && <SubscriptionSection />}
-            {active === "integrations" &&
-              (user?.entitlements?.integrations === true ? (
-                <IntegrationsSection />
-              ) : (
-                <IntegrationsLockedNotice />
-              ))}
+            {active === "integrations" && <IntegrationsSection hasIntegrations={hasIntegrations} />}
             {active === "history" && <HistorySection />}
             {active === "admin" && <AdminSection />}
           </div>
@@ -1198,6 +1183,88 @@ function TasksSection() {
           {arSaved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
         </div>
       </div>
+
+    </div>
+  );
+}
+
+function AutomationSettingsBlock({
+  sectionCardCls,
+  saveBtnCls,
+}: {
+  sectionCardCls: string;
+  saveBtnCls: string;
+}) {
+  const { t } = useLocale();
+  const { toast } = useToast();
+  const [automationAssigneeOverdue, setAutomationAssigneeOverdue] = useState(false);
+  const [automationProjectOwnerOverdue, setAutomationProjectOwnerOverdue] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await getMe();
+        if (!cancelled) {
+          setAutomationAssigneeOverdue(me.automationNotifyAssigneeOverdue ?? false);
+          setAutomationProjectOwnerOverdue(me.automationNotifyProjectOwnerOverdue ?? false);
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await updateProfile({
+        automationNotifyAssigneeOverdue: automationAssigneeOverdue,
+        automationNotifyProjectOwnerOverdue: automationProjectOwnerOverdue,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={sectionCardCls}>
+      <div>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.automationTitle")}</h3>
+        <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.automationDesc")}</p>
+      </div>
+      <div className="space-y-3">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={automationAssigneeOverdue}
+            onChange={(e) => setAutomationAssigneeOverdue(e.target.checked)}
+            className="mt-0.5 accent-emerald-600"
+          />
+          <span className="text-sm text-zinc-800 dark:text-slate-200">{t("settings.automationAssigneeOverdue")}</span>
+        </label>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={automationProjectOwnerOverdue}
+            onChange={(e) => setAutomationProjectOwnerOverdue(e.target.checked)}
+            className="mt-0.5 accent-emerald-600"
+          />
+          <span className="text-sm text-zinc-800 dark:text-slate-200">{t("settings.automationProjectOwnerOverdue")}</span>
+        </label>
+      </div>
+      <div className="pt-3 border-t border-zinc-200 dark:border-slate-700 flex items-center gap-3">
+        <button type="button" onClick={() => void handleSave()} disabled={saving} className={saveBtnCls}>
+          {saving ? t("settings.saving") : t("settings.automationSave")}
+        </button>
+        {saved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.automationSaved")}</span>}
+      </div>
     </div>
   );
 }
@@ -1439,17 +1506,37 @@ function SubscriptionSection() {
   );
 }
 
-function IntegrationsLockedNotice() {
+function IntegrationsPremiumGate({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: ReactNode;
+}) {
   const { t } = useLocale();
+  if (enabled) return <>{children}</>;
   return (
-    <div className="space-y-3 max-w-xl">
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsLockedTitle")}</h3>
-      <p className="text-sm text-zinc-600 dark:text-slate-400">{t("settings.integrationsLockedDesc")}</p>
+    <div className="relative rounded-md border border-zinc-200 dark:border-slate-700 overflow-hidden">
+      <div className="pointer-events-none select-none opacity-45 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30" aria-hidden="true">
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center bg-white/55 dark:bg-slate-900/65 p-4">
+        <div className="max-w-sm text-center space-y-2 rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsLockedTitle")}</p>
+          <p className="text-xs text-zinc-600 dark:text-slate-400">{t("settings.integrationsPremiumLockedHint")}</p>
+          <Link
+            href="/pricing"
+            className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
+          >
+            {t("settings.viewAllPlans")}
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
 
-function IntegrationsSection() {
+function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
@@ -1484,9 +1571,8 @@ function IntegrationsSection() {
     let cancelled = false;
     (async () => {
       try {
-        const [list, me] = await Promise.all([getWebhooks(), getMe()]);
+        const me = await getMe();
         if (!cancelled) {
-          setWebhooks(list);
           setDeliveryMode(me.notificationDeliveryMode ?? "none");
           setDeliveryUrl(me.notificationDeliveryWebhookUrl ?? "");
           setDisabledInApp((me.notificationTypesDisabledInApp ?? []) as NotificationType[]);
@@ -1494,11 +1580,15 @@ function IntegrationsSection() {
           setOutboundFrequency(me.notificationOutboundFrequency ?? "immediate");
           setDigestHour(me.notificationDigestHour ?? 8);
         }
+        if (hasIntegrations) {
+          const list = await getWebhooks();
+          if (!cancelled) setWebhooks(list);
+        }
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [hasIntegrations]);
 
   const handleSaveDelivery = async () => {
     setSavingDelivery(true);
@@ -1526,7 +1616,7 @@ function IntegrationsSection() {
     try {
       await updateProfile({
         notificationTypesDisabledInApp: disabledInApp,
-        notificationTypesDisabledOutbound: disabledOutbound,
+        ...(hasIntegrations ? { notificationTypesDisabledOutbound: disabledOutbound } : {}),
       });
       setTypesSaved(true);
       setTimeout(() => setTypesSaved(false), 4000);
@@ -1663,63 +1753,126 @@ function IntegrationsSection() {
     { mode: "google_chat", tKey: "settings.deliveryGoogleChat" },
   ];
 
+  const sectionCardCls =
+    "rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 p-5 space-y-4";
+  const saveBtnCls =
+    "rounded bg-emerald-600 dark:bg-emerald-700 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-60 transition-colors shadow-sm";
+
+  const deliveryBlock = (
+    <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
+      <div>
+        <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notificationDeliveryTitle")}</h4>
+        <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notificationDeliveryDesc")}</p>
+      </div>
+      <div className="space-y-2">
+        {deliveryRadios.map(({ mode, tKey }) => (
+          <label key={mode} className={`flex items-start gap-2 ${hasIntegrations ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+            <input
+              type="radio"
+              name="notification-delivery"
+              checked={deliveryMode === mode}
+              onChange={() => setDeliveryMode(mode)}
+              disabled={!hasIntegrations}
+              className="mt-1"
+            />
+            <span className="text-sm text-zinc-800 dark:text-slate-200">{t(tKey)}</span>
+          </label>
+        ))}
+      </div>
+      {(deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && (
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.deliveryWebhookUrl")}</label>
+          <input
+            type="url"
+            value={deliveryUrl}
+            onChange={(e) => setDeliveryUrl(e.target.value)}
+            disabled={!hasIntegrations}
+            placeholder={
+              deliveryMode === "slack"
+                ? "https://hooks.slack.com/services/…"
+                : deliveryMode === "teams"
+                  ? "https://…webhook.office.com/…"
+                  : "https://chat.googleapis.com/v1/spaces/…/messages?key=…"
+            }
+            className={inputCls}
+          />
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void handleSaveDelivery()}
+          disabled={
+            !hasIntegrations
+            || savingDelivery
+            || ((deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && !deliveryUrl.trim())
+          }
+          className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
+        >
+          {savingDelivery ? t("settings.saving") : t("settings.deliverySave")}
+        </button>
+        {deliverySaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.deliverySaved")}</span>}
+      </div>
+    </div>
+  );
+
+  const frequencyBlock = (
+    <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
+      <div>
+        <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notifFrequencyTitle")}</h4>
+        <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notifFrequencyDesc")}</p>
+      </div>
+      <div className="space-y-2">
+        {(["immediate", "hourly_digest", "daily_digest"] as NotificationOutboundFrequency[]).map((freq) => (
+          <label key={freq} className={`flex items-center gap-2 ${hasIntegrations ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+            <input
+              type="radio"
+              name="notif-frequency"
+              checked={outboundFrequency === freq}
+              onChange={() => setOutboundFrequency(freq)}
+              disabled={!hasIntegrations}
+            />
+            <span className="text-sm text-zinc-800 dark:text-slate-200">
+              {freq === "immediate" ? t("settings.freqImmediate") : freq === "hourly_digest" ? t("settings.freqHourly") : t("settings.freqDaily")}
+            </span>
+          </label>
+        ))}
+      </div>
+      {outboundFrequency === "daily_digest" && (
+        <div className="flex items-center gap-3 mt-1">
+          <label className="text-xs text-zinc-500 dark:text-slate-400 shrink-0">{t("settings.freqDailyHour")}</label>
+          <input
+            type="number"
+            min={0}
+            max={23}
+            value={digestHour}
+            onChange={(e) => setDigestHour(Math.max(0, Math.min(23, Number(e.target.value))))}
+            disabled={!hasIntegrations}
+            className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+          />
+          <span className="text-xs text-zinc-400 dark:text-slate-500">h</span>
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void handleSaveFrequency()}
+          disabled={!hasIntegrations || savingFreq}
+          className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
+        >
+          {savingFreq ? t("settings.saving") : t("settings.freqSave")}
+        </button>
+        {freqSaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.freqSaved")}</span>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
       <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.integrationsDesc")}</p>
 
-      <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
-        <div>
-          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notificationDeliveryTitle")}</h4>
-          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notificationDeliveryDesc")}</p>
-        </div>
-        <div className="space-y-2">
-          {deliveryRadios.map(({ mode, tKey }) => (
-            <label key={mode} className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="notification-delivery"
-                checked={deliveryMode === mode}
-                onChange={() => setDeliveryMode(mode)}
-                className="mt-1"
-              />
-              <span className="text-sm text-zinc-800 dark:text-slate-200">{t(tKey)}</span>
-            </label>
-          ))}
-        </div>
-        {(deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && (
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.deliveryWebhookUrl")}</label>
-            <input
-              type="url"
-              value={deliveryUrl}
-              onChange={(e) => setDeliveryUrl(e.target.value)}
-              placeholder={
-                deliveryMode === "slack"
-                  ? "https://hooks.slack.com/services/…"
-                  : deliveryMode === "teams"
-                    ? "https://…webhook.office.com/…"
-                    : "https://chat.googleapis.com/v1/spaces/…/messages?key=…"
-              }
-              className={inputCls}
-            />
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void handleSaveDelivery()}
-            disabled={
-              savingDelivery
-              || ((deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && !deliveryUrl.trim())
-            }
-            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
-          >
-            {savingDelivery ? t("settings.saving") : t("settings.deliverySave")}
-          </button>
-          {deliverySaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.deliverySaved")}</span>}
-        </div>
-      </div>
+      <AutomationSettingsBlock sectionCardCls={sectionCardCls} saveBtnCls={saveBtnCls} />
 
       {/* ── Notification type filters ── */}
       <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
@@ -1733,7 +1886,14 @@ function IntegrationsSection() {
               <tr>
                 <th className="text-left text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 pr-4">{t("settings.webhookEvents")}</th>
                 <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">{t("settings.notifColInApp")}</th>
-                <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">{t("settings.notifColOutbound")}</th>
+                <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">
+                  {t("settings.notifColOutbound")}
+                  {!hasIntegrations && (
+                    <span className="block font-normal text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5" title={t("settings.notifColOutboundLocked")}>
+                      Small teams
+                    </span>
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-slate-700/50">
@@ -1755,7 +1915,8 @@ function IntegrationsSection() {
                       <input
                         type="checkbox"
                         checked={outboundEnabled}
-                        disabled={!inAppEnabled}
+                        disabled={!hasIntegrations || !inAppEnabled}
+                        title={!hasIntegrations ? t("settings.notifColOutboundLocked") : undefined}
                         onChange={() => toggleOutbound(key as NotificationType)}
                         className="accent-emerald-600 disabled:opacity-40"
                       />
@@ -1766,6 +1927,9 @@ function IntegrationsSection() {
             </tbody>
           </table>
         </div>
+        {!hasIntegrations && (
+          <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.notifColOutboundLocked")}</p>
+        )}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -1779,55 +1943,21 @@ function IntegrationsSection() {
         </div>
       </div>
 
-      {/* ── Outbound frequency ── */}
-      <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
-        <div>
-          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notifFrequencyTitle")}</h4>
-          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notifFrequencyDesc")}</p>
-        </div>
-        <div className="space-y-2">
-          {(["immediate", "hourly_digest", "daily_digest"] as NotificationOutboundFrequency[]).map((freq) => (
-            <label key={freq} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="notif-frequency"
-                checked={outboundFrequency === freq}
-                onChange={() => setOutboundFrequency(freq)}
-              />
-              <span className="text-sm text-zinc-800 dark:text-slate-200">
-                {freq === "immediate" ? t("settings.freqImmediate") : freq === "hourly_digest" ? t("settings.freqHourly") : t("settings.freqDaily")}
-              </span>
-            </label>
-          ))}
-        </div>
-        {outboundFrequency === "daily_digest" && (
-          <div className="flex items-center gap-3 mt-1">
-            <label className="text-xs text-zinc-500 dark:text-slate-400 shrink-0">{t("settings.freqDailyHour")}</label>
-            <input
-              type="number"
-              min={0}
-              max={23}
-              value={digestHour}
-              onChange={(e) => setDigestHour(Math.max(0, Math.min(23, Number(e.target.value))))}
-              className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-            />
-            <span className="text-xs text-zinc-400 dark:text-slate-500">h</span>
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void handleSaveFrequency()}
-            disabled={savingFreq}
-            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
-          >
-            {savingFreq ? t("settings.saving") : t("settings.freqSave")}
-          </button>
-          {freqSaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.freqSaved")}</span>}
-        </div>
-      </div>
+      <IntegrationsPremiumGate enabled={hasIntegrations}>{deliveryBlock}</IntegrationsPremiumGate>
+      <IntegrationsPremiumGate enabled={hasIntegrations}>{frequencyBlock}</IntegrationsPremiumGate>
 
-      {loading ? (
+      {!hasIntegrations ? (
+        <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-slate-800/30">
+          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.webhooksAdvancedTitle")}</h4>
+          <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.integrationsPremiumLockedHint")}</p>
+          <Link
+            href="/pricing"
+            className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
+          >
+            {t("settings.viewAllPlans")}
+          </Link>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center py-8">
           <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>

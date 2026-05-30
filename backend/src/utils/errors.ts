@@ -1,25 +1,29 @@
 export class AppError extends Error {
-  constructor(public statusCode: number, message: string) {
+  constructor(
+    public statusCode: number,
+    message: string,
+    public readonly code?: string,
+  ) {
     super(message);
     this.name = "AppError";
   }
 }
 
 export class NotFoundError extends AppError {
-  constructor(message = "Resource not found") {
-    super(404, message);
+  constructor(message = "Resource not found", code?: string) {
+    super(404, message, code);
   }
 }
 
 export class ForbiddenError extends AppError {
-  constructor(message = "Forbidden") {
-    super(403, message);
+  constructor(message = "Forbidden", code?: string) {
+    super(403, message, code);
   }
 }
 
 export class ValidationError extends AppError {
-  constructor(message: string) {
-    super(400, message);
+  constructor(message: string, code?: string) {
+    super(400, message, code);
   }
 }
 

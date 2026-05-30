@@ -372,7 +372,7 @@ const translations = {
   "dashboard.taskCount": { fr: "tâche", en: "task" },
   "dashboard.tasksCount": { fr: "tâches", en: "tasks" },
   "dashboard.upcomingDeadlines": { fr: "Échéances proches", en: "Upcoming deadlines" },
-  "dashboard.seeAllTasks": { fr: "Toutes mes tâches", en: "See all tasks" },
+  "dashboard.seeAllTasks": { fr: "Mes tâches", en: "My tasks" },
   "dashboard.upcomingDeadlinesMore": {
     fr: "… et {count} autre(s) tâche(s) avec échéance",
     en: "… and {count} more task(s) with a deadline",
@@ -381,6 +381,12 @@ const translations = {
   "dashboard.recentCompleted": { fr: "Dernières tâches accomplies", en: "Recently completed" },
   "dashboard.noCompleted": { fr: "Aucune tâche accomplie", en: "No completed tasks" },
   "dashboard.viewAll": { fr: "Voir toutes les tâches →", en: "View all tasks →" },
+  "dashboard.weekFocusTitle": { fr: "Ma semaine", en: "My week" },
+  "dashboard.weekFocusHint": { fr: "", en: "" },
+  "dashboard.weekFocusNoTask": { fr: "Aucune priorité cette semaine", en: "No priority this week" },
+  "dashboard.weekFocusOpenAgenda": { fr: "Agenda", en: "Calendar" },
+  "dashboard.weekFocusOpenTasks": { fr: "Mes tâches", en: "My tasks" },
+  "dashboard.weekFocusOverdue": { fr: "Retard", en: "Overdue" },
   "dashboard.weeklySummary": { fr: "Bilan de la semaine", en: "Weekly summary" },
   "dashboard.weekCompleted": { fr: "Accomplies", en: "Completed" },
   "dashboard.onTime": { fr: "Dans les temps", en: "On time" },
@@ -690,8 +696,15 @@ const translations = {
 
   "settings.integrations": { fr: "Intégrations", en: "Integrations" },
   "settings.integrationsTitle": { fr: "Webhooks & Intégrations", en: "Webhooks & Integrations" },
-  "settings.integrationsDesc": { fr: "Recevez les notifications Wroket dans Slack, Discord, Microsoft Teams ou Google Chat.", en: "Receive Wroket notifications in Slack, Discord, Microsoft Teams, or Google Chat." },
+  "settings.integrationsDesc": {
+    fr: "Automatisations, filtres de notifications et livraison externe (email, Slack, Teams, Google Chat) avec digests horaires ou quotidiens.",
+    en: "Automations, notification filters, and external delivery (email, Slack, Teams, Google Chat) with hourly or daily digests.",
+  },
   "settings.integrationsLockedTitle": { fr: "Intégrations — palier Small teams", en: "Integrations — Small teams plan" },
+  "settings.integrationsPremiumLockedHint": {
+    fr: "Livraison externe, digests et webhooks avancés : palier Small teams.",
+    en: "External delivery, digests, and advanced webhooks: Small teams plan.",
+  },
   "settings.integrationsLockedDesc": {
     fr: "Les webhooks et la livraison des notifications vers Slack, Teams, Google Chat ou par e-mail sont disponibles à partir du palier Small teams. Jusque-là, les notifications restent dans l’application uniquement.",
     en: "Webhooks and notification delivery to Slack, Teams, Google Chat, or email are available from the Small teams tier. Until then, notifications stay in-app only.",
@@ -743,6 +756,11 @@ const translations = {
   "settings.notifTypesDesc": { fr: "Choisissez quels événements apparaissent dans l'application et lesquels sont transmis sur votre canal de livraison (email, Slack…).", en: "Choose which events appear in the app and which are forwarded to your delivery channel (email, Slack…)." },
   "settings.notifColInApp": { fr: "In-app", en: "In-app" },
   "settings.notifColOutbound": { fr: "Livraison", en: "Delivery" },
+  "settings.notifColOutboundLocked": {
+    fr: "Colonne Livraison réservée au palier Small teams (email, Slack, digests).",
+    en: "Delivery column requires the Small teams plan (email, Slack, digests).",
+  },
+  "settings.webhooksAdvancedTitle": { fr: "Webhooks avancés", en: "Advanced webhooks" },
   "settings.notifTypesSave": { fr: "Enregistrer les filtres", en: "Save filters" },
   "settings.notifTypesSaved": { fr: "Filtres enregistrés.", en: "Filters saved." },
   "settings.notifFrequencyTitle": { fr: "Fréquence de livraison", en: "Delivery frequency" },
@@ -753,6 +771,12 @@ const translations = {
   "settings.freqDailyHour": { fr: "Heure d'envoi (heure locale)", en: "Send time (local hour)" },
   "settings.freqSave": { fr: "Enregistrer la fréquence", en: "Save frequency" },
   "settings.freqSaved": { fr: "Fréquence enregistrée.", en: "Frequency saved." },
+  "settings.automationTitle": { fr: "Automatisations", en: "Automations" },
+  "settings.automationDesc": { fr: "Règles simples déclenchées automatiquement (max 1 alerte par jour et par tâche).", en: "Simple rules triggered automatically (max 1 alert per day per task)." },
+  "settings.automationAssigneeOverdue": { fr: "Me notifier quand une tâche qui m'est assignée est en retard", en: "Notify me when a task assigned to me is overdue" },
+  "settings.automationProjectOwnerOverdue": { fr: "Me notifier quand une tâche de mes projets est en retard", en: "Notify me when a task in my projects is overdue" },
+  "settings.automationSave": { fr: "Enregistrer les automatisations", en: "Save automations" },
+  "settings.automationSaved": { fr: "Automatisations enregistrées.", en: "Automations saved." },
   "settings.tasks": { fr: "Tâches", en: "Tasks" },
   "settings.effortDefaults": { fr: "Temps de travail par défaut", en: "Default work time" },
   "settings.effortDesc": { fr: "Temps minimum de travail effectif attribué à une tâche selon son effort.", en: "Minimum effective work time assigned to a task based on its effort." },
@@ -1207,6 +1231,25 @@ const translations = {
   "projects.kanban": { fr: "Kanban", en: "Kanban" },
   "projects.startDate": { fr: "Date de début", en: "Start date" },
   "projects.timeAllocation": { fr: "Temps attribué", en: "Time allocation" },
+  "projects.steeringTitle": { fr: "Pilotage", en: "Steering" },
+  "projects.steeringExport": { fr: "Export", en: "Export" },
+  "projects.steeringExportCsv": { fr: "Exporter CSV", en: "Export CSV" },
+  "projects.steeringExportPdf": { fr: "Exporter PDF", en: "Export PDF" },
+  "projects.steeringExportPdfGenerating": { fr: "Génération PDF…", en: "Generating PDF…" },
+  "projects.steeringExportPdfNoGantt": {
+    fr: "Diagramme de Gantt non disponible (ajoutez des tâches avec dates).",
+    en: "Gantt chart unavailable (add tasks with dates).",
+  },
+  "projects.steeringCompleted": { fr: "complété", en: "completed" },
+  "projects.steeringActive": { fr: "Actives", en: "Active" },
+  "projects.steeringOverdue": { fr: "En retard", en: "Overdue" },
+  "projects.steeringOverdueShort": { fr: "retard", en: "overdue" },
+  "projects.steeringAtRisk": { fr: "À risque", en: "At risk" },
+  "projects.steeringNoDeadline": { fr: "Sans échéance", en: "No deadline" },
+  "projects.steeringMilestones": { fr: "Prochains jalons", en: "Upcoming milestones" },
+  "projects.steeringMilestoneToday": { fr: "Aujourd'hui", en: "Today" },
+  "projects.steeringMilestoneOverdue": { fr: "J+{days} retard", en: "{days}d overdue" },
+  "projects.steeringPhaseRollup": { fr: "Retards par phase", en: "Overdue by phase" },
   "projects.totalTime": { fr: "Total projet", en: "Project total" },
   "projects.unassignedPhase": { fr: "Sans phase", en: "Unassigned" },
   "projects.subProjects": { fr: "Sous-projets", en: "Sub-projects" },
@@ -1560,7 +1603,10 @@ const translations = {
   "help.settings.teams": { fr: "Équipes, invitations, rôles ; tableau de bord équipe dans la navigation", en: "Teams, invites, roles; team dashboard in the sidebar" },
   "help.settings.activity": { fr: "Historique de vos actions ; export ou suppression de compte (données)", en: "Your action history; export or delete account (data)" },
   "help.settings.security": { fr: "Sécurité : 2FA (application TOTP ou code e-mail), sessions, mot de passe", en: "Security: 2FA (authenticator app or email code), sessions, password" },
-  "help.settings.integrations": { fr: "Canal de notification (email ou webhook Slack, Teams, Google Chat) ; webhooks avancés Slack, Discord, Teams, Google Chat (filtres d’événements).", en: "Notification channel (email or Slack, Teams, Google Chat webhook); advanced Slack, Discord, Teams, Google Chat webhooks (event filters)." },
+  "help.settings.integrations": {
+    fr: "Automatisations simples ; filtres in-app ; canal de notification (email ou webhook Slack, Teams, Google Chat) et digests ; webhooks avancés (filtres d’événements).",
+    en: "Simple automations; in-app filters; notification channel (email or Slack, Teams, Google Chat webhook) and digests; advanced webhooks (event filters).",
+  },
 
   "help.dashboard.overview": { fr: "Statistiques : tâches actives, assignées, déléguées, complétées, retard", en: "Stats: active, assigned, delegated, completed, overdue tasks" },
   "help.dashboard.radar": {
@@ -2061,6 +2107,31 @@ const translations = {
     en: "Mark as not doing (abandoned status, not moved to archive)",
   },
 
+  // ── Browser push notifications ──
+  "notif.enableBrowser": { fr: "Activer les alertes", en: "Enable alerts" },
+  "notif.enableBrowserTitle": { fr: "Recevoir des alertes navigateur pour les nouvelles notifications", en: "Get browser alerts for new notifications" },
+
+  // ── Task templates ──
+  "template.button": { fr: "Modèle", en: "Template" },
+  "template.pickerTitle": { fr: "Appliquer un modèle de tâche", en: "Apply a task template" },
+  "template.tabSystem": { fr: "Modèles", en: "Templates" },
+  "template.tabCustom": { fr: "Mes modèles", en: "My templates" },
+  "template.subtasks": { fr: "s-tâches", en: "subtasks" },
+  "template.noCustom": { fr: "Aucun modèle personnalisé.", en: "No custom templates yet." },
+  "template.loadError": { fr: "Impossible de charger vos modèles.", en: "Failed to load your templates." },
+  "template.createError": { fr: "Impossible de créer le modèle.", en: "Failed to create template." },
+  "template.deleteError": { fr: "Impossible de supprimer le modèle.", en: "Failed to delete template." },
+  "template.created": { fr: "Modèle créé.", en: "Template created." },
+  "template.deleted": { fr: "Modèle supprimé.", en: "Template deleted." },
+  "template.createNew": { fr: "Nouveau modèle", en: "New template" },
+  "template.namePlaceholder": { fr: "Nom du modèle…", en: "Template name…" },
+  "template.addTag": { fr: "Ajouter un tag", en: "Add tag" },
+  "template.addSubtask": { fr: "Ajouter une s-tâche", en: "Add subtask" },
+  "template.createBtn": { fr: "Créer le modèle", en: "Create template" },
+  "template.creating": { fr: "Création…", en: "Creating…" },
+  "template.delete": { fr: "Supprimer ce modèle", en: "Delete this template" },
+  "template.applied": { fr: "Modèle appliqué.", en: "Template applied." },
+
   // ── Error boundary ──
   "error.boundary.message": { fr: "Une erreur inattendue est survenue.", en: "An unexpected error occurred." },
   "error.boundary.retry": { fr: "Réessayer", en: "Retry" },
@@ -2082,6 +2153,7 @@ const translations = {
   "toast.reorderError": { fr: "Erreur lors du réordonnancement", en: "Reorder failed" },
   "toast.noteCreateError": { fr: "Impossible de créer la note", en: "Failed to create note" },
   "toast.genericError": { fr: "Erreur", en: "Error" },
+  "toast.steeringPdfError": { fr: "Impossible de générer le PDF de pilotage.", en: "Could not generate steering PDF." },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
@@ -2113,4 +2185,10 @@ export function t(key: TranslationKey | (string & {})): string {
   const entry = (translations as Record<string, Record<Locale, string>>)[key];
   if (!entry) return key;
   return entry[currentLocale] ?? entry.fr;
+}
+
+export function tForLocale(locale: Locale, key: TranslationKey | (string & {})): string {
+  const entry = (translations as Record<string, Record<Locale, string>>)[key];
+  if (!entry) return key;
+  return entry[locale] ?? entry.fr;
 }

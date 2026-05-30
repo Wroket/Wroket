@@ -103,6 +103,12 @@ function dashboardUpcomingTimingBadge(td: Todo, t: TranslationFunction): { text:
   return slotDayTimeBadge();
 }
 
+function priorityRank(priority: Priority): number {
+  if (priority === "high") return 0;
+  if (priority === "medium") return 1;
+  return 2;
+}
+
 export default function DashboardPage() {
   const { t, locale } = useLocale();
   const router = useRouter();
@@ -354,19 +360,11 @@ export default function DashboardPage() {
 
   const UPCOMING_DEADLINES_MAX = 15;
 
-  const { upcomingDeadlineTodos, overdueCount, totalUpcomingPanelCount } = useMemo(() => {
-    const withDateOrBooking = active.filter((td) => getUpcomingPanelSortTimeMs(td) !== null);
-    const sorted = [...withDateOrBooking].sort(
-      (a, b) => getUpcomingPanelSortTimeMs(a)! - getUpcomingPanelSortTimeMs(b)!,
-    );
+  const overdueCount = useMemo(
     // Count tasks whose effective due (min of deadline and slot) is strictly in the past.
-    const overdueActive = active.filter((td) => isEffectivelyOverdue(td)).length;
-    return {
-      upcomingDeadlineTodos: sorted.slice(0, UPCOMING_DEADLINES_MAX),
-      overdueCount: overdueActive,
-      totalUpcomingPanelCount: sorted.length,
-    };
-  }, [active]);
+    () => active.filter((td) => isEffectivelyOverdue(td)).length,
+    [active],
+  );
 
   const recentlyCompleted = useMemo(
     () => [...completed]
@@ -397,6 +395,27 @@ export default function DashboardPage() {
     });
     return { completedThisWeek: thisWeek, completedOnTime: onTime, completedLate: late };
   }, [completed]);
+
+  // Merged "Ma semaine" panel: full horizon (any dated/booked task or overdue),
+  // sorted overdue-first then by effective due time then by priority.
+  const { weekFocusTodos, totalUpcomingPanelCount } = useMemo(() => {
+    const candidates = active.filter(
+      (td) => getUpcomingPanelSortTimeMs(td) !== null || isEffectivelyOverdue(td),
+    );
+    const sorted = [...candidates].sort((a, b) => {
+      const overdueA = isEffectivelyOverdue(a) ? 0 : 1;
+      const overdueB = isEffectivelyOverdue(b) ? 0 : 1;
+      if (overdueA !== overdueB) return overdueA - overdueB;
+      const timeA = getUpcomingPanelSortTimeMs(a) ?? Number.MAX_SAFE_INTEGER;
+      const timeB = getUpcomingPanelSortTimeMs(b) ?? Number.MAX_SAFE_INTEGER;
+      if (timeA !== timeB) return timeA - timeB;
+      return priorityRank(a.priority) - priorityRank(b.priority);
+    });
+    return {
+      weekFocusTodos: sorted.slice(0, UPCOMING_DEADLINES_MAX),
+      totalUpcomingPanelCount: sorted.length,
+    };
+  }, [active]);
 
   return (
     <AppShell>
@@ -538,40 +557,54 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* ── Urgent tasks (right / second on lg) ── */}
+              {/* ── My week (merged: priorities + deadlines, right / second on lg) ── */}
               <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 flex items-center gap-2 min-w-0">
-                    <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    {t("dashboard.upcomingDeadlines")}
+                    {t("dashboard.weekFocusTitle")}
                   </h3>
-                  <Link
-                    href="/todos"
-                    className="shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
-                  >
-                    {t("dashboard.seeAllTasks")}
-                  </Link>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Link
+                      href="/agenda"
+                      className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none"
+                    >
+                      {t("dashboard.weekFocusOpenAgenda")}
+                    </Link>
+                    <Link
+                      href="/todos"
+                      className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none"
+                    >
+                      {t("dashboard.weekFocusOpenTasks")}
+                    </Link>
+                  </div>
                 </div>
-                {upcomingDeadlineTodos.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noUrgent")}</p>
+                {weekFocusTodos.length === 0 ? (
+                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.weekFocusNoTask")}</p>
                 ) : (
                   <ul className="space-y-3">
-                    {upcomingDeadlineTodos.map((todo) => {
+                    {weekFocusTodos.map((todo) => {
                       const timing = dashboardUpcomingTimingBadge(todo, t);
                       const badge = QUADRANT_LABELS[classify(todo)];
+                      const overdue = isEffectivelyOverdue(todo);
                       return (
                         <li key={todo.id}>
                           <button
                             type="button"
                             onClick={() => openRadarEdit(todo)}
-                            className="flex w-full items-center gap-3 rounded-md -mx-1 px-1 py-0.5 text-left hover:bg-zinc-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer border-0 bg-transparent"
+                            className="flex w-full items-center gap-2.5 rounded-md -mx-1 px-1 py-0.5 text-left hover:bg-zinc-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer border-0 bg-transparent"
                             aria-label={`${displayTodoTitle(todo.title, t("todos.untitled"))}, ${timing.text}`}
                           >
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
                             <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
-                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 max-w-[11rem] truncate ${timing.cls}`} title={timing.text}>
+                            {overdue && (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300 shrink-0">
+                                {t("dashboard.weekFocusOverdue")}
+                              </span>
+                            )}
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 max-w-[10rem] truncate ${timing.cls}`} title={timing.text}>
                               {timing.text}
                             </span>
                           </button>

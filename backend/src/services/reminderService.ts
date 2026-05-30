@@ -1,6 +1,7 @@
 import { getStore } from "../persistence";
 import { createNotification, listNotifications } from "./notificationService";
 import { flushHourlyDigests, flushDailyDigests } from "./digestService";
+import { runAutomationChecks } from "./automationService";
 import { listAllTodos } from "./todoService";
 import type { Todo } from "./todoService";
 
@@ -117,6 +118,7 @@ let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
 function runHourlyJobs(): void {
   checkDeadlines();
+  try { runAutomationChecks(); } catch (err) { console.warn("[reminders] automation check failed:", err); }
   try { flushHourlyDigests(); } catch (err) { console.warn("[reminders] hourly digest flush failed:", err); }
   try { flushDailyDigests(new Date()); } catch (err) { console.warn("[reminders] daily digest flush failed:", err); }
 }

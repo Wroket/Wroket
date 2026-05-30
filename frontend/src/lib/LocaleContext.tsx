@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
-import { Locale, setLocale as setGlobalLocale, t as globalT, TranslationKey } from "./i18n";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Locale, setLocale as setGlobalLocale, t as globalT, tForLocale, TranslationKey } from "./i18n";
 
 interface LocaleContextValue {
   locale: Locale;
@@ -16,15 +16,18 @@ const LocaleContext = createContext<LocaleContextValue>({
 });
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  // Always "fr" on SSR/first paint so server HTML matches client hydration; restore preference after mount.
-  const [locale, setLocaleState] = useState<Locale>("fr");
+  const [localeState, setLocaleState] = useState<Locale>("fr");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("wroket-locale");
     if (stored === "fr" || stored === "en") {
       setGlobalLocale(stored);
       setLocaleState(stored);
+    } else {
+      setGlobalLocale("fr");
     }
+    setMounted(true);
   }, []);
 
   const changeLocale = useCallback((l: Locale) => {
@@ -32,11 +35,16 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLocaleState(l);
   }, []);
 
+  const locale = mounted ? localeState : "fr";
+
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const translate = useCallback((key: TranslationKey | (string & {})) => globalT(key), [locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  const translate = useMemo(
+    () => (key: TranslationKey | (string & {})) => tForLocale(locale, key),
+    [locale],
+  );
 
   return (
     <LocaleContext.Provider value={{ locale, setLocale: changeLocale, t: translate }}>

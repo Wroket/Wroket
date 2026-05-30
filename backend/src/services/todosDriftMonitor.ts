@@ -4,6 +4,23 @@ import { getInMemoryTodoIdsByOwner } from "./todoService";
 
 let timer: NodeJS.Timeout | null = null;
 
+export interface TodosDriftStatus {
+  status: "unknown" | "ok" | "drift" | "error" | "skipped";
+  checkedAt: string | null;
+  source: "legacy" | "dual" | "v2" | "unknown";
+  owners?: number;
+  countDriftOwners?: number;
+  v2OnlyTotal?: number;
+  inMemoryOnlyTotal?: number;
+  error?: string;
+}
+
+let lastStatus: TodosDriftStatus = {
+  status: "unknown",
+  checkedAt: null,
+  source: "unknown",
+};
+
 /**
  * Hourly drift check between the in-memory todo map and `todos_v2`.
  *
@@ -25,7 +42,14 @@ let timer: NodeJS.Timeout | null = null;
  */
 async function checkOnce(): Promise<void> {
   const mode = (process.env.TODOS_STORAGE_MODE ?? "legacy").trim().toLowerCase();
-  if (mode === "legacy") return;
+  if (mode === "legacy") {
+    lastStatus = {
+      status: "skipped",
+      checkedAt: new Date().toISOString(),
+      source: "legacy",
+    };
+    return;
+  }
 
   const inMemoryIdsByOwner: Record<string, string[]> =
     mode === "v2"
@@ -45,6 +69,15 @@ async function checkOnce(): Promise<void> {
     if ((inMemoryIdsByOwner[owner]?.length ?? 0) !== (v2Counts.get(owner) ?? 0)) countDriftOwners += 1;
   }
   if (countDriftOwners === 0) {
+    lastStatus = {
+      status: "ok",
+      checkedAt: new Date().toISOString(),
+      source: mode === "v2" ? "v2" : "dual",
+      owners: owners.size,
+      countDriftOwners,
+      v2OnlyTotal: 0,
+      inMemoryOnlyTotal: 0,
+    };
     console.log(JSON.stringify({ event: "todos-drift", status: "ok", owners: owners.size, source: mode }));
     return;
   }
@@ -86,19 +119,49 @@ async function checkOnce(): Promise<void> {
       hint: "Run RUN_MIGRATION=reconcile_legacy_v2 npx ts-node backend/src/scripts/reconcileLegacyV2Drift.ts --uid <uid> (or --all)",
     }),
   );
+
+  lastStatus = {
+    status: "drift",
+    checkedAt: new Date().toISOString(),
+    source: mode === "v2" ? "v2" : "dual",
+    owners: owners.size,
+    countDriftOwners,
+    v2OnlyTotal,
+    inMemoryOnlyTotal,
+  };
 }
 
 export function startTodosDriftMonitor(): void {
   if (timer) return;
   timer = setInterval(() => {
-    void checkOnce().catch((err) => console.error("[todos-drift] check failed:", err));
+    void checkOnce().catch((err) => {
+      lastStatus = {
+        status: "error",
+        checkedAt: new Date().toISOString(),
+        source: "unknown",
+        error: err instanceof Error ? err.message : String(err),
+      };
+      console.error("[todos-drift] check failed:", err);
+    });
   }, 60 * 60 * 1000);
   timer.unref();
-  void checkOnce().catch((err) => console.error("[todos-drift] initial check failed:", err));
+  void checkOnce().catch((err) => {
+    lastStatus = {
+      status: "error",
+      checkedAt: new Date().toISOString(),
+      source: "unknown",
+      error: err instanceof Error ? err.message : String(err),
+    };
+    console.error("[todos-drift] initial check failed:", err);
+  });
 }
 
 export function stopTodosDriftMonitor(): void {
   if (!timer) return;
   clearInterval(timer);
   timer = null;
+}
+
+export function getTodosDriftStatus(): TodosDriftStatus {
+  return lastStatus;
 }

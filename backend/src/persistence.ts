@@ -36,6 +36,8 @@ const DOMAINS = [
   "pendingTwoFactor",
   /** Outbound notification digest queue (hourly / daily delivery). */
   "notifDigestQueue",
+  /** User-defined task templates. */
+  "taskTemplates",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -66,6 +68,8 @@ export interface StoreData {
   pendingTwoFactor?: Record<string, Record<string, unknown>>;
   /** Per-user queue of outbound notifications pending digest flush */
   notifDigestQueue?: Record<string, unknown[]>;
+  /** User-defined task templates (list per user uid). */
+  taskTemplates?: Record<string, unknown[]>;
 }
 
 let cachedStore: StoreData = {};

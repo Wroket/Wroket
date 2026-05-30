@@ -56,6 +56,9 @@ npm run test:e2e
 
 - `tests/smoke.api.spec.ts` — `GET /health`
 - `tests/smoke.ui.spec.ts` — page `/login`
+- `tests/reliability.health.spec.ts` — `GET /health/ready` (store, persistence, todosDrift)
+- `tests/reliability.todos.spec.ts` — création tâche + relecture `GET /todos` (local store, auth auto)
+- `tests/reliability.calendar.spec.ts` — codes d’erreur agenda (`CALENDAR_*`) et conflit de créneau
 - `tests/notes.cross-device.spec.ts` — purge cache notes entre deux navigateurs, vérifie la disparition d'une note supprimée sur l'autre appareil (nécessite `E2E_NOTES_EMAIL` + `E2E_NOTES_PASSWORD`, sinon ignoré)
 - `tests/todos.cross-device.spec.ts` — vérifie que la page tâches se recharge au `visibilitychange` sans F5, et que l'état synchronisé remonte d'un appareil à l'autre (nécessite `E2E_NOTES_EMAIL` + `E2E_NOTES_PASSWORD`, sinon ignoré)
 - `tests/projects.cross-device.spec.ts` — vérifie que la page projets se recharge au `visibilitychange` sans F5, et qu'un projet créé sur un appareil apparaît sur l'autre après refocus (nécessite `E2E_NOTES_EMAIL` + `E2E_NOTES_PASSWORD`, sinon ignoré)

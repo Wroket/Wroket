@@ -29,6 +29,10 @@ import {
   cascadeRestoreArchivedSubprojects,
 } from "../services/projectArchiveCascadeService";
 import {
+  computeProjectSteeringSnapshot,
+  steeringSnapshotToCsv,
+} from "../services/projectSteeringService";
+import {
   listProjectTodos,
   clearProjectPhaseReferences,
   createTodo,
@@ -486,4 +490,30 @@ export async function convertSubprojectToPhase(req: AuthenticatedRequest, res: R
   });
 
   res.status(200).json(result);
+}
+
+export async function getSteering(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const project = getProjectById(id);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
+    throw new ForbiddenError("Accès refusé");
+  }
+  const todos = listProjectTodos(project.id);
+  res.status(200).json(computeProjectSteeringSnapshot(project, todos));
+}
+
+export async function exportSteering(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const project = getProjectById(id);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
+    throw new ForbiddenError("Accès refusé");
+  }
+  const todos = listProjectTodos(project.id);
+  const snap = computeProjectSteeringSnapshot(project, todos);
+  const slug = project.name.replace(/[^a-z0-9]+/gi, "-").substring(0, 40);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=wroket-steering-${slug}.csv`);
+  res.send(steeringSnapshotToCsv(project.name, snap));
 }

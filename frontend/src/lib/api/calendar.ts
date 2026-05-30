@@ -2,6 +2,34 @@ import { API_BASE_URL, extractApiMessage } from "./core";
 import type { SlotProposal, SuggestedSlot, GoogleCalendarEntry } from "./core";
 import type { Todo } from "./todos";
 
+type ApiErrorBody = { message?: string; code?: string; requestId?: string };
+
+function calendarErrorMessageByCode(code?: string): string | null {
+  switch (code) {
+    case "CALENDAR_SLOT_MISSING_RANGE":
+    case "CALENDAR_SLOT_RANGE_TYPE":
+    case "CALENDAR_SLOT_INVALID_DATE":
+    case "CALENDAR_SLOT_INVALID_RANGE":
+      return "Plage horaire invalide pour la réservation du créneau.";
+    case "CALENDAR_SLOT_TOO_LONG":
+      return "Le créneau demandé est trop long (max 7 jours).";
+    case "CALENDAR_DEFAULT_BOOKING_REQUIRED":
+      return "Configurez un calendrier par défaut dans Mes agendas pour réserver un créneau.";
+    case "CALENDAR_INTEGRATIONS_PLAN_REQUIRED":
+      return "La réservation externe nécessite le palier Small teams (pack intégrations).";
+    case "MEET_INVALID_INVITEE_EMAIL":
+      return "Un ou plusieurs invités ont un email invalide.";
+    case "MEET_NOT_FOUND":
+      return "Aucune réunion existante à modifier pour cette tâche.";
+    case "MEET_ACCOUNT_NOT_FOUND":
+      return "Compte calendrier introuvable pour modifier la réunion.";
+    case "MEET_UPDATE_FAILED":
+      return "Impossible de modifier la réunion. Vérifiez le compte calendrier connecté.";
+    default:
+      return null;
+  }
+}
+
 export interface CalendarEvent {
   id: string;
   summary: string;
@@ -34,6 +62,11 @@ async function throwCalendarHttpError(res: Response, fallback: string): Promise<
   } catch {
     body = null;
   }
+  const maybeBody = body as ApiErrorBody | null;
+  const mapped = calendarErrorMessageByCode(maybeBody?.code);
+  if (mapped) {
+    throw new Error(mapped);
+  }
   throw new Error(extractApiMessage(body, fallback));
 }
 
@@ -61,6 +94,8 @@ export interface SlotConflict {
 export interface BookSlotResult {
   todo?: Todo;
   conflict?: true;
+  code?: string;
+  requestId?: string;
   conflicts?: SlotConflict[];
 }
 
@@ -77,8 +112,13 @@ export async function bookTaskSlot(todoId: string, start: string, end: string, f
   if (!res.ok) {
     let msg = "Impossible de réserver le créneau";
     try {
-      const j = (await res.json()) as { message?: string };
-      if (typeof j.message === "string" && j.message.trim()) msg = j.message.trim();
+      const j = (await res.json()) as ApiErrorBody;
+      const mapped = calendarErrorMessageByCode(j.code);
+      if (mapped) {
+        msg = mapped;
+      } else if (typeof j.message === "string" && j.message.trim()) {
+        msg = j.message.trim();
+      }
     } catch {
       /* ignore */
     }
