@@ -426,7 +426,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
           start,
           end,
           tz,
-          hasMeet ? (todo.description ?? undefined) : undefined,
+          undefined,
           existingBookingCalendarId,
           existingBookingAccountId ?? undefined,
           hasMeet ? (todo.scheduledSlot?.meetingInvitees ?? undefined) : undefined,
