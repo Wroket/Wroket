@@ -1709,6 +1709,87 @@ export function setMicrosoftAccountCalendars(uid: string, accountId: string, cal
   persistUsers();
 }
 
+function pickWritableCalendar(calendars: GoogleCalendarEntry[]): GoogleCalendarEntry | null {
+  return (
+    calendars.find((c) => c.defaultForBooking && c.canWriteBooking !== false)
+    ?? calendars.find((c) => c.canWriteBooking !== false)
+    ?? calendars[0]
+    ?? null
+  );
+}
+
+/**
+ * Promote a calendar account to priority: reorder array, set global default booking calendar,
+ * clear the other provider's defaults.
+ */
+export function setPriorityCalendarAccount(
+  uid: string,
+  provider: "google" | "microsoft",
+  accountId: string,
+): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+
+  if (provider === "google") {
+    migrateGoogleAccounts(user);
+    const accounts = resolveGoogleAccounts(user);
+    const idx = accounts.findIndex((a) => a.id === accountId);
+    if (idx < 0) throw new NotFoundError("Compte Google introuvable");
+    const [target] = accounts.splice(idx, 1);
+    accounts.unshift(target);
+    user.googleAccounts = accounts;
+
+    const writable = pickWritableCalendar(target.calendars);
+    if (!writable || writable.canWriteBooking === false) {
+      throw new ValidationError("Aucun calendrier inscriptible sur ce compte Google");
+    }
+    target.calendars = target.calendars.map((cal) => ({
+      ...cal,
+      enabled: cal.calendarId === writable.calendarId ? true : cal.enabled,
+      defaultForBooking: cal.calendarId === writable.calendarId,
+    }));
+    for (const account of accounts) {
+      if (account.id === target.id) continue;
+      account.calendars = account.calendars.map((cal) => ({
+        ...cal,
+        defaultForBooking: false,
+      }));
+    }
+    normalizeGlobalBookingDefault(accounts, { accountId: target.id, calendarId: writable.calendarId });
+    user.preferredBookingProvider = "google";
+    clearMicrosoftBookingDefaultFlags(user);
+  } else {
+    const accounts = resolveMicrosoftAccounts(user);
+    const idx = accounts.findIndex((a) => a.id === accountId);
+    if (idx < 0) throw new NotFoundError("Compte Microsoft introuvable");
+    const [target] = accounts.splice(idx, 1);
+    accounts.unshift(target);
+    user.microsoftAccounts = accounts;
+
+    const writable = pickWritableCalendar(target.calendars);
+    if (!writable || writable.canWriteBooking === false) {
+      throw new ValidationError("Aucun calendrier inscriptible sur ce compte Microsoft");
+    }
+    target.calendars = target.calendars.map((cal) => ({
+      ...cal,
+      enabled: cal.calendarId === writable.calendarId ? true : cal.enabled,
+      defaultForBooking: cal.calendarId === writable.calendarId,
+    }));
+    for (const account of accounts) {
+      if (account.id === target.id) continue;
+      account.calendars = account.calendars.map((cal) => ({
+        ...cal,
+        defaultForBooking: false,
+      }));
+    }
+    normalizeMicrosoftBookingDefault(accounts, { accountId: target.id, calendarId: writable.calendarId });
+    user.preferredBookingProvider = "microsoft";
+    clearGoogleBookingDefaultFlags(user);
+  }
+
+  persistUsers();
+}
+
 export function getMicrosoftBookingTarget(uid: string): { accountId: string; calendarId: string } | null {
   const accounts = getMicrosoftAccounts(uid);
   if (accounts.length === 0) return null;
@@ -1829,6 +1910,19 @@ export function countMicrosoftCalendarConnected(): number {
     if ((user.microsoftAccounts ?? []).length > 0) count++;
   }
   return count;
+}
+
+/** Remove user and all their sessions from in-memory auth maps (RGPD delete). */
+export function purgeAuthRuntimeForUid(uid: string): void {
+  usersByUid.delete(uid);
+  let sessionsChanged = false;
+  for (const [token, session] of sessionsByToken) {
+    if (session.uid === uid) {
+      sessionsByToken.delete(token);
+      sessionsChanged = true;
+    }
+  }
+  if (sessionsChanged) persistSessions();
 }
 
 export { COOKIE_NAME };

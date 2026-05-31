@@ -12,6 +12,7 @@ import {
   getMicrosoftAuthUrl,
   getAccountCalendars,
   saveAccountCalendars,
+  setPriorityCalendarAccount,
   disconnectGoogleAccount,
   getMicrosoftAccountCalendars,
   saveMicrosoftAccountCalendars,
@@ -48,6 +49,7 @@ export default function ManageCalendarsPage() {
   const [accounts, setAccounts] = useState<AccountWithCals[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [prioritySavingKey, setPrioritySavingKey] = useState<string | null>(null);
   const [preferredBookingProvider, setPreferredBookingProvider] = useState<"google" | "microsoft" | undefined>();
   const [inAppSyncDialogOpen, setInAppSyncDialogOpen] = useState(false);
   const [inAppSyncPendingCount, setInAppSyncPendingCount] = useState(0);
@@ -123,6 +125,19 @@ export default function ManageCalendarsPage() {
   useEffect(() => {
     const google = searchParams.get("google") === "connected";
     const microsoft = searchParams.get("microsoft") === "connected";
+    const microsoftError = searchParams.get("microsoft") === "error";
+    const microsoftReason = searchParams.get("reason") ?? "";
+
+    if (microsoftError) {
+      const msg =
+        microsoftReason === "plan_required"
+          ? t("agenda.outlookConnectErrorPlan")
+          : t("agenda.outlookConnectError");
+      toast.error(msg);
+      router.replace("/agenda/manage", { scroll: false });
+      return;
+    }
+
     if (!google && !microsoft) return;
     toast.success(google ? t("agenda.googleConnected") : t("agenda.outlookConnected"));
     router.replace("/agenda/manage", { scroll: false });
@@ -206,28 +221,22 @@ export default function ManageCalendarsPage() {
     );
   };
 
-  const setPriorityAccount = (accountId: string, provider: CalProvider) => {
-    setAccounts((prev) => {
-      let targetCalendarId: string | null = null;
-      const target = prev.find((a) => a.id === accountId && a.provider === provider);
-      if (target?.cals) {
-        const writable = target.cals.find((c) => c.canWriteBooking !== false)
-          ?? target.cals[0];
-        targetCalendarId = writable?.calendarId ?? null;
-      }
-      if (!targetCalendarId) return prev;
-      return prev.map((a) => ({
-        ...a,
-        cals: a.cals?.map((c) => {
-          const selected = a.id === accountId && a.provider === provider && c.calendarId === targetCalendarId;
-          return {
-            ...c,
-            enabled: a.id === accountId && a.provider === provider ? c.enabled : false,
-            defaultForBooking: selected,
-          };
-        }),
-      }));
-    });
+  const handleSetPriorityAccount = async (accountId: string, provider: CalProvider) => {
+    if (!canUseCalendarIntegrations) {
+      toast.error(t("agenda.calendarReadonlyPlanHint"));
+      return;
+    }
+    const key = `${provider}:${accountId}`;
+    setPrioritySavingKey(key);
+    try {
+      await setPriorityCalendarAccount(provider, accountId);
+      toast.success(t("agenda.priorityAccountSaved"));
+      await loadAccounts();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("agenda.priorityAccountSaveError"));
+    } finally {
+      setPrioritySavingKey(null);
+    }
   };
 
   const handleSave = async (accountId: string, provider: CalProvider) => {
@@ -429,11 +438,11 @@ export default function ManageCalendarsPage() {
                       {!isPriorityAccount && (
                         <button
                           type="button"
-                          onClick={() => setPriorityAccount(account.id, account.provider)}
-                          disabled={!canUseCalendarIntegrations}
+                          onClick={() => void handleSetPriorityAccount(account.id, account.provider)}
+                          disabled={!canUseCalendarIntegrations || prioritySavingKey === rowKey}
                           className="rounded px-2.5 py-1 text-xs text-blue-600 hover:text-blue-700 border border-blue-200 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                         >
-                          {t("agenda.setPriorityAccount")}
+                          {prioritySavingKey === rowKey ? t("settings.saving") : t("agenda.setPriorityAccount")}
                         </button>
                       )}
                       <button

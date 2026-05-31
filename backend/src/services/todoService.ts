@@ -541,6 +541,23 @@ export function _resetTodosForTests(): void {
   ownerIndex.clear();
 }
 
+/** Remove all in-memory todos for a user (RGPD delete). */
+export function purgeTodoRuntimeForUid(uid: string): string[] {
+  const map = todosByUser.get(uid);
+  const todoIds = map ? [...map.keys()] : [];
+  todosByUser.delete(uid);
+  for (const [todoId, ownerUid] of ownerIndex) {
+    if (ownerUid === uid) ownerIndex.delete(todoId);
+  }
+  return todoIds;
+}
+
+/** Collect todo ids for a user without removing them. */
+export function listTodoIdsForOwner(uid: string): string[] {
+  const map = todosByUser.get(uid);
+  return map ? [...map.keys()] : [];
+}
+
 function collectArchivedTodoIdsPastRetention(todos: Map<string, Todo>, retentionDays: number): string[] {
   if (retentionDays <= 0) return [];
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;

@@ -76,12 +76,12 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 Checklist exécutée — **GO partiel**. Détail : [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K.
 
-- [ ] **P0 — RGPD suppression compte** — Après `DELETE /auth/me` ou admin delete : vérifier purge Firestore (todos, `googleAccounts`, `microsoftAccounts`, sessions) et absence de données résiduelles à la reconnexion (uid déterministe `sha256(email)` dans `authService.ts`).
-- [ ] **P1 — Meet PATCH heure → Google** — Régression E2E D3.3 : modification heure non reflétée dans Google Calendar ; investiguer logs `[meet_patch_error]` ; distinguer modal Meet vs drag agenda (`updateMeet` vs `bookSlot` dans `calendarController.ts`).
-- [ ] **P1 — Calendrier compte prioritaire** — « Rendre prioritaire » + Enregistrer ne persiste pas au reload (`agenda/manage/page.tsx`, `setGoogleAccountCalendars` — pas de réordonnancement `googleAccounts[]`).
-- [ ] **P1 — Microsoft OAuth calendrier secondaire** — Callback échoue → redirect `/settings?error=...` ; vérifier `MICROSOFT_GRAPH_REDIRECT_URI` prod et logs `[microsoft-cal] callback error`.
-- [ ] **P2 — Conflit créneau dédup** — `findConflicts` remonte tâche in-app + événement Google miroir (double message SlotPicker). **Correctif code** : `calendarConflictUtils.ts` + filtre dans `findConflicts` — re-test E2E D1.3 après deploy.
-- [ ] **P3 — Archives sync cross-onglet** — `/archive/tasks` sans `useTodoListSync`. **Correctif code** : `useTodoListSync` sur `ArchivedTasksPanel` — re-test E2E C6 après deploy.
+- [ ] **P0 — RGPD suppression compte** — Fix livré (purge runtime `usersByUid`/`sessionsByToken`/`todosByUser`, `deleteAllTodosV2ForOwner`, attachments, Stripe cancel best-effort) — **re-test E2E prod requis** après deploy.
+- [ ] **P1 — Meet PATCH heure → Google** — Fix livré (`toGoogleCalendarDateTime`, `conferenceDataVersion` sur PATCH, `bookSlot` Meet path) — **re-test E2E D3.3** après deploy.
+- [ ] **P1 — Calendrier compte prioritaire** — Fix livré (`PUT /calendar/accounts/priority`, auto-save frontend, `listCalendars` via `defaultForBooking`) — **re-test E2E D4.1** après deploy.
+- [ ] **P1 — Microsoft OAuth calendrier secondaire** — Fix livré (redirect erreurs → `/agenda/manage?microsoft=error`, toasts i18n, logs structurés token exchange) — **re-test E2E** après deploy ; vérifier `MICROSOFT_GRAPH_REDIRECT_URI` prod si échec persiste.
+- [ ] **P2 — Conflit créneau dédup** — Correctif code livré (`4aae566`) — **re-test E2E D1.3** après deploy.
+- [ ] **P3 — Archives sync cross-onglet** — Correctif code livré (`4aae566`) — **re-test E2E C6** après deploy.
 
 ## Plan exécutable d'équipe (Q2 2026)
 

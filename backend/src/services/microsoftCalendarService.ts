@@ -85,7 +85,12 @@ export async function exchangeCalendarCodeForTokens(code: string): Promise<Googl
     throw new Error("Microsoft calendar token parse failed");
   }
   if (!tokenRes.ok || json.error || !json.access_token) {
-    console.error("[microsoft-cal] Token exchange failed:", text.slice(0, 400));
+    console.error(JSON.stringify({
+      event: "microsoft_cal_token_exchange_failed",
+      status: tokenRes.status,
+      error: json.error ?? null,
+      errorDescription: (json.error_description ?? text).slice(0, 200),
+    }));
     throw new Error("Microsoft calendar token exchange failed");
   }
 

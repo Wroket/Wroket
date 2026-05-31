@@ -159,3 +159,27 @@ export async function loadAllTodosV2ByOwner(): Promise<Record<string, Record<str
   }
   return out;
 }
+
+/** Delete all todos_v2 documents for an owner (RGPD account deletion). */
+export async function deleteAllTodosV2ForOwner(ownerUid: string): Promise<number> {
+  const dbConn = await getDb();
+  if (!dbConn) return 0;
+  const snap = await dbConn.collection(COLLECTION).where("ownerUid", "==", ownerUid).get();
+  if (snap.empty) return 0;
+  let deleted = 0;
+  const batchSize = 500;
+  let batch = dbConn.batch();
+  let ops = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    ops++;
+    deleted++;
+    if (ops >= batchSize) {
+      await batch.commit();
+      batch = dbConn.batch();
+      ops = 0;
+    }
+  }
+  if (ops > 0) await batch.commit();
+  return deleted;
+}

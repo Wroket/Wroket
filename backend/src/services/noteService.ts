@@ -467,3 +467,16 @@ export function canViewNote(uid: string, userEmail: string, noteId: string): boo
   const sharedNotes = listSharedNotes(uid, userEmail);
   return sharedNotes.some((n) => n.id === noteId);
 }
+
+/** Remove in-memory notes for a user (RGPD delete). Returns note ids purged. */
+export function purgeNotesRuntimeForUid(uid: string): string[] {
+  const active = notesByUser.get(uid);
+  const archived = archivedNotesByUser.get(uid);
+  const ids = new Set<string>([
+    ...(active ? [...active.keys()] : []),
+    ...(archived ? [...archived.keys()] : []),
+  ]);
+  notesByUser.delete(uid);
+  archivedNotesByUser.delete(uid);
+  return [...ids];
+}

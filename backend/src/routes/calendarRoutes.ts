@@ -4,6 +4,7 @@ import {
   getSlots, bookSlot, clearSlot,
   googleAuthUrl, googleCallback, disconnectGoogle, getCalendarEvents,
   listCalendars, saveCalendarSelection,
+  setPriorityCalendarAccountHandler,
   microsoftCalendarAuthUrl, microsoftCalendarCallback, disconnectMicrosoft,
   listMicrosoftCalendars, saveMicrosoftCalendarSelection,
   createMeet, updateMeet, clearMeet,
@@ -26,6 +27,7 @@ calendarRoutes.delete("/google/disconnect", disconnectGoogle);
 calendarRoutes.delete("/google/disconnect/:accountId", disconnectGoogle);
 calendarRoutes.delete("/microsoft/disconnect", disconnectMicrosoft);
 calendarRoutes.delete("/microsoft/disconnect/:accountId", disconnectMicrosoft);
+calendarRoutes.put("/accounts/priority", setPriorityCalendarAccountHandler);
 calendarRoutes.get("/google/accounts/:accountId/calendars", listCalendars);
 calendarRoutes.put("/google/accounts/:accountId/calendars", saveCalendarSelection);
 calendarRoutes.get("/microsoft/accounts/:accountId/calendars", listMicrosoftCalendars);

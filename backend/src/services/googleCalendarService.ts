@@ -13,6 +13,26 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:3001/calendar/google/callback";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly";
 
+/** Google Calendar API expects wall-clock dateTime (no Z offset) when timeZone is set. */
+export function toGoogleCalendarDateTime(isoUtc: string, timeZone: string): string {
+  const date = new Date(isoUtc);
+  if (Number.isNaN(date.getTime())) return isoUtc;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timeZone || "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  let hour = get("hour");
+  if (hour === "24") hour = "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}:${get("second")}`;
+}
+
 export interface GoogleCalendarEvent {
   id: string;
   summary: string;
@@ -317,6 +337,8 @@ export async function createGoogleCalendarEvent(
   if (!accessToken) return null;
 
   const tz = timezone || "UTC";
+  const startLocal = toGoogleCalendarDateTime(start, tz);
+  const endLocal = toGoogleCalendarDateTime(end, tz);
 
   try {
     const res = await fetch(
@@ -330,8 +352,8 @@ export async function createGoogleCalendarEvent(
         body: JSON.stringify({
           summary,
           description,
-          start: { dateTime: start, timeZone: tz },
-          end: { dateTime: end, timeZone: tz },
+          start: { dateTime: startLocal, timeZone: tz },
+          end: { dateTime: endLocal, timeZone: tz },
         }),
       },
     );
@@ -377,6 +399,8 @@ export async function createGoogleMeetEvent(
   if (!accessToken) return null;
 
   const tz = timezone || "UTC";
+  const startLocal = toGoogleCalendarDateTime(start, tz);
+  const endLocal = toGoogleCalendarDateTime(end, tz);
   // A client-generated idempotency key. Using crypto.randomUUID() is fine here
   // since this function is called at most once per user action.
   const requestId = Math.random().toString(36).slice(2);
@@ -393,8 +417,8 @@ export async function createGoogleMeetEvent(
         body: JSON.stringify({
           summary,
           description,
-          start: { dateTime: start, timeZone: tz },
-          end: { dateTime: end, timeZone: tz },
+          start: { dateTime: startLocal, timeZone: tz },
+          end: { dateTime: endLocal, timeZone: tz },
           attendees: Array.isArray(attendees)
             ? attendees
                 .map((email) => email.trim())
@@ -454,6 +478,7 @@ export async function patchGoogleCalendarEvent(
   calendarId: string = "primary",
   accountId?: string,
   attendees?: string[],
+  options?: { preserveConference?: boolean },
 ): Promise<boolean> {
   let accessToken: string | null = null;
   if (accountId) {
@@ -465,17 +490,22 @@ export async function patchGoogleCalendarEvent(
   if (!accessToken) return false;
 
   const tz = timezone || "UTC";
+  const startLocal = toGoogleCalendarDateTime(start, tz);
+  const endLocal = toGoogleCalendarDateTime(end, tz);
 
   try {
     const url = new URL(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
     );
     url.searchParams.set("sendUpdates", "all");
+    if (options?.preserveConference) {
+      url.searchParams.set("conferenceDataVersion", "1");
+    }
     const body: Record<string, unknown> = {
       summary,
       description,
-      start: { dateTime: start, timeZone: tz },
-      end: { dateTime: end, timeZone: tz },
+      start: { dateTime: startLocal, timeZone: tz },
+      end: { dateTime: endLocal, timeZone: tz },
     };
     if (attendees) body.attendees = attendees.map((email) => ({ email }));
     const res = await fetch(url.toString(), {

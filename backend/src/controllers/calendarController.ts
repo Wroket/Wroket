@@ -34,6 +34,7 @@ import {
   removeMicrosoftAccount,
   removeAllMicrosoftAccounts,
   setMicrosoftAccountCalendars,
+  setPriorityCalendarAccount,
   getEntitlementsForUid,
   type GoogleCalendarEntry,
   type ResolvedBookingTarget,
@@ -417,6 +418,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
       if (existingEventId && existingProvider === "google") {
         const existingBookingCalendarId = todo.scheduledSlot?.bookingCalendarId ?? bookingCalendarId ?? "primary";
         const existingBookingAccountId = todo.scheduledSlot?.bookingAccountId ?? bookingAccountId;
+        const hasMeet = !!todo.scheduledSlot?.meetingUrl;
         const patched = await patchGoogleCalendarEvent(
           uid,
           existingEventId,
@@ -424,9 +426,11 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
           start,
           end,
           tz,
-          undefined,
+          hasMeet ? (todo.description ?? undefined) : undefined,
           existingBookingCalendarId,
           existingBookingAccountId ?? undefined,
+          hasMeet ? (todo.scheduledSlot?.meetingInvitees ?? undefined) : undefined,
+          { preserveConference: hasMeet },
         );
         if (patched) {
           calendarEventId = existingEventId;
@@ -690,18 +694,18 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
   const state = req.query.state as string | undefined;
 
   if (!code || !state) {
-    res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+    redirectMicrosoftCalendarError(res, frontendUrl, "missing_code_or_state");
     return;
   }
 
   const uid = consumeOAuthState(state);
   if (!uid) {
-    res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+    redirectMicrosoftCalendarError(res, frontendUrl, "invalid_state");
     return;
   }
 
   if (!getEntitlementsForUid(uid).integrations) {
-    res.redirect(`${frontendUrl}/settings?tab=integrations&error=calendar_plan_required`);
+    redirectMicrosoftCalendarError(res, frontendUrl, "plan_required");
     return;
   }
 
@@ -742,8 +746,12 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
     }
     res.redirect(`${frontendUrl}/agenda/manage?microsoft=connected`);
   } catch (err) {
-    console.error("[microsoft-cal] callback error:", err);
-    res.redirect(`${frontendUrl}/settings?error=microsoft_cal_auth_failed`);
+    const reason = err instanceof Error ? err.message : "unknown";
+    console.error(JSON.stringify({
+      event: "microsoft_cal_callback_error",
+      reason: reason.slice(0, 200),
+    }));
+    redirectMicrosoftCalendarError(res, frontendUrl, "token_exchange_failed");
   }
 }
 
@@ -780,7 +788,8 @@ export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Res
 
   const available = await listMicrosoftCalendarListForAccount(uid, accountId);
   const savedMap = new Map(account.calendars.map((c) => [c.calendarId, c]));
-  const isPriorityAccount = accounts.length > 0 && accounts[0]?.id === accountId;
+  const priorityAccountId = resolvePriorityAccountId(accounts);
+  const isPriorityAccount = accountId === priorityAccountId;
 
   const merged = available.map((cal) => ({
     calendarId: cal.id,
@@ -985,6 +994,45 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   });
 }
 
+function resolvePriorityAccountId(
+  accounts: Array<{ id: string; calendars: Array<{ defaultForBooking?: boolean }> }>,
+): string | undefined {
+  return accounts.find((a) => a.calendars.some((c) => c.defaultForBooking))?.id ?? accounts[0]?.id;
+}
+
+function redirectMicrosoftCalendarError(res: Response, frontendUrl: string, reason: string): void {
+  const url = new URL(`${frontendUrl}/agenda/manage`);
+  url.searchParams.set("microsoft", "error");
+  url.searchParams.set("reason", reason.slice(0, 120));
+  res.redirect(url.toString());
+}
+
+export async function setPriorityCalendarAccountHandler(req: AuthenticatedRequest, res: Response) {
+  const uid = req.user!.uid;
+  assertCalendarIntegrations(uid);
+  const { provider, accountId } = req.body as { provider?: string; accountId?: string };
+  if (provider !== "google" && provider !== "microsoft") {
+    throw new ValidationError('provider must be "google" or "microsoft"');
+  }
+  if (!accountId || typeof accountId !== "string") {
+    throw new ValidationError("accountId required");
+  }
+  setPriorityCalendarAccount(uid, provider, accountId);
+  try {
+    logActivity(
+      uid,
+      req.user!.email ?? "",
+      "calendar_priority_set",
+      provider === "google" ? "google_account" : "microsoft_account",
+      accountId,
+      { provider, accountId },
+    );
+  } catch (logErr) {
+    console.warn("[calendar.setPriority] activity log failed:", logErr);
+  }
+  res.status(200).json({ message: "Priority calendar account updated" });
+}
+
 /** List all calendars for a specific Google account */
 export async function listCalendars(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
@@ -997,7 +1045,8 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
 
   const available = await listGoogleCalendarListForAccount(uid, accountId);
   const savedMap = new Map(account.calendars.map((c) => [c.calendarId, c]));
-  const isPriorityAccount = accounts.length > 0 && accounts[0]?.id === accountId;
+  const priorityAccountId = resolvePriorityAccountId(accounts);
+  const isPriorityAccount = accountId === priorityAccountId;
 
   const merged = available.map((cal) => ({
     calendarId: cal.id,
@@ -1354,6 +1403,7 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
     bookingCalendarId,
     bookingAccountId ?? undefined,
     attendees,
+    { preserveConference: true },
   );
   if (!ok) throw new ValidationError("Impossible de modifier la réunion Google Meet.", "MEET_UPDATE_FAILED");
 

@@ -1,4 +1,4 @@
-﻿export type Locale = "fr" | "en";
+export type Locale = "fr" | "en";
 
 const translations = {
   // ── App Shell / Header ──
@@ -1397,6 +1397,22 @@ const translations = {
   },
   "agenda.googleConnected": { fr: "Google Calendar connecté", en: "Google Calendar connected" },
   "agenda.outlookConnected": { fr: "Outlook connecté", en: "Outlook connected" },
+  "agenda.outlookConnectError": {
+    fr: "Connexion Outlook refusée — réessayez ou vérifiez les permissions du compte.",
+    en: "Outlook connection declined — retry or check account permissions.",
+  },
+  "agenda.outlookConnectErrorPlan": {
+    fr: "Outlook nécessite le palier Small teams (pack intégrations).",
+    en: "Outlook requires the Small teams plan (integrations pack).",
+  },
+  "agenda.priorityAccountSaved": {
+    fr: "Compte prioritaire enregistré",
+    en: "Priority account saved",
+  },
+  "agenda.priorityAccountSaveError": {
+    fr: "Impossible d'enregistrer le compte prioritaire",
+    en: "Could not save priority account",
+  },
   "agenda.inAppSlotsSyncTitle": {
     fr: "Synchroniser les créneaux Wroket ?",
     en: "Sync Wroket slots to your calendar?",

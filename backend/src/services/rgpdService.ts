@@ -2,7 +2,12 @@ import { getStore, scheduleSave, scheduleTodoShardPersist, flushNow } from "../p
 import { NotFoundError } from "../utils/errors";
 import { exportCommentsByAuthor } from "./commentService";
 import { createNotification } from "./notificationService";
-import { listAllTodos } from "./todoService";
+import { listAllTodos, purgeTodoRuntimeForUid, listTodoIdsForOwner } from "./todoService";
+import { purgeAuthRuntimeForUid } from "./authService";
+import { purgeNotesRuntimeForUid } from "./noteService";
+import { deleteAllTodosV2ForOwner } from "./todoDocStore";
+import { purgeAttachmentsForTodoIds } from "./attachmentService";
+import { cancelStripeSubscriptionsById } from "./stripeBillingService";
 export interface UserDataExport {
   user: Record<string, unknown>;
   todos: unknown[];
@@ -181,8 +186,31 @@ export async function deleteUserData(uid: string): Promise<void> {
 
   // Remove deleted user's own todos
   const todoStore = (store.todos ?? {}) as Record<string, unknown>;
+  const legacyTodoIds = Object.keys((todoStore[uid] as Record<string, unknown>) ?? {});
+  const runtimeTodoIds = listTodoIdsForOwner(uid);
+  const allTodoIds = [...new Set([...legacyTodoIds, ...runtimeTodoIds])];
   delete todoStore[uid];
   scheduleTodoShardPersist("all");
+
+  const todosStorageMode = (process.env.TODOS_STORAGE_MODE ?? "legacy").trim().toLowerCase();
+  if (todosStorageMode === "v2" || todosStorageMode === "dual") {
+    await deleteAllTodosV2ForOwner(uid);
+  }
+
+  await purgeAttachmentsForTodoIds(allTodoIds);
+
+  const noteIds = purgeNotesRuntimeForUid(uid);
+  const noteStore = (store.notes ?? {}) as Record<string, unknown>;
+  delete noteStore[uid];
+  scheduleSave("notes");
+  const archivedNoteStore = (store.archivedNotes ?? {}) as Record<string, unknown>;
+  delete archivedNoteStore[uid];
+  scheduleSave("archivedNotes");
+  const noteAttachmentStore = (store.noteAttachments ?? {}) as Record<string, unknown[]>;
+  for (const noteId of noteIds) {
+    delete noteAttachmentStore[noteId];
+  }
+  scheduleSave("noteAttachments");
 
   // Anonymize comments
   const commentStore = (store.comments ?? {}) as Record<string, Array<Record<string, unknown>>>;
@@ -200,11 +228,6 @@ export async function deleteUserData(uid: string): Promise<void> {
   const notifStore = (store.notifications ?? {}) as Record<string, unknown>;
   delete notifStore[uid];
   scheduleSave("notifications");
-
-  // Remove notes
-  const noteStore = (store.notes ?? {}) as Record<string, unknown>;
-  delete noteStore[uid];
-  scheduleSave("notes");
 
   // Anonymize activity log
   const activityStore = (store.activityLog ?? []) as Array<Record<string, unknown>>;
@@ -228,6 +251,18 @@ export async function deleteUserData(uid: string): Promise<void> {
   delete webhookStore[uid];
   scheduleSave("webhooks");
 
+  const stripeSubIds: string[] = [];
+  const userRecord = users[uid] as { stripeSubscriptionId?: string } | undefined;
+  if (typeof userRecord?.stripeSubscriptionId === "string" && userRecord.stripeSubscriptionId.trim()) {
+    stripeSubIds.push(userRecord.stripeSubscriptionId.trim());
+  }
+  for (const team of Object.values(teamStore)) {
+    const t = team as { ownerUid?: string; stripeSubscriptionId?: string };
+    if (t.ownerUid === uid && typeof t.stripeSubscriptionId === "string" && t.stripeSubscriptionId.trim()) {
+      stripeSubIds.push(t.stripeSubscriptionId.trim());
+    }
+  }
+
   // Remove from teams (memberships) and delete owned teams
   for (const [id, team] of Object.entries(teamStore)) {
     if (team.ownerUid === uid) {
@@ -250,9 +285,14 @@ export async function deleteUserData(uid: string): Promise<void> {
   }
   scheduleSave("collaborators");
 
+  await cancelStripeSubscriptionsById(uid, stripeSubIds);
+
   // Remove user record last (after all lookups are done)
   delete users[uid];
   scheduleSave("users");
+
+  purgeTodoRuntimeForUid(uid);
+  purgeAuthRuntimeForUid(uid);
 
   // Force immediate persistence so data is gone before the response
   await flushNow();

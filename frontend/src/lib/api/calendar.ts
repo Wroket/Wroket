@@ -169,6 +169,21 @@ export async function getAccountCalendars(accountId: string): Promise<GoogleCale
   return res.json();
 }
 
+export async function setPriorityCalendarAccount(
+  provider: "google" | "microsoft",
+  accountId: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/calendar/accounts/priority`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ provider, accountId }),
+  });
+  if (!res.ok) {
+    await throwCalendarHttpError(res, "Impossible de définir le compte prioritaire");
+  }
+}
+
 export async function saveAccountCalendars(accountId: string, calendars: GoogleCalendarEntry[]): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/calendar/google/accounts/${encodeURIComponent(accountId)}/calendars`, {
     method: "PUT",

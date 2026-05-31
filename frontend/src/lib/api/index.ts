@@ -188,6 +188,7 @@ export {
   disconnectGoogleCalendar,
   getAccountCalendars,
   saveAccountCalendars,
+  setPriorityCalendarAccount,
   disconnectGoogleAccount,
   getMicrosoftAuthUrl,
   disconnectMicrosoftCalendar,
