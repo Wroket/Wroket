@@ -1,0 +1,24 @@
+# Normalize line endings: LF in the repository (works with Windows editors + Git).
+* text=auto eol=lf
+
+# Shell / scripts
+*.sh text eol=lf
+
+# Images & fonts
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Archives & documents
+*.pdf binary
+*.zip binary
+
+# SVG is text (often hand-edited)
+*.svg text eol=lf
