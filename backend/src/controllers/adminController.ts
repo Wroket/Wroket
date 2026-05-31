@@ -8,6 +8,7 @@ import {
   getAdminStats,
   getAdminUsers,
   getInviteLog,
+  listTodosForAdminUser,
   resendInviteReminder,
 } from "../services/adminService";
 import { getActivityLog, logActivity } from "../services/activityLogService";
@@ -25,7 +26,6 @@ import { normalizeBillingPlan } from "../services/entitlementsService";
 import { createBillingPortalSessionUrl } from "../services/stripePortalSessionService";
 import { getWebhooksOverview } from "../services/webhookService";
 import { exportUserData, deleteUserData } from "../services/rgpdService";
-import { getStore } from "../persistence";
 
 export async function adminStats(_req: AuthenticatedRequest, res: Response) {
   res.status(200).json(getAdminStats());
@@ -228,15 +228,14 @@ export async function adminUserEarlyBirdPatch(req: AuthenticatedRequest, res: Re
 
 export async function adminCompletionRates(_req: AuthenticatedRequest, res: Response) {
   const users = getAdminUsers();
-  const todoStore = (getStore().todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
   const EXCLUDED = new Set(["cancelled", "deleted"]);
 
   const rates = users.map((u) => {
-    const userTodos = todoStore[u.uid] ?? {};
+    const userTodos = listTodosForAdminUser(u.uid);
     let total = 0;
     let completed = 0;
-    for (const todo of Object.values(userTodos)) {
-      if (EXCLUDED.has(todo.status as string)) continue;
+    for (const todo of userTodos) {
+      if (EXCLUDED.has(todo.status)) continue;
       total++;
       if (todo.status === "completed") completed++;
     }

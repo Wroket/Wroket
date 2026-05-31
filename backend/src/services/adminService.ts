@@ -6,6 +6,50 @@ import type { BillingPlan } from "./entitlementsService";
 import { resolveBillingPlan } from "./entitlementsService";
 import { normalizeEmail } from "./authService";
 import { sendInviteEmail } from "./emailService";
+import {
+  forEachInMemoryTodo,
+  getInMemoryTodoIdsByOwner,
+  listAllTodos,
+} from "./todoService";
+
+/** Admin stats: in-memory todos (v2) with fallback to legacy `store.todos`. */
+function forEachAdminTodo(
+  fn: (todo: { status: string; scheduledSlot?: unknown }) => void,
+): void {
+  const inMemoryIds = getInMemoryTodoIdsByOwner();
+  if (Object.keys(inMemoryIds).length > 0) {
+    forEachInMemoryTodo((_uid, todo) => fn(todo));
+    return;
+  }
+  const todoStore = getStore().todos ?? {};
+  for (const userTodos of Object.values(todoStore)) {
+    for (const todo of Object.values(userTodos as Record<string, { status: string; scheduledSlot?: unknown }>)) {
+      fn(todo);
+    }
+  }
+}
+
+function taskCountByUidMap(): Map<string, number> {
+  const inMemoryIds = getInMemoryTodoIdsByOwner();
+  if (Object.keys(inMemoryIds).length > 0) {
+    return new Map(Object.entries(inMemoryIds).map(([uid, ids]) => [uid, ids.length]));
+  }
+  const counts = new Map<string, number>();
+  const todoStore = getStore().todos ?? {};
+  for (const [uid, userTodos] of Object.entries(todoStore as Record<string, Record<string, unknown>>)) {
+    counts.set(uid, Object.keys(userTodos).length);
+  }
+  return counts;
+}
+
+/** Per-user todos for admin completion rates. */
+export function listTodosForAdminUser(uid: string): Array<{ status: string }> {
+  if (Object.keys(getInMemoryTodoIdsByOwner()).length > 0) {
+    return listAllTodos(uid);
+  }
+  const userTodos = ((getStore().todos ?? {}) as Record<string, Record<string, { status: string }>>)[uid] ?? {};
+  return Object.values(userTodos);
+}
 
 /**
  * FIX: Do not fall back to a hardcoded email. If ADMIN_EMAILS is not
@@ -83,19 +127,15 @@ export function getAdminStats(): AdminStats {
     if (hash && hash.length > 80) userStats.googleSso++;
   }
 
-  const todoStore = store.todos ?? {};
   let taskTotal = 0, taskActive = 0, taskCompleted = 0, taskCancelled = 0, taskScheduled = 0;
-  for (const userTodos of Object.values(todoStore)) {
-    const todos = userTodos as Record<string, Record<string, unknown>>;
-    for (const todo of Object.values(todos)) {
-      taskTotal++;
-      const status = todo.status as string;
-      if (status === "active") taskActive++;
-      else if (status === "completed") taskCompleted++;
-      else if (status === "cancelled") taskCancelled++;
-      if (todo.scheduledSlot) taskScheduled++;
-    }
-  }
+  forEachAdminTodo((todo) => {
+    taskTotal++;
+    const status = todo.status;
+    if (status === "active") taskActive++;
+    else if (status === "completed") taskCompleted++;
+    else if (status === "cancelled") taskCancelled++;
+    if (todo.scheduledSlot) taskScheduled++;
+  });
 
   const projects = Object.values(store.projects ?? {}) as Array<Record<string, unknown>>;
   const projectStats = {
@@ -277,7 +317,7 @@ export function deleteInviteLogEntry(inviteId: string): { fromEmail: string; toE
 export function getAdminUsers(): AdminUserSummary[] {
   const store = getStore();
   const users = Object.values(store.users ?? {}) as Array<Record<string, unknown>>;
-  const todoStore = store.todos ?? {};
+  const taskCounts = taskCountByUidMap();
   const noteStoreAll = store.notes ?? {};
   const projects = Object.values(store.projects ?? {}) as Array<Record<string, unknown>>;
   const projectCountByUid = new Map<string, number>();
@@ -300,8 +340,7 @@ export function getAdminUsers(): AdminUserSummary[] {
 
   return users.map((u) => {
     const uid = u.uid as string;
-    const userTodos = (todoStore as Record<string, Record<string, unknown>>)[uid] ?? {};
-    const taskCount = Object.keys(userTodos).length;
+    const taskCount = taskCounts.get(uid) ?? 0;
     const userNotes = (noteStoreAll as Record<string, Record<string, unknown>>)[uid] ?? {};
     const noteCount = Object.keys(userNotes).length;
     const projectCount = projectCountByUid.get(uid) ?? 0;

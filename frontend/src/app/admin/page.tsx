@@ -575,7 +575,16 @@ export default function AdminPage() {
                             ? <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" title={t("admin.verifiedTooltip")} />
                             : <span className="inline-block w-2 h-2 rounded-full bg-zinc-300 dark:bg-slate-600" title={t("admin.unverifiedTooltip")} />}
                         </td>
-                        <td className="px-4 py-3 text-zinc-800 dark:text-slate-200 text-xs whitespace-nowrap">{t(ADMIN_PLAN_LABEL_KEY[effPlan])}</td>
+                        <td className="px-4 py-3 text-zinc-800 dark:text-slate-200 text-xs whitespace-nowrap">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span>{t(ADMIN_PLAN_LABEL_KEY[effPlan])}</span>
+                            {u.earlyBird ? (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200">
+                                {t("settings.earlyBirdBadge")}
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.taskCount}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.projectCount ?? 0}</td>
                         <td className="px-4 py-3 text-center text-zinc-700 dark:text-slate-300">{u.noteCount ?? 0}</td>
@@ -610,8 +619,15 @@ export default function AdminPage() {
                       <p className="text-sm text-zinc-700 dark:text-slate-300 mt-1">
                         {selectedUser.firstName || selectedUser.lastName ? `${selectedUser.firstName} ${selectedUser.lastName}`.trim() : "—"}
                       </p>
-                      <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 mt-2">
-                        {t("admin.billing.planCol")}: {t(ADMIN_PLAN_LABEL_KEY[(selectedUser.billingPlan ?? "first") as BillingPlan])}
+                      <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 mt-2 flex flex-wrap items-center gap-2">
+                        <span>
+                          {t("admin.billing.planCol")}: {t(ADMIN_PLAN_LABEL_KEY[(selectedUser.billingPlan ?? "first") as BillingPlan])}
+                        </span>
+                        {selectedUser.earlyBird ? (
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200">
+                            {t("settings.earlyBirdBadge")}
+                          </span>
+                        ) : null}
                       </p>
                     </div>
                     <button

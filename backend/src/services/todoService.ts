@@ -481,6 +481,17 @@ export function getInMemoryTodoIdsByOwner(): Record<string, string[]> {
   return out;
 }
 
+/** Iterate in-memory todos (source of truth in v2 / hydrated legacy). */
+export function forEachInMemoryTodo(
+  fn: (ownerUid: string, todo: Todo) => void,
+): void {
+  for (const [ownerUid, todos] of todosByUser) {
+    for (const todo of todos.values()) {
+      fn(ownerUid, todo);
+    }
+  }
+}
+
 /**
  * Apply a `todos_v2` Firestore document change received via `onSnapshot` to the
  * in-memory map. Used by the cross-replica live invalidation in v2 mode so a
