@@ -3,6 +3,10 @@ import { Request, Response } from "express";
 import { AuthenticatedRequest } from "./authController";
 import { findAvailableSlots } from "../services/calendarService";
 import {
+  collectWroketCalendarEventIds,
+  shouldSkipExternalConflictEvent,
+} from "../services/calendarConflictUtils";
+import {
   updateTodo,
   listTodos,
   listAllTodos,
@@ -251,6 +255,10 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
   const conflicts: ConflictInfo[] = [];
   const extCal = getEntitlementsForUid(uid).integrations;
 
+  const ownedTodos = listTodos(uid);
+  const assignedTodos = listAssignedToMe(uid);
+  const wroketExternalIds = collectWroketCalendarEventIds([...ownedTodos, ...assignedTodos]);
+
   const checkTodo = (t: Todo) => {
     if (t.id === todoId || t.status !== "active" || !t.scheduledSlot) return;
     const sStart = new Date(t.scheduledSlot.start);
@@ -260,8 +268,8 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
     }
   };
 
-  for (const t of listTodos(uid)) checkTodo(t);
-  for (const t of listAssignedToMe(uid)) checkTodo(t);
+  for (const t of ownedTodos) checkTodo(t);
+  for (const t of assignedTodos) checkTodo(t);
 
   const accounts = getGoogleAccounts(uid);
   if (extCal && accounts.length > 0) {
@@ -279,6 +287,7 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
       for (const events of results) {
         for (const ev of events) {
           if (ev.allDay) continue;
+          if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
           const evStart = new Date(ev.start);
           const evEnd = new Date(ev.end);
           if (start < evEnd && end > evStart) {
@@ -305,6 +314,7 @@ async function findConflicts(uid: string, todoId: string, start: Date, end: Date
       for (const events of results) {
         for (const ev of events) {
           if (ev.allDay) continue;
+          if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
           const evStart = new Date(ev.start);
           const evEnd = new Date(ev.end);
           if (start < evEnd && end > evStart) {

@@ -23,6 +23,7 @@ import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
+import { useTodoListSync } from "@/lib/useTodoListSync";
 
 const STATUS_STYLES: Record<string, { tKey: string; cls: string }> = {
   completed: { tKey: "archives.completedOn", cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
@@ -64,6 +65,8 @@ export default function ArchivedTasksPanel() {
   const [taskFilter, setTaskFilter] = useState<TodoStatus | "all">("all");
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  useTodoListSync(bumpRefresh);
   const [taskConfirm, setTaskConfirm] = useState<TaskArchiveConfirm>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const selectAllRef = useRef<HTMLInputElement>(null);

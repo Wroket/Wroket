@@ -18,14 +18,14 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ## Audit complétude (passe 2)
 
-**Date** : 2026-05-29  
+**Date** : 2026-05-30  
 **Règle appliquée** : `feature-completeness-gate` (UI -> API -> persistance -> observabilité -> UX d'erreur -> non-régression).
 
 ### Statut global des features `[x]`
 
 - **Complet** : socle auth/sécurité v1-v5, CRUD tâches/projets/équipes, vues principales, i18n, CI/CD, monitoring, 2FA, imports/exports majeurs.
 - **Partiel acceptable** : blocs riches fonctionnellement mais avec validation réelle limitée (notifications multicanal, partage notes/mentions, certains flux agenda multi-comptes).
-- **Partiel critique** : flux à fort impact prod qui exigent encore des garde-fous E2E réels (invitations externes / politiques Google Workspace en conditions réelles, persistance tâches multi-modes et dérive de données en conditions extrêmes) — *l’édition Meet (reschedule, invités, annulation) et le compte Google prioritaire sont en prod côté code ; la validation E2E post-déploiement reste à cadrer.*
+- **Partiel critique** : flux à fort impact prod confirmés partiellement en E2E prod (2026-05-30, commit `f233fa73`, **GO partiel**) — voir [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K et section « Retour E2E prod 2026-05-30 » ci-dessous. Meet création/annulation/invité externe OK ; **édition heure Google KO** ; **multi-comptes / priorité KO** ; **suppression compte RGPD KO**.
 
 ### Triage complétude (Critique / Important / Nice-to-have)
 
@@ -47,6 +47,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 1. **Reliability Pack — Calendar & Meeting**
    - DoD: création meeting idempotente, lifecycle complet (création **et** édition/annulation **et** compte prioritaire + secondaires read-only) vérifié, erreurs actionnables, checklist E2E prod exécutée (dont invités externes / comptes multiples).
+   - **E2E prod 2026-05-30 (partiel)** : création Meet + annulation + invité externe OK ; **édition heure → Google NOK** ; **compte prioritaire / Microsoft secondaire NOK** ; conflit créneau double message (correctif dédup en cours). Voir bugs `[ ]` section Retour E2E ci-dessous.
 2. **Reliability Pack — Todo Persistence**
    - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
 3. **Plan & Billing Core (P1)**
@@ -70,6 +71,17 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - Bots interactifs Slack/Discord et sync bidirectionnelle.
 - Notes collaboratives temps réel (chantier lourd).
 - Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
+
+## Retour E2E prod 2026-05-30 (`f233fa73`)
+
+Checklist exécutée — **GO partiel**. Détail : [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K.
+
+- [ ] **P0 — RGPD suppression compte** — Après `DELETE /auth/me` ou admin delete : vérifier purge Firestore (todos, `googleAccounts`, `microsoftAccounts`, sessions) et absence de données résiduelles à la reconnexion (uid déterministe `sha256(email)` dans `authService.ts`).
+- [ ] **P1 — Meet PATCH heure → Google** — Régression E2E D3.3 : modification heure non reflétée dans Google Calendar ; investiguer logs `[meet_patch_error]` ; distinguer modal Meet vs drag agenda (`updateMeet` vs `bookSlot` dans `calendarController.ts`).
+- [ ] **P1 — Calendrier compte prioritaire** — « Rendre prioritaire » + Enregistrer ne persiste pas au reload (`agenda/manage/page.tsx`, `setGoogleAccountCalendars` — pas de réordonnancement `googleAccounts[]`).
+- [ ] **P1 — Microsoft OAuth calendrier secondaire** — Callback échoue → redirect `/settings?error=...` ; vérifier `MICROSOFT_GRAPH_REDIRECT_URI` prod et logs `[microsoft-cal] callback error`.
+- [ ] **P2 — Conflit créneau dédup** — `findConflicts` remonte tâche in-app + événement Google miroir (double message SlotPicker). **Correctif code** : `calendarConflictUtils.ts` + filtre dans `findConflicts` — re-test E2E D1.3 après deploy.
+- [ ] **P3 — Archives sync cross-onglet** — `/archive/tasks` sans `useTodoListSync`. **Correctif code** : `useTodoListSync` sur `ArchivedTasksPanel` — re-test E2E C6 après deploy.
 
 ## Plan exécutable d'équipe (Q2 2026)
 
