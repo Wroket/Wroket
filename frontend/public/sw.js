@@ -1,7 +1,8 @@
 /* Wroket PWA shell — cache static assets; network-first navigation with offline fallback. */
 
-const CACHE_VERSION = "wroket-shell-v1";
-const PRECACHE_URLS = ["/offline.html", "/wroket-icon-v4.png", "/wroket-logo.png"];
+const CACHE_VERSION = "wroket-shell-v2";
+const PUSH_ICON = "/wroket-notification-icon.png";
+const PRECACHE_URLS = ["/offline.html", PUSH_ICON, "/wroket-logo.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -53,19 +54,62 @@ async function networkFirstNavigate(request) {
   }
 }
 
+function resolveAbsoluteUrl(url) {
+  if (!url) return `${self.location.origin}/notifications`;
+  return url.startsWith("http") ? url : `${self.location.origin}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
 function openUrl(url) {
-  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+  const absolute = resolveAbsoluteUrl(url);
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clientList) => {
     for (const client of clientList) {
-      if (client.url.startsWith(self.location.origin) && "focus" in client) {
-        client.navigate(url);
-        return client.focus();
+      if (!client.url.startsWith(self.location.origin) || !("focus" in client)) continue;
+      try {
+        if ("navigate" in client && typeof client.navigate === "function") {
+          await client.navigate(absolute);
+          return client.focus();
+        }
+      } catch {
+        /* navigate can fail on some Windows builds — try focus + openWindow */
+      }
+      try {
+        await client.focus();
+        return client;
+      } catch {
+        /* try next client */
       }
     }
     if (self.clients.openWindow) {
-      return self.clients.openWindow(url);
+      return self.clients.openWindow(absolute);
     }
     return undefined;
   });
+}
+
+async function handleAssignmentAction(action, data) {
+  const todoId = data?.todoId;
+  const apiBase = data?.apiBase;
+  if (!todoId || !apiBase) return openUrl(data?.url);
+
+  const status = action === "accept" ? "accepted" : action === "decline" ? "declined" : null;
+  if (!status) return openUrl(data?.url);
+
+  try {
+    const res = await fetch(`${apiBase}/todos/${encodeURIComponent(todoId)}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignmentStatus: status }),
+    });
+    if (res.status === 401) {
+      const redirect = encodeURIComponent(data?.url || "/todos");
+      return openUrl(`${self.location.origin}/login?redirect=${redirect}`);
+    }
+    if (!res.ok) return openUrl(data?.url);
+    return undefined;
+  } catch {
+    return openUrl(data?.url);
+  }
 }
 
 self.addEventListener("push", (event) => {
@@ -80,23 +124,35 @@ self.addEventListener("push", (event) => {
   const body = payload.body || "";
   const url = payload.url || "/notifications";
   const tag = payload.notifId ? `wroket-${payload.notifId}` : "wroket-push";
+  const actions = Array.isArray(payload.actions) ? payload.actions.slice(0, 2) : [];
 
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: "/wroket-icon-v4.png",
-      badge: "/wroket-icon-v4.png",
-      tag,
-      data: { url },
-    }),
-  );
+  const options = {
+    body,
+    icon: PUSH_ICON,
+    badge: PUSH_ICON,
+    tag,
+    data: {
+      url,
+      todoId: payload.todoId,
+      apiBase: payload.apiBase,
+    },
+  };
+  if (actions.length > 0) options.actions = actions;
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/notifications";
-  const absolute = url.startsWith("http") ? url : `${self.location.origin}${url.startsWith("/") ? url : `/${url}`}`;
-  event.waitUntil(openUrl(absolute));
+  const data = event.notification.data || {};
+  const action = event.action;
+
+  if (action === "accept" || action === "decline") {
+    event.waitUntil(handleAssignmentAction(action, data));
+    return;
+  }
+
+  event.waitUntil(openUrl(data.url || "/notifications"));
 });
 
 self.addEventListener("fetch", (event) => {

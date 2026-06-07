@@ -10,12 +10,49 @@ import {
   type StoredPushSubscription,
 } from "./pushSubscriptionService";
 
+export interface WebPushAction {
+  action: "accept" | "decline";
+  title: string;
+}
+
 export interface WebPushPayload {
   title: string;
   body: string;
   url: string;
   notifId: string;
   type: NotificationType;
+  todoId?: string;
+  apiBase?: string;
+  actions?: WebPushAction[];
+}
+
+const PUSH_ACTION_LABELS = {
+  accept: { fr: "Accepter", en: "Accept" },
+  decline: { fr: "Refuser", en: "Decline" },
+} as const;
+
+function getApiBaseUrl(): string {
+  const explicit = process.env.API_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+  const frontend = (process.env.FRONTEND_URL || "https://wroket.com").replace(/\/$/, "");
+  if (frontend.includes("localhost")) return "http://localhost:3001";
+  if (frontend.includes("wroket.com")) return "https://api.wroket.com";
+  return frontend;
+}
+
+function pushActionLabels(locale: "fr" | "en" = "fr"): WebPushAction[] {
+  return [
+    { action: "accept", title: PUSH_ACTION_LABELS.accept[locale] },
+    { action: "decline", title: PUSH_ACTION_LABELS.decline[locale] },
+  ];
+}
+
+function shouldIncludeAssignmentActions(notif: Notification): boolean {
+  if (notif.type !== "task_assigned") return false;
+  const todoId = notif.data?.todoId;
+  if (!todoId) return false;
+  const status = notif.data?.assignmentStatus;
+  return status === undefined || status === "pending";
 }
 
 let vapidConfigured = false;
@@ -76,14 +113,23 @@ export function notifOpenUrl(type: NotificationType, data?: Record<string, strin
   return `${base}/notifications`;
 }
 
-export function buildWebPushPayload(notif: Notification): WebPushPayload {
-  return {
+export function buildWebPushPayload(notif: Notification, locale: "fr" | "en" = "fr"): WebPushPayload {
+  const todoId = notif.data?.todoId;
+  const payload: WebPushPayload = {
     title: notif.title,
     body: notif.message,
     url: notifOpenUrl(notif.type, notif.data),
     notifId: notif.id,
     type: notif.type,
   };
+
+  if (shouldIncludeAssignmentActions(notif)) {
+    payload.todoId = todoId;
+    payload.apiBase = getApiBaseUrl();
+    payload.actions = pushActionLabels(locale);
+  }
+
+  return payload;
 }
 
 export function shouldSendWebPush(uid: string, type: NotificationType): boolean {

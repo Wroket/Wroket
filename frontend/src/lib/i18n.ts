@@ -778,6 +778,30 @@ const translations = {
     en: "Tip: install Wroket as an app (PWA) for more reliable background alerts.",
   },
   "settings.webPushSaving": { fr: "Configuration…", en: "Setting up…" },
+  "settings.webPushPerDevice": {
+    fr: "Les notifications push se configurent par appareil. Activez-les sur chaque téléphone et ordinateur que vous utilisez.",
+    en: "Push notifications are set up per device. Enable them on each phone and computer you use.",
+  },
+  "settings.webPushOtherDevice": {
+    fr: "Déjà activé sur un autre appareil — activez aussi sur celui-ci pour recevoir les alertes ici.",
+    en: "Already enabled on another device — turn on here too to receive alerts on this one.",
+  },
+  "settings.webPushHintWindows": {
+    fr: "Windows : installez Wroket (icône ⊕ dans la barre d'adresse Chrome/Edge), puis activez les notifications push.",
+    en: "Windows: install Wroket (install icon in the Chrome/Edge address bar), then enable push notifications.",
+  },
+  "settings.webPushHintMacChrome": {
+    fr: "Mac (Chrome/Edge) : installez Wroket comme application, puis activez les notifications push.",
+    en: "Mac (Chrome/Edge): install Wroket as an app, then enable push notifications.",
+  },
+  "settings.webPushHintMacSafari": {
+    fr: "Mac (Safari) : Fichier → Ajouter au Dock, ouvrez Wroket depuis le Dock, puis activez les notifications push.",
+    en: "Mac (Safari): File → Add to Dock, open Wroket from the Dock, then enable push notifications.",
+  },
+  "settings.webPushHintMobile": {
+    fr: "Mobile : ajoutez Wroket à l'écran d'accueil (PWA) pour des alertes fiables en arrière-plan.",
+    en: "Mobile: add Wroket to your home screen (PWA) for reliable background alerts.",
+  },
   "settings.notifTypesTitle": { fr: "Filtrage par type de notification", en: "Filter by notification type" },
   "settings.notifTypesDesc": {
     fr: "Choisissez quels événements apparaissent dans l'application et lesquels sont transmis (push navigateur, email, Slack…).",
@@ -2181,6 +2205,11 @@ const translations = {
   // ── Browser push notifications ──
   "notif.enableBrowser": { fr: "Activer les alertes", en: "Enable alerts" },
   "notif.enableBrowserTitle": { fr: "Recevoir des alertes navigateur pour les nouvelles notifications", en: "Get browser alerts for new notifications" },
+  "notif.enableSystemPush": { fr: "Notifications système", en: "System notifications" },
+  "notif.enableSystemPushTitle": {
+    fr: "Configurer les notifications push dans Paramètres → Intégrations",
+    en: "Set up push notifications in Settings → Integrations",
+  },
 
   // ── Task templates ──
   "template.button": { fr: "Modèle", en: "Template" },

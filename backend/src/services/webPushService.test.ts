@@ -114,6 +114,42 @@ describe("web push payload", () => {
       type: "task_declined",
     });
   });
+
+  it("adds accept/decline actions for pending task_assigned", () => {
+    const notif: Notification = {
+      id: "n2",
+      userId: "u1",
+      type: "task_assigned",
+      title: "Tâche assignée",
+      message: "Bob vous a assigné une tâche",
+      read: false,
+      data: { todoId: "t42", assignmentStatus: "pending" },
+      createdAt: new Date().toISOString(),
+    };
+    const payload = buildWebPushPayload(notif);
+    expect(payload.todoId).toBe("t42");
+    expect(payload.apiBase).toBe("https://api.wroket.com");
+    expect(payload.actions).toEqual([
+      { action: "accept", title: "Accepter" },
+      { action: "decline", title: "Refuser" },
+    ]);
+  });
+
+  it("omits actions when assignment is already accepted", () => {
+    const notif: Notification = {
+      id: "n3",
+      userId: "u1",
+      type: "task_assigned",
+      title: "Tâche assignée",
+      message: "Bob vous a assigné une tâche",
+      read: false,
+      data: { todoId: "t42", assignmentStatus: "accepted" },
+      createdAt: new Date().toISOString(),
+    };
+    const payload = buildWebPushPayload(notif);
+    expect(payload.actions).toBeUndefined();
+    expect(payload.todoId).toBeUndefined();
+  });
 });
 
 describe("sendWebPushForNotification", () => {

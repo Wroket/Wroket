@@ -154,7 +154,13 @@ export async function create(req: AuthenticatedRequest, res: Response) {
         "task_assigned",
         "Tâche assignée",
         `${req.user!.email} vous a assigné la tâche "${todo.title}"`,
-        { todoId: todo.id, todoTitle: todo.title, assignerEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
+        {
+          todoId: todo.id,
+          todoTitle: todo.title,
+          assignerEmail: req.user!.email ?? "",
+          actorEmail: req.user!.email ?? "",
+          assignmentStatus: "pending",
+        }
       );
     }
   } catch (err) {
@@ -195,7 +201,12 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_assigned",
         "Tâche réassignée",
         `${req.user!.email} vous a retiré de la tâche "${todo.title}"`,
-        { todoId: todo.id, todoTitle: todo.title, actorEmail: req.user!.email ?? "" }
+        {
+          todoId: todo.id,
+          todoTitle: todo.title,
+          actorEmail: req.user!.email ?? "",
+          assignmentStatus: "pending",
+        }
       );
     }
 
@@ -209,7 +220,13 @@ export async function update(req: AuthenticatedRequest, res: Response) {
         "task_assigned",
         "Tâche assignée",
         `${req.user!.email} vous a assigné la tâche "${todo.title}"`,
-        { todoId: todo.id, todoTitle: todo.title, assignerEmail: req.user!.email ?? "", actorEmail: req.user!.email ?? "" }
+        {
+          todoId: todo.id,
+          todoTitle: todo.title,
+          assignerEmail: req.user!.email ?? "",
+          actorEmail: req.user!.email ?? "",
+          assignmentStatus: "pending",
+        }
       );
     }
 

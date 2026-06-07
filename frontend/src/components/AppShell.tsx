@@ -24,6 +24,9 @@ import TutorialModal, { useTutorial } from "@/components/TutorialModal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
 import FreeQuotaBanner from "@/components/FreeQuotaBanner";
+import { notificationOpenHref } from "@/lib/notificationDeepLink";
+import { PUSH_NOTIFICATION_ICON } from "@/lib/pushBranding";
+import { hasLocalWebPushSubscription } from "@/lib/webPushLocal";
 
 interface AppShellProps {
   children: ReactNode;
@@ -182,37 +185,9 @@ function timeAgo(iso: string, t: (k: import("@/lib/i18n").TranslationKey) => str
   return `${days} ${t("notif.daysAgo")}`;
 }
 
-/** Deep-link for a notification in the panel. Returns null when the target is no longer accessible. */
-function taskNotifOpenHref(notif: AppNotification): string | null {
-  // note_mention: link to the note if still accessible
-  if (notif.type === "note_mention") {
-    if (notif.data?.noteAccessible === "false") return null;
-    return notif.data?.noteId ? `/notes?id=${encodeURIComponent(notif.data.noteId)}` : "/notes";
-  }
-  const taskId = notif.data?.todoId;
-  if (
-    taskId &&
-    (notif.type === "task_assigned" ||
-      notif.type === "task_completed" ||
-      notif.type === "task_cancelled" ||
-      notif.type === "task_declined" ||
-      notif.type === "task_accepted" ||
-      notif.type === "comment_mention" ||
-      notif.type === "deadline_approaching" ||
-      notif.type === "deadline_today")
-  ) {
-    return `/todos?task=${encodeURIComponent(taskId)}`;
-  }
-  if (
-    notif.type === "task_assigned" ||
-    notif.type === "task_completed" ||
-    notif.type === "task_cancelled" ||
-    notif.type === "task_declined" ||
-    notif.type === "task_accepted"
-  ) {
-    return "/todos";
-  }
-  return "/todos";
+function panelNotifHref(notif: AppNotification): string | null {
+  if (notif.type === "note_mention" && notif.data?.noteAccessible === "false") return null;
+  return notificationOpenHref(notif);
 }
 
 export default function AppShell({ children }: AppShellProps) {
@@ -293,15 +268,36 @@ export default function AppShell({ children }: AppShellProps) {
         if (!cancelled) {
           const prev = prevUnreadCountRef.current;
           prevUnreadCountRef.current = c;
-          // Fire a browser notification when new unread notifications arrive.
+          // Desktop alert when tab is open — skip if Web Push handles this device.
           if (c > prev && typeof Notification !== "undefined" && Notification.permission === "granted") {
-            const delta = c - prev;
-            const body = delta === 1
-              ? "Vous avez 1 nouvelle notification"
-              : `Vous avez ${delta} nouvelles notifications`;
-            try {
-              new Notification("Wroket", { body, icon: "/favicon.ico", tag: "wroket-notif" });
-            } catch { /* browser may block even with permission */ }
+            void (async () => {
+              if (await hasLocalWebPushSubscription()) return;
+              try {
+                const list = await getNotifications();
+                const latest = list.find((n) => !n.read) ?? list[0];
+                if (latest) {
+                  const href = panelNotifHref(latest);
+                  const desktopNotif = new Notification(latest.title || "Wroket", {
+                    body: latest.message,
+                    icon: PUSH_NOTIFICATION_ICON,
+                    tag: latest.id ? `wroket-${latest.id}` : "wroket-notif",
+                  });
+                  desktopNotif.onclick = () => {
+                    window.focus();
+                    if (href) window.location.href = href;
+                    desktopNotif.close();
+                  };
+                  return;
+                }
+              } catch { /* fall through to generic */ }
+              const delta = c - prev;
+              const body = delta === 1
+                ? "Vous avez 1 nouvelle notification"
+                : `Vous avez ${delta} nouvelles notifications`;
+              try {
+                new Notification("Wroket", { body, icon: PUSH_NOTIFICATION_ICON, tag: "wroket-notif" });
+              } catch { /* browser may block even with permission */ }
+            })();
           }
           setUnreadCount(c);
         }
@@ -660,18 +656,13 @@ export default function AppShell({ children }: AppShellProps) {
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("notif.title")}</h3>
                     <div className="flex items-center gap-2">
                       {typeof Notification !== "undefined" && Notification.permission === "default" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void Notification.requestPermission().then((perm) => {
-                              browserNotifPermRef.current = perm;
-                            });
-                          }}
+                        <Link
+                          href="/settings?tab=integrations"
                           className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
-                          title={t("notif.enableBrowserTitle")}
+                          title={t("notif.enableSystemPushTitle")}
                         >
-                          {t("notif.enableBrowser")}
-                        </button>
+                          {t("notif.enableSystemPush")}
+                        </Link>
                       )}
                       {unreadCount > 0 && (
                         <button
@@ -715,7 +706,7 @@ export default function AppShell({ children }: AppShellProps) {
                                   {timeAgo(notif.createdAt, t)}
                                 </span>
                                 {notif.type !== "team_invite" && (() => {
-                                  const href = taskNotifOpenHref(notif);
+                                  const href = panelNotifHref(notif);
                                   if (!href) return null;
                                   return (
                                     <button

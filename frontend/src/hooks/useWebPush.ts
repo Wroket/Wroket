@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getVapidPublicKey, subscribePush, unsubscribePush } from "@/lib/api/push";
+import { getLocalPushSubscription } from "@/lib/webPushLocal";
 
 export type WebPushSupport = "unsupported" | "no-sw" | "ready";
 
@@ -33,8 +34,10 @@ async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> 
   }
 }
 
-export function useWebPush(initialEnabled = false) {
-  const [enabled, setEnabled] = useState(initialEnabled);
+/** `accountHasPush`: at least one device subscribed on this account (server flag). */
+export function useWebPush(accountHasPush = false) {
+  const [localSubscribed, setLocalSubscribed] = useState(false);
+  const [localChecked, setLocalChecked] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "default",
   );
@@ -42,9 +45,16 @@ export function useWebPush(initialEnabled = false) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshLocal = useCallback(async () => {
+    const sub = await getLocalPushSubscription();
+    setLocalSubscribed(sub != null);
+    setLocalChecked(true);
+    return sub != null;
+  }, []);
+
   useEffect(() => {
-    setEnabled(initialEnabled);
-  }, [initialEnabled]);
+    void refreshLocal();
+  }, [refreshLocal]);
 
   const enable = useCallback(async () => {
     setError(null);
@@ -77,7 +87,8 @@ export function useWebPush(initialEnabled = false) {
         }));
 
       await subscribePush(subscription.toJSON());
-      setEnabled(true);
+      setLocalSubscribed(true);
+      setLocalChecked(true);
       return true;
     } catch (err) {
       console.warn("[webPush] enable failed", err);
@@ -90,21 +101,17 @@ export function useWebPush(initialEnabled = false) {
 
   const disable = useCallback(async () => {
     setError(null);
+    const sub = await getLocalPushSubscription();
+    if (!sub) {
+      setLocalSubscribed(false);
+      return true;
+    }
+
     setBusy(true);
     try {
-      if ("serviceWorker" in navigator) {
-        const registration = await navigator.serviceWorker.getRegistration("/");
-        const sub = await registration?.pushManager?.getSubscription();
-        if (sub) {
-          await unsubscribePush(sub.endpoint);
-          await sub.unsubscribe();
-        } else {
-          await unsubscribePush();
-        }
-      } else {
-        await unsubscribePush();
-      }
-      setEnabled(false);
+      await unsubscribePush(sub.endpoint);
+      await sub.unsubscribe();
+      setLocalSubscribed(false);
       return true;
     } catch (err) {
       console.warn("[webPush] disable failed", err);
@@ -115,5 +122,19 @@ export function useWebPush(initialEnabled = false) {
     }
   }, []);
 
-  return { enabled, permission, support, busy, error, enable, disable, setEnabled };
+  return {
+    /** Subscribed on this device. */
+    enabled: localSubscribed,
+    localSubscribed,
+    localChecked,
+    accountHasPush,
+    otherDeviceOnly: accountHasPush && localChecked && !localSubscribed,
+    permission,
+    support,
+    busy,
+    error,
+    enable,
+    disable,
+    refreshLocal,
+  };
 }

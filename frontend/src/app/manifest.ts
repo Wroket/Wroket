@@ -19,19 +19,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["productivity", "business"],
     icons: [
       {
-        src: "/wroket-icon-v4.png",
+        src: "/wroket-notification-icon.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/wroket-icon-v4.png",
+        src: "/wroket-notification-icon.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/wroket-icon-v4.png",
+        src: "/wroket-slate-v3.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
@@ -42,19 +42,19 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Mes tâches",
         short_name: "Tâches",
         url: "/todos",
-        icons: [{ src: "/wroket-icon-v4.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/wroket-notification-icon.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Agenda",
         short_name: "Agenda",
         url: "/agenda",
-        icons: [{ src: "/wroket-icon-v4.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/wroket-notification-icon.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Dashboard",
         short_name: "Accueil",
         url: "/dashboard",
-        icons: [{ src: "/wroket-icon-v4.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/wroket-notification-icon.png", sizes: "192x192", type: "image/png" }],
       },
     ],
   };

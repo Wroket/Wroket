@@ -45,6 +45,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
 import { useToast } from "@/components/Toast";
 import { useWebPush } from "@/hooks/useWebPush";
+import { detectPushPlatformHint } from "@/lib/pushPlatform";
 
 const DAY_KEYS: TranslationKey[] = [
   "settings.whMon",
@@ -1541,8 +1542,17 @@ function WebPushSettingsBlock() {
   const { t } = useLocale();
   const { toast } = useToast();
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [webPushPref, setWebPushPref] = useState(false);
-  const { enabled, permission, support, busy, error, enable, disable } = useWebPush(webPushPref);
+  const [accountHasPush, setAccountHasPush] = useState(false);
+  const {
+    enabled,
+    otherDeviceOnly,
+    permission,
+    support,
+    busy,
+    error,
+    enable,
+    disable,
+  } = useWebPush(accountHasPush);
 
   useEffect(() => {
     let cancelled = false;
@@ -1550,7 +1560,7 @@ function WebPushSettingsBlock() {
       try {
         const me = await getMe();
         if (!cancelled) {
-          setWebPushPref(me.webPushEnabled === true);
+          setAccountHasPush(me.webPushEnabled === true);
           setInitialLoaded(true);
         }
       } catch {
@@ -1560,11 +1570,27 @@ function WebPushSettingsBlock() {
     return () => { cancelled = true; };
   }, []);
 
+  const platformHintKey = (() => {
+    const hint = detectPushPlatformHint();
+    if (hint === "windows") return "settings.webPushHintWindows" as const;
+    if (hint === "macSafari") return "settings.webPushHintMacSafari" as const;
+    if (hint === "macChrome") return "settings.webPushHintMacChrome" as const;
+    if (hint === "mobile") return "settings.webPushHintMobile" as const;
+    return "settings.webPushPwaHint" as const;
+  })();
+
+  const syncAccountPush = async () => {
+    try {
+      const me = await getMe();
+      setAccountHasPush(me.webPushEnabled === true);
+    } catch { /* ignore */ }
+  };
+
   const handleToggle = async () => {
     if (enabled) {
       const ok = await disable();
       if (ok) {
-        setWebPushPref(false);
+        await syncAccountPush();
         toast.success(t("settings.webPushDisabled"));
       } else if (error && error !== "unsupported" && error !== "denied") {
         toast.error(error);
@@ -1573,7 +1599,7 @@ function WebPushSettingsBlock() {
     }
     const ok = await enable();
     if (ok) {
-      setWebPushPref(true);
+      await syncAccountPush();
       toast.success(t("settings.webPushEnabled"));
     } else if (error === "denied") {
       toast.error(t("settings.webPushPermissionDenied"));
@@ -1589,17 +1615,20 @@ function WebPushSettingsBlock() {
       ? t("settings.webPushUnsupported")
       : permission === "denied"
         ? t("settings.webPushPermissionDenied")
-        : !enabled && permission === "default"
-          ? t("settings.webPushNeedPermission")
-          : enabled
-            ? t("settings.webPushEnabled")
-            : t("settings.webPushDisabled");
+        : enabled
+          ? t("settings.webPushEnabled")
+          : otherDeviceOnly
+            ? t("settings.webPushOtherDevice")
+            : !enabled && permission === "default"
+              ? t("settings.webPushNeedPermission")
+              : t("settings.webPushDisabled");
 
   return (
     <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-slate-800/30">
       <div>
         <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.webPushTitle")}</h4>
         <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.webPushDesc")}</p>
+        <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.webPushPerDevice")}</p>
       </div>
       {!initialLoaded ? (
         <div className="flex justify-center py-2">
@@ -1608,14 +1637,18 @@ function WebPushSettingsBlock() {
       ) : (
         <>
           <p className="text-xs text-zinc-600 dark:text-slate-400">{statusHint}</p>
-          <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.webPushPwaHint")}</p>
+          <p className="text-xs text-zinc-400 dark:text-slate-500">{t(platformHintKey)}</p>
           <button
             type="button"
             onClick={() => void handleToggle()}
-            disabled={busy || support === "unsupported"}
+            disabled={busy || support === "unsupported" || permission === "denied"}
             className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
           >
-            {busy ? t("settings.webPushSaving") : enabled ? t("settings.webPushDisable") : t("settings.webPushEnable")}
+            {busy
+              ? t("settings.webPushSaving")
+              : enabled
+                ? t("settings.webPushDisable")
+                : t("settings.webPushEnable")}
           </button>
         </>
       )}
