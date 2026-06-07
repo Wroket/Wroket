@@ -1,6 +1,6 @@
 /* Wroket PWA shell — cache static assets; network-first navigation with offline fallback. */
 
-const CACHE_VERSION = "wroket-shell-v2";
+const CACHE_VERSION = "wroket-shell-v4";
 const PUSH_ICON = "/wroket-notification-icon.png";
 const PRECACHE_URLS = ["/offline.html", PUSH_ICON, "/wroket-logo.png"];
 
@@ -86,30 +86,18 @@ function openUrl(url) {
   });
 }
 
-async function handleAssignmentAction(action, data) {
+/** Open the app with assignmentAction — mutation runs in the page (reliable session cookies on mobile). */
+function urlWithAssignmentAction(data, action) {
   const todoId = data?.todoId;
-  const apiBase = data?.apiBase;
-  if (!todoId || !apiBase) return openUrl(data?.url);
-
-  const status = action === "accept" ? "accepted" : action === "decline" ? "declined" : null;
-  if (!status) return openUrl(data?.url);
-
-  try {
-    const res = await fetch(`${apiBase}/todos/${encodeURIComponent(todoId)}`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignmentStatus: status }),
-    });
-    if (res.status === 401) {
-      const redirect = encodeURIComponent(data?.url || "/todos");
-      return openUrl(`${self.location.origin}/login?redirect=${redirect}`);
-    }
-    if (!res.ok) return openUrl(data?.url);
-    return undefined;
-  } catch {
-    return openUrl(data?.url);
+  let path = data?.url || "/todos";
+  if (todoId && !String(path).includes("task=")) {
+    const sep = path.includes("?") ? "&" : "?";
+    path = `${path}${sep}task=${encodeURIComponent(todoId)}`;
   }
+  const absolute = resolveAbsoluteUrl(path);
+  const u = new URL(absolute);
+  u.searchParams.set("assignmentAction", action);
+  return u.toString();
 }
 
 self.addEventListener("push", (event) => {
@@ -129,7 +117,6 @@ self.addEventListener("push", (event) => {
   const options = {
     body,
     icon: PUSH_ICON,
-    badge: PUSH_ICON,
     tag,
     data: {
       url,
@@ -148,7 +135,7 @@ self.addEventListener("notificationclick", (event) => {
   const action = event.action;
 
   if (action === "accept" || action === "decline") {
-    event.waitUntil(handleAssignmentAction(action, data));
+    event.waitUntil(openUrl(urlWithAssignmentAction(data, action)));
     return;
   }
 

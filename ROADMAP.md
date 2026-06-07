@@ -8,11 +8,11 @@
 |-------|--------|---------------------------------------------------------|
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
-| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
+| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ (Android + desktop enrichi livré, E2E desktop §I-bis à valider) ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA + **Web Push validés E2E prod Android (2026-06-07)** — assignation, deep-link tâche, redirect post-login (`dedd046`) ; **prochaine priorité → import Notion ZIP**. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA + **Web Push** — Android E2E OK (2026-06-07) ; **desktop/multi-appareil** livré (`a9d0c1e` + correctifs icône opaque + actions Accepter/Refuser via deep-link app) — E2E §I-bis à valider post-deploy ; **prochaine priorité → import Notion ZIP**. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
 ### Prochaine priorité
 
@@ -60,7 +60,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 6. **Error UX Standard**
    - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
 7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
-8. ~~**Web Push (P2)**~~ — **Fait** (E2E prod Android 2026-06-07) : VAPID GCP, opt-in Paramètres, push `task_assigned` onglet fermé, clic → modal tâche, redirect post-login.
+8. ~~**Web Push (P2)**~~ — **Fait** (Android E2E 2026-06-07 ; desktop enrichi livré 2026-06-07) : VAPID GCP, opt-in **par appareil**, hints Windows/Mac, deep-link, actions Accepter/Refuser (mutation dans l’app), icône push carrée opaque, dédup alertes AppShell ; E2E desktop §I-bis checklist à valider.
 
 ### Next (6-12 semaines)
 
@@ -94,7 +94,8 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
 - [x] **P2 — Templates tâches + alertes navigateur** — §I OK
 - [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK
 - [x] **P2 — PWA installable** — manifest + SW shell livrés 2026-06-07 ; validation install prod à faire post-deploy (`/manifest.webmanifest`, `/sw.js`)
-- [x] **P2 — Web Push** — Android prod : assignation, deep-link, redirect login ; VAPID + SW `push`/`notificationclick` (`ec1080b`, `dedd046`)
+- [x] **P2 — Web Push (Android)** — Assignation, deep-link, redirect login ; VAPID + SW `push`/`notificationclick` (`ec1080b`, `dedd046`)
+- [x] **P2 — Web Push (desktop / multi-appareil)** — Statut par appareil, hints PWA desktop, CTA cloche → Paramètres, icône opaque, actions notif → app (`a9d0c1e` + correctifs) ; **E2E §I-bis à valider** (Windows/Mac PWA)
 
 ## Plan exécutable d'équipe (Q2 2026)
 
@@ -181,6 +182,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - Microsoft/Outlook : bascule priorité Google ↔ Outlook, booking Teams, reconnexion sans perte de priorité FCFS (post-fix 2026-06-07).
 - Flux restauration/suppression archives en scénarios projet + sous-tâches.
 - Notifications multicanal (email/Slack/Teams/Chat) avec vérification de délivrabilité.
+- Web Push desktop Mac/Windows PWA — §I-bis checklist ([docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md)) : icône Wroket, deep-link, actions Accepter/Refuser, pas de doublon AppShell.
 
 ## Implémenté
 
@@ -337,8 +339,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 ## Expérience utilisateur & attractivité
 
 - [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).
-- [x] **Notifications push (Web Push)** — Service worker + abonnement push pour rappels deadline, assignations et événements clés **hors onglet / app fermée** ; complète in-app + alertes navigateur + email + webhooks — E2E prod Android 2026-06-07.
-- [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + toast cloche ; alerte desktop quand nouvelles notifs in-app (`AppShell`) ; bouton « Activer les alertes » ; E2E §I validé.
+- [x] **Notifications push (Web Push)** — Service worker + abonnement push **par appareil** pour assignations et événements clés **hors onglet / app fermée** ; actions Accepter/Refuser (`task_assigned` → deep-link app + mutation) ; icône 512×512 opaque ; complète in-app + email + webhooks — E2E Android 2026-06-07 ; desktop §I-bis à valider.
+- [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + cloche ; alerte desktop détaillée avec deep-link si push locale inactive ; lien « Notifications système » → Paramètres ; skip doublon si Web Push locale active ; E2E §I validé.
 - [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.
 - [x] **Templates & checklists de tâches** — `TaskTemplatePicker` + templates système + CRUD perso (`/templates`) ; application priorité/effort/tags/sous-tâches à la création ; E2E §I validé.
 - [ ] **Liens partageables en lecture seule** — URL signée ou token limité dans le temps pour consulter une tâche ou la vue d’un projet sans compte Wroket (socle léger avant un client portal complet — voir *Fonctionnalités Premium*).

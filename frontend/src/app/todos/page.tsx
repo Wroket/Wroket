@@ -386,20 +386,48 @@ export default function TodosPage() {
   openEditRef.current = openEdit;
 
   const lastOpenedTaskFromUrl = useRef<string | null>(null);
+  const lastPushAssignmentKey = useRef<string | null>(null);
   useEffect(() => {
     if (loading) return;
     const taskId = searchParams.get("task");
+    const assignmentAction = searchParams.get("assignmentAction");
     if (!taskId) {
       lastOpenedTaskFromUrl.current = null;
+      lastPushAssignmentKey.current = null;
       return;
     }
-    if (lastOpenedTaskFromUrl.current === taskId) return;
     const todo = todos.find((t) => t.id === taskId);
     if (!todo) return;
+
+    if (assignmentAction === "accept" || assignmentAction === "decline") {
+      const actionKey = `${taskId}:${assignmentAction}`;
+      if (lastPushAssignmentKey.current === actionKey) return;
+      lastPushAssignmentKey.current = actionKey;
+      void (async () => {
+        try {
+          const status = assignmentAction === "accept" ? "accepted" : "declined";
+          const updated = await updateTodo(todo.id, { assignmentStatus: status });
+          replaceTodoInLists(updated);
+          toast.success(
+            assignmentAction === "accept" ? t("assign.acceptedFromPush") : t("assign.declinedFromPush"),
+          );
+          lastOpenedTaskFromUrl.current = taskId;
+          openEditRef.current(updated);
+        } catch {
+          toast.error(assignmentAction === "accept" ? t("toast.acceptError") : t("toast.declineError"));
+          lastOpenedTaskFromUrl.current = taskId;
+          openEditRef.current(todo);
+        }
+        router.replace("/todos", { scroll: false });
+      })();
+      return;
+    }
+
+    if (lastOpenedTaskFromUrl.current === taskId) return;
     lastOpenedTaskFromUrl.current = taskId;
     openEditRef.current(todo);
     router.replace("/todos", { scroll: false });
-  }, [loading, todos, searchParams, router]);
+  }, [loading, todos, searchParams, router, replaceTodoInLists, toast, t]);
 
   const onEditAutoSaved = useCallback(
     (updated: Todo) => {

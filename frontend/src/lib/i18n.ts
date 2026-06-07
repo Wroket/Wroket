@@ -1195,6 +1195,8 @@ const translations = {
   "assign.declined": { fr: "Refusée", en: "Declined" },
   "assign.accept": { fr: "Accepter", en: "Accept" },
   "assign.accepted": { fr: "Acceptée", en: "Accepted" },
+  "assign.acceptedFromPush": { fr: "Tâche acceptée", en: "Task accepted" },
+  "assign.declinedFromPush": { fr: "Tâche refusée", en: "Task declined" },
   "assign.pending": { fr: "En attente", en: "Pending" },
   "assign.taskCompleted": { fr: "Tâche accomplie", en: "Task completed" },
   "assign.readOnly": { fr: "Assignée à", en: "Assigned to" },
