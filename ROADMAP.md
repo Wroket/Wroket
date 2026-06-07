@@ -8,15 +8,15 @@
 |-------|--------|---------------------------------------------------------|
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
-| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓ ; reste Web Push, liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
+| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** (§A `todosDrift: ok`, §C persistance + sync Archives) ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA livrée 2026-06-07 (commit `11d77f2`) ; **Web Push code livré** — validation E2E prod mobile restante ; puis import Notion ZIP. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA + **Web Push validés E2E prod Android (2026-06-07)** — assignation, deep-link tâche, redirect post-login (`dedd046`) ; **prochaine priorité → import Notion ZIP**. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
 ### Prochaine priorité
 
-**Web Push (P2) — validation prod** — secrets VAPID GCP + test mobile (onglet fermé) ; s’appuie sur le service worker PWA. Séquence produit validée : ~~PWA~~ → **Web Push** → import Notion ZIP → liens partageables → a11y.
+**Import Notion ZIP (P2 acquisition)** — wizard preview/confirm, landing `/migrate/notion`. Séquence produit : ~~PWA~~ → ~~Web Push~~ → **import Notion** → liens partageables → a11y.
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
@@ -60,11 +60,11 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 6. **Error UX Standard**
    - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
 7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
-8. **Web Push (P2)** — **Code livré** : VAPID (`/push/vapid-public-key`, subscribe/unsubscribe), persistance `pushSubscriptions` sur utilisateur, dispatch via `notificationService` (respecte `notificationTypesDisabledOutbound`), SW `push` + `notificationclick` ; **reste** : créer secrets GCP + E2E post-deploy mobile.
+8. ~~**Web Push (P2)**~~ — **Fait** (E2E prod Android 2026-06-07) : VAPID GCP, opt-in Paramètres, push `task_assigned` onglet fermé, clic → modal tâche, redirect post-login.
 
 ### Next (6-12 semaines)
 
-- **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion` — *après Web Push*.
+- **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion` — **priorité sprint**.
 - **P2 restant** : liens partageables lecture seule, a11y ciblée.
 - **P1 (reprise)** : Stripe Checkout self-service, SSO login Microsoft §B Auth.
 
@@ -94,6 +94,7 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
 - [x] **P2 — Templates tâches + alertes navigateur** — §I OK
 - [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK
 - [x] **P2 — PWA installable** — manifest + SW shell livrés 2026-06-07 ; validation install prod à faire post-deploy (`/manifest.webmanifest`, `/sw.js`)
+- [x] **P2 — Web Push** — Android prod : assignation, deep-link, redirect login ; VAPID + SW `push`/`notificationclick` (`ec1080b`, `dedd046`)
 
 ## Plan exécutable d'équipe (Q2 2026)
 
@@ -336,7 +337,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 ## Expérience utilisateur & attractivité
 
 - [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).
-- [ ] **Notifications push (Web Push)** — Service worker + abonnement push pour rappels deadline, assignations et événements clés **hors onglet / app fermée** ; complète in-app + email + webhooks.
+- [x] **Notifications push (Web Push)** — Service worker + abonnement push pour rappels deadline, assignations et événements clés **hors onglet / app fermée** ; complète in-app + alertes navigateur + email + webhooks — E2E prod Android 2026-06-07.
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + toast cloche ; alerte desktop quand nouvelles notifs in-app (`AppShell`) ; bouton « Activer les alertes » ; E2E §I validé.
 - [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.
 - [x] **Templates & checklists de tâches** — `TaskTemplatePicker` + templates système + CRUD perso (`/templates`) ; application priorité/effort/tags/sous-tâches à la création ; E2E §I validé.
