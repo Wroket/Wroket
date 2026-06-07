@@ -8,11 +8,11 @@
 |-------|--------|---------------------------------------------------------|
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
-| **P2** | Usage quotidien & différenciation | **Expérience utilisateur & attractivité** — PWA, notifications push, vue « Ma semaine », templates, liens partageables, a11y |
-| **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **À l’étude** — notes collaboratives, CalDAV |
-| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
+| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓ ; reste PWA, Web Push, liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
+| **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
+| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring (alertes / doc ops), tests E2E + unitaires ciblés, 2FA TOTP. **Priorité actuelle : P1** (monétisation, Microsoft / Outlook).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **Priorité actuelle : P1** (Stripe Checkout, finalisation E2E Microsoft/Outlook) ; **P2 partiel** (reste PWA, Web Push, liens partage, a11y, import Notion). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
@@ -25,7 +25,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 - **Complet** : socle auth/sécurité v1-v5, CRUD tâches/projets/équipes, vues principales, i18n, CI/CD, monitoring, 2FA, imports/exports majeurs.
 - **Partiel acceptable** : blocs riches fonctionnellement mais avec validation réelle limitée (notifications multicanal, partage notes/mentions, certains flux agenda multi-comptes).
-- **Partiel critique** : flux à fort impact prod confirmés partiellement en E2E prod (2026-05-30, commit `f233fa73`, **GO partiel**) — voir [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K et section « Retour E2E prod 2026-05-30 » ci-dessous. Meet création/annulation/invité externe OK ; **édition heure Google KO** ; **multi-comptes / priorité KO** ; **suppression compte RGPD KO**.
+- **E2E prod** : parcours critiques validés (2026-06-07, **GO**) — [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K/L ; correctifs P0/P1/P2/P3 du run 2026-05-30 re-testés (RGPD, Meet PATCH, compte prioritaire, Microsoft OAuth, conflit créneau, sync Archives).
 
 ### Triage complétude (Critique / Important / Nice-to-have)
 
@@ -45,26 +45,23 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ### Now (0-6 semaines)
 
-1. **Reliability Pack — Calendar & Meeting**
-   - DoD: création meeting idempotente, lifecycle complet (création **et** édition/annulation **et** compte prioritaire + secondaires read-only) vérifié, erreurs actionnables, checklist E2E prod exécutée (dont invités externes / comptes multiples).
-   - **E2E prod 2026-05-30 (partiel)** : création Meet + annulation + invité externe OK ; **édition heure → Google NOK** ; **compte prioritaire / Microsoft secondaire NOK** ; conflit créneau double message (correctif dédup en cours). Voir bugs `[ ]` section Retour E2E ci-dessous.
+1. ~~**Reliability Pack — Calendar & Meeting**~~ — **Fait** (E2E prod 2026-06-07) : lifecycle Meet, compte prioritaire, Microsoft OAuth, conflit créneau dédup, sync Archives ; checklist complète §A–I.
 2. **Reliability Pack — Todo Persistence**
    - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
 3. **Plan & Billing Core (P1)**
    - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (comparatif, FAQ, modal contact prénom/nom/email + envoi serveur SMTP Nodemailer, accusé réception FR/EN, anti-doublon 7 jours), billing équipe (sièges, collaborateurs externes, entitlements effectifs, sync subscription → `Team`), admin — journal invitations avec statut conversion et relance à J+7.
    - **Reste** : Stripe Checkout bout-en-bout (upgrade self-service), alignement terminologie roadmap historique Free/Pro/Team vs paliers code `free` / `first` / `small` / `large`.
 4. **Polish Abonnement + tarifs** — Panneau Paramètres → Abonnement en cards + liens vers `/pricing` (charge ~1–2 j) — *landing/pricing/SEO polish livré 2026-05 ; reste alignement Stripe Checkout self-service*.
-5. **Microsoft path (SSO + Outlook MVP)**
+5. **Microsoft path (SSO + Outlook MVP)** — **Partiel** (2026-06-07) : code livré, Azure/GCP configurés ([docs/microsoft-azure.md](docs/microsoft-azure.md)), connexion Outlook + booking Teams validés en prod utilisateur ; reste E2E checklist §D-Outlook formalisé + SSO login bout-en-bout documenté.
    - DoD: OAuth Microsoft opérationnel + premier connecteur calendrier externe utilisable.
 6. **Error UX Standard**
    - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
 
 ### Next (6-12 semaines)
 
-- Push notifications (hors onglet) alignées avec préférences utilisateur.
-- Vue “Ma semaine” orientée charge et risques.
-- Templates/checklists de tâches réutilisables.
-- a11y ciblée des parcours les plus utilisés.
+- **P2 restant** : PWA (manifest + service worker), Web Push hors onglet, liens partageables lecture seule, a11y ciblée.
+- **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion`.
+- **P1** : Stripe Checkout self-service (si non livré dans le sprint courant).
 
 ### Later (12+ semaines)
 
@@ -72,16 +69,25 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - Notes collaboratives temps réel (chantier lourd).
 - Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
 
-## Retour E2E prod 2026-05-30 (`f233fa73`)
+## Retour E2E prod
 
-Checklist exécutée — **GO partiel**. Détail : [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K.
+### Run initial 2026-05-30 (`f233fa73`) — GO partiel
 
-- [ ] **P0 — RGPD suppression compte** — Fix livré (purge runtime `usersByUid`/`sessionsByToken`/`todosByUser`, `deleteAllTodosV2ForOwner`, attachments, Stripe cancel best-effort) — **re-test E2E prod requis** après deploy.
-- [ ] **P1 — Meet PATCH heure → Google** — Fix livré (`toGoogleCalendarDateTime`, `conferenceDataVersion` sur PATCH, `bookSlot` Meet path) — **re-test E2E D3.3** après deploy.
-- [ ] **P1 — Calendrier compte prioritaire** — Fix livré (`PUT /calendar/accounts/priority`, auto-save frontend, `listCalendars` via `defaultForBooking`) — **re-test E2E D4.1** après deploy.
-- [ ] **P1 — Microsoft OAuth calendrier secondaire** — Fix livré (redirect erreurs → `/agenda/manage?microsoft=error`, toasts i18n, logs structurés token exchange) — **re-test E2E** après deploy ; vérifier `MICROSOFT_GRAPH_REDIRECT_URI` prod si échec persiste.
-- [ ] **P2 — Conflit créneau dédup** — Correctif code livré (`4aae566`) — **re-test E2E D1.3** après deploy.
-- [ ] **P3 — Archives sync cross-onglet** — Correctif code livré (`4aae566`) — **re-test E2E C6** après deploy.
+Bugs identifiés ; correctifs livrés en code (P0 RGPD, P1 Meet/PATCH/priorité/Microsoft, P2 conflit dédup, P3 sync Archives).
+
+### Re-test complet 2026-06-07 — **GO**
+
+Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md) §K/L.
+
+- [x] **P0 — RGPD suppression compte** — Re-test prod OK
+- [x] **P1 — Meet PATCH heure → Google** — Re-test E2E D3.3 OK
+- [x] **P1 — Calendrier compte prioritaire** — Re-test E2E D4.1 OK
+- [x] **P1 — Microsoft OAuth calendrier secondaire** — Re-test E2E OK
+- [x] **P2 — Conflit créneau dédup** — Re-test E2E D1.3 OK
+- [x] **P3 — Archives sync cross-onglet** — Re-test E2E C6 OK
+- [x] **P2 — Dashboard Ma semaine + bilan hebdo** — §F OK
+- [x] **P2 — Templates tâches + alertes navigateur** — §I OK
+- [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK
 
 ## Plan exécutable d'équipe (Q2 2026)
 
@@ -167,6 +173,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - Indexation GSC post-deploy : `/pricing`, `/terms`, `/agenda-taches`, `/gestion-taches-equipe`, `/matrice-eisenhower` (demande manuelle + vérif canonical/OG).
 - Meeting avec invités externes (comptes Google Workspace différents, politiques variées).
 - Multi-comptes calendriers avec timezone utilisateur différente du navigateur.
+- Microsoft/Outlook : bascule priorité Google ↔ Outlook, booking Teams, reconnexion sans perte de priorité FCFS (post-fix 2026-06-07).
 - Flux restauration/suppression archives en scénarios projet + sous-tâches.
 - Notifications multicanal (email/Slack/Teams/Chat) avec vérification de délivrabilité.
 
@@ -293,6 +300,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Refactoring page projets** — Découpage de `projects/page.tsx` (2400 → 104 lignes) en 5 sous-composants (`ProjectDetailView`, `ProjectListView`, `GanttChart`, `DndWrappers`, `types`) pour stabiliser Turbopack et éliminer les fuites mémoire
 - [x] **Agenda — heure de début & durée** — Champs éditables "heure de début" et "durée" dans la création rapide de tâche depuis l'agenda, pré-remplis avec l'heure cliquée et la durée par défaut selon l'effort
 - [x] **Drag & drop tâches Board/Gantt** — Réorganisation des tâches et déplacement entre phases dans les vues Board et Gantt (@dnd-kit, SortablePhaseContainer, SortableBoardTaskRow)
+- [x] **DnD projet — endpoint move + modales contraintes (MVP)** — `POST /todos/:id/move`, codes 422/409, parité Kanban/Board, `TaskMoveConstraintModal`, sync broadcast ; règle Cursor `constraint-solutions-ux`
+- [x] **Gantt timeline interactif (MVP)** — Panneau rapide clic barre (décaler N jours, aligner phase) + drag horizontal minimal des barres via `moveTodo`
 - [x] **Limite sous-projets 1 niveau** — Interdiction de créer un sous-projet dans un sous-projet (validation backend + frontend), masquage dynamique du bouton "Ajouter un sous-projet", drag out restaure le statut projet racine
 - [x] **Suppression phase avec options** — Popup demandant de supprimer les tâches contenues ou de les placer hors phase
 - [x] **Suppression tâche avec sous-tâches** — Composant réutilisable `DeleteTaskDialog` : supprimer tout ou conserver les sous-tâches (promotion en tâches autonomes), appliqué sur My Tasks, Projets et Déléguées
@@ -312,6 +321,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Meet options — correction fuseau horaire** — Alignement des créneaux suggérés, des champs de la modale et de la création Google sur la timezone utilisateur Paramètres (évite les décalages UTC/local)
 - [x] **Observabilité meeting** — Logs structurés create/patch/delete Meet + tests backend ciblés (`googleCalendarService.test.ts`) pour fiabiliser le diagnostic production
 - [x] **Google — compte prioritaire & agendas secondaires** — Premier compte connecté traité comme **prioritaire** (écriture/booking par défaut) ; pour les comptes suivants, les calendriers ne sont plus tous pré-cochés côté chargement API ; page **Mes agendas** : badge Prioritaire / Secondaire, bouton **Rendre prioritaire**, désactivation des cases « afficher » et du radio défaut booking tant que le compte n’est pas prioritaire (secondaires en lecture seule jusqu’à promotion)
+- [x] **Calendriers — priorité FCFS Google + Outlook (2026-06-07)** — **Premier arrivé, premier servi** : le 1ᵉʳ fournisseur connecté (Google ou Microsoft) conserve la priorité ; le 2ᵉ ne reçoit plus de `defaultForBooking` à la connexion ni lors d’une sauvegarde secondaire ; refresh live `canWriteBooking` depuis l’API Google/Graph (liste Mes agendas + avant « Rendre prioritaire » + reconnexion OAuth) ; promotion auto du compte le plus ancien si déconnexion du prioritaire ; tests `authService.priority.test.ts`
+- [x] **Outlook / Microsoft 365 — calendrier externe (MVP)** — OAuth Graph (`/calendar/microsoft/*`), page Mes agendas (connexion, calendriers, priorité), booking créneaux + **Teams** sur calendrier par défaut ; SSO Microsoft (`/auth/microsoft/*`) ; secrets Cloud Run + redirect URIs Entra ID — guide [docs/microsoft-azure.md](docs/microsoft-azure.md)
 - [x] **Google Meet — édition d’une réunion existante** — Endpoint `PATCH /calendar/meet/:todoId` : reschedule (start/end), titre, description, liste d’invités ; patch Google avec `sendUpdates=all` ; champ `meetingInvitees` persisté sur `scheduledSlot` ; annulation toujours via suppression de réunion existante ; même modal Tâches pour créer ou modifier ; bouton **Modifier la réunion** dans `TaskEditModal` ; icône meeting ouvre l’édition lorsqu’un lien existe déjà
 - [x] **SlotPicker — fermeture optimiste + feedback de chargement** — Même pattern pour **réservation**, **retirer le créneau** et **replanifier** : fermeture immédiate du panneau, spinner sur l’icône pendant l’appel API ; en cas d’erreur, réouverture en modal avec toast ; en cas de replanification réussie, réouverture automatique en modal sur la sélection de créneaux après chargement des slots ; réouverture également si conflit ou erreur lors du booking
 - [x] **Vue Liste — sélection multiple & suppression groupée** — Colonne « Sél. », barre d’actions (statuts / suppression groupée avec `ConfirmDialog`) ; API `DELETE /todos/bulk` + pièces jointes associées
@@ -321,9 +332,10 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 ## Expérience utilisateur & attractivité
 
 - [ ] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette.
-- [ ] **Notifications push** — Web Push (ou équivalent) pour rappels deadline, assignations et événements clés hors onglet actif ; complète notifications in-app + email.
-- [ ] **Vue « Ma semaine » / focus** — Synthèse dédiée : échéances de la semaine, charge estimée, tâches non planifiées ou à risque ; s’appuie sur slots, agenda et priorités existants.
-- [ ] **Templates & checklists de tâches** — Modèles réutilisables (onboarding client, release, procédures) : création de tâches pré-remplies et/ou listes à cocher dans une tâche.
+- [ ] **Notifications push (Web Push)** — Service worker + abonnement push pour rappels deadline, assignations et événements clés **hors onglet / app fermée** ; complète in-app + email + webhooks.
+- [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + toast cloche ; alerte desktop quand nouvelles notifs in-app (`AppShell`) ; bouton « Activer les alertes » ; E2E §I validé.
+- [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.
+- [x] **Templates & checklists de tâches** — `TaskTemplatePicker` + templates système + CRUD perso (`/templates`) ; application priorité/effort/tags/sous-tâches à la création ; E2E §I validé.
 - [ ] **Liens partageables en lecture seule** — URL signée ou token limité dans le temps pour consulter une tâche ou la vue d’un projet sans compte Wroket (socle léger avant un client portal complet — voir *Fonctionnalités Premium*).
 - [ ] **Accessibilité (a11y) ciblée** — Focus trap des modales, contrastes WCAG sur les flux critiques, labels et annonces pour lecteurs d’écran sur Tâches, Agenda, Paramètres.
 
@@ -346,6 +358,32 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - Réponses aux notifications Wroket dans Slack remontées comme commentaires
   - Threads Slack liés aux tâches Wroket
 
+## Acquisition & migration (Notion / Monday)
+
+*Plans détaillés : Notion [`.cursor/plans/features_notion-like_e3797d3f.plan.md`](.cursor/plans/features_notion-like_e3797d3f.plan.md) · Monday [`.cursor/plans/features_monday-like_ad9b7e9b.plan.md`](.cursor/plans/features_monday-like_ad9b7e9b.plan.md) — vagues livrables indépendamment ; imports **gratuits sans quota dédié** (seule restriction = capacité du compte selon palier `free` / `first` / `earlyBird` / `small` / `large`, voir [docs/plan-quotas.md](docs/plan-quotas.md)).*
+
+### Notion-Like (priorité acquisition Notion)
+
+- [ ] **Import Notion ZIP** — Export officiel Markdown & CSV : `POST /import/notion/preview` + `confirm`, wizard Paramètres/Dashboard, page `/migrate/notion` ; preview capacité par statut ; import partiel + modales upgrade si dépassement Free ; limites techniques anti-abus (taille ZIP, rate limit preview)
+- [ ] **Dépendances tâches** — `blockedByTodoIds`, détection de cycles, modales à la complétion, lien Gantt/Kanban ; résolution colonne « Blocked by » à l'import Notion ; **Small teams+**
+- [ ] **Wiki projet (docs liés)** — Onglet Docs sur fiche projet, notes `projectId`, backlinks tâche ↔ note ; import MD rattaché au projet
+- [ ] **Time tracking MVP** — Sessions par tâche, chrono + saisie manuelle, comparatif `estimatedMinutes` ; rapports projet/équipe ; **Small teams+** (item aligné section Premium ci-dessous)
+- [ ] **Champs personnalisés** — Définitions par projet, filtres Board/Kanban, mapping colonnes Notion à l'import ; rollups simples (retard, % complété) ; **Small teams+**
+- [ ] **Marketing migration Notion** — FAQ `/pricing`, checklist E2E import, post-import in-app (calendrier, dépendances, équipe)
+
+### Monday-Like (priorité acquisition PMO léger)
+
+*Prérequis : orchestrateur import de la vague 1 Notion-Like ; vagues partagées Notion (dépendances v2, time tracking v4, custom fields v5) pour colonnes Dependencies / Duration / Labels avancés.*
+
+- [ ] **Import Monday board** — Export Excel/CSV Monday : `POST /import/monday/preview` + `confirm`, parser XLSX, wizard Paramètres/Dashboard, page `/migrate/monday` ; groupes → phases, items → tâches, sous-items → `parentId` ; preview capacité par statut ; import partiel + modales upgrade Free
+- [ ] **Colonnes & statuts Monday** — Mapping labels Status Monday → statut Wroket (config projet) ; colonnes board configurables (préset « Vue Monday ») ; import colonnes custom → champs personnalisés (après vague 5 Notion) ; **Small teams+** pour mapping avancé
+- [ ] **Automations légères** — Extension `automationService` : retard assigné/owner (existant), **deadline sans créneau** (24h), option statut « stuck » ; règles **par projet** + toggles UI ; pas de builder no-code ; **Small teams+**
+- [ ] **Dashboard équipe renforcé** — Widgets : retard par membre, sans deadline, sans créneau semaine, charge `estimatedMinutes`, vélocité 4 semaines ; actions deep link Agenda ; export CSV période ; widgets basiques Small+, export avancé Large+ (aligné `teamReporting`)
+- [ ] **Vues portfolio & templates** — Filtres sauvegardés par projet ; template « depuis board importé » ; portfolio léger multi-projets équipe (santé, % complété, retard)
+- [ ] **Marketing migration Monday** — FAQ `/pricing`, checklist E2E import Monday, post-import in-app (automations, planifier créneaux, inviter équipe) ; message « Moins cher qu'un board Monday + agenda Google/Outlook natif »
+
+*Non-objectifs : clone éditeur Notion, moteur de formules Notion, Monday Work OS (CRM, dev, mirror/formule boards, automations illimitées).*
+
 ## À l'étude (R&D)
 
 *Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
@@ -358,14 +396,14 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - OAuth callback : détection de l'email du compte via CalendarList API, ajout au tableau (ou mise à jour si déjà connecté)
   - Endpoints per-account : `GET/PUT /calendar/google/accounts/:accountId/calendars`, `DELETE /calendar/google/disconnect/:accountId`
   - Page dédiée Agenda > Gérer les agendas : liste des comptes connectés avec calendriers par compte, bouton "Ajouter un compte Google", déconnexion individuelle
-  - **Compte prioritaire** : le premier compte connecté est celui par défaut pour l’écriture et le booking ; les comptes secondaires sont en affichage read-only dans l’UI tant qu’ils ne sont pas promus (choix explicite du compte prioritaire)
+  - **Compte prioritaire** : le **premier fournisseur connecté** (Google ou Outlook) est celui par défaut pour l’écriture et le booking ; les comptes suivants sont secondaires (affichage read-only dans l’UI) jusqu’à promotion explicite via **Rendre prioritaire**
   - Dropdown multi-comptes dans l'Agenda avec toggle de visibilité par compte, couleurs distinctes par compte
   - Navigation sidebar "Agenda" en dossier déployable (Mon agenda / Gérer les agendas)
   - RGPD : `googleAccounts` strippé de l'export utilisateur
-- [ ] **Multi-calendriers externes** — Connecter des fournisseurs supplémentaires
-  - Outlook / Microsoft 365 (OAuth2 Microsoft Graph)
+- [x] **Outlook / Microsoft 365 (Graph)** — OAuth calendrier + SSO MVP livré (voir *Nouvellement implémenté*) ; config prod Azure/GCP documentée
+- [ ] **Multi-calendriers externes — suite** — Fournisseurs et profondeur supplémentaires
   - CalDAV générique (Nextcloud, iCloud, Fastmail…)
-  - Prise en compte de tous les calendriers actifs dans le calcul des créneaux disponibles (SlotPicker)
+  - Prise en compte de tous les calendriers actifs (Google + Outlook) dans le calcul des créneaux disponibles (SlotPicker) — *partiel : événements fusionnés en agenda ; slots à valider multi-fournisseur*
 
 ## Sécurité & Auth
 
@@ -399,7 +437,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Audit npm / Next.js** — Next.js 16.2.3 et lockfiles à jour (correctifs sécurité transitifs : nodemailer, path-to-regexp, picomatch, brace-expansion, etc.)
 - [x] **RGPD export (doc code)** — Commentaires dans `exportUserData` : export self-service via modèles en mémoire vs lignes brutes admin avec retrait du champ legacy `encV1` (pas de chiffrement applicatif en prod)
 - [x] **Optimisation performance** — Compression Gzip/Brotli (`compression` middleware), fix N+1 queries team membership (`teamMembershipCache` dans `listProjects`), batch `Promise.all` pour suppression de phase, memoisation `ProjectListView` (`useMemo` sur projets actifs/archivés/enfants/health)
-- [ ] **OAuth GitHub / Microsoft** — SSO supplémentaires — *Microsoft en tête pour l’adoption entreprise (cf. P1)*
+- [x] **OAuth Microsoft (SSO)** — Connexion compte Microsoft via Entra ID (`microsoftSsoService`, callback `/auth/microsoft/callback`) — *GitHub reste à faire*
+- [ ] **OAuth GitHub** — SSO supplémentaire
 - [x] **2FA** — Authentification à deux facteurs (TOTP) — *P0*
 
 ## Monétisation & Plan System
@@ -420,11 +459,11 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 *À traiter après monétisation de base (P1) et traction sur Pro/Team — cf. priorités P4.*
 
-- [ ] **Time tracking** — Chronomètre intégré par tâche, temps réel vs estimé, historique des sessions de travail, rapports temps passé par projet/phase/membre
+- [ ] **Time tracking** — Chronomètre intégré par tâche, temps réel vs estimé, historique des sessions de travail, rapports temps passé par projet/phase/membre — *voir aussi section Acquisition Notion-Like (vague 4)*
 - [ ] **Analytics & Reporting** — Dashboard analytique : burndown charts, vélocité d'équipe, taux de complétion par période, tendances de productivité, répartition temps par priorité/effort
 - [ ] **Capacity planning** — Vue charge de travail par membre sur la semaine/mois, détection de surcharge, suggestions de réaffectation, heatmap de disponibilité
-- [ ] **Automation rules** — Règles conditionnelles : "Si tâche en retard → réassigner + notifier manager", "Si deadline dans 24h et non planifiée → planifier automatiquement", triggers personnalisables
-- [ ] **Custom fields** — Champs personnalisés sur les tâches (texte, nombre, date, dropdown, checkbox), configurables par projet, filtrables et triables
+- [ ] **Automation rules** — Règles conditionnelles avancées (réassignation, planification auto) — *socle livré en Monday-Like vague 3 (recettes fixes) ; builder personnalisable = évolution P4+*
+- [ ] **Custom fields** — Champs personnalisés sur les tâches (texte, nombre, date, dropdown, checkbox), configurables par projet, filtrables et triables — *voir aussi section Acquisition Notion-Like (vague 5)*
 - [ ] **AI scheduling** — Planification automatique de la semaine : analyse des priorités, deadlines, effort estimé et disponibilités pour proposer un planning optimal, bouton "Planifier ma semaine"
 - [ ] **Client portal** — Vue externe en lecture seule pour les parties prenantes (clients, managers), progression projet, jalons, commentaires filtrés, lien partageable avec token
 - [ ] **API publique** — REST API documentée (OpenAPI/Swagger) avec clés API par utilisateur, rate limiting par plan, endpoints CRUD tâches/projets/notes pour intégrations tierces

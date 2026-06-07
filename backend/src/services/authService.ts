@@ -66,6 +66,8 @@ export interface GoogleAccount {
   email: string;
   tokens: GoogleCalendarTokens;
   calendars: GoogleCalendarEntry[];
+  /** Epoch ms when the account was first connected (FCFS calendar priority). */
+  connectedAt?: number;
 }
 
 /** Outlook / Microsoft Graph — same shape as {@link GoogleAccount} */
@@ -74,6 +76,169 @@ export interface MicrosoftAccount {
   email: string;
   tokens: GoogleCalendarTokens;
   calendars: GoogleCalendarEntry[];
+  /** Epoch ms when the account was first connected (FCFS calendar priority). */
+  connectedAt?: number;
+}
+
+export type CalendarProvider = "google" | "microsoft";
+
+export interface GlobalPriorityAccount {
+  provider: CalendarProvider;
+  accountId: string;
+}
+
+function resolveAccountConnectedAt(
+  account: { connectedAt?: number },
+  provider: CalendarProvider,
+  index: number,
+): number {
+  if (typeof account.connectedAt === "number") return account.connectedAt;
+  const base = provider === "google" ? 0 : 1_000_000_000;
+  return base + index * 1000;
+}
+
+/** True when any Google or Microsoft account owns the global default booking calendar. */
+export function hasGlobalCalendarPriority(uid: string): boolean {
+  return getGlobalPriorityAccount(uid) != null;
+}
+
+/** Account that currently owns defaultForBooking (earliest connectedAt wins if several). */
+export function getGlobalPriorityAccount(uid: string): GlobalPriorityAccount | null {
+  const user = usersByUid.get(uid);
+  if (!user) return null;
+  migrateGoogleAccounts(user);
+  const google = resolveGoogleAccounts(user);
+  const microsoft = resolveMicrosoftAccounts(user);
+
+  const candidates: Array<GlobalPriorityAccount & { connectedAt: number }> = [];
+
+  google.forEach((a, i) => {
+    if (a.calendars.some((c) => c.defaultForBooking && c.canWriteBooking !== false)) {
+      candidates.push({
+        provider: "google",
+        accountId: a.id,
+        connectedAt: resolveAccountConnectedAt(a, "google", i),
+      });
+    }
+  });
+  microsoft.forEach((a, i) => {
+    if (a.calendars.some((c) => c.defaultForBooking && c.canWriteBooking !== false)) {
+      candidates.push({
+        provider: "microsoft",
+        accountId: a.id,
+        connectedAt: resolveAccountConnectedAt(a, "microsoft", i),
+      });
+    }
+  });
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => a.connectedAt - b.connectedAt);
+  const first = candidates[0]!;
+  return { provider: first.provider, accountId: first.accountId };
+}
+
+export function mergeLiveCalendarWriteAccess(
+  stored: GoogleCalendarEntry[],
+  live: Array<{
+    id: string;
+    summary: string;
+    backgroundColor: string;
+    primary?: boolean;
+    canWriteBooking?: boolean;
+  }>,
+): GoogleCalendarEntry[] {
+  const liveById = new Map(live.map((c) => [c.id, c]));
+  const merged = stored.map((cal) => {
+    const fromLive = liveById.get(cal.calendarId);
+    if (!fromLive) return cal;
+    return {
+      ...cal,
+      canWriteBooking: fromLive.canWriteBooking !== false,
+      primary: fromLive.primary ?? cal.primary,
+    };
+  });
+  for (const c of live) {
+    if (!stored.some((s) => s.calendarId === c.id)) {
+      merged.push({
+        calendarId: c.id,
+        label: c.summary.length > 100 ? c.summary.slice(0, 100) : c.summary,
+        color: c.backgroundColor,
+        enabled: !!c.primary,
+        defaultForBooking: false,
+        canWriteBooking: c.canWriteBooking !== false,
+        primary: !!c.primary,
+      });
+    }
+  }
+  return merged;
+}
+
+export function refreshGoogleAccountCalendarWriteAccess(
+  uid: string,
+  accountId: string,
+  live: Array<{
+    id: string;
+    summary: string;
+    backgroundColor: string;
+    primary?: boolean;
+    canWriteBooking?: boolean;
+  }>,
+): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const accounts = resolveGoogleAccounts(user);
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) throw new NotFoundError("Compte Google introuvable");
+  account.calendars = mergeLiveCalendarWriteAccess(account.calendars, live);
+  persistUsers();
+}
+
+export function refreshMicrosoftAccountCalendarWriteAccess(
+  uid: string,
+  accountId: string,
+  live: Array<{
+    id: string;
+    summary: string;
+    backgroundColor: string;
+    primary?: boolean;
+    canWriteBooking?: boolean;
+  }>,
+): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const accounts = resolveMicrosoftAccounts(user);
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) throw new NotFoundError("Compte Microsoft introuvable");
+  account.calendars = mergeLiveCalendarWriteAccess(account.calendars, live);
+  persistUsers();
+}
+
+export function buildCalendarSeedEntries(
+  list: Array<{
+    id: string;
+    summary: string;
+    backgroundColor: string;
+    primary?: boolean;
+    canWriteBooking?: boolean;
+  }>,
+  grantPriority: boolean,
+): GoogleCalendarEntry[] {
+  const pick =
+    list.find((c) => c.primary && c.canWriteBooking !== false)
+    ?? list.find((c) => c.canWriteBooking !== false)
+    ?? list[0];
+  if (!pick) return [];
+  return list.map((cal) => ({
+    calendarId: cal.id,
+    label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
+    color: cal.backgroundColor,
+    enabled: grantPriority
+      ? cal.id === pick.id && cal.canWriteBooking !== false
+      : !!cal.primary,
+    defaultForBooking: grantPriority && cal.id === pick.id && cal.canWriteBooking !== false,
+    canWriteBooking: cal.canWriteBooking,
+    primary: !!cal.primary,
+  }));
 }
 
 function isWritableBookingCalendar(cal: GoogleCalendarEntry): boolean {
@@ -1511,6 +1676,7 @@ export function addGoogleAccount(uid: string, email: string, tokens: GoogleCalen
     email,
     tokens,
     calendars: [],
+    connectedAt: Date.now(),
   };
   accounts.push(account);
   user.googleAccounts = accounts;
@@ -1541,9 +1707,13 @@ export function removeGoogleAccount(uid: string, accountId: string): void {
   const accounts = user.googleAccounts ?? [];
   const exists = accounts.some((a) => a.id === accountId);
   if (!exists) throw new NotFoundError("Compte Google introuvable");
+  const priorityBefore = getGlobalPriorityAccount(uid);
+  const wasPriority =
+    priorityBefore?.provider === "google" && priorityBefore.accountId === accountId;
   user.googleAccounts = accounts.filter((a) => a.id !== accountId);
   normalizeGlobalBookingDefault(user.googleAccounts ?? []);
   persistUsers();
+  if (wasPriority) promoteEarliestConnectedCalendarAccount(uid);
 }
 
 export function removeAllGoogleAccounts(uid: string): void {
@@ -1561,7 +1731,27 @@ export function setGoogleAccountCalendars(uid: string, accountId: string, calend
   const accounts = resolveGoogleAccounts(user);
   const account = accounts.find((a) => a.id === accountId);
   if (!account) throw new NotFoundError("Compte Google introuvable");
-  // Normalize account payload first, then normalize global default across all accounts.
+
+  const globalPriority = getGlobalPriorityAccount(uid);
+  const isThisPriorityAccount =
+    globalPriority?.provider === "google" && globalPriority.accountId === accountId;
+  const wantsDefault = calendars.some((c) => c.defaultForBooking && c.canWriteBooking !== false);
+  const shouldApplyPriority = !globalPriority || isThisPriorityAccount || wantsDefault;
+
+  if (!shouldApplyPriority) {
+    account.calendars = calendars.map((cal) => ({
+      calendarId: cal.calendarId,
+      label: cal.label,
+      color: cal.color,
+      enabled: !!cal.enabled,
+      canWriteBooking: cal.canWriteBooking !== false,
+      defaultForBooking: false,
+      primary: !!cal.primary,
+    }));
+    persistUsers();
+    return;
+  }
+
   let chosenDefault: string | null = null;
   for (const cal of calendars) {
     if (cal.defaultForBooking && cal.canWriteBooking !== false) {
@@ -1636,6 +1826,7 @@ export function addMicrosoftAccount(uid: string, email: string, tokens: GoogleCa
     email,
     tokens,
     calendars: [],
+    connectedAt: Date.now(),
   };
   accounts.push(account);
   user.microsoftAccounts = accounts;
@@ -1665,8 +1856,12 @@ export function removeMicrosoftAccount(uid: string, accountId: string): void {
   const accounts = user.microsoftAccounts ?? [];
   const exists = accounts.some((a) => a.id === accountId);
   if (!exists) throw new NotFoundError("Compte Microsoft introuvable");
+  const priorityBefore = getGlobalPriorityAccount(uid);
+  const wasPriority =
+    priorityBefore?.provider === "microsoft" && priorityBefore.accountId === accountId;
   user.microsoftAccounts = accounts.filter((a) => a.id !== accountId);
   persistUsers();
+  if (wasPriority) promoteEarliestConnectedCalendarAccount(uid);
 }
 
 export function removeAllMicrosoftAccounts(uid: string): void {
@@ -1682,6 +1877,26 @@ export function setMicrosoftAccountCalendars(uid: string, accountId: string, cal
   const accounts = resolveMicrosoftAccounts(user);
   const account = accounts.find((a) => a.id === accountId);
   if (!account) throw new NotFoundError("Compte Microsoft introuvable");
+
+  const globalPriority = getGlobalPriorityAccount(uid);
+  const isThisPriorityAccount =
+    globalPriority?.provider === "microsoft" && globalPriority.accountId === accountId;
+  const wantsDefault = calendars.some((c) => c.defaultForBooking && c.canWriteBooking !== false);
+  const shouldApplyPriority = !globalPriority || isThisPriorityAccount || wantsDefault;
+
+  if (!shouldApplyPriority) {
+    account.calendars = calendars.map((cal) => ({
+      calendarId: cal.calendarId,
+      label: cal.label,
+      color: cal.color,
+      enabled: !!cal.enabled,
+      canWriteBooking: cal.canWriteBooking !== false,
+      defaultForBooking: false,
+      primary: !!cal.primary,
+    }));
+    persistUsers();
+    return;
+  }
 
   let chosenDefault: string | null = null;
   for (const cal of calendars) {
@@ -1707,6 +1922,38 @@ export function setMicrosoftAccountCalendars(uid: string, accountId: string, cal
   user.preferredBookingProvider = "microsoft";
   clearGoogleBookingDefaultFlags(user);
   persistUsers();
+}
+
+/** Promote the earliest-connected account that has a writable calendar (after priority disconnect). */
+export function promoteEarliestConnectedCalendarAccount(uid: string): void {
+  if (hasGlobalCalendarPriority(uid)) return;
+
+  type Candidate = { provider: CalendarProvider; accountId: string; connectedAt: number };
+  const candidates: Candidate[] = [];
+  getGoogleAccounts(uid).forEach((a, i) => {
+    candidates.push({
+      provider: "google",
+      accountId: a.id,
+      connectedAt: resolveAccountConnectedAt(a, "google", i),
+    });
+  });
+  getMicrosoftAccounts(uid).forEach((a, i) => {
+    candidates.push({
+      provider: "microsoft",
+      accountId: a.id,
+      connectedAt: resolveAccountConnectedAt(a, "microsoft", i),
+    });
+  });
+  candidates.sort((a, b) => a.connectedAt - b.connectedAt);
+
+  for (const c of candidates) {
+    try {
+      setPriorityCalendarAccount(uid, c.provider, c.accountId);
+      return;
+    } catch {
+      // try next account (e.g. no writable calendar on this one)
+    }
+  }
 }
 
 function pickWritableCalendar(calendars: GoogleCalendarEntry[]): GoogleCalendarEntry | null {

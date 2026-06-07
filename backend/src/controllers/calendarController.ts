@@ -35,6 +35,10 @@ import {
   removeAllMicrosoftAccounts,
   setMicrosoftAccountCalendars,
   setPriorityCalendarAccount,
+  hasGlobalCalendarPriority,
+  buildCalendarSeedEntries,
+  refreshGoogleAccountCalendarWriteAccess,
+  refreshMicrosoftAccountCalendarWriteAccess,
   getEntitlementsForUid,
   type GoogleCalendarEntry,
   type ResolvedBookingTarget,
@@ -616,28 +620,19 @@ export async function googleCallback(req: Request, res: Response) {
     const tokens = await exchangeCodeForTokens(code);
     const email = await fetchGoogleAccountEmail(tokens.accessToken);
     const account = addGoogleAccount(uid, email, tokens);
-    if (account.calendars.length === 0) {
-      try {
-        const list = await listGoogleCalendarListForAccount(uid, account.id);
-        if (list.length > 0) {
-          const pick =
-            list.find((c) => c.primary && c.canWriteBooking !== false) ??
-            list.find((c) => c.canWriteBooking !== false) ??
-            list[0];
-          const entries: GoogleCalendarEntry[] = list.map((cal) => ({
-            calendarId: cal.id,
-            label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
-            color: cal.backgroundColor,
-            enabled: cal.id === pick.id && cal.canWriteBooking !== false,
-            defaultForBooking: cal.id === pick.id && cal.canWriteBooking !== false,
-            canWriteBooking: cal.canWriteBooking,
-            primary: !!cal.primary,
-          }));
+    try {
+      const list = await listGoogleCalendarListForAccount(uid, account.id);
+      if (list.length > 0) {
+        if (account.calendars.length === 0) {
+          const grantPriority = !hasGlobalCalendarPriority(uid);
+          const entries = buildCalendarSeedEntries(list, grantPriority);
           setGoogleAccountCalendars(uid, account.id, entries);
+        } else {
+          refreshGoogleAccountCalendarWriteAccess(uid, account.id, list);
         }
-      } catch (seedErr) {
-        console.error("[google-cal] post-connect calendar seed failed:", seedErr);
       }
+    } catch (seedErr) {
+      console.error("[google-cal] post-connect calendar sync failed:", seedErr);
     }
     try {
       logActivity(uid, email, "calendar_connect", "google_account", account.id, {
@@ -713,28 +708,19 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
     const tokens = await exchangeCalendarCodeForTokens(code);
     const email = await fetchMicrosoftAccountEmail(tokens.accessToken);
     const account = addMicrosoftAccount(uid, email, tokens);
-    if (account.calendars.length === 0) {
-      try {
-        const list = await listMicrosoftCalendarListForAccount(uid, account.id);
-        if (list.length > 0) {
-          const pick =
-            list.find((c) => c.primary && c.canWriteBooking !== false) ??
-            list.find((c) => c.canWriteBooking !== false) ??
-            list[0];
-          const entries: GoogleCalendarEntry[] = list.map((cal) => ({
-            calendarId: cal.id,
-            label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
-            color: cal.backgroundColor,
-            enabled: cal.id === pick.id && cal.canWriteBooking !== false,
-            defaultForBooking: cal.id === pick.id && cal.canWriteBooking !== false,
-            canWriteBooking: cal.canWriteBooking,
-            primary: !!cal.primary,
-          }));
+    try {
+      const list = await listMicrosoftCalendarListForAccount(uid, account.id);
+      if (list.length > 0) {
+        if (account.calendars.length === 0) {
+          const grantPriority = !hasGlobalCalendarPriority(uid);
+          const entries = buildCalendarSeedEntries(list, grantPriority);
           setMicrosoftAccountCalendars(uid, account.id, entries);
+        } else {
+          refreshMicrosoftAccountCalendarWriteAccess(uid, account.id, list);
         }
-      } catch (seedErr) {
-        console.error("[microsoft-cal] post-connect calendar seed failed:", seedErr);
       }
+    } catch (seedErr) {
+      console.error("[microsoft-cal] post-connect calendar sync failed:", seedErr);
     }
     try {
       logActivity(uid, email, "calendar_connect", "microsoft_account", account.id, {
@@ -797,9 +783,13 @@ export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Res
     color: cal.backgroundColor,
     enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : (isPriorityAccount ? !!cal.primary : false),
     defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : false,
-    canWriteBooking: savedMap.has(cal.id) ? savedMap.get(cal.id)!.canWriteBooking !== false : !!cal.canWriteBooking,
+    canWriteBooking: cal.canWriteBooking !== false,
     primary: cal.primary ?? false,
   }));
+
+  if (available.length > 0) {
+    refreshMicrosoftAccountCalendarWriteAccess(uid, accountId, available);
+  }
 
   res.status(200).json(merged);
 }
@@ -1017,6 +1007,17 @@ export async function setPriorityCalendarAccountHandler(req: AuthenticatedReques
   if (!accountId || typeof accountId !== "string") {
     throw new ValidationError("accountId required");
   }
+  if (provider === "google") {
+    const live = await listGoogleCalendarListForAccount(uid, accountId);
+    if (live.length > 0) {
+      refreshGoogleAccountCalendarWriteAccess(uid, accountId, live);
+    }
+  } else {
+    const live = await listMicrosoftCalendarListForAccount(uid, accountId);
+    if (live.length > 0) {
+      refreshMicrosoftAccountCalendarWriteAccess(uid, accountId, live);
+    }
+  }
   setPriorityCalendarAccount(uid, provider, accountId);
   try {
     logActivity(
@@ -1054,9 +1055,13 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
     color: cal.backgroundColor,
     enabled: savedMap.has(cal.id) ? savedMap.get(cal.id)!.enabled : (isPriorityAccount ? !!cal.primary : false),
     defaultForBooking: savedMap.has(cal.id) ? !!savedMap.get(cal.id)!.defaultForBooking : false,
-    canWriteBooking: savedMap.has(cal.id) ? savedMap.get(cal.id)!.canWriteBooking !== false : !!cal.canWriteBooking,
+    canWriteBooking: cal.canWriteBooking !== false,
     primary: cal.primary ?? false,
   }));
+
+  if (available.length > 0) {
+    refreshGoogleAccountCalendarWriteAccess(uid, accountId, available);
+  }
 
   res.status(200).json(merged);
 }
