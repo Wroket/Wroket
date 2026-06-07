@@ -12,7 +12,11 @@
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **Priorité actuelle : P1** (Stripe Checkout, finalisation E2E Microsoft/Outlook) ; **P2 partiel** (PWA livrée 2026-06-07 ; reste Web Push, liens partage, a11y, import Notion). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** (§A `todosDrift: ok`, §C persistance + sync Archives) ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA livrée 2026-06-07 (commit `11d77f2`) ; **prochaine priorité → Web Push** ; puis import Notion ZIP. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+
+### Prochaine priorité
+
+**Web Push (P2)** — notifications deadline / assignation / événements clés **hors onglet et app fermée** ; s’appuie sur le service worker PWA. Séquence produit validée : ~~PWA~~ → **Web Push** → import Notion ZIP → liens partageables → a11y.
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
@@ -30,8 +34,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 ### Triage complétude (Critique / Important / Nice-to-have)
 
 - **Critique**
-  - Fiabilité meeting Google (création/édition/suppression/invitations externes) avec validation réelle post-deploy.
-  - Cohérence persistance tâches (legacy/shards/v2) et surveillance continue des dérives.
+  - Fiabilité meeting Google (création/édition/suppression/invitations externes) avec validation réelle post-deploy — *E2E 2026-06-07 OK*.
+  - ~~Cohérence persistance tâches (legacy/shards/v2) et surveillance continue des dérives~~ — *monitor drift + E2E §A/C validés ; mode `v2` en prod*.
   - Normalisation des erreurs actionnables sur parcours critiques (agenda, collaboration, import).
 - **Important**
   - Cohérence UX cross-écrans (même état meeting/tâche/projet/archives partout).
@@ -46,22 +50,23 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 ### Now (0-6 semaines)
 
 1. ~~**Reliability Pack — Calendar & Meeting**~~ — **Fait** (E2E prod 2026-06-07) : lifecycle Meet, compte prioritaire, Microsoft OAuth, conflit créneau dédup, sync Archives ; checklist complète §A–I.
-2. **Reliability Pack — Todo Persistence**
-   - DoD: drift checks automatisés + alerting, procédures de rollback documentées, canary régulier validé.
-3. **Plan & Billing Core (P1)**
+2. ~~**Reliability Pack — Todo Persistence**~~ — **Fait** (E2E prod 2026-06-07) : `todosDrift` horaire + `/health/ready`, mode `v2` + `attachLiveInvalidation` multi-replica, runbook [runbook-calendar-todos-reliability.md](docs/runbook-calendar-todos-reliability.md), persistance tâches/créneaux post-F5 et sync Archives cross-onglet validées §C.
+3. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (comparatif, FAQ, modal contact prénom/nom/email + envoi serveur SMTP Nodemailer, accusé réception FR/EN, anti-doublon 7 jours), billing équipe (sièges, collaborateurs externes, entitlements effectifs, sync subscription → `Team`), admin — journal invitations avec statut conversion et relance à J+7.
-   - **Reste** : Stripe Checkout bout-en-bout (upgrade self-service), alignement terminologie roadmap historique Free/Pro/Team vs paliers code `free` / `first` / `small` / `large`.
+   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service), alignement terminologie roadmap historique Free/Pro/Team vs paliers code `free` / `first` / `small` / `large`.
 4. **Polish Abonnement + tarifs** — Panneau Paramètres → Abonnement en cards + liens vers `/pricing` (charge ~1–2 j) — *landing/pricing/SEO polish livré 2026-05 ; reste alignement Stripe Checkout self-service*.
 5. **Microsoft path (SSO + Outlook MVP)** — **Quasi terminé** (2026-06-07) : code livré, Azure/GCP configurés ([docs/microsoft-azure.md](docs/microsoft-azure.md)), connexion Outlook + booking Teams + **invités externes Teams** (invitation 2 temps avec `joinUrl`) validés ; checklist §D5 ; reste SSO login bout-en-bout documenté en §B Auth.
    - DoD: OAuth Microsoft opérationnel + premier connecteur calendrier externe utilisable.
 6. **Error UX Standard**
    - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
+7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
+8. **Web Push (P2)** — **Priorité sprint** : VAPID + abonnements push côté API, extension du SW, opt-in Paramètres, dispatch sur deadline / assignation / événements agenda ; E2E post-deploy mobile requis.
 
 ### Next (6-12 semaines)
 
-- **P2 restant** : Web Push hors onglet, liens partageables lecture seule, a11y ciblée.
-- **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion`.
-- **P1** : Stripe Checkout self-service (si non livré dans le sprint courant).
+- **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion` — *après Web Push*.
+- **P2 restant** : liens partageables lecture seule, a11y ciblée.
+- **P1 (reprise)** : Stripe Checkout self-service, SSO login Microsoft §B Auth.
 
 ### Later (12+ semaines)
 
@@ -88,6 +93,7 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
 - [x] **P2 — Dashboard Ma semaine + bilan hebdo** — §F OK
 - [x] **P2 — Templates tâches + alertes navigateur** — §I OK
 - [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK
+- [x] **P2 — PWA installable** — manifest + SW shell livrés 2026-06-07 ; validation install prod à faire post-deploy (`/manifest.webmanifest`, `/sw.js`)
 
 ## Plan exécutable d'équipe (Q2 2026)
 
@@ -104,10 +110,8 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
    - Charge: **7-9 jours** (partiellement absorbé : Meet édition + compte prioritaire + `sendUpdates` sur patch)  
    - Deadline cible: **2026-05-16**  
    - Livrables: E2E prod multi-comptes/timezone/invités externes, runbook incident, tableau d'erreurs actionnables.
-2. **Reliability Pack — Todo Persistence**  
-   - Charge: **4-5 jours**  
-   - Deadline cible: **2026-05-23**  
-   - Livrables: drift checks automatisés, alerting, rollback documenté et testé.
+2. **Reliability Pack — Todo Persistence** — **Fait** (E2E 2026-06-07)  
+   - Livrables: drift monitor horaire, `/health/ready`, runbook rollback, `TODOS_STORAGE_MODE=v2`, invalidation cross-replica, canary manuel prod GO.
 3. **Plan & Billing Core**  
    - Charge: **12-15 jours**  
    - Deadline cible: **2026-06-13**  
@@ -331,7 +335,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Expérience utilisateur & attractivité
 
-- [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette.
+- [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).
 - [ ] **Notifications push (Web Push)** — Service worker + abonnement push pour rappels deadline, assignations et événements clés **hors onglet / app fermée** ; complète in-app + email + webhooks.
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + toast cloche ; alerte desktop quand nouvelles notifs in-app (`AppShell`) ; bouton « Activer les alertes » ; E2E §I validé.
 - [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.
