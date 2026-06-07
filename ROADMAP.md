@@ -8,11 +8,11 @@
 |-------|--------|---------------------------------------------------------|
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
-| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓ ; reste PWA, Web Push, liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
+| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓ ; reste Web Push, liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **Priorité actuelle : P1** (Stripe Checkout, finalisation E2E Microsoft/Outlook) ; **P2 partiel** (reste PWA, Web Push, liens partage, a11y, import Notion). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **Priorité actuelle : P1** (Stripe Checkout, finalisation E2E Microsoft/Outlook) ; **P2 partiel** (PWA livrée 2026-06-07 ; reste Web Push, liens partage, a11y, import Notion). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
@@ -59,7 +59,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ### Next (6-12 semaines)
 
-- **P2 restant** : PWA (manifest + service worker), Web Push hors onglet, liens partageables lecture seule, a11y ciblée.
+- **P2 restant** : Web Push hors onglet, liens partageables lecture seule, a11y ciblée.
 - **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion`.
 - **P1** : Stripe Checkout self-service (si non livré dans le sprint courant).
 
@@ -331,7 +331,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Expérience utilisateur & attractivité
 
-- [ ] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette.
+- [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette.
 - [ ] **Notifications push (Web Push)** — Service worker + abonnement push pour rappels deadline, assignations et événements clés **hors onglet / app fermée** ; complète in-app + email + webhooks.
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + toast cloche ; alerte desktop quand nouvelles notifs in-app (`AppShell`) ; bouton « Activer les alertes » ; E2E §I validé.
 - [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.

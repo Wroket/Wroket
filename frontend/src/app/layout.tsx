@@ -5,6 +5,7 @@ import { LocaleProvider } from "@/lib/LocaleContext";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/components/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PwaRegistration } from "@/components/PwaRegistration";
 import "./globals.css";
 import { SITE_DESCRIPTION_FR, SITE_OG_DESCRIPTION_FR } from "@/lib/seo";
 
@@ -123,6 +124,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSON_LD) }}
         />
+        <PwaRegistration />
         <LocaleProvider>
           <ToastProvider>
             <AuthProvider>
