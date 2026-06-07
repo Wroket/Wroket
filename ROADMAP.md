@@ -12,11 +12,11 @@
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** (§A `todosDrift: ok`, §C persistance + sync Archives) ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA livrée 2026-06-07 (commit `11d77f2`) ; **prochaine priorité → Web Push** ; puis import Notion ZIP. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** (§A `todosDrift: ok`, §C persistance + sync Archives) ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA livrée 2026-06-07 (commit `11d77f2`) ; **Web Push code livré** — validation E2E prod mobile restante ; puis import Notion ZIP. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
 ### Prochaine priorité
 
-**Web Push (P2)** — notifications deadline / assignation / événements clés **hors onglet et app fermée** ; s’appuie sur le service worker PWA. Séquence produit validée : ~~PWA~~ → **Web Push** → import Notion ZIP → liens partageables → a11y.
+**Web Push (P2) — validation prod** — secrets VAPID GCP + test mobile (onglet fermé) ; s’appuie sur le service worker PWA. Séquence produit validée : ~~PWA~~ → **Web Push** → import Notion ZIP → liens partageables → a11y.
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
 
@@ -60,7 +60,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 6. **Error UX Standard**
    - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
 7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
-8. **Web Push (P2)** — **Priorité sprint** : VAPID + abonnements push côté API, extension du SW, opt-in Paramètres, dispatch sur deadline / assignation / événements agenda ; E2E post-deploy mobile requis.
+8. **Web Push (P2)** — **Code livré** : VAPID (`/push/vapid-public-key`, subscribe/unsubscribe), persistance `pushSubscriptions` sur utilisateur, dispatch via `notificationService` (respecte `notificationTypesDisabledOutbound`), SW `push` + `notificationclick` ; **reste** : créer secrets GCP + E2E post-deploy mobile.
 
 ### Next (6-12 semaines)
 

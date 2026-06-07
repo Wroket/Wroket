@@ -522,6 +522,11 @@ function serializeAuthMeResponse(user: AuthUser) {
     stripeSubscriptionStatus: user.stripeSubscriptionStatus,
     billingCurrentPeriodEnd: user.billingCurrentPeriodEnd,
     archivedTaskRetentionDays: user.archivedTaskRetentionDays,
+    webPushEnabled: user.webPushEnabled,
+    notificationTypesDisabledInApp: user.notificationTypesDisabledInApp,
+    notificationTypesDisabledOutbound: user.notificationTypesDisabledOutbound,
+    notificationOutboundFrequency: user.notificationOutboundFrequency,
+    notificationDigestHour: user.notificationDigestHour,
     /** Mirrors `ADMIN_EMAILS` on the API — used for /admin nav without duplicating the list in the client. */
     isAdmin: emailIsInAdminAllowlist(user.email),
     ...(snap ? { freeQuotas: snap } : {}),

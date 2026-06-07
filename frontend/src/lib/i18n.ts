@@ -752,8 +752,37 @@ const translations = {
   "settings.deliveryWebhookUrl": { fr: "URL du webhook", en: "Webhook URL" },
   "settings.deliverySave": { fr: "Enregistrer le canal", en: "Save channel" },
   "settings.deliverySaved": { fr: "Préférence enregistrée.", en: "Preference saved." },
+  "settings.webPushTitle": { fr: "Notifications push (navigateur)", en: "Browser push notifications" },
+  "settings.webPushDesc": {
+    fr: "Recevez les alertes importantes même lorsque l'onglet Wroket est fermé (nécessite un navigateur compatible et l'autorisation système). Respecte la colonne « Livraison » du tableau ci-dessous.",
+    en: "Get important alerts even when the Wroket tab is closed (requires a supported browser and system permission). Honors the Delivery column in the table below.",
+  },
+  "settings.webPushEnable": { fr: "Activer les notifications push", en: "Enable push notifications" },
+  "settings.webPushDisable": { fr: "Désactiver", en: "Disable" },
+  "settings.webPushEnabled": { fr: "Push activé sur cet appareil.", en: "Push enabled on this device." },
+  "settings.webPushDisabled": { fr: "Push désactivé.", en: "Push disabled." },
+  "settings.webPushUnsupported": {
+    fr: "Votre navigateur ne prend pas en charge les notifications push (Chrome, Firefox, Edge ou Safari récent).",
+    en: "Your browser does not support push notifications (Chrome, Firefox, Edge, or recent Safari).",
+  },
+  "settings.webPushPermissionDenied": {
+    fr: "Autorisation refusée. Réactivez les notifications pour Wroket dans les paramètres du navigateur ou du système.",
+    en: "Permission denied. Re-enable notifications for Wroket in your browser or system settings.",
+  },
+  "settings.webPushNeedPermission": {
+    fr: "Autorisez les notifications lorsque le navigateur vous le demande.",
+    en: "Allow notifications when your browser prompts you.",
+  },
+  "settings.webPushPwaHint": {
+    fr: "Astuce : installez Wroket comme application (PWA) pour une meilleure fiabilité des alertes en arrière-plan.",
+    en: "Tip: install Wroket as an app (PWA) for more reliable background alerts.",
+  },
+  "settings.webPushSaving": { fr: "Configuration…", en: "Setting up…" },
   "settings.notifTypesTitle": { fr: "Filtrage par type de notification", en: "Filter by notification type" },
-  "settings.notifTypesDesc": { fr: "Choisissez quels événements apparaissent dans l'application et lesquels sont transmis sur votre canal de livraison (email, Slack…).", en: "Choose which events appear in the app and which are forwarded to your delivery channel (email, Slack…)." },
+  "settings.notifTypesDesc": {
+    fr: "Choisissez quels événements apparaissent dans l'application et lesquels sont transmis (push navigateur, email, Slack…).",
+    en: "Choose which events appear in the app and which are forwarded (browser push, email, Slack…).",
+  },
   "settings.notifColInApp": { fr: "In-app", en: "In-app" },
   "settings.notifColOutbound": { fr: "Livraison", en: "Delivery" },
   "settings.notifColOutboundLocked": {

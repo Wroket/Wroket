@@ -21,6 +21,7 @@ import {
 } from "./entitlementsService";
 import { sendEmailOtpEmail } from "./emailService";
 import { validateWebhookUrl } from "./webhookService";
+import { wirePushSubscriptionUserAccess } from "./pushSubscriptionService";
 export type EffortMinutes = { light: number; medium: number; heavy: number };
 
 const DEFAULT_EFFORT_MINUTES: EffortMinutes = { light: 10, medium: 30, heavy: 60 };
@@ -435,6 +436,8 @@ export interface AuthUser {
   automationNotifyAssigneeOverdue?: boolean;
   /** Opt-in automation: notify me when tasks in my projects are overdue. */
   automationNotifyProjectOwnerOverdue?: boolean;
+  /** Web Push notifications (background / closed tab). */
+  webPushEnabled: boolean;
 }
 
 interface StoredUser {
@@ -500,6 +503,14 @@ interface StoredUser {
   email2faDisableExpiresAt?: number;
   automationNotifyAssigneeOverdue?: boolean;
   automationNotifyProjectOwnerOverdue?: boolean;
+  /** Browser Web Push (PWA) — opt-in via Paramètres → Intégrations. */
+  webPushEnabled?: boolean;
+  pushSubscriptions?: Array<{
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+    createdAt: string;
+    userAgent?: string;
+  }>;
 }
 
 interface StoredSession {
@@ -684,6 +695,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     preferredBookingProvider: user.preferredBookingProvider,
     automationNotifyAssigneeOverdue: user.automationNotifyAssigneeOverdue === true,
     automationNotifyProjectOwnerOverdue: user.automationNotifyProjectOwnerOverdue === true,
+    webPushEnabled: user.webPushEnabled === true,
   };
 }
 
@@ -2173,3 +2185,13 @@ export function purgeAuthRuntimeForUid(uid: string): void {
 }
 
 export { COOKIE_NAME };
+
+wirePushSubscriptionUserAccess({
+  getUser(uid) {
+    return usersByUid.get(uid);
+  },
+  persistUser(uid, user) {
+    usersByUid.set(uid, user as StoredUser);
+    persistUsers();
+  },
+});

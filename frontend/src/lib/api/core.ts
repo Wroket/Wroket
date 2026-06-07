@@ -128,6 +128,8 @@ export interface AuthMeResponse {
   automationNotifyAssigneeOverdue?: boolean;
   /** Opt-in: notify when tasks in owned projects are overdue. */
   automationNotifyProjectOwnerOverdue?: boolean;
+  /** Web Push enabled (at least one device subscribed). */
+  webPushEnabled?: boolean;
   /** Days before archived tasks are permanently removed; 0 = never. Default 30. */
   archivedTaskRetentionDays?: number;
   /** Where new bookings are written when both Google and Outlook are connected. */

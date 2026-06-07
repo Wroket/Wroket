@@ -6,6 +6,7 @@ import { findUserByUid, getEntitlementsForUid, getNotificationDeliveryPrefs, get
 import { enqueueDigest } from "./digestService";
 import { sendNotificationEmail } from "./emailService";
 import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
+import { sendWebPushForNotification } from "./webPushService";
 
 export type NotificationType =
   | "task_assigned"
@@ -116,6 +117,12 @@ export function createNotification(
     deliverProfileOutbound(userId, type, title, message, payloadData);
   } catch (err) {
     console.warn("[notifications] profile outbound error:", err);
+  }
+
+  try {
+    void sendWebPushForNotification(userId, notif);
+  } catch (err) {
+    console.warn("[notifications] web push error:", err);
   }
 
   return notif;

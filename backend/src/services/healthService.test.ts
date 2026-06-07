@@ -6,6 +6,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 vi.mock("../persistence", () => ({
   pingDatastore: vi.fn(),
   getPersistenceMetrics: vi.fn(),
+  getStore: vi.fn(() => ({})),
+  scheduleSave: vi.fn(),
 }));
 
 import { getReadinessStatus } from "./healthService";

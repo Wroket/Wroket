@@ -53,6 +53,52 @@ async function networkFirstNavigate(request) {
   }
 }
 
+function openUrl(url) {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+    for (const client of clientList) {
+      if (client.url.startsWith(self.location.origin) && "focus" in client) {
+        client.navigate(url);
+        return client.focus();
+      }
+    }
+    if (self.clients.openWindow) {
+      return self.clients.openWindow(url);
+    }
+    return undefined;
+  });
+}
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: "Wroket", body: event.data.text() };
+  }
+  const title = payload.title || "Wroket";
+  const body = payload.body || "";
+  const url = payload.url || "/notifications";
+  const tag = payload.notifId ? `wroket-${payload.notifId}` : "wroket-push";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/wroket-icon-v4.png",
+      badge: "/wroket-icon-v4.png",
+      tag,
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/notifications";
+  const absolute = url.startsWith("http") ? url : `${self.location.origin}${url.startsWith("/") ? url : `/${url}`}`;
+  event.waitUntil(openUrl(absolute));
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 

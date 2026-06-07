@@ -44,6 +44,7 @@ import type { NotificationType } from "@/lib/api/teams";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
 import { useToast } from "@/components/Toast";
+import { useWebPush } from "@/hooks/useWebPush";
 
 const DAY_KEYS: TranslationKey[] = [
   "settings.whMon",
@@ -1536,6 +1537,92 @@ function IntegrationsPremiumGate({
   );
 }
 
+function WebPushSettingsBlock() {
+  const { t } = useLocale();
+  const { toast } = useToast();
+  const [initialLoaded, setInitialLoaded] = useState(false);
+  const [webPushPref, setWebPushPref] = useState(false);
+  const { enabled, permission, support, busy, error, enable, disable } = useWebPush(webPushPref);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await getMe();
+        if (!cancelled) {
+          setWebPushPref(me.webPushEnabled === true);
+          setInitialLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setInitialLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleToggle = async () => {
+    if (enabled) {
+      const ok = await disable();
+      if (ok) {
+        setWebPushPref(false);
+        toast.success(t("settings.webPushDisabled"));
+      } else if (error && error !== "unsupported" && error !== "denied") {
+        toast.error(error);
+      }
+      return;
+    }
+    const ok = await enable();
+    if (ok) {
+      setWebPushPref(true);
+      toast.success(t("settings.webPushEnabled"));
+    } else if (error === "denied") {
+      toast.error(t("settings.webPushPermissionDenied"));
+    } else if (error === "unsupported") {
+      toast.error(t("settings.webPushUnsupported"));
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
+  const statusHint =
+    support === "unsupported"
+      ? t("settings.webPushUnsupported")
+      : permission === "denied"
+        ? t("settings.webPushPermissionDenied")
+        : !enabled && permission === "default"
+          ? t("settings.webPushNeedPermission")
+          : enabled
+            ? t("settings.webPushEnabled")
+            : t("settings.webPushDisabled");
+
+  return (
+    <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-slate-800/30">
+      <div>
+        <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.webPushTitle")}</h4>
+        <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.webPushDesc")}</p>
+      </div>
+      {!initialLoaded ? (
+        <div className="flex justify-center py-2">
+          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-zinc-600 dark:text-slate-400">{statusHint}</p>
+          <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.webPushPwaHint")}</p>
+          <button
+            type="button"
+            onClick={() => void handleToggle()}
+            disabled={busy || support === "unsupported"}
+            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
+          >
+            {busy ? t("settings.webPushSaving") : enabled ? t("settings.webPushDisable") : t("settings.webPushEnable")}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -1873,6 +1960,8 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
       <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.integrationsDesc")}</p>
 
       <AutomationSettingsBlock sectionCardCls={sectionCardCls} saveBtnCls={saveBtnCls} />
+
+      <WebPushSettingsBlock />
 
       {/* ── Notification type filters ── */}
       <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
