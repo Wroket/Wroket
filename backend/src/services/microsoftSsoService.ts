@@ -32,12 +32,12 @@ export function isMicrosoftSsoConfigured(): boolean {
   return Boolean(MICROSOFT_CLIENT_ID.trim() && MICROSOFT_CLIENT_SECRET.trim());
 }
 
-export function getMicrosoftSsoAuthUrl(loginHint?: string): { url: string; state: string } {
+export function getMicrosoftSsoAuthUrl(loginHint?: string, postLoginRedirect?: string): { url: string; state: string } {
   if (!MICROSOFT_CLIENT_ID.trim()) {
     throw new Error("Microsoft SSO is not configured (MICROSOFT_CLIENT_ID)");
   }
 
-  const state = createSsoLoginState();
+  const state = createSsoLoginState(postLoginRedirect);
   const params = new URLSearchParams({
     client_id: MICROSOFT_CLIENT_ID.trim(),
     redirect_uri: MICROSOFT_SSO_REDIRECT_URI,

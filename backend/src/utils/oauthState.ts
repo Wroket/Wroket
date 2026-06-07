@@ -49,34 +49,43 @@ export function consumeOAuthState(token: string): string | null {
 
 const SSO_LOGIN_KIND = "sso_login";
 
+export interface SsoLoginStatePayload {
+  redirect?: string;
+}
+
 /**
  * Stateless OAuth state for Google SSO login (no uid yet). Same HMAC pattern as Calendar OAuth.
  */
-export function createSsoLoginState(): string {
+export function createSsoLoginState(postLoginRedirect?: string): string {
   const payload = JSON.stringify({
     kind: SSO_LOGIN_KIND,
     exp: Date.now() + TOKEN_TTL_MS,
     n: crypto.randomBytes(16).toString("hex"),
+    ...(postLoginRedirect ? { r: postLoginRedirect } : {}),
   });
   const b64 = Buffer.from(payload).toString("base64url");
   return `${b64}.${hmac(b64)}`;
 }
 
-export function consumeSsoLoginState(token: string): boolean {
+export function consumeSsoLoginState(token: string): SsoLoginStatePayload | null {
   const dotIdx = token.indexOf(".");
-  if (dotIdx < 0) return false;
+  if (dotIdx < 0) return null;
   const b64 = token.slice(0, dotIdx);
   const sig = token.slice(dotIdx + 1);
   const expected = hmac(b64);
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-    return false;
+    return null;
   }
   try {
-    const parsed = JSON.parse(Buffer.from(b64, "base64url").toString()) as { kind?: string; exp?: number };
-    if (parsed.kind !== SSO_LOGIN_KIND || typeof parsed.exp !== "number") return false;
-    if (Date.now() > parsed.exp) return false;
-    return true;
+    const parsed = JSON.parse(Buffer.from(b64, "base64url").toString()) as {
+      kind?: string;
+      exp?: number;
+      r?: string;
+    };
+    if (parsed.kind !== SSO_LOGIN_KIND || typeof parsed.exp !== "number") return null;
+    if (Date.now() > parsed.exp) return null;
+    return typeof parsed.r === "string" ? { redirect: parsed.r } : {};
   } catch {
-    return false;
+    return null;
   }
 }

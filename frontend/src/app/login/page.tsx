@@ -17,6 +17,7 @@ import {
   type TwoFactorMethod,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
+import { getPostLoginRedirect } from "@/lib/postLoginRedirect";
 
 type Mode = "login" | "register";
 
@@ -91,6 +92,10 @@ export default function LoginPage() {
     }
   }, [t]);
 
+  const redirectAfterLogin = () => {
+    window.location.href = getPostLoginRedirect(window.location.search);
+  };
+
   const exitTwoFa = () => {
     setTwoFaPendingToken(null);
     setTwoFactorMethods(null);
@@ -122,7 +127,7 @@ export default function LoginPage() {
       await verifyTwoFactor(twoFaPendingToken, totpCode);
       const me = await getMe();
       if (me?.email) localStorage.setItem("wroket-login-email", me.email);
-      window.location.href = "/dashboard";
+      redirectAfterLogin();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("login.error"));
     } finally {
@@ -137,7 +142,7 @@ export default function LoginPage() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       document.cookie = `tz=${encodeURIComponent(tz)};path=/;max-age=300;SameSite=Lax`;
       const hint = localStorage.getItem("wroket-login-email") ?? undefined;
-      const url = await getGoogleSsoUrl(hint);
+      const url = await getGoogleSsoUrl(hint, getPostLoginRedirect(window.location.search));
       window.location.href = url;
     } catch {
       setError(t("login.googleSsoError"));
@@ -152,7 +157,7 @@ export default function LoginPage() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       document.cookie = `tz=${encodeURIComponent(tz)};path=/;max-age=300;SameSite=Lax`;
       const hint = localStorage.getItem("wroket-login-email") ?? undefined;
-      const url = await getMicrosoftSsoUrl(hint);
+      const url = await getMicrosoftSsoUrl(hint, getPostLoginRedirect(window.location.search));
       window.location.href = url;
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : t("login.microsoftSsoError"));
@@ -193,7 +198,7 @@ export default function LoginPage() {
 
       const me = await getMe();
       if (me?.email) localStorage.setItem("wroket-login-email", me.email);
-      window.location.href = "/dashboard";
+      redirectAfterLogin();
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("login.error");
       if (msg === "EMAIL_NOT_VERIFIED") {

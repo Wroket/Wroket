@@ -273,8 +273,18 @@ export async function resetPasswordApi(token: string, password: string): Promise
   }
 }
 
-export async function getGoogleSsoUrl(loginHint?: string): Promise<string> {
-  const params = loginHint ? `?login_hint=${encodeURIComponent(loginHint)}` : "";
+function ssoUrlQuery(loginHint?: string, postLoginRedirect?: string): string {
+  const q = new URLSearchParams();
+  if (loginHint) q.set("login_hint", loginHint);
+  if (postLoginRedirect && postLoginRedirect !== "/dashboard") {
+    q.set("redirect", postLoginRedirect);
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+export async function getGoogleSsoUrl(loginHint?: string, postLoginRedirect?: string): Promise<string> {
+  const params = ssoUrlQuery(loginHint, postLoginRedirect);
   const res = await fetch(`${API_BASE_URL}/auth/google/url${params}`, {
     credentials: "include",
   });
@@ -283,8 +293,8 @@ export async function getGoogleSsoUrl(loginHint?: string): Promise<string> {
   return data.url;
 }
 
-export async function getMicrosoftSsoUrl(loginHint?: string): Promise<string> {
-  const params = loginHint ? `?login_hint=${encodeURIComponent(loginHint)}` : "";
+export async function getMicrosoftSsoUrl(loginHint?: string, postLoginRedirect?: string): Promise<string> {
+  const params = ssoUrlQuery(loginHint, postLoginRedirect);
   const res = await fetch(`${API_BASE_URL}/auth/microsoft/url${params}`, {
     credentials: "include",
   });

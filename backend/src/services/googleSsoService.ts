@@ -7,8 +7,8 @@ const GOOGLE_SSO_REDIRECT_URI = process.env.GOOGLE_SSO_REDIRECT_URI
 
 const SSO_SCOPES = "openid email profile";
 
-export function getGoogleSsoAuthUrl(loginHint?: string): { url: string; state: string } {
-  const state = createSsoLoginState();
+export function getGoogleSsoAuthUrl(loginHint?: string, postLoginRedirect?: string): { url: string; state: string } {
+  const state = createSsoLoginState(postLoginRedirect);
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,

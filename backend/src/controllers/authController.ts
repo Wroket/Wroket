@@ -49,6 +49,7 @@ import {
   isMicrosoftSsoConfigured,
 } from "../services/microsoftSsoService";
 import { consumeSsoLoginState } from "../utils/oauthState";
+import { safePostLoginRedirect } from "../utils/safeRedirect";
 import { AppError, ValidationError } from "../utils/errors";
 import { flushNow, getStore, scheduleSave } from "../persistence";
 import { parseCookies } from "../utils/parseCookies";
@@ -182,9 +183,20 @@ export async function resetPassword(req: Request, res: Response) {
   res.status(200).json({ message: "Mot de passe modifié avec succès" });
 }
 
+function readPostLoginRedirectQuery(req: Request): string | undefined {
+  const raw = typeof req.query.redirect === "string" ? req.query.redirect : undefined;
+  const safe = safePostLoginRedirect(raw);
+  return safe === "/dashboard" ? undefined : safe;
+}
+
+function frontendAbsolutePath(frontendUrl: string, path: string): string {
+  return `${frontendUrl.replace(/\/$/, "")}${safePostLoginRedirect(path)}`;
+}
+
 export async function googleSsoUrl(req: Request, res: Response) {
   const loginHint = typeof req.query.login_hint === "string" ? req.query.login_hint : undefined;
-  const { url, state } = getGoogleSsoAuthUrl(loginHint);
+  const postLoginRedirect = readPostLoginRedirectQuery(req);
+  const { url, state } = getGoogleSsoAuthUrl(loginHint, postLoginRedirect);
   res.cookie("oauth_state", state, {
     ...baseCookieOpts(),
     maxAge: 10 * 60 * 1000,
@@ -209,13 +221,15 @@ export async function googleSsoCallback(req: Request, res: Response) {
 
   // Validate signed state first. Do not require oauth_state cookie to match: some browsers
   // or cross-site cookie rules leave it empty/stale while ?state= from Google is still valid.
-  if (!consumeSsoLoginState(stateParam)) {
+  const ssoState = consumeSsoLoginState(stateParam);
+  if (!ssoState) {
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
     return;
   }
   if (storedState && stateParam !== storedState) {
     console.warn("[auth] Google SSO: oauth_state cookie differed from ?state= (ignored after HMAC ok)");
   }
+  const postLoginPath = safePostLoginRedirect(ssoState.redirect);
 
   try {
     const userInfo = await exchangeGoogleSsoCode(code);
@@ -232,7 +246,9 @@ export async function googleSsoCallback(req: Request, res: Response) {
     await flushNow();
 
     if ("requiresTwoFactor" in result && result.requiresTwoFactor) {
-      res.redirect(`${frontendUrl}/login?pending2fa=${encodeURIComponent(result.pendingToken)}`);
+      const redirectQ =
+        postLoginPath !== "/dashboard" ? `&redirect=${encodeURIComponent(postLoginPath)}` : "";
+      res.redirect(`${frontendUrl}/login?pending2fa=${encodeURIComponent(result.pendingToken)}${redirectQ}`);
       return;
     }
 
@@ -242,7 +258,7 @@ export async function googleSsoCallback(req: Request, res: Response) {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.redirect(`${frontendUrl}/dashboard`);
+    res.redirect(frontendAbsolutePath(frontendUrl, postLoginPath));
   } catch (err) {
     console.error("[auth] Google SSO callback error:", err);
     res.redirect(`${frontendUrl}/login?error=google_sso_failed`);
@@ -256,7 +272,8 @@ export async function microsoftSsoUrl(req: Request, res: Response) {
   }
   try {
     const loginHint = typeof req.query.login_hint === "string" ? req.query.login_hint : undefined;
-    const { url, state } = getMicrosoftSsoAuthUrl(loginHint);
+    const postLoginRedirect = readPostLoginRedirectQuery(req);
+    const { url, state } = getMicrosoftSsoAuthUrl(loginHint, postLoginRedirect);
     res.cookie("oauth_state", state, {
       ...baseCookieOpts(),
       maxAge: 10 * 60 * 1000,
@@ -291,13 +308,15 @@ export async function microsoftSsoCallback(req: Request, res: Response) {
     return;
   }
 
-  if (!consumeSsoLoginState(stateParam)) {
+  const ssoState = consumeSsoLoginState(stateParam);
+  if (!ssoState) {
     res.redirect(`${frontendUrl}/login?error=microsoft_sso_failed`);
     return;
   }
   if (storedState && stateParam !== storedState) {
     console.warn("[auth] Microsoft SSO: oauth_state cookie differed from ?state= (ignored after HMAC ok)");
   }
+  const postLoginPath = safePostLoginRedirect(ssoState.redirect);
 
   try {
     const userInfo = await exchangeMicrosoftSsoCode(code);
@@ -313,7 +332,9 @@ export async function microsoftSsoCallback(req: Request, res: Response) {
     await flushNow();
 
     if ("requiresTwoFactor" in result && result.requiresTwoFactor) {
-      res.redirect(`${frontendUrl}/login?pending2fa=${encodeURIComponent(result.pendingToken)}`);
+      const redirectQ =
+        postLoginPath !== "/dashboard" ? `&redirect=${encodeURIComponent(postLoginPath)}` : "";
+      res.redirect(`${frontendUrl}/login?pending2fa=${encodeURIComponent(result.pendingToken)}${redirectQ}`);
       return;
     }
 
@@ -323,7 +344,7 @@ export async function microsoftSsoCallback(req: Request, res: Response) {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.redirect(`${frontendUrl}/dashboard`);
+    res.redirect(frontendAbsolutePath(frontendUrl, postLoginPath));
   } catch (err) {
     console.error("[auth] Microsoft SSO callback error:", err);
     res.redirect(`${frontendUrl}/login?error=microsoft_sso_failed`);
