@@ -13,7 +13,15 @@ import {
   FREE_QUOTA_CODE_TASKS,
   FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL,
 } from "./freeTierQuotaConstants";
-import { ForbiddenError, NotFoundError, ValidationError, PaymentRequiredError } from "../utils/errors";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnprocessableEntityError,
+  ValidationError,
+  PaymentRequiredError,
+} from "../utils/errors";
+import { findSlotConflicts } from "./calendarConflictService";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
@@ -123,6 +131,23 @@ export interface UpdateTodoInput {
   sortOrder?: number | null;
 }
 
+export type MoveTodoStrategy =
+  | "default"
+  | "clampDatesToPhase"
+  | "clearScheduledSlot"
+  | "keepDates"
+  | "rescheduleSlot";
+
+export interface MoveTodoInput {
+  phaseId?: string | null;
+  sortOrder?: number;
+  startDate?: string | null;
+  deadline?: string | null;
+  strategy?: MoveTodoStrategy;
+  forceCalendarConflict?: boolean;
+  reorderIds?: string[];
+}
+
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high"];
 const VALID_EFFORTS: Effort[] = ["light", "medium", "heavy"];
 const VALID_STATUSES: TodoStatus[] = ["active", "completed", "cancelled", "deleted"];
@@ -209,6 +234,68 @@ export function assertScheduledSlotWithinPhaseBounds(
       `Le créneau ne peut pas se terminer après la fin de la phase (${phase.endDate})`,
     );
   }
+}
+
+function isScheduledSlotWithinPhaseBounds(
+  phaseId: string | null,
+  slotStartIso: string,
+  slotEndIso: string,
+): boolean {
+  try {
+    assertScheduledSlotWithinPhaseBounds(phaseId, slotStartIso, slotEndIso);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+interface PhaseDateMismatchDetails {
+  phaseStart: string | null;
+  phaseEnd: string | null;
+  taskStart: string | null;
+  taskDeadline: string | null;
+}
+
+function getDatePhaseMismatch(
+  startDate: string | null,
+  deadline: string | null,
+  phase: ReturnType<typeof findPhaseById>,
+): { mismatch: boolean; details?: PhaseDateMismatchDetails } {
+  if (!phase) return { mismatch: false };
+  const details: PhaseDateMismatchDetails = {
+    phaseStart: phase.startDate ?? null,
+    phaseEnd: phase.endDate ?? null,
+    taskStart: startDate,
+    taskDeadline: deadline,
+  };
+  if (startDate && phase.startDate && startDate < phase.startDate) {
+    return { mismatch: true, details };
+  }
+  if (deadline && phase.startDate && deadline < phase.startDate) {
+    return { mismatch: true, details };
+  }
+  if (deadline && phase.endDate && deadline > phase.endDate) {
+    return { mismatch: true, details };
+  }
+  return { mismatch: false };
+}
+
+function clampDatesToPhaseWindow(
+  startDate: string | null,
+  deadline: string | null,
+  phase: NonNullable<ReturnType<typeof findPhaseById>>,
+): { startDate: string | null; deadline: string | null } {
+  let s = startDate;
+  let d = deadline;
+  if (phase.startDate && s && s < phase.startDate) s = phase.startDate;
+  if (phase.endDate && s && s > phase.endDate) s = phase.endDate;
+  if (phase.startDate && d && d < phase.startDate) d = phase.startDate;
+  if (phase.endDate && d && d > phase.endDate) d = phase.endDate;
+  if (s && d && s > d) {
+    if (phase.endDate) s = phase.endDate;
+    if (phase.startDate) d = phase.startDate;
+  }
+  return { startDate: s, deadline: d };
 }
 
 function normalizeUserEmail(userEmail: string): string {
@@ -1474,6 +1561,131 @@ setInterval(() => {
     console.error("[todos] échec purge tâches archivées:", err);
   });
 }, 6 * 60 * 60 * 1000).unref();
+
+/**
+ * Orchestrated task move for project DnD (phase, dates, slot, reorder).
+ * Returns structured 422/409 via UnprocessableEntityError / ConflictError.
+ */
+export async function moveTodo(
+  userId: string,
+  userEmail: string,
+  todoId: string,
+  input: MoveTodoInput,
+): Promise<Todo> {
+  const found = findTodoForUser(userId, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo, isOwner } = found;
+  if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut déplacer la tâche");
+
+  const strategy = input.strategy ?? "default";
+  const phaseChanging = input.phaseId !== undefined && input.phaseId !== todo.phaseId;
+  const targetPhaseId = input.phaseId !== undefined ? input.phaseId : todo.phaseId;
+
+  if (
+    input.reorderIds &&
+    input.reorderIds.length > 0 &&
+    !phaseChanging &&
+    input.startDate === undefined &&
+    input.deadline === undefined &&
+    input.sortOrder === undefined
+  ) {
+    await batchReorder(userId, input.reorderIds);
+    const after = findTodoForUser(userId, todoId);
+    if (!after) throw new NotFoundError("Tâche introuvable");
+    return after.todo;
+  }
+
+  const phase = targetPhaseId ? findPhaseById(targetPhaseId) : null;
+  if (targetPhaseId && !phase) throw new NotFoundError("Phase introuvable");
+  if (phase) {
+    assertProjectEditableForTodo(userId, userEmail, phase.projectId);
+    if (todo.projectId && phase.projectId !== todo.projectId) {
+      throw new ValidationError("La phase n'appartient pas au projet de la tâche");
+    }
+  }
+
+  let nextStart = input.startDate !== undefined ? input.startDate : todo.startDate;
+  let nextDeadline = input.deadline !== undefined ? input.deadline : todo.deadline;
+  const clearSlot = strategy === "clearScheduledSlot";
+
+  if (strategy === "clampDatesToPhase" && phase) {
+    const clamped = clampDatesToPhaseWindow(nextStart, nextDeadline, phase);
+    nextStart = clamped.startDate;
+    nextDeadline = clamped.deadline;
+  }
+
+  if (strategy === "default" || strategy === "keepDates") {
+    const { mismatch, details } = getDatePhaseMismatch(nextStart, nextDeadline, phase);
+    if (mismatch && details) {
+      throw new UnprocessableEntityError(
+        "Les dates de la tâche ne correspondent pas à la fenêtre de la phase cible.",
+        "TASK_PHASE_DATE_MISMATCH",
+        details as unknown as Record<string, unknown>,
+      );
+    }
+  }
+
+  const slotToCheck = clearSlot ? null : todo.scheduledSlot;
+  if (slotToCheck && targetPhaseId && !clearSlot) {
+    if (!isScheduledSlotWithinPhaseBounds(targetPhaseId, slotToCheck.start, slotToCheck.end)) {
+      if (strategy === "default" || strategy === "keepDates") {
+        throw new UnprocessableEntityError(
+          "Le créneau planifié ne correspond pas à la phase cible.",
+          "TASK_PHASE_SLOT_MISMATCH",
+          {
+            phaseId: targetPhaseId,
+            slotStart: slotToCheck.start,
+            slotEnd: slotToCheck.end,
+            phaseStart: phase?.startDate ?? null,
+            phaseEnd: phase?.endDate ?? null,
+          },
+        );
+      }
+    }
+  }
+
+  if (strategy === "rescheduleSlot" && slotToCheck && !input.forceCalendarConflict) {
+    const conflicts = await findSlotConflicts(
+      userId,
+      todoId,
+      new Date(slotToCheck.start),
+      new Date(slotToCheck.end),
+    );
+    if (conflicts.length > 0) {
+      throw new ConflictError(
+        "Conflit de calendrier lors du déplacement.",
+        "TASK_MOVE_CONFLICT",
+        conflicts.slice(0, 10).map((c) => ({
+          id: c.id,
+          title: c.title.slice(0, 100),
+          start: c.start,
+          end: c.end,
+        })),
+      );
+    }
+  }
+
+  const updateInput: UpdateTodoInput = {};
+  if (input.phaseId !== undefined) updateInput.phaseId = input.phaseId;
+  if (input.sortOrder !== undefined) updateInput.sortOrder = input.sortOrder;
+  if (input.startDate !== undefined || strategy === "clampDatesToPhase") {
+    updateInput.startDate = nextStart;
+  }
+  if (input.deadline !== undefined || strategy === "clampDatesToPhase") {
+    updateInput.deadline = nextDeadline;
+  }
+  if (clearSlot) updateInput.scheduledSlot = null;
+
+  const updated = await updateTodo(userId, userEmail, todoId, updateInput);
+
+  if (input.reorderIds && input.reorderIds.length > 0) {
+    await batchReorder(userId, input.reorderIds);
+    const after = findTodoForUser(userId, todoId);
+    if (after) return after.todo;
+  }
+
+  return updated;
+}
 
 export async function deleteTodo(userId: string, todoId: string): Promise<Todo> {
   const found = findTodoForUser(userId, todoId);

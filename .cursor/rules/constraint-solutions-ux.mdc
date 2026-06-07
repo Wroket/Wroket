@@ -1,0 +1,39 @@
+---
+description: UX contraintes — toujours proposer une issue actionnable, jamais bloquer sans alternative
+alwaysApply: true
+---
+
+# Contraintes utilisateur : solutions, pas blocages
+
+## Principe
+
+**Mantra** : toute contrainte **récupérable** doit offrir au moins **une issue actionnable** + **Annuler**.
+
+Ce n'est pas « jamais restrictif » : un blocage dur est acceptable quand il n'existe pas de correction métier (drop hors cible, droits insuffisants, erreur réseau) — à condition d'expliquer clairement et, si possible, proposer une alternative (ex. « réactiver le projet », « contacter le propriétaire »).
+
+## Interdit
+
+- `toast.error(message)` seul quand l'utilisateur peut choisir (clamp dates, effacer créneau, forcer conflit calendrier).
+- Modale sans choix explicite (titre + au moins 2 actions + Annuler).
+- Orchestration frontend fragile : `updateTodo` + `clearTaskSlot` + `bookTaskSlot` + `reorder` en chaîne sans rollback — préférer `POST /todos/:id/move`.
+
+## Patterns obligatoires
+
+1. **API structurée** : `422` + `code` + `details` pour mismatch phase/dates/slot ; `409` + `conflicts[]` pour chevauchements calendrier overridables.
+2. **Modales proportionnées** :
+   - Kanban / changement de phase : variante **light** (2–3 options max).
+   - Gantt / dates : variante **rich** si planning temporel.
+3. **Référence golden path** : Agenda (`bookTaskSlot` 409 + force) dans [`frontend/src/app/agenda/page.tsx`](frontend/src/app/agenda/page.tsx).
+4. **Sync cross-vues** : `broadcastTodosMutated()` + `broadcastResourceChange("projects")` après move réussi.
+
+## Checklist avant merge (DnD / move tâche)
+
+- [ ] Contrainte récupérable testée → modale ou drawer, pas toast seul.
+- [ ] i18n FR + EN pour libellés des options.
+- [ ] `role="dialog"` + `aria-modal` sur modales.
+- [ ] Backend : slot revalidé sur changement de `phaseId` (via `moveTodo`).
+- [ ] Skill détaillé : [`.cursor/skills/project-dnd-constraints/SKILL.md`](.cursor/skills/project-dnd-constraints/SKILL.md).
+
+## Complément
+
+Cette règle complète [`product-e2e.mdc`](product-e2e.mdc) et [`feature-completeness-gate.mdc`](feature-completeness-gate.mdc) sans les remplacer.

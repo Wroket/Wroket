@@ -11,12 +11,14 @@ import {
   listArchivedTodosAssignedToMe,
   purgeArchivedTodosPastRetentionForUser,
   updateTodo,
+  moveTodo,
   findTodoForUser,
   canAccessTodo,
   batchReorder,
   listProjectTodos,
   CreateTodoInput,
   UpdateTodoInput,
+  MoveTodoInput,
   permanentlyRemoveArchivedTodo,
   permanentlyRemoveAllArchivedTodosOwned,
   type Todo,
@@ -298,6 +300,22 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     logActivity(req.user!.uid, req.user!.email ?? "", "update", "todo", todo.id, { todoId: todo.id, title: todo.title });
   } catch (err) {
     console.warn("[todo.update] activity log failed:", err);
+  }
+  res.status(200).json(todoToClientJson(todo));
+}
+
+export async function move(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const input = req.body as MoveTodoInput;
+  const todo = await moveTodo(req.user!.uid, req.user!.email ?? "", id, input);
+  try {
+    logActivity(req.user!.uid, req.user!.email ?? "", "move", "todo", todo.id, {
+      todoId: todo.id,
+      title: todo.title,
+      strategy: input.strategy ?? "default",
+    });
+  } catch (err) {
+    console.warn("[todo.move] activity log failed:", err);
   }
   res.status(200).json(todoToClientJson(todo));
 }

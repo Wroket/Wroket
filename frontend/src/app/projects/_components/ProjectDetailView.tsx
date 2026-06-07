@@ -65,6 +65,11 @@ import DashboardImportModal from "@/components/DashboardImportModal";
 import TaskImportModal from "@/components/TaskImportModal";
 
 import GanttChart, { hasGanttExportData } from "./GanttChart";
+import TaskMoveConstraintModal, { type TaskMoveModalState } from "./TaskMoveConstraintModal";
+import { executeTaskMove, computePhaseReorderIds } from "@/lib/projectTaskMove";
+import { addDaysYmd } from "@/lib/analyzeMoveConstraints";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
+import type { MoveTodoPayload, MoveTodoStrategy } from "@/lib/api/todos";
 import ProjectSteeringPanel from "./ProjectSteeringPanel";
 import { captureElementToPng, downloadSteeringPdf } from "@/lib/steeringPdfExport";
 import { computeProjectSteering } from "@/lib/projectSteering";
@@ -268,6 +273,11 @@ export default function ProjectDetailView({
   const steeringPanelRef = useRef<HTMLDivElement>(null);
   const ganttExportRef = useRef<HTMLDivElement>(null);
   const [exportingSteeringPdf, setExportingSteeringPdf] = useState(false);
+  const [moveModal, setMoveModal] = useState<TaskMoveModalState | null>(null);
+  const [ganttQuickTask, setGanttQuickTask] = useState<Todo | null>(null);
+  const [ganttShiftDays, setGanttShiftDays] = useState(0);
+
+  const projectsForMove = useMemo(() => [selectedProject], [selectedProject]);
 
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -514,14 +524,79 @@ export default function ProjectDetailView({
     }
   };
 
-  const handleMoveTaskToPhase = useCallback(async (taskId: string, phaseId: string | null) => {
-    try {
-      const updated = await updateTodo(taskId, { phaseId });
-      setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+  const onMoveSuccess = useCallback((updated: Todo, reorderIds?: string[]) => {
+    setProjectTodos((prev) => {
+      const result = prev.map((td) => (td.id === updated.id ? updated : td));
+      if (reorderIds) {
+        for (let i = 0; i < reorderIds.length; i++) {
+          const idx = result.findIndex((t) => t.id === reorderIds[i]);
+          if (idx !== -1) result[idx] = { ...result[idx], sortOrder: i };
+        }
+      }
+      return result;
+    });
+    broadcastResourceChange("projects");
+    broadcastResourceChange("todos");
+  }, [setProjectTodos]);
+
+  const retryTaskMove = useCallback(async (
+    taskId: string,
+    payload: MoveTodoPayload,
+    opts?: { skipPrecheck?: boolean; variant?: "light" | "dates" },
+  ) => {
+    const todo = projectTodos.find((t) => t.id === taskId);
+    if (!todo) return;
+    await executeTaskMove({
+      taskId,
+      payload,
+      todo,
+      projects: projectsForMove,
+      variant: opts?.variant ?? "light",
+      skipPrecheck: opts?.skipPrecheck,
+      onSuccess: (u) => onMoveSuccess(u, payload.reorderIds),
+      onError: (msg) => toast.error(msg),
+      setModal: setMoveModal,
+      retry: (id, p, o) => retryTaskMove(id, p, o),
+    });
+  }, [projectTodos, projectsForMove, onMoveSuccess, toast]);
+
+  const runPhaseTaskMove = useCallback((
+    taskId: string,
+    newPhaseId: string | null,
+    insertIndex: number,
+    variant: "light" | "dates" = "light",
+  ) => {
+    const targetKey = newPhaseId ?? "__none__";
+    const reorderIds = computePhaseReorderIds(tasksByPhase, targetKey, taskId, insertIndex);
+    void retryTaskMove(taskId, {
+      phaseId: newPhaseId,
+      sortOrder: insertIndex,
+      reorderIds,
+      strategy: "default",
+    }, { variant });
+  }, [tasksByPhase, retryTaskMove]);
+
+  const runDateTaskMove = useCallback((
+    taskId: string,
+    startDate: string | null,
+    deadline: string | null,
+    strategy: MoveTodoStrategy = "default",
+  ) => {
+    void retryTaskMove(taskId, { startDate, deadline, strategy }, { variant: "dates", skipPrecheck: strategy !== "default" });
+  }, [retryTaskMove]);
+
+  const findPhaseForTask = useCallback((taskId: string): string => {
+    for (const [phaseId, tasks] of tasksByPhase) {
+      if (tasks.some((t) => t.id === taskId)) return phaseId as string;
     }
-  }, [toast, setProjectTodos]);
+    return "__none__";
+  }, [tasksByPhase]);
+
+  const handleMoveTaskToPhase = useCallback((taskId: string, phaseId: string | null) => {
+    const targetKey = phaseId ?? "__none__";
+    const insertIndex = (tasksByPhase.get(targetKey) ?? []).filter((td) => !td.parentId).length;
+    runPhaseTaskMove(taskId, phaseId, insertIndex);
+  }, [tasksByPhase, runPhaseTaskMove]);
 
   const handleKanbanDragStart = useCallback((event: DragStartEvent) => {
     setDraggedTodoId(String(event.active.id));
@@ -552,21 +627,32 @@ export default function ProjectDetailView({
       return;
     }
 
-    const todoId = String(active.id);
-    const newPhaseId = String(over.id);
-    const todo = projectTodos.find((t) => t.id === todoId);
-    if (!todo) return;
-    const currentPhaseId = todo.phaseId ?? "__none__";
-    if (currentPhaseId === newPhaseId) return;
-    handleMoveTaskToPhase(todoId, newPhaseId === "__none__" ? null : newPhaseId);
-  }, [projectTodos, handleMoveTaskToPhase, orderedPhases, selectedProject, setSelectedProject, toast]);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
 
-  const findPhaseForTask = useCallback((taskId: string): string => {
-    for (const [phaseId, tasks] of tasksByPhase) {
-      if (tasks.some((t) => t.id === taskId)) return phaseId as string;
+    const sourcePhase = findPhaseForTask(activeId);
+    const allPhaseIds = [...orderedPhases.map((p) => p.id), "__none__"];
+    const isOverAPhase = allPhaseIds.includes(overId);
+    const targetPhase = isOverAPhase ? overId : findPhaseForTask(overId);
+
+    if (sourcePhase === targetPhase && !isOverAPhase) {
+      const phaseTasks = (tasksByPhase.get(sourcePhase) ?? []).filter((td) => !td.parentId);
+      const oldIndex = phaseTasks.findIndex((t) => t.id === activeId);
+      const newIndex = phaseTasks.findIndex((t) => t.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      runPhaseTaskMove(activeId, sourcePhase === "__none__" ? null : sourcePhase, newIndex);
+    } else {
+      const newPhaseId = targetPhase === "__none__" ? null : targetPhase;
+      const targetTasks = (tasksByPhase.get(targetPhase) ?? []).filter((td) => !td.parentId);
+      let insertIndex = targetTasks.length;
+      if (!isOverAPhase) {
+        const overIndex = targetTasks.findIndex((t) => t.id === overId);
+        if (overIndex !== -1) insertIndex = overIndex;
+      }
+      runPhaseTaskMove(activeId, newPhaseId, insertIndex);
     }
-    return "__none__";
-  }, [tasksByPhase]);
+  }, [findPhaseForTask, orderedPhases, tasksByPhase, runPhaseTaskMove, selectedProject, setSelectedProject, toast]);
 
   const handleBoardDragStart = useCallback((event: DragStartEvent) => {
     setBoardDraggedId(String(event.active.id));
@@ -608,21 +694,7 @@ export default function ProjectDetailView({
       const oldIndex = phaseTasks.findIndex((t) => t.id === activeId);
       const newIndex = phaseTasks.findIndex((t) => t.id === overId);
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-
-      const reordered = arrayMove(phaseTasks, oldIndex, newIndex);
-      setProjectTodos((prev) => {
-        const updated = [...prev];
-        for (let i = 0; i < reordered.length; i++) {
-          const idx = updated.findIndex((t) => t.id === reordered[i].id);
-          if (idx !== -1) updated[idx] = { ...updated[idx], sortOrder: i };
-        }
-        return updated;
-      });
-      try {
-        await reorderTodosApi(reordered.map((t) => t.id));
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error");
-      }
+      runPhaseTaskMove(activeId, sourcePhase === "__none__" ? null : sourcePhase, newIndex);
     } else {
       const newPhaseId = targetPhase === "__none__" ? null : targetPhase;
       const targetTasks = (tasksByPhase.get(targetPhase) ?? []).filter((td) => !td.parentId);
@@ -631,26 +703,9 @@ export default function ProjectDetailView({
         const overIndex = targetTasks.findIndex((t) => t.id === overId);
         if (overIndex !== -1) insertIndex = overIndex;
       }
-
-      try {
-        const updated = await updateTodo(activeId, { phaseId: newPhaseId, sortOrder: insertIndex });
-        setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
-        const newOrder = [...targetTasks.filter((t) => t.id !== activeId)];
-        newOrder.splice(insertIndex, 0, updated);
-        await reorderTodosApi(newOrder.map((t) => t.id));
-        setProjectTodos((prev) => {
-          const result = [...prev];
-          for (let i = 0; i < newOrder.length; i++) {
-            const idx = result.findIndex((t) => t.id === newOrder[i].id);
-            if (idx !== -1) result[idx] = { ...result[idx], sortOrder: i };
-          }
-          return result;
-        });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error");
-      }
+      runPhaseTaskMove(activeId, newPhaseId, insertIndex);
     }
-  }, [findPhaseForTask, orderedPhases, tasksByPhase, setProjectTodos, toast, selectedProject, setSelectedProject]);
+  }, [findPhaseForTask, orderedPhases, tasksByPhase, runPhaseTaskMove, selectedProject, setSelectedProject, toast]);
 
   const openEdit = (todo: Todo) => {
     setEditingTodo(todo);
@@ -1751,7 +1806,7 @@ export default function ProjectDetailView({
           </DragOverlay>
           </DndContext>
         ) : detailTab === "kanban" ? (
-          <DndContext sensors={dndSensors} onDragStart={handleKanbanDragStart} onDragEnd={handleKanbanDragEnd}>
+          <DndContext sensors={dndSensors} collisionDetection={closestCorners} onDragStart={handleKanbanDragStart} onDragEnd={handleKanbanDragEnd}>
             <div className="overflow-x-auto pb-4">
               <div className="flex flex-col md:flex-row gap-4 md:min-w-0" style={{ minWidth: typeof window !== "undefined" && window.innerWidth >= 768 ? Math.max(orderedPhases.length + 1, 3) * 290 + "px" : undefined }}>
                 {(() => {
@@ -2010,26 +2065,17 @@ export default function ProjectDetailView({
               locale={locale}
               canConvertPhaseToSubproject={canConvertToSubproject}
               onConvertPhase={openConvertPhase}
-              onMoveTask={async (taskId, newPhaseId, newIndex) => {
-                try {
-                  const updated = await updateTodo(taskId, { phaseId: newPhaseId, sortOrder: newIndex });
-                  setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
-                  const targetPhaseKey = newPhaseId ?? "__none__";
-                  const targetTasks = (tasksByPhase.get(targetPhaseKey) ?? []).filter((td) => !td.parentId && td.id !== taskId);
-                  targetTasks.splice(newIndex, 0, updated);
-                  await reorderTodosApi(targetTasks.map((t2) => t2.id));
-                  setProjectTodos((prev) => {
-                    const result = [...prev];
-                    for (let i = 0; i < targetTasks.length; i++) {
-                      const idx = result.findIndex((t2) => t2.id === targetTasks[i].id);
-                      if (idx !== -1) result[idx] = { ...result[idx], sortOrder: i };
-                    }
-                    return result;
-                  });
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Error");
-                }
+              onMoveTask={(taskId, newPhaseId, newIndex) => {
+                runPhaseTaskMove(taskId, newPhaseId, newIndex);
               }}
+              onBarClick={(task) => {
+                setGanttQuickTask(task);
+                setGanttShiftDays(0);
+              }}
+              onBarDateMove={(taskId, startDate, deadline) => {
+                runDateTaskMove(taskId, startDate, deadline);
+              }}
+              onOpenTaskEdit={(task) => openEdit(task)}
             />
           </div>
         )}
@@ -2444,6 +2490,95 @@ export default function ProjectDetailView({
             void refreshProject(selectedProject.id);
           }}
         />
+
+        <TaskMoveConstraintModal
+          state={moveModal}
+          onClose={() => setMoveModal(null)}
+          t={t}
+        />
+
+        {ganttQuickTask && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gantt-quick-panel-title"
+          >
+            <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+              <h2 id="gantt-quick-panel-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100 truncate">
+                {t("gantt.quickPanel.title")}: {ganttQuickTask.title}
+              </h2>
+              <label className="mt-3 block text-xs text-zinc-600 dark:text-slate-400">
+                {t("gantt.quickPanel.shiftDays")}
+                <input
+                  type="number"
+                  value={ganttShiftDays}
+                  onChange={(e) => setGanttShiftDays(Number(e.target.value) || 0)}
+                  className="mt-1 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800"
+                />
+              </label>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-slate-800 px-3 py-2 text-sm text-white dark:bg-slate-600"
+                  onClick={() => {
+                    const td = ganttQuickTask;
+                    const start = td.startDate ?? td.deadline;
+                    const end = td.deadline ?? td.startDate;
+                    if (!start && !end) {
+                      setGanttQuickTask(null);
+                      return;
+                    }
+                    const newStart = start ? addDaysYmd(start, ganttShiftDays) : null;
+                    const newEnd = end ? addDaysYmd(end, ganttShiftDays) : null;
+                    runDateTaskMove(td.id, newStart, newEnd);
+                    setGanttQuickTask(null);
+                  }}
+                >
+                  {t("gantt.quickPanel.apply")}
+                </button>
+                {ganttQuickTask.phaseId && (() => {
+                  const ph = orderedPhases.find((p) => p.id === ganttQuickTask.phaseId);
+                  if (!ph?.startDate && !ph?.endDate) return null;
+                  return (
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
+                      onClick={() => {
+                        runDateTaskMove(
+                          ganttQuickTask.id,
+                          ph.startDate ?? ganttQuickTask.startDate,
+                          ph.endDate ?? ganttQuickTask.deadline,
+                          "clampDatesToPhase",
+                        );
+                        setGanttQuickTask(null);
+                      }}
+                    >
+                      {t("gantt.quickPanel.alignPhase")}
+                    </button>
+                  );
+                })()}
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
+                  onClick={() => {
+                    openEdit(ganttQuickTask);
+                    setGanttQuickTask(null);
+                  }}
+                >
+                  {t("gantt.quickPanel.openEdit")}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
+                  onClick={() => setGanttQuickTask(null)}
+                >
+                  {t("cancel")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppShell>
   );

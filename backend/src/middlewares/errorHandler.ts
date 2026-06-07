@@ -44,6 +44,13 @@ export const errorHandler = (
     if ("code" in err && typeof err.code === "string" && err.code.length > 0) {
       body.code = err.code;
     }
+    if ("details" in err && err.details !== undefined) {
+      body.details = err.details;
+    }
+    if ("conflicts" in err && Array.isArray(err.conflicts)) {
+      body.conflicts = err.conflicts;
+      body.conflict = true;
+    }
     res.status(err.statusCode).json(body);
     return;
   }

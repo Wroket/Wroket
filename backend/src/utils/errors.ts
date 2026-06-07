@@ -36,12 +36,24 @@ export class PaymentRequiredError extends AppError {
   }
 }
 
-/** HTTP 409 with optional machine-readable code for clients. */
+/** HTTP 409 with optional machine-readable code and conflict list for clients. */
 export class ConflictError extends AppError {
   constructor(
     message: string,
     public readonly code?: string,
+    public readonly conflicts?: Array<{ id: string; title: string; start: string; end: string }>,
   ) {
-    super(409, message);
+    super(409, message, code);
+  }
+}
+
+/** HTTP 422 — constraint mismatch with optional structured details for modals. */
+export class UnprocessableEntityError extends AppError {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(422, message, code);
   }
 }

@@ -176,6 +176,81 @@ export async function reorderTodos(todoIds: string[]): Promise<void> {
   broadcastTodosMutated();
 }
 
+export type MoveTodoStrategy =
+  | "default"
+  | "clampDatesToPhase"
+  | "clearScheduledSlot"
+  | "keepDates"
+  | "rescheduleSlot";
+
+export interface MoveTodoPayload {
+  phaseId?: string | null;
+  sortOrder?: number;
+  startDate?: string | null;
+  deadline?: string | null;
+  strategy?: MoveTodoStrategy;
+  forceCalendarConflict?: boolean;
+  reorderIds?: string[];
+}
+
+export interface MoveTodoConflict {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+}
+
+export type MoveTodoApiResult =
+  | { ok: true; todo: Todo }
+  | {
+      ok: false;
+      status: 422;
+      code: "TASK_PHASE_DATE_MISMATCH" | "TASK_PHASE_SLOT_MISMATCH" | string;
+      message: string;
+      details?: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      status: 409;
+      code: "TASK_MOVE_CONFLICT" | string;
+      message: string;
+      conflicts: MoveTodoConflict[];
+    };
+
+export async function moveTodoApi(id: string, payload: MoveTodoPayload): Promise<MoveTodoApiResult> {
+  const res = await fetch(`${API_BASE_URL}/todos/${encodeURIComponent(id)}/move`, {
+    ...apiFetchDefaults,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.ok) {
+    broadcastTodosMutated();
+    return { ok: true, todo: body as unknown as Todo };
+  }
+  const message = extractApiMessage(body, "Impossible de déplacer la tâche");
+  if (res.status === 422) {
+    return {
+      ok: false,
+      status: 422,
+      code: (body.code as string) ?? "TASK_MOVE_VALIDATION",
+      message,
+      details: body.details as Record<string, unknown> | undefined,
+    };
+  }
+  if (res.status === 409) {
+    return {
+      ok: false,
+      status: 409,
+      code: (body.code as string) ?? "TASK_MOVE_CONFLICT",
+      message,
+      conflicts: (body.conflicts as MoveTodoConflict[]) ?? [],
+    };
+  }
+  throw new Error(message);
+}
+
 export async function exportTasksCsv(): Promise<void> {
   return exportTasks("csv");
 }

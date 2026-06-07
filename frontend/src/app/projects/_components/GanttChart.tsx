@@ -37,6 +37,21 @@ function yearLabel(d: Date): string {
   return String(d.getFullYear()).slice(-2);
 }
 
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
+function sortTasksByOrder(a: Todo, b: Todo): number {
+  const oa = a.sortOrder ?? Number.POSITIVE_INFINITY;
+  const ob = b.sortOrder ?? Number.POSITIVE_INFINITY;
+  if (oa !== ob) return oa - ob;
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+}
+
 interface GanttChartProps {
   phases: ProjectPhase[];
   tasks: Todo[];
@@ -44,6 +59,9 @@ interface GanttChartProps {
   locale: string;
   variant?: "interactive" | "export";
   onMoveTask?: (taskId: string, newPhaseId: string | null, newIndex: number) => void;
+  onBarClick?: (task: Todo) => void;
+  onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
+  onOpenTaskEdit?: (task: Todo) => void;
   canConvertPhaseToSubproject?: boolean;
   onConvertPhase?: (phaseId: string) => void;
 }
@@ -54,6 +72,8 @@ interface GanttChartBodyProps {
   t: (key: TranslationKey) => string;
   locale: string;
   isExport: boolean;
+  onBarClick?: (task: Todo) => void;
+  onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
   canConvertPhaseToSubproject?: boolean;
   onConvertPhase?: (phaseId: string) => void;
 }
@@ -64,9 +84,17 @@ function GanttChartBody({
   t,
   locale,
   isExport,
+  onBarClick,
+  onBarDateMove,
   canConvertPhaseToSubproject,
   onConvertPhase,
 }: GanttChartBodyProps) {
+  const barDragRef = useRef<{
+    taskId: string;
+    startX: number;
+    origStart: string | null;
+    origEnd: string | null;
+  } | null>(null);
   const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const subtasksByParent = useMemo(() => {
     const map = new Map<string, Todo[]>();
@@ -99,11 +127,7 @@ function GanttChartBody({
         unassigned.push(task);
       }
     }
-    const chronoSort = (a: Todo, b: Todo) => {
-      const aDate = a.startDate ?? a.deadline ?? "9999";
-      const bDate = b.startDate ?? b.deadline ?? "9999";
-      return aDate.localeCompare(bDate);
-    };
+    const chronoSort = sortTasksByOrder;
     for (const [, list] of map) list.sort(chronoSort);
     unassigned.sort(chronoSort);
     map.set("__none__", unassigned);
@@ -178,21 +202,62 @@ function GanttChartBody({
   const timelineStyle = isExport ? { width: chartWidth, flexShrink: 0 as const } : undefined;
   const timelineClass = isExport ? "relative shrink-0" : "flex-1 relative";
 
-  const renderBar = (startDay: number | null, endDay: number | null, color: string, opacity: number, height: string, label?: string) => {
+  const renderBar = (
+    startDay: number | null,
+    endDay: number | null,
+    color: string,
+    opacity: number,
+    height: string,
+    label?: string,
+    task?: Todo,
+  ) => {
     const barStart = startDay ?? 0;
     const barEnd = endDay ?? barStart;
     const barWidth = Math.max(barEnd - barStart + 1, 1);
     const hasBar = startDay !== null || endDay !== null;
     if (!hasBar) return null;
+    const interactive = !isExport && task && (onBarClick || onBarDateMove);
     return (
       <div
-        className={`absolute rounded-sm ${height}`}
+        className={`absolute rounded-sm ${height}${interactive ? " cursor-grab hover:ring-2 hover:ring-blue-400/40 z-10" : ""}`}
         style={{
           left: barStart * COL_W + 2,
           width: barWidth * COL_W - 4,
           backgroundColor: color,
           opacity,
         }}
+        onClick={interactive && onBarClick ? (e) => { e.stopPropagation(); onBarClick(task); } : undefined}
+        onPointerDown={interactive && onBarDateMove ? (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          barDragRef.current = {
+            taskId: task.id,
+            startX: e.clientX,
+            origStart: task.startDate,
+            origEnd: task.deadline,
+          };
+          const onMove = (ev: PointerEvent) => {
+            if (!barDragRef.current) return;
+            ev.preventDefault();
+          };
+          const onUp = (ev: PointerEvent) => {
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            const drag = barDragRef.current;
+            barDragRef.current = null;
+            if (!drag || !onBarDateMove) return;
+            const deltaDays = Math.round((ev.clientX - drag.startX) / COL_W);
+            if (deltaDays === 0) return;
+            const baseStart = drag.origStart ?? drag.origEnd;
+            const baseEnd = drag.origEnd ?? drag.origStart;
+            if (!baseStart && !baseEnd) return;
+            const newStart = baseStart ? addDaysYmd(baseStart, deltaDays) : null;
+            const newEnd = baseEnd ? addDaysYmd(baseEnd, deltaDays) : null;
+            onBarDateMove(drag.taskId, newStart, newEnd);
+          };
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+        } : undefined}
       >
         {label && barWidth * COL_W > 60 && (
           <span className="text-[9px] text-white font-medium px-1.5 leading-[18px] truncate block">
@@ -222,7 +287,7 @@ function GanttChartBody({
           <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
         </div>
         <div className={timelineClass} style={{ ...timelineStyle, height: "100%" }}>
-          {renderBar(bar.startDay, bar.endDay, color, barOpacity, barTop, !isSubtask ? task.title : undefined)}
+          {renderBar(bar.startDay, bar.endDay, color, barOpacity, barTop, !isSubtask ? task.title : undefined, !isSubtask ? task : undefined)}
         </div>
       </div>
     );
@@ -346,6 +411,8 @@ export default function GanttChart({
   locale,
   variant = "interactive",
   onMoveTask,
+  onBarClick,
+  onBarDateMove,
   canConvertPhaseToSubproject,
   onConvertPhase,
 }: GanttChartProps) {
@@ -367,11 +434,7 @@ export default function GanttChart({
         unassigned.push(task);
       }
     }
-    const chronoSort = (a: Todo, b: Todo) => {
-      const aDate = a.startDate ?? a.deadline ?? "9999";
-      const bDate = b.startDate ?? b.deadline ?? "9999";
-      return aDate.localeCompare(bDate);
-    };
+    const chronoSort = sortTasksByOrder;
     for (const [, list] of map) list.sort(chronoSort);
     unassigned.sort(chronoSort);
     map.set("__none__", unassigned);
@@ -442,6 +505,8 @@ export default function GanttChart({
       t={t}
       locale={locale}
       isExport={isExport}
+      onBarClick={onBarClick}
+      onBarDateMove={onBarDateMove}
       canConvertPhaseToSubproject={canConvertPhaseToSubproject}
       onConvertPhase={onConvertPhase}
     />
