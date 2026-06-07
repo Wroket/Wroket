@@ -154,10 +154,24 @@ function wallTimeInZoneToIso(value: string, timeZone: string): string {
 function mapMeetErrorToMessageKey(message: string): TranslationKey {
   const msg = message.toLowerCase();
   if (msg.includes("connectez") || msg.includes("non connecté") || msg.includes("connect")) return "meet.errorNoGoogle";
+  if (msg.includes("invités externes") && (msg.includes("teams") || msg.includes("microsoft") || msg.includes("outlook"))) {
+    return "meet.errorExternalInvitePolicyTeams";
+  }
+  if (msg.includes("invitation") && (msg.includes("outlook") || msg.includes("teams") || msg.includes("microsoft"))) {
+    return "meet.errorInviteesTeams";
+  }
   if (msg.includes("invités externes") || msg.includes("forbiddenfornonorganizer")) return "meet.errorExternalInvitePolicy";
-  if (msg.includes("permissions google calendar insuffisantes") || msg.includes("permissions")) return "meet.errorPermissions";
-  if (msg.includes("calendrier google introuvable") || msg.includes("calendrier par défaut")) return "meet.errorDefaultCalendar";
-  if (msg.includes("rejeté un ou plusieurs invités") || msg.includes("email invalide")) return "meet.errorInvitees";
+  if (
+    msg.includes("permissions outlook")
+    || msg.includes("permissions google calendar")
+    || (msg.includes("permissions") && !msg.includes("invit"))
+  ) return "meet.errorPermissions";
+  if (msg.includes("calendrier google introuvable") || msg.includes("calendrier outlook") || msg.includes("calendrier par défaut")) {
+    return "meet.errorDefaultCalendar";
+  }
+  if (msg.includes("rejeté") || msg.includes("rejected") || msg.includes("email invalide") || msg.includes("invités")) {
+    return "meet.errorInvitees";
+  }
   return "meet.error";
 }
 

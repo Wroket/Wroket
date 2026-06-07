@@ -46,7 +46,7 @@ Checklist pas à pas pour valider les parcours critiques sur **production** apr�
 
 | Bugs ouverts | Aucun bloquant — voir [ROADMAP.md](../ROADMAP.md) section « Retour E2E prod » |
 
-| Correctifs re-testés | P0 RGPD ; P1 Meet PATCH / priorité compte / Microsoft OAuth ; P2 conflit dédup ; P3 sync Archives ; P2 Ma semaine + templates + alertes navigateur ; DnD projet §G |
+| Correctifs re-testés | P0 RGPD ; P1 Meet PATCH / priorité compte / Microsoft OAuth / Teams invités externes ; P2 conflit dédup ; P3 sync Archives ; P2 Ma semaine + templates + alertes navigateur ; DnD projet §G ; Outlook §D5 |
 
 
 
@@ -182,11 +182,31 @@ Checklist pas à pas pour valider les parcours critiques sur **production** apr�
 
 
 
-> **Re-test 2026-06-07** : OAuth Microsoft secondaire OK (redirect `/agenda/manage` + toasts si erreur).
+### D5. Outlook / Microsoft Teams (compte prioritaire Outlook)
 
 
 
-**Critères OK** : cycle création → refresh → édition → annulation ; invité externe OK ; pas de décalage horaire incohérent.
+1. [x] Outlook connecté, calendrier par défaut configuré (Agenda > Gérer les agendas)
+
+2. [x] Réserver un créneau → événement visible dans Outlook
+
+3. [x] Créer une réunion **Teams** sur une tâche (titre + créneau)
+
+4. [x] **Modifier** l’heure → changement reflété dans Outlook
+
+5. [x] **Invité externe** (ex. Gmail) → invitation reçue avec lien Teams — envoi en 2 temps (création réunion puis invitation avec `joinUrl` dans le corps HTML)
+
+6. [x] **Annuler** la réunion → événement supprimé côté Outlook
+
+7. [x] OAuth Microsoft (connexion secondaire ou reconnexion) — redirect `/agenda/manage?microsoft=connected`
+
+
+
+> **Re-test 2026-06-07** : OAuth Microsoft secondaire OK (redirect `/agenda/manage` + toasts si erreur). Invités externes Teams validés post-fix invitation.
+
+
+
+**Critères OK** : cycle création → refresh → édition → annulation ; invité externe OK (Google Meet **ou** Teams) ; pas de décalage horaire incohérent.
 
 
 

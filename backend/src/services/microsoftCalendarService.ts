@@ -297,6 +297,47 @@ export async function listMicrosoftEventsForAccount(
 
 const WROKET_OUTLOOK_BOOKING_NOTE = "Booked from Wroket";
 
+export type MicrosoftCalendarPatchOptions = {
+  /** When set, event body is HTML and includes a clickable Teams join link (recommended for external invitees). */
+  joinUrl?: string;
+  responseRequested?: boolean;
+};
+
+function escapeHtmlText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** HTML body for Teams meetings — join link helps external guests who open the invite in non-Outlook clients. */
+export function buildMicrosoftTeamsEventBody(description: string, joinUrl?: string): { contentType: "HTML"; content: string } {
+  const lines = [escapeHtmlText(description.trim() || WROKET_OUTLOOK_BOOKING_NOTE)];
+  if (joinUrl && joinUrl.startsWith("http")) {
+    const safeUrl = escapeHtmlText(joinUrl);
+    lines.push(
+      "",
+      "Rejoindre la réunion Teams / Join Teams meeting:",
+      `<a href="${safeUrl}">${safeUrl}</a>`,
+    );
+  }
+  return {
+    contentType: "HTML",
+    content: lines.join("<br/>"),
+  };
+}
+
+function buildMicrosoftTeamsAttendees(emails: string[]): Array<{
+  emailAddress: { address: string; name: string };
+  type: "required";
+}> {
+  return emails.map((email) => ({
+    emailAddress: { address: email, name: email },
+    type: "required" as const,
+  }));
+}
+
 function graphUtcBody(startIso: string, endIso: string): { start: { dateTime: string; timeZone: string }; end: { dateTime: string; timeZone: string } } {
   const s = new Date(startIso);
   const e = new Date(endIso);
@@ -362,6 +403,7 @@ export async function patchMicrosoftCalendarEvent(
   end: string,
   description: string = WROKET_OUTLOOK_BOOKING_NOTE,
   attendees?: string[],
+  options?: MicrosoftCalendarPatchOptions,
 ): Promise<boolean> {
   const accessToken = await getValidAccessTokenForMicrosoftAccount(uid, accountId);
   if (!accessToken) return false;
@@ -372,15 +414,17 @@ export async function patchMicrosoftCalendarEvent(
   try {
     const body: Record<string, unknown> = {
       subject: summary,
-      body: { contentType: "text", content: description },
+      body: options?.joinUrl
+        ? buildMicrosoftTeamsEventBody(description, options.joinUrl)
+        : { contentType: "text", content: description },
       start: startBody,
       end: endBody,
     };
+    if (options?.responseRequested !== undefined) {
+      body.responseRequested = options.responseRequested;
+    }
     if (attendees !== undefined) {
-      body.attendees = attendees.map((email) => ({
-        emailAddress: { address: email, name: email },
-        type: "required",
-      }));
+      body.attendees = buildMicrosoftTeamsAttendees(attendees);
     }
     const res = await fetch(`https://graph.microsoft.com/v1.0/me/events/${evSeg}`, {
       method: "PATCH",
@@ -458,7 +502,13 @@ async function fetchMicrosoftEventJoinUrl(
 /** User-facing hint when Graph rejects Teams on calendar. */
 export function mapMicrosoftTeamsMeetCreateError(raw: string): string {
   const msg = raw.toLowerCase();
-  if (msg.includes("onlinemeeting") || msg.includes("teams")) {
+  if (msg.includes("invitation") && msg.includes("attendee")) {
+    return "Outlook n'a pas pu envoyer l'invitation à un ou plusieurs invités externes.";
+  }
+  if (msg.includes("external") || msg.includes("guest") || msg.includes("anonymous")) {
+    return "Votre organisation Microsoft bloque peut-être les invités externes aux réunions Teams.";
+  }
+  if (msg.includes("onlinemeeting") || (msg.includes("teams") && !msg.includes("attendee"))) {
     return "Microsoft n'a pas pu générer le lien Teams (licence ou stratégie d'organisation).";
   }
   if (msg.includes("forbidden") || msg.includes("\"code\":403") || msg.includes("accessdenied")) {
@@ -466,6 +516,9 @@ export function mapMicrosoftTeamsMeetCreateError(raw: string): string {
   }
   if (msg.includes("invalid") && msg.includes("attendee")) {
     return "Un ou plusieurs invités ont été rejetés par Outlook.";
+  }
+  if (msg.includes("rejeté") || msg.includes("rejected")) {
+    return "Un ou plusieurs invités externes ont été rejetés par Outlook.";
   }
   return "Erreur Microsoft Graph lors de la création de la réunion Teams.";
 }
@@ -491,23 +544,18 @@ export async function createMicrosoftTeamsCalendarEvent(
   const calSeg = encodeURIComponent(calendarId);
   const { start: startBody, end: endBody } = graphUtcBody(start, end);
 
-  const attendeesPayload =
-    attendees.length > 0
-      ? attendees.map((email) => ({
-          emailAddress: { address: email, name: email },
-          type: "required" as const,
-        }))
-      : undefined;
-
+  // Create the online meeting first without attendees so Graph returns a stable joinUrl
+  // before invitations are sent (avoids external guests receiving invites without a link).
   const body: Record<string, unknown> = {
     subject: summary,
-    body: { contentType: "text", content: description },
+    body: buildMicrosoftTeamsEventBody(description),
     start: startBody,
     end: endBody,
     isOnlineMeeting: true,
     onlineMeetingProvider: "teamsForBusiness",
+    responseRequested: true,
+    isReminderOn: true,
   };
-  if (attendeesPayload) body.attendees = attendeesPayload;
 
   const res = await fetch(`https://graph.microsoft.com/v1.0/me/calendars/${calSeg}/events`, {
     method: "POST",
@@ -541,6 +589,29 @@ export async function createMicrosoftTeamsCalendarEvent(
   if (!joinUrl) {
     await deleteMicrosoftCalendarEvent(uid, accountId, eventId).catch(() => null);
     throw new Error("Teams join URL missing after event create");
+  }
+
+  if (attendees.length > 0) {
+    const inviteOk = await patchMicrosoftCalendarEvent(
+      uid,
+      accountId,
+      eventId,
+      summary,
+      start,
+      end,
+      description,
+      attendees,
+      { joinUrl, responseRequested: true },
+    );
+    if (!inviteOk) {
+      await deleteMicrosoftCalendarEvent(uid, accountId, eventId).catch(() => null);
+      throw new Error("Failed to send Teams meeting invitations to attendees");
+    }
+    console.info("[microsoft-cal] Teams invitations sent", JSON.stringify({
+      uid,
+      eventId,
+      inviteesCount: attendees.length,
+    }));
   }
 
   return { eventId, joinUrl };

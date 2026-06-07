@@ -1368,6 +1368,10 @@ export async function updateMeet(req: AuthenticatedRequest, res: Response) {
       requestEnd,
       description,
       attendees,
+      {
+        joinUrl: todo.scheduledSlot.meetingUrl ?? undefined,
+        responseRequested: true,
+      },
     );
     if (!ok) throw new ValidationError("Impossible de modifier la réunion Microsoft Teams.", "MEET_UPDATE_FAILED");
 
