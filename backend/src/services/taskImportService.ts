@@ -5,10 +5,12 @@ const MAX_TASKS = 1000;
 
 function parseCsvToTaskRows(text: string): Array<Record<string, string>> {
   const lines = text.split("\n").filter((l) => l.trim());
-  if (lines.length < 2) throw new ValidationError("Le CSV doit contenir un en-tête et au moins une ligne");
+  if (lines.length < 2) {
+    throw new ValidationError("Le CSV doit contenir un en-tête et au moins une ligne", "IMPORT_CSV_INVALID");
+  }
   const headers = lines[0].split(/[,;]/).map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
   if (!headers.includes("title") && !headers.includes("task_title")) {
-    throw new ValidationError("Colonne 'title' ou 'task_title' requise");
+    throw new ValidationError("Colonne 'title' ou 'task_title' requise", "IMPORT_CSV_INVALID");
   }
   return lines.slice(1).map((line) => {
     const fields = line.split(/[,;]/).map((f) => f.trim().replace(/^"|"$/g, ""));
@@ -23,9 +25,16 @@ function parseCsvToTaskRows(text: string): Array<Record<string, string>> {
 export function parseTaskImportBuffer(buffer: Buffer, originalname: string, mimetype: string): Record<string, unknown>[] {
   const text = buffer.toString("utf-8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   if (originalname.endsWith(".json") || mimetype === "application/json") {
-    const parsed = JSON.parse(text) as unknown;
-    if (!Array.isArray(parsed)) throw new ValidationError("Le JSON doit contenir un tableau de tâches");
-    return parsed as Record<string, unknown>[];
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      if (!Array.isArray(parsed)) {
+        throw new ValidationError("Le JSON doit contenir un tableau de tâches", "IMPORT_CSV_INVALID");
+      }
+      return parsed as Record<string, unknown>[];
+    } catch (e) {
+      if (e instanceof ValidationError) throw e;
+      throw new ValidationError("JSON invalide", "IMPORT_CSV_INVALID");
+    }
   }
   return parseCsvToTaskRows(text) as unknown as Record<string, unknown>[];
 }
@@ -68,7 +77,7 @@ function parseRecurrence(row: Record<string, unknown>): Recurrence | null | unde
     try {
       return JSON.parse(raw) as Recurrence;
     } catch {
-      throw new ValidationError("recurrence JSON invalide");
+      throw new ValidationError("recurrence JSON invalide", "IMPORT_CSV_INVALID");
     }
   }
   return undefined;
@@ -207,8 +216,10 @@ export async function executeTaskImport(
   email: string,
   inputs: CreateTodoInput[],
 ): Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }> {
-  if (inputs.length === 0) throw new ValidationError("Aucune tâche à importer");
-  if (inputs.length > MAX_TASKS) throw new ValidationError(`Maximum ${MAX_TASKS} tâches par import`);
+  if (inputs.length === 0) throw new ValidationError("Aucune tâche à importer", "IMPORT_CSV_INVALID");
+  if (inputs.length > MAX_TASKS) {
+    throw new ValidationError(`Maximum ${MAX_TASKS} tâches par import`, "IMPORT_CSV_INVALID");
+  }
 
   let created = 0;
   const errors: Array<{ row: number; message: string }> = [];

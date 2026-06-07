@@ -23,6 +23,7 @@ import {
   type GoogleCalendarEntry,
 } from "@/lib/api";
 import { broadcastResourceChange } from "@/lib/useResourceSync";
+import { formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
@@ -155,7 +156,7 @@ export default function ManageCalendarsPage() {
       if (!url.startsWith("https://accounts.google.com/")) return;
       window.location.href = url;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("agenda.connectGoogle"));
+      toast.error(formatUserFacingError(e, "errors.fallback.generic"));
     }
   };
 
@@ -166,7 +167,7 @@ export default function ManageCalendarsPage() {
       if (!url.startsWith("https://") && !url.startsWith("http://")) return;
       window.location.href = url;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("agenda.connectOutlook"));
+      toast.error(formatUserFacingError(e, "errors.fallback.generic"));
     }
   };
 
@@ -233,7 +234,7 @@ export default function ManageCalendarsPage() {
       toast.success(t("agenda.priorityAccountSaved"));
       await loadAccounts();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("agenda.priorityAccountSaveError"));
+      toast.error(formatUserFacingError(e, "agenda.priorityAccountSaveError"));
     } finally {
       setPrioritySavingKey(null);
     }
@@ -290,7 +291,7 @@ export default function ManageCalendarsPage() {
       setInAppSyncDialogOpen(false);
       await refreshPendingCountOnly();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncConfirm"));
+      toast.error(formatUserFacingError(e, "errors.fallback.generic"));
     } finally {
       setInAppSyncRunning(false);
     }

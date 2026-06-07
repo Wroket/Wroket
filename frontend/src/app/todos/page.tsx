@@ -53,6 +53,7 @@ import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { getEffectiveDueDay, hasNoEffectiveDue } from "@/lib/effectiveDue";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
+import { ApiClientError, formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import {
   PRIORITY_BADGES,
@@ -859,7 +860,6 @@ export default function TodosPage() {
         toast.success(t("meet.updated"));
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
       // Reopen modal with previous values so user can adjust and retry quickly.
       setMeetOptionsTodo(pendingTodo);
       setMeetStart(pendingStart);
@@ -867,7 +867,11 @@ export default function TodosPage() {
       setMeetInvitees(pendingInvitees);
       setMeetSummary(pendingSummary);
       setMeetDescription(pendingDescription);
-      toast.error(t(mapMeetErrorToMessageKey(msg)));
+      toast.error(
+        err instanceof ApiClientError
+          ? formatUserFacingError(err, "meet.error")
+          : t(mapMeetErrorToMessageKey(err instanceof Error ? err.message : "")),
+      );
     } finally {
       setMeetLoadingId(null);
     }
@@ -883,7 +887,11 @@ export default function TodosPage() {
       replaceTodoInLists(updated);
       toast.success(t("meet.cancelled"));
     } catch (err) {
-      toast.error(t(mapMeetErrorToMessageKey(err instanceof Error ? err.message : "")));
+      toast.error(
+        err instanceof ApiClientError
+          ? formatUserFacingError(err, "meet.error")
+          : t(mapMeetErrorToMessageKey(err instanceof Error ? err.message : "")),
+      );
     } finally {
       setMeetLoadingId(null);
     }

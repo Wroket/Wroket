@@ -1,3 +1,5 @@
+import { parseApiErrorResponse } from "@/lib/apiErrors";
+
 import {
   API_BASE_URL, parseJsonOrThrow, extractApiMessage,
 } from "./core";
@@ -112,7 +114,7 @@ export async function acceptCollaboration(inviterEmail: string): Promise<void> {
     body: JSON.stringify({ inviterEmail }),
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Erreur lors de l'acceptation");
+  if (!res.ok) throw await parseApiErrorResponse(res, "errors.code.COLLAB_ACCEPT_FAILED");
   broadcastResourceChange("teams");
 }
 
@@ -123,7 +125,7 @@ export async function declineCollaboration(inviterEmail: string): Promise<void> 
     body: JSON.stringify({ inviterEmail }),
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Erreur lors du refus");
+  if (!res.ok) throw await parseApiErrorResponse(res, "errors.code.COLLAB_DECLINE_FAILED");
   broadcastResourceChange("teams");
 }
 

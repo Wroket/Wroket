@@ -646,6 +646,24 @@ const translations = {
   "settings.plan.first": { fr: "1st in", en: "1st in" },
   "settings.plan.small": { fr: "Small teams", en: "Small teams" },
   "settings.plan.large": { fr: "Large teams", en: "Large teams" },
+  "settings.plan.free.marketing": { fr: "Free", en: "Free" },
+  "settings.plan.first.marketing": { fr: "Pro", en: "Pro" },
+  "settings.plan.small.marketing": { fr: "Team", en: "Team" },
+  "settings.plan.large.marketing": { fr: "Large teams", en: "Large teams" },
+  "settings.plan.free.code": { fr: "Palier technique : free", en: "Technical tier: free" },
+  "settings.plan.first.code": { fr: "Palier technique : first (1st in)", en: "Technical tier: first (1st in)" },
+  "settings.plan.small.code": { fr: "Palier technique : small", en: "Technical tier: small" },
+  "settings.plan.large.code": { fr: "Palier technique : large", en: "Technical tier: large" },
+  "settings.planUnknown.code": { fr: "Palier technique : —", en: "Technical tier: —" },
+  "settings.planTerminologyTitle": { fr: "Correspondance des noms", en: "Name mapping" },
+  "settings.planTerminologyDesc": {
+    fr: "Dans l’app et l’API, le palier est stocké sous un identifiant technique (free, first, small, large). Sur la page Tarifs et dans la communication : Free, Pro, Team, Large teams.",
+    en: "In the app and API, your tier is stored as a technical id (free, first, small, large). On Pricing and in comms we use Free, Pro, Team, Large teams.",
+  },
+  "settings.planCompareFree": { fr: "Free → free", en: "Free → free" },
+  "settings.planComparePro": { fr: "Pro → first", en: "Pro → first" },
+  "settings.planCompareTeam": { fr: "Team → small (Small teams)", en: "Team → small (Small teams)" },
+  "settings.planCompareLarge": { fr: "Large teams → large", en: "Large teams → large" },
   "settings.plan.free.tagline": {
     fr: "Idéal pour tester Wroket et vos flux personnels.",
     en: "Ideal to try Wroket and your personal workflows.",
@@ -2233,6 +2251,108 @@ const translations = {
   "template.creating": { fr: "Création…", en: "Creating…" },
   "template.delete": { fr: "Supprimer ce modèle", en: "Delete this template" },
   "template.applied": { fr: "Modèle appliqué.", en: "Template applied." },
+
+  // ── API error codes (actionnable) ──
+  "errors.fallback.generic": {
+    fr: "Une erreur est survenue. Réessayez ou contactez le support si le problème persiste.",
+    en: "Something went wrong. Try again or contact support if it continues.",
+  },
+  "errors.code.AUTH_EMAIL_NOT_VERIFIED": {
+    fr: "Confirmez votre adresse email avant de vous connecter (lien reçu à l’inscription).",
+    en: "Confirm your email address before signing in (link sent when you registered).",
+  },
+  "errors.code.AUTH_INVALID_CREDENTIALS": {
+    fr: "Email ou mot de passe incorrect.",
+    en: "Incorrect email or password.",
+  },
+  "errors.code.AUTH_TWO_FACTOR_EXPIRED": {
+    fr: "Session 2FA expirée. Reconnectez-vous.",
+    en: "2FA session expired. Please sign in again.",
+  },
+  "errors.code.AUTH_TWO_FACTOR_INVALID": {
+    fr: "Code d’authentification invalide.",
+    en: "Invalid authentication code.",
+  },
+  "errors.code.UNAUTHORIZED": {
+    fr: "Session expirée. Reconnectez-vous.",
+    en: "Session expired. Please sign in again.",
+  },
+  "errors.code.FORBIDDEN": {
+    fr: "Vous n’avez pas les droits pour cette action.",
+    en: "You don’t have permission for this action.",
+  },
+  "errors.code.CALENDAR_SLOT_INVALID": {
+    fr: "Plage horaire invalide pour la réservation.",
+    en: "Invalid time range for booking.",
+  },
+  "errors.code.CALENDAR_SLOT_TOO_LONG": {
+    fr: "Le créneau est trop long (maximum 7 jours).",
+    en: "Slot is too long (7 days maximum).",
+  },
+  "errors.code.CALENDAR_DEFAULT_BOOKING_REQUIRED": {
+    fr: "Configurez un calendrier par défaut dans Mes agendas pour réserver un créneau.",
+    en: "Set a default calendar in My calendars before booking a slot.",
+  },
+  "errors.code.INTEGRATIONS_PLAN_REQUIRED": {
+    fr: "Cette action nécessite le palier Team (Small teams) — pack intégrations.",
+    en: "This action requires the Team tier (Small teams) — integrations pack.",
+  },
+  "errors.code.CALENDAR_SLOT_CONFLICT": {
+    fr: "Ce créneau chevauche un autre événement.",
+    en: "This slot overlaps another event.",
+  },
+  "errors.code.MEET_INVALID_INVITEE_EMAIL": {
+    fr: "Un ou plusieurs emails d’invités sont invalides.",
+    en: "One or more invitee emails are invalid.",
+  },
+  "errors.code.MEET_NOT_FOUND": {
+    fr: "Aucune réunion existante à modifier pour cette tâche.",
+    en: "No existing meeting to update for this task.",
+  },
+  "errors.code.MEET_ACCOUNT_NOT_FOUND": {
+    fr: "Compte calendrier introuvable pour cette réunion.",
+    en: "Calendar account not found for this meeting.",
+  },
+  "errors.code.MEET_UPDATE_FAILED": {
+    fr: "Impossible de modifier la réunion. Vérifiez le compte calendrier connecté.",
+    en: "Could not update the meeting. Check your connected calendar account.",
+  },
+  "errors.code.MEET_INVALID_RANGE": {
+    fr: "Plage horaire de réunion invalide.",
+    en: "Invalid meeting time range.",
+  },
+  "errors.code.FREE_QUOTA_TASKS": {
+    fr: "Limite de tâches actives atteinte sur le palier Free. Passez à Pro ou supprimez des tâches.",
+    en: "Active task limit reached on Free. Upgrade to Pro or remove tasks.",
+  },
+  "errors.code.FREE_QUOTA_PROJECTS": {
+    fr: "Limite de projets personnels atteinte sur Free.",
+    en: "Personal project limit reached on Free.",
+  },
+  "errors.code.FREE_QUOTA_NOTES": {
+    fr: "Limite de notes atteinte sur le palier Free.",
+    en: "Note limit reached on the Free tier.",
+  },
+  "errors.code.FREE_QUOTA_RECURRENCE": {
+    fr: "La récurrence nécessite le palier Pro ou supérieur.",
+    en: "Recurrence requires Pro or a higher tier.",
+  },
+  "errors.code.FREE_QUOTA_ATTACHMENTS": {
+    fr: "Les pièces jointes nécessitent le palier Pro ou supérieur.",
+    en: "Attachments require Pro or a higher tier.",
+  },
+  "errors.code.IMPORT_CSV_INVALID": {
+    fr: "Fichier d’import invalide. Vérifiez le format CSV et les colonnes obligatoires.",
+    en: "Invalid import file. Check the CSV format and required columns.",
+  },
+  "errors.code.COLLAB_ACCEPT_FAILED": {
+    fr: "Impossible d’accepter l’invitation. Réessayez ou ouvrez Mes équipes.",
+    en: "Could not accept the invitation. Try again or open My teams.",
+  },
+  "errors.code.COLLAB_DECLINE_FAILED": {
+    fr: "Impossible de refuser l’invitation. Réessayez.",
+    en: "Could not decline the invitation. Try again.",
+  },
 
   // ── Error boundary ──
   "error.boundary.message": { fr: "Une erreur inattendue est survenue.", en: "An unexpected error occurred." },

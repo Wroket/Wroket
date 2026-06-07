@@ -39,6 +39,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import { useUserLookup } from "@/lib/userUtils";
 import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
+import { formatUserFacingError } from "@/lib/apiErrors";
 import { broadcastTodosMutated } from "@/lib/todoSyncBroadcast";
 import { getPhaseSlotDateBounds, isSlotWithinPhaseLocalDays } from "@/lib/phaseSlotBounds";
 import { findAgendaDayElement, snappedStartEndFromPointerLocal } from "./_utils/agendaSlotPointer";
@@ -481,7 +482,7 @@ export default function AgendaPage() {
       setMicrosoftEvents(data.microsoftEvents ?? []);
       void refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(formatUserFacingError(err, "errors.fallback.generic"));
     } finally {
       setQuickCreating(false);
     }
@@ -559,7 +560,7 @@ export default function AgendaPage() {
           await refreshCalendarForRange();
         }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("toast.updateError"));
+        toast.error(formatUserFacingError(err, "toast.updateError"));
       } finally {
         setBookingMoveId(null);
       }

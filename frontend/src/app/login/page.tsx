@@ -16,6 +16,7 @@ import {
   sendEmailOtpForPendingLogin,
   type TwoFactorMethod,
 } from "@/lib/api";
+import { ApiClientError, formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import { getPostLoginRedirect } from "@/lib/postLoginRedirect";
 
@@ -200,13 +201,10 @@ export default function LoginPage() {
       if (me?.email) localStorage.setItem("wroket-login-email", me.email);
       redirectAfterLogin();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : t("login.error");
-      if (msg === "EMAIL_NOT_VERIFIED") {
+      if (e instanceof ApiClientError && e.code === "AUTH_EMAIL_NOT_VERIFIED") {
         setNeedsVerification(true);
-        setError(t("login.emailNotVerified"));
-      } else {
-        setError(msg);
       }
+      setError(formatUserFacingError(e, "login.error"));
     } finally {
       setLoading(false);
     }

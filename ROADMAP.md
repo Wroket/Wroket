@@ -12,7 +12,7 @@
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~90 %** : billing/gating/pricing livrés ; Microsoft Outlook + Teams quasi terminés ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause** ; reste SSO login Microsoft §B Auth + Error UX transverse. **P2 en cours** : PWA + **Web Push** — Android E2E OK (2026-06-07) ; **desktop/multi-appareil** livré (`a9d0c1e` + correctifs icône opaque + actions Accepter/Refuser via deep-link app) — E2E §I-bis à valider post-deploy ; **prochaine priorité → import Notion ZIP**. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause**. **P2 en cours** : PWA + **Web Push** — Android E2E OK (2026-06-07) ; **desktop/multi-appareil** livré (`a9d0c1e` + correctifs icône opaque + actions Accepter/Refuser via deep-link app) — E2E §I-bis à valider post-deploy ; **prochaine priorité → import Notion ZIP**. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
 ### Prochaine priorité
 
@@ -36,7 +36,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 - **Critique**
   - Fiabilité meeting Google (création/édition/suppression/invitations externes) avec validation réelle post-deploy — *E2E 2026-06-07 OK*.
   - ~~Cohérence persistance tâches (legacy/shards/v2) et surveillance continue des dérives~~ — *monitor drift + E2E §A/C validés ; mode `v2` en prod*.
-  - Normalisation des erreurs actionnables sur parcours critiques (agenda, collaboration, import).
+  - ~~Normalisation des erreurs actionnables sur parcours critiques (agenda, collaboration, import)~~ — *livré 2026-06-07 (`apiErrors.ts` + codes backend)*.
 - **Important**
   - Cohérence UX cross-écrans (même état meeting/tâche/projet/archives partout).
   - Observabilité métier transverse (pas seulement logs techniques).
@@ -53,12 +53,11 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 2. ~~**Reliability Pack — Todo Persistence**~~ — **Fait** (E2E prod 2026-06-07) : `todosDrift` horaire + `/health/ready`, mode `v2` + `attachLiveInvalidation` multi-replica, runbook [runbook-calendar-todos-reliability.md](docs/runbook-calendar-todos-reliability.md), persistance tâches/créneaux post-F5 et sync Archives cross-onglet validées §C.
 3. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (comparatif, FAQ, modal contact prénom/nom/email + envoi serveur SMTP Nodemailer, accusé réception FR/EN, anti-doublon 7 jours), billing équipe (sièges, collaborateurs externes, entitlements effectifs, sync subscription → `Team`), admin — journal invitations avec statut conversion et relance à J+7.
-   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service), alignement terminologie roadmap historique Free/Pro/Team vs paliers code `free` / `first` / `small` / `large`.
-4. **Polish Abonnement + tarifs** — Panneau Paramètres → Abonnement en cards + liens vers `/pricing` (charge ~1–2 j) — *landing/pricing/SEO polish livré 2026-05 ; reste alignement Stripe Checkout self-service*.
+   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service).
+4. ~~**Polish Abonnement + tarifs**~~ — **Fait** (2026-06-07) : cards Abonnement, mapping Free/Pro/Team ↔ `free`/`first`/`small`/`large`, palier technique affiché, lien `/pricing` ; *reste Stripe Checkout self-service*.
 5. **Microsoft path (SSO + Outlook MVP)** — **Quasi terminé** (2026-06-07) : code livré, Azure/GCP configurés ([docs/microsoft-azure.md](docs/microsoft-azure.md)), connexion Outlook + booking Teams + **invités externes Teams** (invitation 2 temps avec `joinUrl`) validés ; checklist §D5 ; reste SSO login bout-en-bout documenté en §B Auth.
    - DoD: OAuth Microsoft opérationnel + premier connecteur calendrier externe utilisable.
-6. **Error UX Standard**
-   - DoD: taxonomie d’erreurs backend->frontend appliquée aux flux critiques (auth, agenda, meeting, import, collaboration).
+6. ~~**Error UX Standard**~~ — **Fait** (2026-06-07) : `apiErrors.ts` (codes → i18n FR/EN) sur auth login, agenda, `agenda/manage`, meet todos, import CSV (`TaskImportModal`), collaboration ; backend `AUTH_EMAIL_NOT_VERIFIED`, `AUTH_INVALID_CREDENTIALS`, `IMPORT_CSV_INVALID`, quotas Free, `INTEGRATIONS_PLAN_REQUIRED`, `MEET_*` / `CALENDAR_*` ; fallback legacy meet conservé.
 7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
 8. ~~**Web Push (P2)**~~ — **Fait** (Android E2E 2026-06-07 ; desktop enrichi livré 2026-06-07) : VAPID GCP, opt-in **par appareil**, hints Windows/Mac, deep-link, actions Accepter/Refuser (mutation dans l’app), icône push carrée opaque, dédup alertes AppShell ; E2E desktop §I-bis checklist à valider.
 
@@ -66,7 +65,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 - **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion` — **priorité sprint**.
 - **P2 restant** : liens partageables lecture seule, a11y ciblée.
-- **P1 (reprise)** : Stripe Checkout self-service, SSO login Microsoft §B Auth.
+- **P1 (reprise)** : Stripe Checkout self-service.
 
 ### Later (12+ semaines)
 
@@ -122,10 +121,7 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
    - Charge: **8-10 jours**  
    - Deadline cible: **2026-06-27**  
    - Livrables: OAuth Microsoft, connecteur Outlook MVP, erreurs UX harmonisées.
-5. **Error UX Standard transverse**  
-   - Charge: **4-5 jours**  
-   - Deadline cible: **2026-07-04**  
-   - Livrables: taxonomie backend->frontend sur auth/agenda/meeting/import/collaboration.
+5. ~~**Error UX Standard transverse**~~ — **Fait** (2026-06-07) : taxonomie `code` → i18n sur auth, agenda, meeting, import CSV, collaboration ; tests `apiErrors.test.ts`.
 
 ## Refonte UX (plan solide)
 
@@ -316,7 +312,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Tâches récurrentes dans l'agenda** — Expansion des occurrences récurrentes dans l'agenda (backend génère les événements virtuels dans la plage demandée, indicateur ↻, double-clic ouvre la tâche parente)
 - [x] **Notes simplifiées** — Suppression du sélecteur projet sur les notes ; une note est soit autonome, soit liée en lecture seule à une tâche/sous-tâche (créée depuis celle-ci)
 - [x] **Renommage navigation** — "Collaboration > Collaboration" renommé en "Mes équipes", "Dashboard équipe" renommé en "Tableau de bord"
-- [x] **Export / import tâches (JSON & CSV)** — Export JSON enrichi côté API ; import avec prévisualisation (`POST /todos/import/preview`) et confirmation (`POST /todos/import/confirm`), service `taskImportService` ; menu `ExportImportDropdown` + flux sur la page Tâches
+- [x] **Export / import tâches (JSON & CSV)** — Export JSON enrichi côté API ; import avec prévisualisation (`POST /todos/import/preview`) et confirmation (`POST /todos/import/confirm`), service `taskImportService` ; menu `ExportImportDropdown` + flux sur la page Tâches ; erreurs import `IMPORT_CSV_INVALID` + toasts i18n (2026-06-07)
+- [x] **Error UX Standard transverse** — `apiErrors.ts` : résolution `code` API → messages FR/EN actionnables ; couverture auth, agenda/manage, meet, import, collaboration ; 8 tests unitaires (2026-06-07)
 - [x] **Archives notes (soft delete)** — Supprimer une note l’archive côté serveur (`store/archivedNotes` / domaine `archivedNotes`), plus suppression définitive immédiate ; API `GET /notes/archived`, `POST /notes/archived/:id/restore`, `DELETE /notes/archived/:id` ; page `/archive/notes` (liste, restaurer, supprimer définitivement)
 - [x] **Projets — archivage depuis la liste** — L’action de suppression archive le projet (`status: archived`) pour qu’il apparaisse dans Archives › Projets ; confirmation « Archiver » ; corbeille liste / détail alignées sur l’archive plutôt que `DELETE` projet
 - [x] **UX — projets, équipes, bloc-notes** — Annuler fiable sur la modal de création projet ; sélecteur d’équipe plus visible sur `/teams/dashboard` ; en-tête notes : titre sur une ligne avec Aide + lien « Annulé » (archives) + nouvelle note, retrait du menu Données du header (import/export CSV/JSON rappelé dans l’aide / paramètres)
@@ -396,7 +393,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 *Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
 
 - [ ] **IA assistive** — Étude produit & technique : cas d’usage, ROI, risques RGPD, fournisseur — voir [docs/ai-opportunities.md](docs/ai-opportunities.md) ; décision go/no-go avant tout envoi de contenu utilisateur vers un LLM.
-- [x] **Paramètres — panneau Abonnement (lisibilité)** — Présentation en cards (palier, entitlements, Stripe) + lien vers `/pricing`.
+- [x] **Paramètres — panneau Abonnement (lisibilité)** — Cards (palier marketing Pro/Team, code technique, entitlements, Stripe) + mapping terminologie + lien `/pricing` (2026-06-07).
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
   - Modèle `googleAccounts[]` avec tokens + email par compte, migration automatique de l'ancien format single-account

@@ -949,20 +949,20 @@ export interface LoginInput {
 
 export function login(input: LoginInput): LoginResult {
   if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES) {
-    throw new AppError(401, "Identifiants invalides");
+    throw new AppError(401, "Identifiants invalides", "AUTH_INVALID_CREDENTIALS");
   }
 
   try {
     assertValidEmailFormat(input.email);
   } catch {
-    throw new AppError(401, "Identifiants invalides");
+    throw new AppError(401, "Identifiants invalides", "AUTH_INVALID_CREDENTIALS");
   }
 
   const email = normalizeEmail(input.email);
   const uid = uidFromEmail(email);
   const user = usersByUid.get(uid);
   if (!user) {
-    throw new AppError(401, "Identifiants invalides");
+    throw new AppError(401, "Identifiants invalides", "AUTH_INVALID_CREDENTIALS");
   }
 
   const expectedHash = user.passwordHashB64;
@@ -971,11 +971,11 @@ export function login(input: LoginInput): LoginResult {
     expectedHash.length !== actualHash.length ||
     !crypto.timingSafeEqual(Buffer.from(expectedHash, "base64"), Buffer.from(actualHash, "base64"))
   ) {
-    throw new AppError(401, "Identifiants invalides");
+    throw new AppError(401, "Identifiants invalides", "AUTH_INVALID_CREDENTIALS");
   }
 
   if (!user.emailVerified) {
-    throw new AppError(403, "EMAIL_NOT_VERIFIED");
+    throw new AppError(403, "Confirmez votre adresse email avant de vous connecter.", "AUTH_EMAIL_NOT_VERIFIED");
   }
 
   // Auto-fix timezone from client when it's missing or defaulted to UTC

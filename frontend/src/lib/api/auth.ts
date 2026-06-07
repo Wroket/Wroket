@@ -1,3 +1,5 @@
+import { parseApiErrorFromBody } from "@/lib/apiErrors";
+
 import {
   API_BASE_URL,
   parseJsonOrThrow,
@@ -31,7 +33,7 @@ export async function login(payload: LoginPayload): Promise<LoginOutcome> {
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    throw new Error(extractApiMessage(body, "Identifiants invalides"));
+    throw parseApiErrorFromBody(body, res.status, "errors.code.AUTH_INVALID_CREDENTIALS");
   }
   if (body.requiresTwoFactor === true && typeof body.pendingToken === "string") {
     const raw = body.twoFactorMethods;

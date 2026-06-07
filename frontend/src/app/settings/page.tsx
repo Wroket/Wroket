@@ -45,6 +45,12 @@ import { useLocale } from "@/lib/LocaleContext";
 import type { Locale, TranslationKey } from "@/lib/i18n";
 import { useToast } from "@/components/Toast";
 import { useWebPush } from "@/hooks/useWebPush";
+import { formatUserFacingError } from "@/lib/apiErrors";
+import {
+  billingPlanCodeKey,
+  billingPlanMarketingKey,
+  subscriptionPlanTaglineTKey,
+} from "@/lib/billingPlanLabels";
 import { detectPushPlatformHint } from "@/lib/pushPlatform";
 
 const DAY_KEYS: TranslationKey[] = [
@@ -1292,22 +1298,6 @@ const PLATFORMS: { key: WebhookPlatform; label: string }[] = [
   { key: "custom", label: "Custom (JSON)" },
 ];
 
-function subscriptionPlanTKey(plan: BillingPlan | undefined): TranslationKey {
-  if (plan === "free") return "settings.plan.free";
-  if (plan === "first") return "settings.plan.first";
-  if (plan === "small") return "settings.plan.small";
-  if (plan === "large") return "settings.plan.large";
-  return "settings.planUnknown";
-}
-
-function subscriptionPlanTaglineTKey(plan: BillingPlan | undefined): TranslationKey {
-  if (plan === "free") return "settings.plan.free.tagline";
-  if (plan === "first") return "settings.plan.first.tagline";
-  if (plan === "small") return "settings.plan.small.tagline";
-  if (plan === "large") return "settings.plan.large.tagline";
-  return "settings.planUnknown.tagline";
-}
-
 function subscriptionPlanBadgeClass(plan: BillingPlan | undefined): string {
   if (plan === "small" || plan === "large") {
     return "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white";
@@ -1384,7 +1374,7 @@ function SubscriptionSection() {
       const { url } = await createBillingPortalSession(returnUrl);
       window.location.href = url;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.openBillingPortal"));
+      toast.error(formatUserFacingError(e, "errors.fallback.generic"));
     } finally {
       setPortalLoading(false);
     }
@@ -1406,7 +1396,7 @@ function SubscriptionSection() {
         <section className={cardCls} aria-labelledby="subscription-card-plan-heading">
           <div className="flex flex-wrap items-center gap-2 gap-y-1">
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${subscriptionPlanBadgeClass(plan)}`}>
-              {t(subscriptionPlanTKey(plan))}
+              {t(billingPlanMarketingKey(plan))}
             </span>
             {user?.earlyBird ? (
               <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200">
@@ -1415,9 +1405,10 @@ function SubscriptionSection() {
             ) : null}
             <h3 id="subscription-card-plan-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
               {t("settings.currentPlanPrefix")}{" "}
-              <span className="text-zinc-800 dark:text-slate-100">{t(subscriptionPlanTKey(plan))}</span>
+              <span className="text-zinc-800 dark:text-slate-100">{t(billingPlanMarketingKey(plan))}</span>
             </h3>
           </div>
+          <p className="text-xs font-mono text-zinc-500 dark:text-slate-500 mt-2">{t(billingPlanCodeKey(plan))}</p>
           <p className="text-sm text-zinc-600 dark:text-slate-400 mt-2">{t(subscriptionPlanTaglineTKey(plan))}</p>
           <div className="mt-4">
             <Link
@@ -1427,6 +1418,19 @@ function SubscriptionSection() {
               {t("settings.viewAllPlans")}
             </Link>
           </div>
+        </section>
+
+        <section className={cardCls} aria-labelledby="subscription-card-terminology-heading">
+          <h3 id="subscription-card-terminology-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-2">
+            {t("settings.planTerminologyTitle")}
+          </h3>
+          <p className="text-sm text-zinc-600 dark:text-slate-400 mb-3">{t("settings.planTerminologyDesc")}</p>
+          <ul className="text-sm text-zinc-700 dark:text-slate-300 space-y-1 list-disc list-inside">
+            <li>{t("settings.planCompareFree")}</li>
+            <li>{t("settings.planComparePro")}</li>
+            <li>{t("settings.planCompareTeam")}</li>
+            <li>{t("settings.planCompareLarge")}</li>
+          </ul>
         </section>
 
         {/* Card — entitlements */}
@@ -1467,9 +1471,6 @@ function SubscriptionSection() {
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${stripeSubscriptionStatusPillClass(stripeStatus)}`}
                       >
                         {t(stripeSubscriptionStatusLabelKey(stripeStatus))}
-                      </span>
-                      <span className="text-xs font-mono text-zinc-400 dark:text-slate-500" title={stripeStatus}>
-                        ({stripeStatus})
                       </span>
                     </div>
                   ) : null}

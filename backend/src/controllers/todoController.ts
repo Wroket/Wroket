@@ -628,11 +628,11 @@ export async function importTodos(req: AuthenticatedRequest, res: Response) {
   } else if (req.body?.tasks && Array.isArray(req.body.tasks)) {
     rows = req.body.tasks as Record<string, unknown>[];
   } else {
-    throw new ValidationError("Fichier ou tableau de tâches requis");
+    throw new ValidationError("Fichier ou tableau de tâches requis", "IMPORT_CSV_INVALID");
   }
 
-  if (rows.length === 0) throw new ValidationError("Aucune tâche à importer");
-  if (rows.length > 1000) throw new ValidationError("Maximum 1000 tâches par import");
+  if (rows.length === 0) throw new ValidationError("Aucune tâche à importer", "IMPORT_CSV_INVALID");
+  if (rows.length > 1000) throw new ValidationError("Maximum 1000 tâches par import", "IMPORT_CSV_INVALID");
 
   let created = 0;
   const errors: Array<{ row: number; message: string }> = [];
@@ -652,10 +652,10 @@ export async function importTodos(req: AuthenticatedRequest, res: Response) {
 
 /** POST multipart: parse file and return coercible rows + per-row preview errors (no DB writes). */
 export async function previewTaskImport(req: AuthenticatedRequest, res: Response) {
-  if (!req.file) throw new ValidationError("Fichier requis");
+  if (!req.file) throw new ValidationError("Fichier requis", "IMPORT_CSV_INVALID");
   const rows = parseTaskImportBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
-  if (rows.length === 0) throw new ValidationError("Aucune ligne");
-  if (rows.length > 1000) throw new ValidationError("Maximum 1000 tâches par import");
+  if (rows.length === 0) throw new ValidationError("Aucune ligne", "IMPORT_CSV_INVALID");
+  if (rows.length > 1000) throw new ValidationError("Maximum 1000 tâches par import", "IMPORT_CSV_INVALID");
   const { total, errors, validInputs } = previewTaskImportRows(rows);
   res.status(200).json({ total, errors, validTasks: validInputs });
 }
@@ -666,7 +666,7 @@ export async function confirmTaskImport(req: AuthenticatedRequest, res: Response
   const email = req.user!.email ?? "";
   const body = req.body as { tasks?: unknown };
   if (!body?.tasks || !Array.isArray(body.tasks)) {
-    throw new ValidationError("Corps JSON { tasks: [...] } requis");
+    throw new ValidationError("Corps JSON { tasks: [...] } requis", "IMPORT_CSV_INVALID");
   }
   const raw = body.tasks as Record<string, unknown>[];
   const inputs: CreateTodoInput[] = [];

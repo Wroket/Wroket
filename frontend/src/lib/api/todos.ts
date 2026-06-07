@@ -1,3 +1,5 @@
+import { parseApiErrorResponse } from "@/lib/apiErrors";
+
 import {
   API_BASE_URL,
   apiFetchDefaults,
@@ -288,8 +290,7 @@ export async function previewTaskImport(file: File): Promise<TaskImportPreviewRe
   fd.append("file", file);
   const res = await fetch(`${API_BASE_URL}/todos/import/preview`, { ...apiFetchDefaults, method: "POST", body: fd });
   if (!res.ok) {
-    const body = await parseJsonOrThrow(res);
-    throw new Error(extractApiMessage(body, "Preview failed"));
+    throw await parseApiErrorResponse(res, "errors.code.IMPORT_CSV_INVALID");
   }
   return res.json() as Promise<TaskImportPreviewResult>;
 }
@@ -304,8 +305,7 @@ export async function confirmTaskImport(
     body: JSON.stringify({ tasks }),
   });
   if (!res.ok) {
-    const body = await parseJsonOrThrow(res);
-    throw new Error(extractApiMessage(body, "Import failed"));
+    throw await parseApiErrorResponse(res, "errors.code.IMPORT_CSV_INVALID");
   }
   const result = await res.json();
   broadcastTodosMutated();
@@ -317,7 +317,9 @@ export async function importTasks(file: File): Promise<{ created: number; errors
   const fd = new FormData();
   fd.append("file", file);
   const res = await fetch(`${API_BASE_URL}/todos/import`, { ...apiFetchDefaults, method: "POST", body: fd });
-  if (!res.ok) throw new Error("Import failed");
+  if (!res.ok) {
+    throw await parseApiErrorResponse(res, "errors.code.IMPORT_CSV_INVALID");
+  }
   const result = await res.json();
   broadcastTodosMutated();
   return result;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
+import { formatUserFacingError } from "@/lib/apiErrors";
 import { confirmTaskImport, previewTaskImport, type TaskImportPreviewResult } from "@/lib/api";
 import { downloadTaskImportTemplateCsv, downloadTaskImportTemplateJson } from "@/lib/importTemplates";
 import { useToast } from "./Toast";
@@ -36,10 +37,10 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
       .then((p) => {
         if (!cancelled) setPreview(p);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
           setPreviewFailed(true);
-          toast.error(t("export.error"));
+          toast.error(formatUserFacingError(err, "errors.code.IMPORT_CSV_INVALID"));
         }
       })
       .finally(() => {
@@ -66,8 +67,8 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
         toast.error(`${result.errors.length} ${t("import.errorsDuringConfirm")}`);
       }
       onClose();
-    } catch {
-      toast.error(t("export.error"));
+    } catch (err) {
+      toast.error(formatUserFacingError(err, "errors.code.IMPORT_CSV_INVALID"));
     } finally {
       setConfirming(false);
     }
@@ -105,7 +106,7 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
         <div className="p-4 overflow-y-auto text-sm text-zinc-700 dark:text-slate-300 space-y-3">
           <p className="text-xs text-zinc-500 dark:text-slate-400 break-all">{file.name}</p>
           {loading && <p>{t("import.previewLoading")}</p>}
-          {!loading && previewFailed && <p className="text-red-600 dark:text-red-400">{t("export.error")}</p>}
+          {!loading && previewFailed && <p className="text-red-600 dark:text-red-400">{t("errors.code.IMPORT_CSV_INVALID")}</p>}
           {!loading && preview && (
             <>
               <p>
