@@ -266,8 +266,8 @@ function GanttChartBody({
 
   const getPhaseBarDays = useCallback((
     phaseId: string,
-    fallback: { startDay: number | null; endDay: number | null } | null,
-  ) => {
+    fallback: { startDay: number | null; endDay: number | null },
+  ): { startDay: number | null; endDay: number | null } => {
     if (dragPreview?.kind === "phase" && dragPreview.id === phaseId) {
       return { startDay: dragPreview.startDay, endDay: dragPreview.endDay };
     }
