@@ -60,6 +60,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 6. ~~**Error UX Standard**~~ — **Fait** (2026-06-07) : `apiErrors.ts` (codes → i18n FR/EN) sur auth login, agenda, `agenda/manage`, meet todos, import CSV (`TaskImportModal`), collaboration ; backend `AUTH_EMAIL_NOT_VERIFIED`, `AUTH_INVALID_CREDENTIALS`, `IMPORT_CSV_INVALID`, quotas Free, `INTEGRATIONS_PLAN_REQUIRED`, `MEET_*` / `CALENDAR_*` ; fallback legacy meet conservé.
 7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
 8. ~~**Web Push (P2)**~~ — **Fait** (Android E2E 2026-06-07 ; desktop enrichi livré 2026-06-07) : VAPID GCP, opt-in **par appareil**, hints Windows/Mac, deep-link, actions Accepter/Refuser (mutation dans l’app), icône push carrée opaque, dédup alertes AppShell ; E2E desktop §I-bis checklist à valider.
+9. ~~**Gantt interactif (édition + resize)**~~ — **Fait** (2026-06-08) : clic tâche/phase → édition ; poignées resize ; drag avec preview live ; sous-tâches datées ; phases via `updatePhaseApi` ; checklist §G items 10–11 à valider en prod.
 
 ### Next (6-12 semaines)
 
@@ -91,7 +92,7 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
 - [x] **P3 — Archives sync cross-onglet** — Re-test E2E C6 OK
 - [x] **P2 — Dashboard Ma semaine + bilan hebdo** — §F OK
 - [x] **P2 — Templates tâches + alertes navigateur** — §I OK
-- [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK
+- [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK (2026-06-07) ; **Gantt interactif enrichi** (clic édition, resize, preview live, sous-tâches) livré 2026-06-08 — checklist §G items 10–11 à re-valider post-deploy
 - [x] **P2 — PWA installable** — manifest + SW shell livrés 2026-06-07 ; validation install prod à faire post-deploy (`/manifest.webmanifest`, `/sw.js`)
 - [x] **P2 — Web Push (Android)** — Assignation, deep-link, redirect login ; VAPID + SW `push`/`notificationclick` (`ec1080b`, `dedd046`)
 - [x] **P2 — Web Push (desktop / multi-appareil)** — Statut par appareil, hints PWA desktop, CTA cloche → Paramètres, icône opaque, actions notif → app (`a9d0c1e` + correctifs) ; **E2E §I-bis à valider** (Windows/Mac PWA)
@@ -304,7 +305,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Agenda — heure de début & durée** — Champs éditables "heure de début" et "durée" dans la création rapide de tâche depuis l'agenda, pré-remplis avec l'heure cliquée et la durée par défaut selon l'effort
 - [x] **Drag & drop tâches Board/Gantt** — Réorganisation des tâches et déplacement entre phases dans les vues Board et Gantt (@dnd-kit, SortablePhaseContainer, SortableBoardTaskRow)
 - [x] **DnD projet — endpoint move + modales contraintes (MVP)** — `POST /todos/:id/move`, codes 422/409, parité Kanban/Board, `TaskMoveConstraintModal`, sync broadcast ; règle Cursor `constraint-solutions-ux`
-- [x] **Gantt timeline interactif (MVP)** — Panneau rapide clic barre (décaler N jours, aligner phase) + drag horizontal minimal des barres via `moveTodo`
+- [x] **Gantt timeline interactif** — Clic tâche/phase → édition ; poignées resize début/fin ; drag centre avec preview live ; sous-tâches datées interactives ; phases drag/resize via `updatePhaseApi` ; contraintes dates via `moveTodo` + modales (2026-06-08)
 - [x] **Limite sous-projets 1 niveau** — Interdiction de créer un sous-projet dans un sous-projet (validation backend + frontend), masquage dynamique du bouton "Ajouter un sous-projet", drag out restaure le statut projet racine
 - [x] **Suppression phase avec options** — Popup demandant de supprimer les tâches contenues ou de les placer hors phase
 - [x] **Suppression tâche avec sous-tâches** — Composant réutilisable `DeleteTaskDialog` : supprimer tout ou conserver les sous-tâches (promotion en tâches autonomes), appliqué sur My Tasks, Projets et Déléguées

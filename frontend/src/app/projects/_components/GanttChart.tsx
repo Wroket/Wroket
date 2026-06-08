@@ -14,6 +14,10 @@ import {
 import { SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
 import type { ProjectPhase, Todo, TranslationKey } from "./types";
 
+const COL_W = 28;
+const HANDLE_W = 8;
+const DRAG_THRESHOLD_PX = 4;
+
 function daysBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }
@@ -52,6 +56,57 @@ function sortTasksByOrder(a: Todo, b: Todo): number {
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 }
 
+function normalizeRange(start: string | null, end: string | null): { start: string | null; end: string | null } {
+  if (start && end && start > end) return { start: end, end: start };
+  return { start, end };
+}
+
+type BarDragMode = "move" | "resize-start" | "resize-end";
+
+function resolveDraggedDates(
+  mode: BarDragMode,
+  origStart: string | null,
+  origEnd: string | null,
+  deltaDays: number,
+): { start: string | null; end: string | null } | null {
+  const baseStart = origStart ?? origEnd;
+  const baseEnd = origEnd ?? origStart;
+  if (!baseStart && !baseEnd) return null;
+
+  let newStart = baseStart;
+  let newEnd = baseEnd;
+
+  if (mode === "move") {
+    newStart = baseStart ? addDaysYmd(baseStart, deltaDays) : null;
+    newEnd = baseEnd ? addDaysYmd(baseEnd, deltaDays) : null;
+  } else if (mode === "resize-start") {
+    newStart = baseStart ? addDaysYmd(baseStart, deltaDays) : (baseEnd ? addDaysYmd(baseEnd, deltaDays) : null);
+    newEnd = baseEnd;
+  } else {
+    newStart = baseStart;
+    newEnd = baseEnd ? addDaysYmd(baseEnd, deltaDays) : (baseStart ? addDaysYmd(baseStart, deltaDays) : null);
+  }
+
+  return normalizeRange(newStart, newEnd);
+}
+
+interface DragPreview {
+  kind: "task" | "phase";
+  id: string;
+  startDay: number | null;
+  endDay: number | null;
+}
+
+interface BarDragState {
+  mode: BarDragMode;
+  kind: "task" | "phase";
+  id: string;
+  startX: number;
+  origStart: string | null;
+  origEnd: string | null;
+  moved: boolean;
+}
+
 interface GanttChartProps {
   phases: ProjectPhase[];
   tasks: Todo[];
@@ -59,9 +114,10 @@ interface GanttChartProps {
   locale: string;
   variant?: "interactive" | "export";
   onMoveTask?: (taskId: string, newPhaseId: string | null, newIndex: number) => void;
-  onBarClick?: (task: Todo) => void;
+  onTaskClick?: (task: Todo) => void;
+  onPhaseClick?: (phase: ProjectPhase) => void;
   onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
-  onOpenTaskEdit?: (task: Todo) => void;
+  onPhaseDateChange?: (phaseId: string, startDate: string | null, endDate: string | null) => void;
   canConvertPhaseToSubproject?: boolean;
   onConvertPhase?: (phaseId: string) => void;
 }
@@ -72,8 +128,10 @@ interface GanttChartBodyProps {
   t: (key: TranslationKey) => string;
   locale: string;
   isExport: boolean;
-  onBarClick?: (task: Todo) => void;
+  onTaskClick?: (task: Todo) => void;
+  onPhaseClick?: (phase: ProjectPhase) => void;
   onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
+  onPhaseDateChange?: (phaseId: string, startDate: string | null, endDate: string | null) => void;
   canConvertPhaseToSubproject?: boolean;
   onConvertPhase?: (phaseId: string) => void;
 }
@@ -84,17 +142,16 @@ function GanttChartBody({
   t,
   locale,
   isExport,
-  onBarClick,
+  onTaskClick,
+  onPhaseClick,
   onBarDateMove,
+  onPhaseDateChange,
   canConvertPhaseToSubproject,
   onConvertPhase,
 }: GanttChartBodyProps) {
-  const barDragRef = useRef<{
-    taskId: string;
-    startX: number;
-    origStart: string | null;
-    origEnd: string | null;
-  } | null>(null);
+  const barDragRef = useRef<BarDragState | null>(null);
+  const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+
   const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const subtasksByParent = useMemo(() => {
     const map = new Map<string, Todo[]>();
@@ -107,6 +164,12 @@ function GanttChartBody({
     }
     return map;
   }, [tasks]);
+
+  const phaseById = useMemo(() => {
+    const map = new Map<string, ProjectPhase>();
+    for (const p of phases) map.set(p.id, p);
+    return map;
+  }, [phases]);
 
   const chronoPhases = useMemo(() => {
     return [...phases].sort((a, b) => {
@@ -168,7 +231,6 @@ function GanttChartBody({
 
     const builtMonths: { label: string; year: string; leftPx: number; widthPx: number }[] = [];
     let cursor = new Date(minD);
-    const COL = 28;
     while (cursor <= maxD) {
       const mStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
       const mEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
@@ -178,8 +240,8 @@ function GanttChartBody({
       builtMonths.push({
         label: monthLabel(cursor, locale),
         year: yearLabel(cursor),
-        leftPx: daysBetween(minD, effStart) * COL,
-        widthPx: span * COL,
+        leftPx: daysBetween(minD, effStart) * COL_W,
+        widthPx: span * COL_W,
       });
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
@@ -187,14 +249,107 @@ function GanttChartBody({
     return { minDate: minD, totalDays: total, months: builtMonths, phaseBarData: pbd };
   }, [phases, tasks, locale]);
 
-  const getTaskBar = useCallback((task: Todo) => {
-    const startDay = task.startDate ? daysBetween(minDate, parseDate(task.startDate)) : null;
-    const endDay = task.deadline ? daysBetween(minDate, parseDate(task.deadline)) : null;
+  const ymdToBarDays = useCallback((start: string | null, end: string | null) => {
+    const startDay = start ? daysBetween(minDate, parseDate(start)) : null;
+    const endDay = end ? daysBetween(minDate, parseDate(end)) : null;
     return { startDay, endDay };
   }, [minDate]);
 
+  const getTaskBar = useCallback((task: Todo) => {
+    if (dragPreview?.kind === "task" && dragPreview.id === task.id) {
+      return { startDay: dragPreview.startDay, endDay: dragPreview.endDay };
+    }
+    const startDay = task.startDate ? daysBetween(minDate, parseDate(task.startDate)) : null;
+    const endDay = task.deadline ? daysBetween(minDate, parseDate(task.deadline)) : null;
+    return { startDay, endDay };
+  }, [minDate, dragPreview]);
+
+  const getPhaseBarDays = useCallback((
+    phaseId: string,
+    fallback: { startDay: number | null; endDay: number | null } | null,
+  ) => {
+    if (dragPreview?.kind === "phase" && dragPreview.id === phaseId) {
+      return { startDay: dragPreview.startDay, endDay: dragPreview.endDay };
+    }
+    return fallback;
+  }, [dragPreview]);
+
+  const applyBarDrag = useCallback((drag: BarDragState, deltaDays: number, asClick: boolean) => {
+    if (asClick) {
+      if (drag.kind === "task") {
+        const task = tasks.find((td) => td.id === drag.id);
+        if (task && onTaskClick) onTaskClick(task);
+      } else {
+        const phase = phaseById.get(drag.id);
+        if (phase && onPhaseClick) onPhaseClick(phase);
+      }
+      return;
+    }
+    if (deltaDays === 0) return;
+
+    const normalized = resolveDraggedDates(drag.mode, drag.origStart, drag.origEnd, deltaDays);
+    if (!normalized) return;
+
+    if (drag.kind === "task" && onBarDateMove) {
+      onBarDateMove(drag.id, normalized.start, normalized.end);
+    } else if (drag.kind === "phase" && onPhaseDateChange) {
+      onPhaseDateChange(drag.id, normalized.start, normalized.end);
+    }
+  }, [tasks, phaseById, onTaskClick, onPhaseClick, onBarDateMove, onPhaseDateChange]);
+
+  const beginBarPointer = useCallback((
+    e: React.PointerEvent,
+    mode: BarDragMode,
+    kind: "task" | "phase",
+    id: string,
+    origStart: string | null,
+    origEnd: string | null,
+  ) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    barDragRef.current = {
+      mode,
+      kind,
+      id,
+      startX: e.clientX,
+      origStart,
+      origEnd,
+      moved: false,
+    };
+    const onMove = (ev: PointerEvent) => {
+      const drag = barDragRef.current;
+      if (!drag) return;
+      const dx = ev.clientX - drag.startX;
+      if (Math.abs(dx) >= DRAG_THRESHOLD_PX) drag.moved = true;
+      if (drag.moved) {
+        const deltaDays = Math.round(dx / COL_W);
+        const dates = resolveDraggedDates(drag.mode, drag.origStart, drag.origEnd, deltaDays);
+        if (dates) {
+          const days = ymdToBarDays(dates.start, dates.end);
+          setDragPreview({ kind: drag.kind, id: drag.id, ...days });
+        }
+      }
+      ev.preventDefault();
+    };
+    const endDrag = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+      const drag = barDragRef.current;
+      barDragRef.current = null;
+      setDragPreview(null);
+      if (!drag) return;
+      const deltaDays = Math.round((ev.clientX - drag.startX) / COL_W);
+      const asClick = drag.mode === "move" && !drag.moved;
+      applyBarDrag(drag, deltaDays, asClick);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+  }, [applyBarDrag, ymdToBarDays]);
+
   const todayOffset = daysBetween(minDate, new Date());
-  const COL_W = 28;
   const chartWidth = totalDays * COL_W;
   const labelW = 240;
   const totalWidth = chartWidth + labelW;
@@ -208,59 +363,56 @@ function GanttChartBody({
     color: string,
     opacity: number,
     height: string,
-    label?: string,
-    task?: Todo,
+    label: string | undefined,
+    barKind: "task" | "phase" | null,
+    barId: string | null,
+    origStart: string | null,
+    origEnd: string | null,
+    interactive: boolean,
+    isPreview = false,
   ) => {
     const barStart = startDay ?? 0;
     const barEnd = endDay ?? barStart;
     const barWidth = Math.max(barEnd - barStart + 1, 1);
     const hasBar = startDay !== null || endDay !== null;
-    if (!hasBar) return null;
-    const interactive = !isExport && task && (onBarClick || onBarDateMove);
+    if (!hasBar || !barKind || !barId) return null;
+
+    const canInteract = interactive && (onBarDateMove || onPhaseDateChange || onTaskClick || onPhaseClick);
+    const barPx = barWidth * COL_W - 4;
+
     return (
       <div
-        className={`absolute rounded-sm ${height}${interactive ? " cursor-grab hover:ring-2 hover:ring-blue-400/40 z-10" : ""}`}
+        className={`absolute rounded-sm ${height} group/bar ${canInteract ? " z-10" : ""}${isPreview ? " ring-2 ring-blue-300 dark:ring-blue-400 shadow-md z-30" : ""}`}
         style={{
           left: barStart * COL_W + 2,
-          width: barWidth * COL_W - 4,
+          width: barPx,
           backgroundColor: color,
-          opacity,
+          opacity: isPreview ? Math.min(opacity + 0.2, 1) : opacity,
         }}
-        onClick={interactive && onBarClick ? (e) => { e.stopPropagation(); onBarClick(task); } : undefined}
-        onPointerDown={interactive && onBarDateMove ? (e) => {
-          if (e.button !== 0) return;
-          e.stopPropagation();
-          barDragRef.current = {
-            taskId: task.id,
-            startX: e.clientX,
-            origStart: task.startDate,
-            origEnd: task.deadline,
-          };
-          const onMove = (ev: PointerEvent) => {
-            if (!barDragRef.current) return;
-            ev.preventDefault();
-          };
-          const onUp = (ev: PointerEvent) => {
-            window.removeEventListener("pointermove", onMove);
-            window.removeEventListener("pointerup", onUp);
-            const drag = barDragRef.current;
-            barDragRef.current = null;
-            if (!drag || !onBarDateMove) return;
-            const deltaDays = Math.round((ev.clientX - drag.startX) / COL_W);
-            if (deltaDays === 0) return;
-            const baseStart = drag.origStart ?? drag.origEnd;
-            const baseEnd = drag.origEnd ?? drag.origStart;
-            if (!baseStart && !baseEnd) return;
-            const newStart = baseStart ? addDaysYmd(baseStart, deltaDays) : null;
-            const newEnd = baseEnd ? addDaysYmd(baseEnd, deltaDays) : null;
-            onBarDateMove(drag.taskId, newStart, newEnd);
-          };
-          window.addEventListener("pointermove", onMove);
-          window.addEventListener("pointerup", onUp);
-        } : undefined}
       >
-        {label && barWidth * COL_W > 60 && (
-          <span className="text-[9px] text-white font-medium px-1.5 leading-[18px] truncate block">
+        {canInteract && (
+          <>
+            <div
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-sm hover:bg-white/25 z-20"
+              style={{ width: HANDLE_W }}
+              title={t("gantt.resizeStart")}
+              onPointerDown={(e) => beginBarPointer(e, "resize-start", barKind, barId, origStart, origEnd)}
+            />
+            <div
+              className="absolute right-0 top-0 bottom-0 cursor-ew-resize rounded-r-sm hover:bg-white/25 z-20"
+              style={{ width: HANDLE_W }}
+              title={t("gantt.resizeEnd")}
+              onPointerDown={(e) => beginBarPointer(e, "resize-end", barKind, barId, origStart, origEnd)}
+            />
+            <div
+              className="absolute top-0 bottom-0 cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400/40 rounded-sm"
+              style={{ left: HANDLE_W, right: HANDLE_W }}
+              onPointerDown={(e) => beginBarPointer(e, "move", barKind, barId, origStart, origEnd)}
+            />
+          </>
+        )}
+        {label && barPx > 60 && (
+          <span className="relative z-[1] pointer-events-none text-[9px] text-white font-medium px-1.5 leading-[18px] truncate block">
             {label}
           </span>
         )}
@@ -276,18 +428,41 @@ function GanttChartBody({
     const labelPl = isSubtask ? "pl-14" : "pl-8";
     const textMuted = isExport ? "text-zinc-600" : "text-zinc-600 dark:text-slate-400";
     const borderCls = isExport ? "border-zinc-100" : "border-zinc-100 dark:border-slate-800";
+    const hasBar = bar.startDay !== null || bar.endDay !== null;
+    const rowInteractive = !isExport && onTaskClick;
+    const barInteractive = !isExport && !!(onBarDateMove || onTaskClick);
+    const isPreview = dragPreview?.kind === "task" && dragPreview.id === task.id;
 
     return (
       <div className={`flex items-center border-b ${borderCls}`} style={{ height: rowHeight }}>
-        <div className={`shrink-0 px-3 truncate text-xs ${textMuted} ${labelPl}`} style={{ width: labelW }}>
+        <button
+          type="button"
+          className={`shrink-0 px-3 truncate text-xs text-left ${textMuted} ${labelPl} ${rowInteractive ? "hover:bg-zinc-50 dark:hover:bg-slate-800/50 cursor-pointer" : ""}`}
+          style={{ width: labelW }}
+          onClick={rowInteractive ? () => onTaskClick!(task) : undefined}
+          title={rowInteractive ? t("gantt.clickToEdit") : undefined}
+        >
           {numbering && (
             <span className={`text-[10px] font-mono font-semibold mr-1.5 ${isExport ? "text-zinc-400" : "text-zinc-400 dark:text-slate-500"}`}>{numbering}</span>
           )}
           {isSubtask && <span className={`mr-1 ${isExport ? "text-zinc-300" : "text-zinc-300 dark:text-slate-600"}`}>↳</span>}
           <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
-        </div>
+        </button>
         <div className={timelineClass} style={{ ...timelineStyle, height: "100%" }}>
-          {renderBar(bar.startDay, bar.endDay, color, barOpacity, barTop, !isSubtask ? task.title : undefined, !isSubtask ? task : undefined)}
+          {hasBar && renderBar(
+            bar.startDay,
+            bar.endDay,
+            color,
+            barOpacity,
+            barTop,
+            task.title,
+            "task",
+            task.id,
+            task.startDate,
+            task.deadline,
+            barInteractive,
+            isPreview,
+          )}
         </div>
       </div>
     );
@@ -316,12 +491,19 @@ function GanttChartBody({
     });
   };
 
-  const renderPhaseSection = (phaseId: string, phaseName: string, phaseColor: string, phaseBar: { startDay: number | null; endDay: number | null } | null) => {
+  const renderPhaseSection = (
+    phaseId: string,
+    phaseName: string,
+    phaseColor: string,
+    phaseBar: { startDay: number | null; endDay: number | null } | null,
+    phase?: ProjectPhase,
+  ) => {
     const phaseTasks = tasksByPhase.get(phaseId) ?? [];
     const showConvert = !isExport && phaseId !== "__none__" && canConvertPhaseToSubproject && onConvertPhase;
     const headerBg = isExport ? "bg-zinc-50/50" : "bg-zinc-50/50 dark:bg-slate-800/30";
     const headerText = isExport ? "text-zinc-700" : "text-zinc-700 dark:text-slate-300";
     const borderCls = isExport ? "border-zinc-100" : "border-zinc-100 dark:border-slate-800";
+    const phaseInteractive = !isExport && phaseId !== "__none__" && phase && (onPhaseClick || onPhaseDateChange);
 
     const taskList = renderTaskList(phaseTasks, phaseColor);
 
@@ -330,7 +512,18 @@ function GanttChartBody({
         <div className={`flex items-center border-b ${borderCls} ${headerBg}`} style={{ height: 36 }}>
           <div className={`shrink-0 px-3 font-semibold text-xs ${headerText} flex items-center gap-1 min-w-0`} style={{ width: labelW }}>
             <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0 align-middle" style={{ backgroundColor: phaseColor }} />
-            <span className="truncate flex-1 min-w-0">{phaseName}</span>
+            {phaseInteractive ? (
+              <button
+                type="button"
+                className="truncate flex-1 min-w-0 text-left hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
+                onClick={() => onPhaseClick!(phase!)}
+                title={t("gantt.clickToEditPhase")}
+              >
+                {phaseName}
+              </button>
+            ) : (
+              <span className="truncate flex-1 min-w-0">{phaseName}</span>
+            )}
             {showConvert ? (
               <button
                 type="button"
@@ -345,7 +538,24 @@ function GanttChartBody({
             ) : null}
           </div>
           <div className={timelineClass} style={{ ...timelineStyle, height: "100%" }}>
-            {phaseBar && renderBar(phaseBar.startDay, phaseBar.endDay, phaseColor, 0.85, "top-[8px] h-[20px]")}
+            {phaseBar && phase && (() => {
+              const display = getPhaseBarDays(phase.id, phaseBar);
+              const isPreview = dragPreview?.kind === "phase" && dragPreview.id === phase.id;
+              return renderBar(
+                display.startDay,
+                display.endDay,
+                phaseColor,
+                0.85,
+                "top-[8px] h-[20px]",
+                phaseName,
+                "phase",
+                phase.id,
+                phase.startDate,
+                phase.endDate,
+                !!phaseInteractive,
+                isPreview,
+              );
+            })()}
           </div>
         </div>
 
@@ -390,7 +600,7 @@ function GanttChartBody({
       </div>
 
       {chronoPhases.map((phase) =>
-        renderPhaseSection(phase.id, phase.name, phase.color, phaseBarData.get(phase.id) ?? null),
+        renderPhaseSection(phase.id, phase.name, phase.color, phaseBarData.get(phase.id) ?? null, phase),
       )}
 
       {(tasksByPhase.get("__none__") ?? []).length > 0 &&
@@ -411,8 +621,10 @@ export default function GanttChart({
   locale,
   variant = "interactive",
   onMoveTask,
-  onBarClick,
+  onTaskClick,
+  onPhaseClick,
   onBarDateMove,
+  onPhaseDateChange,
   canConvertPhaseToSubproject,
   onConvertPhase,
 }: GanttChartProps) {
@@ -505,8 +717,10 @@ export default function GanttChart({
       t={t}
       locale={locale}
       isExport={isExport}
-      onBarClick={onBarClick}
+      onTaskClick={onTaskClick}
+      onPhaseClick={onPhaseClick}
       onBarDateMove={onBarDateMove}
+      onPhaseDateChange={onPhaseDateChange}
       canConvertPhaseToSubproject={canConvertPhaseToSubproject}
       onConvertPhase={onConvertPhase}
     />

@@ -67,7 +67,6 @@ import TaskImportModal from "@/components/TaskImportModal";
 import GanttChart, { hasGanttExportData } from "./GanttChart";
 import TaskMoveConstraintModal, { type TaskMoveModalState } from "./TaskMoveConstraintModal";
 import { executeTaskMove, computePhaseReorderIds } from "@/lib/projectTaskMove";
-import { addDaysYmd } from "@/lib/analyzeMoveConstraints";
 import { broadcastResourceChange } from "@/lib/useResourceSync";
 import type { MoveTodoPayload, MoveTodoStrategy } from "@/lib/api/todos";
 import ProjectSteeringPanel from "./ProjectSteeringPanel";
@@ -274,8 +273,6 @@ export default function ProjectDetailView({
   const ganttExportRef = useRef<HTMLDivElement>(null);
   const [exportingSteeringPdf, setExportingSteeringPdf] = useState(false);
   const [moveModal, setMoveModal] = useState<TaskMoveModalState | null>(null);
-  const [ganttQuickTask, setGanttQuickTask] = useState<Todo | null>(null);
-  const [ganttShiftDays, setGanttShiftDays] = useState(0);
 
   const projectsForMove = useMemo(() => [selectedProject], [selectedProject]);
 
@@ -584,6 +581,26 @@ export default function ProjectDetailView({
   ) => {
     void retryTaskMove(taskId, { startDate, deadline, strategy }, { variant: "dates", skipPrecheck: strategy !== "default" });
   }, [retryTaskMove]);
+
+  const openPhaseEdit = useCallback((phase: ProjectPhase) => {
+    setEditingPhaseId(phase.id);
+    setEditPhaseName(phase.name);
+    setEditPhaseStart(phase.startDate ?? "");
+    setEditPhaseEnd(phase.endDate ?? "");
+  }, []);
+
+  const runPhaseDateChange = useCallback(async (
+    phaseId: string,
+    startDate: string | null,
+    endDate: string | null,
+  ) => {
+    try {
+      await updatePhaseApi(selectedProject.id, phaseId, { startDate, endDate });
+      await refreshProject(selectedProject.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  }, [selectedProject.id, refreshProject, toast]);
 
   const findPhaseForTask = useCallback((taskId: string): string => {
     for (const [phaseId, tasks] of tasksByPhase) {
@@ -2068,14 +2085,14 @@ export default function ProjectDetailView({
               onMoveTask={(taskId, newPhaseId, newIndex) => {
                 runPhaseTaskMove(taskId, newPhaseId, newIndex);
               }}
-              onBarClick={(task) => {
-                setGanttQuickTask(task);
-                setGanttShiftDays(0);
-              }}
+              onTaskClick={(task) => openEdit(task)}
+              onPhaseClick={openPhaseEdit}
               onBarDateMove={(taskId, startDate, deadline) => {
                 runDateTaskMove(taskId, startDate, deadline);
               }}
-              onOpenTaskEdit={(task) => openEdit(task)}
+              onPhaseDateChange={(phaseId, startDate, endDate) => {
+                void runPhaseDateChange(phaseId, startDate, endDate);
+              }}
             />
           </div>
         )}
@@ -2497,83 +2514,57 @@ export default function ProjectDetailView({
           t={t}
         />
 
-        {ganttQuickTask && (
+        {detailTab === "gantt" && editingPhaseId && (
           <div
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="gantt-quick-panel-title"
+            aria-labelledby="gantt-phase-edit-title"
           >
-            <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
-              <h2 id="gantt-quick-panel-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100 truncate">
-                {t("gantt.quickPanel.title")}: {ganttQuickTask.title}
+            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+              <h2 id="gantt-phase-edit-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
+                {t("phase.edit")}
               </h2>
-              <label className="mt-3 block text-xs text-zinc-600 dark:text-slate-400">
-                {t("gantt.quickPanel.shiftDays")}
+              <div className="mt-3 flex flex-col gap-2">
                 <input
-                  type="number"
-                  value={ganttShiftDays}
-                  onChange={(e) => setGanttShiftDays(Number(e.target.value) || 0)}
-                  className="mt-1 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800"
+                  value={editPhaseName}
+                  onChange={(e) => setEditPhaseName(e.target.value)}
+                  className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  placeholder={t("phase.name")}
                 />
-              </label>
-              <div className="mt-4 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={editPhaseStart}
+                    onChange={(e) => setEditPhaseStart(e.target.value)}
+                    min={parentDateRange.start ?? undefined}
+                    max={parentDateRange.end ?? undefined}
+                    className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <input
+                    type="date"
+                    value={editPhaseEnd}
+                    onChange={(e) => setEditPhaseEnd(e.target.value)}
+                    min={parentDateRange.start ?? undefined}
+                    max={parentDateRange.end ?? undefined}
+                    className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
+                  onClick={() => setEditingPhaseId(null)}
+                >
+                  {t("cancel")}
+                </button>
                 <button
                   type="button"
                   className="rounded-md bg-slate-800 px-3 py-2 text-sm text-white dark:bg-slate-600"
-                  onClick={() => {
-                    const td = ganttQuickTask;
-                    const start = td.startDate ?? td.deadline;
-                    const end = td.deadline ?? td.startDate;
-                    if (!start && !end) {
-                      setGanttQuickTask(null);
-                      return;
-                    }
-                    const newStart = start ? addDaysYmd(start, ganttShiftDays) : null;
-                    const newEnd = end ? addDaysYmd(end, ganttShiftDays) : null;
-                    runDateTaskMove(td.id, newStart, newEnd);
-                    setGanttQuickTask(null);
-                  }}
+                  onClick={() => void handleSavePhase()}
                 >
-                  {t("gantt.quickPanel.apply")}
-                </button>
-                {ganttQuickTask.phaseId && (() => {
-                  const ph = orderedPhases.find((p) => p.id === ganttQuickTask.phaseId);
-                  if (!ph?.startDate && !ph?.endDate) return null;
-                  return (
-                    <button
-                      type="button"
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
-                      onClick={() => {
-                        runDateTaskMove(
-                          ganttQuickTask.id,
-                          ph.startDate ?? ganttQuickTask.startDate,
-                          ph.endDate ?? ganttQuickTask.deadline,
-                          "clampDatesToPhase",
-                        );
-                        setGanttQuickTask(null);
-                      }}
-                    >
-                      {t("gantt.quickPanel.alignPhase")}
-                    </button>
-                  );
-                })()}
-                <button
-                  type="button"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
-                  onClick={() => {
-                    openEdit(ganttQuickTask);
-                    setGanttQuickTask(null);
-                  }}
-                >
-                  {t("gantt.quickPanel.openEdit")}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-slate-600"
-                  onClick={() => setGanttQuickTask(null)}
-                >
-                  {t("cancel")}
+                  {t("edit.save")}
                 </button>
               </div>
             </div>
