@@ -17,6 +17,18 @@ import type { ProjectPhase, Todo, TranslationKey } from "./types";
 const COL_W = 28;
 const HANDLE_W = 8;
 const DRAG_THRESHOLD_PX = 4;
+const HEADER_MONTH_H = 24;
+const HEADER_WEEK_H = 20;
+const HEADER_TOTAL_H = HEADER_MONTH_H + HEADER_WEEK_H;
+
+/** Monday for fr, Sunday for en (week boundary labels + lines). */
+function weekStartDay(locale: string): number {
+  return locale === "fr" ? 1 : 0;
+}
+
+function isWeekStart(date: Date, locale: string): boolean {
+  return date.getDay() === weekStartDay(locale);
+}
 
 function daysBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
@@ -136,6 +148,83 @@ interface GanttChartBodyProps {
   onConvertPhase?: (phaseId: string) => void;
 }
 
+interface WeekTick {
+  dayIndex: number;
+  label: number;
+}
+
+interface GanttTimelineGridProps {
+  chartWidth: number;
+  totalDays: number;
+  months: { leftPx: number }[];
+  weekLineDays: number[];
+  dragPreview: DragPreview | null;
+  isExport: boolean;
+}
+
+function GanttTimelineGrid({
+  chartWidth,
+  totalDays,
+  months,
+  weekLineDays,
+  dragPreview,
+  isExport,
+}: GanttTimelineGridProps) {
+  const dayLineColor = isExport ? "rgba(228, 228, 231, 0.95)" : "rgba(161, 161, 170, 0.22)";
+  const weekLineClass = isExport
+    ? "bg-zinc-300"
+    : "bg-zinc-200 dark:bg-slate-600";
+  const monthLineClass = isExport
+    ? "bg-zinc-400"
+    : "bg-zinc-300 dark:bg-slate-500";
+
+  const highlightStart = dragPreview
+    ? (dragPreview.startDay ?? dragPreview.endDay ?? 0)
+    : null;
+  const highlightEnd = dragPreview
+    ? (dragPreview.endDay ?? dragPreview.startDay ?? highlightStart ?? 0)
+    : null;
+
+  return (
+    <div
+      className="relative h-full w-full pointer-events-none"
+      aria-hidden
+      style={{
+        backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${COL_W - 1}px, ${dayLineColor} ${COL_W - 1}px, ${dayLineColor} ${COL_W}px)`,
+      }}
+    >
+      {weekLineDays.map((dayIndex) => (
+        <div
+          key={`w-${dayIndex}`}
+          className={`absolute top-0 bottom-0 w-px ${weekLineClass}`}
+          style={{ left: dayIndex * COL_W }}
+        />
+      ))}
+      {months.map((m, i) => (
+        <div
+          key={`m-${i}`}
+          className={`absolute top-0 bottom-0 w-px ${monthLineClass}`}
+          style={{ left: m.leftPx }}
+        />
+      ))}
+      {highlightStart !== null && highlightEnd !== null && Array.from(
+        { length: Math.max(highlightEnd - highlightStart + 1, 1) },
+        (_, i) => highlightStart + i,
+      ).map((dayIndex) => (
+        <div
+          key={`h-${dayIndex}`}
+          className={isExport ? "absolute top-0 bottom-0 bg-blue-500/8" : "absolute top-0 bottom-0 bg-blue-500/5 dark:bg-blue-400/10"}
+          style={{ left: dayIndex * COL_W, width: COL_W }}
+        />
+      ))}
+      <div
+        className={`absolute top-0 right-0 bottom-0 w-px ${monthLineClass}`}
+        style={{ left: totalDays * COL_W }}
+      />
+    </div>
+  );
+}
+
 function GanttChartBody({
   phases,
   tasks,
@@ -248,6 +337,32 @@ function GanttChartBody({
 
     return { minDate: minD, totalDays: total, months: builtMonths, phaseBarData: pbd };
   }, [phases, tasks, locale]);
+
+  const { weekTicks, weekLineDays } = useMemo(() => {
+    const lineDays: number[] = [];
+    const ticks: WeekTick[] = [];
+    const labeledDays = new Set<number>();
+
+    for (let d = 0; d <= totalDays; d++) {
+      const date = addDays(minDate, d);
+      const weekStart = isWeekStart(date, locale);
+      const monthStart = date.getDate() === 1;
+
+      if (weekStart) {
+        lineDays.push(d);
+        if (!labeledDays.has(d)) {
+          ticks.push({ dayIndex: d, label: date.getDate() });
+          labeledDays.add(d);
+        }
+      }
+      if (monthStart && !labeledDays.has(d)) {
+        ticks.push({ dayIndex: d, label: date.getDate() });
+        labeledDays.add(d);
+      }
+    }
+
+    return { weekTicks: ticks, weekLineDays: lineDays };
+  }, [minDate, totalDays, locale]);
 
   const ymdToBarDays = useCallback((start: string | null, end: string | null) => {
     const startDay = start ? daysBetween(minDate, parseDate(start)) : null;
@@ -448,7 +563,7 @@ function GanttChartBody({
           {isSubtask && <span className={`mr-1 ${isExport ? "text-zinc-300" : "text-zinc-300 dark:text-slate-600"}`}>↳</span>}
           <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
         </button>
-        <div className={timelineClass} style={{ ...timelineStyle, height: "100%" }}>
+        <div className={`${timelineClass} relative`} style={{ ...timelineStyle, height: "100%" }}>
           {hasBar && renderBar(
             bar.startDay,
             bar.endDay,
@@ -509,8 +624,8 @@ function GanttChartBody({
 
     return (
       <div key={phaseId}>
-        <div className={`flex items-center border-b ${borderCls} ${headerBg}`} style={{ height: 36 }}>
-          <div className={`shrink-0 px-3 font-semibold text-xs ${headerText} flex items-center gap-1 min-w-0`} style={{ width: labelW }}>
+        <div className={`flex items-center border-b ${borderCls}`} style={{ height: 36 }}>
+          <div className={`shrink-0 px-3 font-semibold text-xs ${headerText} flex items-center gap-1 min-w-0 ${headerBg}`} style={{ width: labelW }}>
             <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0 align-middle" style={{ backgroundColor: phaseColor }} />
             {phaseInteractive ? (
               <button
@@ -537,7 +652,7 @@ function GanttChartBody({
               </button>
             ) : null}
           </div>
-          <div className={timelineClass} style={{ ...timelineStyle, height: "100%" }}>
+          <div className={`${timelineClass} relative`} style={{ ...timelineStyle, height: "100%" }}>
             {phaseBar && phase && (() => {
               const display = getPhaseBarDays(phase.id, phaseBar);
               const isPreview = dragPreview?.kind === "phase" && dragPreview.id === phase.id;
@@ -575,27 +690,61 @@ function GanttChartBody({
   const monthText = isExport ? "text-zinc-500" : "text-zinc-500 dark:text-slate-400";
   const monthBorder = isExport ? "border-zinc-100" : "border-zinc-100 dark:border-slate-800";
 
+  const weekLabelText = isExport ? "text-zinc-400" : "text-zinc-400 dark:text-slate-500";
+
   return (
     <div className="relative" style={{ width: totalWidth, minWidth: totalWidth }}>
       {todayOffset >= 0 && todayOffset <= totalDays && (
         <div
-          className={`absolute top-0 bottom-0 w-[2px] z-20 pointer-events-none ${isExport ? "bg-red-400" : "bg-red-400 dark:bg-red-500"}`}
-          style={{ left: labelW + todayOffset * COL_W + COL_W / 2 }}
+          className={`absolute w-[2px] z-20 pointer-events-none ${isExport ? "bg-red-400" : "bg-red-400 dark:bg-red-500"}`}
+          style={{
+            left: labelW + todayOffset * COL_W + COL_W / 2,
+            top: HEADER_TOTAL_H,
+            bottom: 28,
+          }}
         />
       )}
 
-      <div className={`flex border-b ${headerBorder} ${headerBg} z-10`}>
-        <div className="shrink-0" style={{ width: labelW }} />
-        <div className={timelineClass} style={{ ...timelineStyle, height: 28 }}>
-          {months.map((m, i) => (
-            <div
-              key={i}
-              className={`absolute top-0 bottom-0 flex items-center text-[10px] font-semibold ${monthText} px-1 border-r ${monthBorder} uppercase tracking-wider overflow-hidden whitespace-nowrap`}
-              style={{ left: m.leftPx, width: m.widthPx }}
-            >
-              {m.widthPx > 50 ? `${m.label} ${m.year}` : m.widthPx > 30 ? m.label.slice(0, 3) : ""}
-            </div>
-          ))}
+      <div
+        className="absolute z-0 pointer-events-none overflow-hidden"
+        style={{ left: labelW, top: HEADER_TOTAL_H, bottom: 28, width: chartWidth }}
+      >
+        <GanttTimelineGrid
+          chartWidth={chartWidth}
+          totalDays={totalDays}
+          months={months}
+          weekLineDays={weekLineDays}
+          dragPreview={dragPreview}
+          isExport={isExport}
+        />
+      </div>
+
+      <div className={`flex border-b ${headerBorder} ${headerBg} z-10`} style={{ height: HEADER_TOTAL_H }}>
+        <div className="shrink-0 border-b border-r border-transparent" style={{ width: labelW }} />
+        <div className={`${timelineClass} relative`} style={{ ...timelineStyle, height: HEADER_TOTAL_H }}>
+          <div className="absolute top-0 left-0 right-0 border-b border-zinc-100 dark:border-slate-800" style={{ height: HEADER_MONTH_H }}>
+            {months.map((m, i) => (
+              <div
+                key={i}
+                className={`absolute top-0 bottom-0 flex items-center text-[10px] font-semibold ${monthText} px-1 border-r ${monthBorder} uppercase tracking-wider overflow-hidden whitespace-nowrap`}
+                style={{ left: m.leftPx, width: m.widthPx }}
+              >
+                {m.widthPx > 50 ? `${m.label} ${m.year}` : m.widthPx > 30 ? m.label.slice(0, 3) : ""}
+              </div>
+            ))}
+          </div>
+          <div className="absolute left-0 right-0" style={{ top: HEADER_MONTH_H, height: HEADER_WEEK_H }}>
+            {weekTicks.map((tick) => (
+              <div
+                key={tick.dayIndex}
+                className={`absolute top-0 bottom-0 flex items-center justify-center text-[9px] font-medium ${weekLabelText}`}
+                style={{ left: tick.dayIndex * COL_W, width: COL_W }}
+                title={String(tick.label)}
+              >
+                {tick.label}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
