@@ -1989,10 +1989,10 @@ const translations = {
     fr: "Google/Microsoft Calendar multi-comptes : voyez vos dispos et bloquez un créneau en un clic.",
     en: "Multi-account Google/Microsoft Calendar: see availability and block time in one click.",
   },
-  "landing.f3.title": { fr: "Bloc-notes connecté", en: "Connected notepad" },
+  "landing.f3.title": { fr: "Connectez vos apps préférées", en: "Connect your favorite apps" },
   "landing.f3.desc": {
-    fr: "Saisissez les informations importantes, agencez et partagez-les.",
-    en: "Capture what matters, organize it, and share with your team.",
+    fr: "Notion, Monday, Google Calendar, Outlook, Slack et Teams — importez et synchronisez sans quitter Wroket.",
+    en: "Notion, Monday, Google Calendar, Outlook, Slack, and Teams — import and sync without leaving Wroket.",
   },
   "landing.f4.title": { fr: "Gérez vos projets", en: "Manage your projects" },
   "landing.f4.desc": {

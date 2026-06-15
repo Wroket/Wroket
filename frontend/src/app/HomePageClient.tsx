@@ -25,6 +25,11 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
   ),
   calendar: <SvgIcon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
   notepad: <SvgIcon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />,
+  integrations: (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+    </svg>
+  ),
   kanban: (
     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="5" height="18" rx="1" />
@@ -41,7 +46,7 @@ const FEATURES_KEYS = [
   { titleKey: "landing.f2.title", descKey: "landing.f2.desc", previewId: "calendar" },
   { titleKey: "landing.f5.title", descKey: "landing.f5.desc", previewId: "collab" },
   { titleKey: "landing.f4.title", descKey: "landing.f4.desc", previewId: "kanban" },
-  { titleKey: "landing.f3.title", descKey: "landing.f3.desc", previewId: "notepad" },
+  { titleKey: "landing.f3.title", descKey: "landing.f3.desc", previewId: "integrations" },
   { titleKey: "landing.f6.title", descKey: "landing.f6.desc", previewId: "notifs" },
 ] as const;
 
@@ -149,6 +154,25 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
               ) : (
                 <div className="flex-1 rounded border border-dashed border-zinc-200 dark:border-slate-700 h-6" />
               )}
+            </div>
+          ))}
+        </div>
+      );
+    case "integrations":
+      return (
+        <div className="w-full grid grid-cols-2 gap-2">
+          {[
+            { label: "Notion", sub: fr ? "Projets & bases" : "Projects & databases", shell: "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900" },
+            { label: "Monday", sub: fr ? "Boards & docs" : "Boards & docs", shell: "bg-violet-600 text-white" },
+            { label: "Google", sub: "Calendar", shell: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50" },
+            { label: "Outlook", sub: "Calendar", shell: "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800/50" },
+          ].map((app) => (
+            <div key={app.label} className={`rounded-lg px-2.5 py-2 ${app.shell}`}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold">{app.label}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              </div>
+              <p className="text-[9px] mt-0.5 opacity-80">{app.sub}</p>
             </div>
           ))}
         </div>

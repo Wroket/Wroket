@@ -249,6 +249,7 @@ export const docsTranslations = {
   "docs.pricing.faq5linkMonday": { fr: "Guide Monday", en: "Monday guide" },
   "help.documentation": { fr: "Documentation", en: "Documentation" },
   "help.documentationDesc": { fr: "Guides d'intégration et migration", en: "Integration and migration guides" },
+  "nav.documentation": { fr: "Documentation", en: "Documentation" },
   "settings.viewIntegrationGuide": { fr: "Voir le guide", en: "View guide" },
   "migrate.notion.docsLink": { fr: "Préparer votre base Notion", en: "Prepare your Notion database" },
   "migrate.monday.docsLink": { fr: "Guide d'import Monday", en: "Monday import guide" },

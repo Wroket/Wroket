@@ -139,6 +139,20 @@ const SETTINGS_ITEM = {
   ),
 };
 
+const DOCS_ITEM = {
+  tKey: "nav.documentation",
+  href: "/docs",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    </svg>
+  ),
+};
+
+function isDocsPath(pathname: string): boolean {
+  return pathname === "/docs" || pathname.startsWith("/docs/");
+}
+
 const ADMIN_ITEM = {
   tKey: "nav.admin",
   href: "/admin",
@@ -1041,6 +1055,7 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
           </div>
           <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+            <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} onClick={closeMobileMenu} />
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
             {me && userSeesAdminNav(me) && (
               <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} onClick={closeMobileMenu} />
@@ -1206,6 +1221,7 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
             </div>
             <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+              <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} />
               <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
               {me && userSeesAdminNav(me) && (
                 <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} />

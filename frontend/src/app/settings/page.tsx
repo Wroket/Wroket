@@ -2507,8 +2507,18 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
       {!activeSubSection ? (
         <>
           <div>
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
-            <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.integrationsHubDesc")}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
+                <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.integrationsHubDesc")}</p>
+              </div>
+              <Link
+                href="/docs"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/25 px-3 py-2 text-xs font-medium text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors shrink-0"
+              >
+                {t("nav.documentation")}
+              </Link>
+            </div>
           </div>
           {!hasIntegrations && (
             <p className="text-xs text-zinc-500 dark:text-slate-400 rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/40 px-3 py-2">
