@@ -8,6 +8,7 @@ import { detachNotesFromTodoIds } from "./noteService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { scheduleExternalCleanupForFutureSlots } from "./calendarBookingCleanup";
 import { syncOwnerTodosV2, loadAllTodosV2ByOwner } from "./todoDocStore";
+import { ExternalRef, normalizeExternalRef } from "./externalRef";
 import {
   FREE_QUOTA_CODE_RECURRENCE,
   FREE_QUOTA_CODE_TASKS,
@@ -22,6 +23,16 @@ import {
   PaymentRequiredError,
 } from "../utils/errors";
 import { findSlotConflicts } from "./calendarConflictService";
+import {
+  assertCanCompleteTodo,
+  assertDependenciesEntitlement,
+  normalizeBlockedByTodoIds,
+  validateBlockedByTodoIds,
+} from "./todoDependencyService";
+import {
+  assertCustomFieldsEntitlement,
+  validateCustomFieldValues,
+} from "./customFieldService";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
@@ -84,12 +95,22 @@ export interface Todo {
   suggestedSlot: SuggestedSlot | null;
   recurrence: Recurrence | null;
   sortOrder: number | null;
+  /** Tasks that must be completed before this one (same project). Small teams+. */
+  blockedByTodoIds?: string[];
+  /** Custom field values keyed by field def id (Small teams+). */
+  customFieldValues?: Record<string, string | number | boolean | null>;
+  /** External-source identity when this task is mirrored from Notion/Monday. */
+  externalRef?: ExternalRef | null;
   statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface CreateTodoInput {
+  /** Client-provided id (UUID) for idempotent create / offline retry. */
+  id?: string;
   title: string;
   priority: Priority;
   effort?: Effort;
@@ -109,6 +130,9 @@ export interface CreateTodoInput {
   assignmentStatus?: AssignmentStatus | null;
   scheduledSlot?: ScheduledSlot | null;
   suggestedSlot?: SuggestedSlot | null;
+  blockedByTodoIds?: string[];
+  /** External-source identity (set by sync/import, not by end users). */
+  externalRef?: ExternalRef | null;
 }
 
 export interface UpdateTodoInput {
@@ -129,6 +153,10 @@ export interface UpdateTodoInput {
   suggestedSlot?: SuggestedSlot | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
+  blockedByTodoIds?: string[];
+  customFieldValues?: Record<string, string | number | boolean | null>;
+  /** External-source identity (set by sync/import, not by end users). */
+  externalRef?: ExternalRef | null;
 }
 
 export type MoveTodoStrategy =
@@ -404,6 +432,9 @@ export function todoToClientJson(todo: Todo): Todo {
     suggestedSlot: todo.suggestedSlot,
     recurrence: todo.recurrence,
     sortOrder: todo.sortOrder ?? null,
+    blockedByTodoIds: [...normalizeBlockedByTodoIds(todo.blockedByTodoIds)],
+    customFieldValues: todo.customFieldValues ? { ...todo.customFieldValues } : undefined,
+    externalRef: todo.externalRef ? { ...todo.externalRef } : undefined,
     status: todo.status,
     statusChangedAt: todo.statusChangedAt,
     createdAt: todo.createdAt,
@@ -499,6 +530,14 @@ export function hydrateTodosFromLegacyStore(): void {
         }
         if ((todo as unknown as Record<string, unknown>).sortOrder === undefined) {
           todo.sortOrder = null;
+        }
+        if ((todo as unknown as Record<string, unknown>).blockedByTodoIds === undefined) {
+          todo.blockedByTodoIds = [];
+        } else {
+          todo.blockedByTodoIds = normalizeBlockedByTodoIds(todo.blockedByTodoIds);
+        }
+        if ((todo as unknown as Record<string, unknown>).customFieldValues === undefined) {
+          todo.customFieldValues = undefined;
         }
         if (!todo.statusChangedAt) {
           todo.statusChangedAt = todo.status === "active" ? todo.createdAt : todo.updatedAt;
@@ -1092,6 +1131,15 @@ export async function batchReorder(userId: string, todoIds: string[]): Promise<n
 }
 
 export async function createTodo(userId: string, userEmail: string, input: CreateTodoInput): Promise<Todo> {
+  const clientId = input.id && UUID_RE.test(input.id) ? input.id : undefined;
+  if (clientId) {
+    const existing = getUserTodos(userId).get(clientId);
+    if (existing) {
+      if (existing.status !== "deleted") return existing;
+      await hardRemoveTodosByIds([clientId]);
+    }
+  }
+
   if (!input.title || input.title.trim().length === 0) {
     throw new ValidationError("Le titre est requis");
   }
@@ -1219,7 +1267,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 
   const now = new Date().toISOString();
   const todo: Todo = {
-    id: crypto.randomUUID(),
+    id: clientId ?? crypto.randomUUID(),
     userId,
     parentId: input.parentId ?? null,
     projectId: resolvedProjectId,
@@ -1237,6 +1285,8 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     suggestedSlot: normalizedSuggested,
     recurrence: input.recurrence ?? null,
     sortOrder: typeof input.sortOrder === "number" ? input.sortOrder : null,
+    blockedByTodoIds: [],
+    externalRef: normalizeExternalRef(input.externalRef) ?? undefined,
     status,
     statusChangedAt: now,
     createdAt: now,
@@ -1337,9 +1387,32 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   if (input.tags !== undefined) {
     todo.tags = input.tags.map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10);
   }
+  if (input.blockedByTodoIds !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier les dépendances");
+    const nextBlocked = normalizeBlockedByTodoIds(input.blockedByTodoIds);
+    if (nextBlocked.length > 0) {
+      assertDependenciesEntitlement(userId);
+      validateBlockedByTodoIds(userId, todoId, todo.projectId, nextBlocked);
+    }
+    todo.blockedByTodoIds = nextBlocked;
+  }
+  if (input.customFieldValues !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier les champs personnalisés");
+    assertCustomFieldsEntitlement(userId);
+    const projectId = input.projectId !== undefined ? input.projectId : todo.projectId;
+    todo.customFieldValues = validateCustomFieldValues(projectId, [], input.customFieldValues);
+  }
+  if (input.externalRef !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier le lien externe");
+    todo.externalRef = normalizeExternalRef(input.externalRef) ?? undefined;
+  }
+
   if (input.status !== undefined) {
     if (!VALID_STATUSES.includes(input.status)) {
       throw new ValidationError("Statut invalide (active, completed, cancelled, deleted)");
+    }
+    if (input.status === "completed" && input.status !== todo.status) {
+      assertCanCompleteTodo(userId, { ...todo, blockedByTodoIds: todo.blockedByTodoIds ?? [] });
     }
     if (input.status === "deleted" && !isOwner) {
       throw new ForbiddenError("Seul le propriétaire peut supprimer la tâche");
@@ -1542,6 +1615,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
           nextDueDate: calculateNextDueDate(nextDeadline, frequency, interval, workingDays),
         },
         sortOrder: null,
+        blockedByTodoIds: [],
         status: "active",
         statusChangedAt: now2,
         createdAt: now2,

@@ -47,6 +47,7 @@ import {
 import { getTeam } from "../services/teamService";
 import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
+import { cascadeProjectNoteFoldersOnDelete, cascadeProjectNoteFoldersOnArchive, cascadeProjectNoteFoldersOnRestore } from "../services/projectNoteFolderCascade";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const projects = listProjects(req.user!.uid, req.user!.email ?? "");
@@ -154,8 +155,16 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   if (input.status === "archived" && previous?.status !== "archived") {
     await archiveTodosByProjectId(project.id);
     await cascadeArchiveActiveSubprojects(uid, email, project.id);
+    cascadeProjectNoteFoldersOnArchive(project.id);
+    for (const child of listChildProjects(project.id)) {
+      cascadeProjectNoteFoldersOnArchive(child.id);
+    }
   } else if (input.status === "active" && previous?.status === "archived") {
     cascadeRestoreArchivedSubprojects(uid, email, project.id);
+    cascadeProjectNoteFoldersOnRestore(project.id);
+    for (const child of listChildProjects(project.id)) {
+      cascadeProjectNoteFoldersOnRestore(child.id);
+    }
   }
   logActivity(uid, email, "update", "project", project.id, { name: project.name });
   res.status(200).json(project);
@@ -171,12 +180,14 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   for (const child of directChildren) {
     await permanentlyPurgeTodosByProjectId(child.id);
     deleteProject(uid, email, child.id);
+    cascadeProjectNoteFoldersOnDelete(child.id);
     logActivity(uid, email, "delete", "project", child.id, {
       name: child.name,
       cascadeFrom: id,
     });
   }
   deleteProject(uid, email, id);
+  cascadeProjectNoteFoldersOnDelete(id);
   await permanentlyPurgeTodosByProjectId(id);
   logActivity(uid, email, "delete", "project", id, project?.name ? { name: project.name } : undefined);
   res.status(204).end();

@@ -141,9 +141,14 @@ export default function NotificationsPage() {
     <AppShell>
       <div className="max-w-3xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
-            {t("notif.pageTitle")}
-          </h1>
+          <div>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
+              {t("notif.pageTitle")}
+            </h1>
+            <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mt-1">
+              {t("notif.displayWindow")}
+            </p>
+          </div>
           {unreadCount > 0 && (
             <button
               type="button"

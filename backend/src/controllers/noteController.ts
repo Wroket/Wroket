@@ -21,6 +21,11 @@ import {
 import { newMentionsOnly } from "../services/commentService";
 import { createNotification } from "../services/notificationService";
 import { findUserByEmail } from "../services/authService";
+import {
+  createNoteFolder,
+  listNoteFolderSummaries,
+  removePersistedNoteFolderIfPresent,
+} from "../services/noteFolderService";
 import { ValidationError } from "../utils/errors";
 
 const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
@@ -283,4 +288,22 @@ export async function sync(req: AuthenticatedRequest, res: Response) {
   if (notes.length > 200) throw new ValidationError("Trop de notes à synchroniser (max 200)");
   const result = syncNotes(req.user!.uid, notes);
   res.status(200).json(result);
+}
+
+export async function listFolders(req: AuthenticatedRequest, res: Response) {
+  res.status(200).json(listNoteFolderSummaries(req.user!.uid));
+}
+
+export async function createFolder(req: AuthenticatedRequest, res: Response) {
+  const name = (req.body?.name as string | undefined)?.trim();
+  if (!name) throw new ValidationError("name requis");
+  const folder = createNoteFolder(req.user!.uid, name);
+  res.status(201).json(folder);
+}
+
+export async function removeFolder(req: AuthenticatedRequest, res: Response) {
+  const name = decodeURIComponent((req.params.name as string) ?? "").trim();
+  if (!name) throw new ValidationError("Nom de dossier requis");
+  removePersistedNoteFolderIfPresent(req.user!.uid, name);
+  res.status(200).json({ deleted: true });
 }

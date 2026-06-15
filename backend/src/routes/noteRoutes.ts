@@ -16,6 +16,9 @@ import {
   listArchived,
   restoreArchived,
   purgeArchived,
+  listFolders,
+  createFolder,
+  removeFolder,
 } from "../controllers/noteController";
 import {
   uploadNoteAttachment,
@@ -42,6 +45,9 @@ noteRoutes.post("/sync", sync);
 noteRoutes.get("/archived", listArchived);
 noteRoutes.post("/archived/:id/restore", restoreArchived);
 noteRoutes.delete("/archived/:id", purgeArchived);
+noteRoutes.get("/folders", listFolders);
+noteRoutes.post("/folders", createFolder);
+noteRoutes.delete("/folders/:name", removeFolder);
 
 // Note attachments — note-namespace files.
 noteRoutes.get("/:noteId/attachments", listNoteAttachmentsHandler);

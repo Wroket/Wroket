@@ -3,19 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getEmailSuggestions } from "@/lib/api";
+import { getContactSuggestions } from "@/lib/api/contacts";
 
 const MIN_QUERY_LENGTH = 3;
 
+export interface EmailSuggestionItem {
+  email: string;
+  label: string;
+  contactId?: string;
+}
+
 /**
- * Fetches collaborator + team member emails matching `query` after debounce.
- * No request until `query.trim()` has at least {@link MIN_QUERY_LENGTH} characters.
+ * Merges collaborator/team emails with répertoire contacts (nom + entreprise).
  */
 export function useContactEmailSuggestions(query: string, debounceMs = 300): {
-  suggestions: string[];
+  suggestions: EmailSuggestionItem[];
   loading: boolean;
   minQueryLength: number;
 } {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<EmailSuggestionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,8 +44,33 @@ export function useContactEmailSuggestions(query: string, debounceMs = 300): {
     let cancelled = false;
     debounceRef.current = setTimeout(async () => {
       try {
-        const emails = await getEmailSuggestions(q);
-        if (!cancelled) setSuggestions(emails);
+        const [emails, contacts] = await Promise.all([
+          getEmailSuggestions(q),
+          getContactSuggestions(q),
+        ]);
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const merged: EmailSuggestionItem[] = [];
+        for (const c of contacts) {
+          const email = c.email?.trim();
+          if (!email) continue;
+          const key = email.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const parts = [c.displayName, c.company].filter(Boolean);
+          merged.push({
+            email,
+            label: parts.length ? `${parts.join(" · ")} (${email})` : email,
+            contactId: c.id,
+          });
+        }
+        for (const email of emails) {
+          const key = email.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          merged.push({ email, label: email });
+        }
+        setSuggestions(merged);
       } catch {
         if (!cancelled) setSuggestions([]);
       } finally {

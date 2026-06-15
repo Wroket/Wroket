@@ -437,7 +437,7 @@ export async function getMyActivity(params?: {
 }
 
 export interface SearchResult {
-  type: "todo" | "project" | "note";
+  type: "todo" | "project" | "note" | "contact" | "database";
   id: string;
   title: string;
   snippet?: string;

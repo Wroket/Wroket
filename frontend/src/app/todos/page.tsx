@@ -17,6 +17,7 @@ import TodoCard from "@/components/TodoCard";
 import TaskIconToolbar from "@/components/TaskIconToolbar";
 import { useToast } from "@/components/Toast";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
+import { newClientEntityId } from "@/lib/newClientId";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
 import TaskTemplatePicker, { type TemplateApplyPayload } from "@/components/TaskTemplatePicker";
@@ -341,6 +342,7 @@ export default function TodosPage() {
     }
   }, [mainView]);
   const createInFlightRef = useRef(false);
+  const subtaskCreateInFlightRef = useRef(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
@@ -535,10 +537,7 @@ export default function TodosPage() {
     createInFlightRef.current = true;
     setSubmitting(true);
 
-    const tmpId =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? `__tmp__${crypto.randomUUID()}`
-        : `__tmp__${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const tmpId = newClientEntityId();
     const now = new Date().toISOString();
     const tmpTodo: Todo = {
       id: tmpId,
@@ -585,6 +584,7 @@ export default function TodosPage() {
 
     try {
       const created = await createTodo({
+        id: tmpId,
         title: tmpTodo.title,
         priority: tmpTodo.priority,
         effort: tmpTodo.effort,
@@ -600,6 +600,7 @@ export default function TodosPage() {
           for (const subtaskTitle of capturedSubtasks) {
             try {
               const sub = await createTodo({
+                id: newClientEntityId(),
                 title: subtaskTitle,
                 priority: "medium",
                 effort: "light",
@@ -678,14 +679,17 @@ export default function TodosPage() {
   };
 
   const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; startDate: string; deadline: string }) => {
-    if (!subtaskParent) return;
+    if (!subtaskParent || subtaskCreateInFlightRef.current) return;
     if (personalTaskCreateBlocked(user, subtaskParent.projectId ?? null, projects)) {
       toast.error(t("quota.free.taskLimitHint"));
       return;
     }
+    subtaskCreateInFlightRef.current = true;
     setSubtaskSubmitting(true);
+    const clientId = newClientEntityId();
     try {
       const todo = await createTodo({
+        id: clientId,
         title: data.title,
         priority: data.priority,
         effort: data.effort,
@@ -698,6 +702,7 @@ export default function TodosPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
+      subtaskCreateInFlightRef.current = false;
       setSubtaskSubmitting(false);
     }
   };

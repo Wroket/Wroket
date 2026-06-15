@@ -23,7 +23,7 @@ test.describe("Notes cross-device ghost purge", () => {
 
     await login(pageA);
     await pageA.goto("/notes");
-    await expect(pageA.getByRole("heading", { name: /Bloc-notes|Notes/i })).toBeVisible({ timeout: 15_000 });
+    await expect(pageA.getByRole("heading", { name: /Données|Data/i })).toBeVisible({ timeout: 15_000 });
 
     await pageA.getByTestId("notes-new").click();
     await pageA.getByTestId("note-title-input").fill(title);
@@ -40,7 +40,7 @@ test.describe("Notes cross-device ghost purge", () => {
 
     await login(pageB);
     await pageB.goto("/notes");
-    await expect(pageB.getByRole("heading", { name: /Bloc-notes|Notes/i })).toBeVisible({ timeout: 15_000 });
+    await expect(pageB.getByRole("heading", { name: /Données|Data/i })).toBeVisible({ timeout: 15_000 });
     await pageB.getByRole("button").filter({ hasText: title }).first().click();
     await pageB.getByTestId("note-delete-open").click();
     await pageB.getByTestId("note-delete-confirm").click();

@@ -342,9 +342,17 @@ export default function TeamDashboardPage() {
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
-            {t("teamDash.title")}
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
+              {t("teamDash.title")}
+            </h1>
+            <Link
+              href="/teams/portfolio"
+              className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              {t("portfolio.title")}
+            </Link>
+          </div>
           {teams.length > 0 && (
             <select
               value={selectedTeamId ?? ""}

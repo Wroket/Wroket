@@ -605,11 +605,12 @@ export async function googleCallback(req: Request, res: Response) {
     return;
   }
 
-  const uid = consumeOAuthState(state);
-  if (!uid) {
+  const statePayload = consumeOAuthState(state);
+  if (!statePayload) {
     res.redirect(`${frontendUrl}/settings?error=google_auth_failed`);
     return;
   }
+  const uid = statePayload.uid;
 
   if (!getEntitlementsForUid(uid).integrations) {
     res.redirect(`${frontendUrl}/settings?tab=integrations&error=calendar_plan_required`);
@@ -693,11 +694,12 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
     return;
   }
 
-  const uid = consumeOAuthState(state);
-  if (!uid) {
+  const statePayload = consumeOAuthState(state);
+  if (!statePayload) {
     redirectMicrosoftCalendarError(res, frontendUrl, "invalid_state");
     return;
   }
+  const uid = statePayload.uid;
 
   if (!getEntitlementsForUid(uid).integrations) {
     redirectMicrosoftCalendarError(res, frontendUrl, "plan_required");

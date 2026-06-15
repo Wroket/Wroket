@@ -5,6 +5,7 @@ import { ForbiddenError, NotFoundError, ValidationError, PaymentRequiredError } 
 import { findUserByUid, findUserByEmail, shouldApplyFreeTierVolumeQuotas } from "./authService";
 import { FREE_QUOTA_CODE_PROJECTS, FREE_TIER_MAX_PERSONAL_PROJECTS } from "./freeTierQuotaConstants";
 import { getTeam, canManageProjects, getTeamRole } from "./teamService";
+import { ExternalRef, normalizeExternalRef } from "./externalRef";
 
 export type ProjectStatus = "active" | "archived";
 
@@ -24,7 +25,33 @@ export interface ProjectPhase {
   order: number;
   startDate: string | null;
   endDate: string | null;
+  /** External-source identity when this phase is mirrored from Notion/Monday. */
+  externalRef?: ExternalRef | null;
   createdAt: string;
+}
+
+/** Dedicated milestone (label + date), distinct from phase end dates. */
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
+  title: string;
+  date: string;
+  phaseId: string | null;
+  color: string;
+  order: number;
+  /** External-source identity when mirrored from Notion/Monday. */
+  externalRef?: ExternalRef | null;
+  createdAt: string;
+}
+
+export type CustomFieldType = "text" | "number" | "date" | "select" | "checkbox";
+
+export interface ProjectCustomFieldDef {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options?: string[];
+  order: number;
 }
 
 export interface Project {
@@ -40,6 +67,10 @@ export interface Project {
   sortOrder: number;
   status: ProjectStatus;
   phases: ProjectPhase[];
+  milestones?: ProjectMilestone[];
+  customFieldDefs?: ProjectCustomFieldDef[];
+  /** External-source identity when this project is mirrored from Notion/Monday. */
+  externalRef?: ExternalRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +80,8 @@ export interface CreateProjectInput {
   description?: string;
   teamId?: string | null;
   parentProjectId?: string | null;
+  /** External-source identity (set by sync/import, not by end users). */
+  externalRef?: ExternalRef | null;
 }
 
 export interface UpdateProjectInput {
@@ -65,6 +98,8 @@ export interface CreatePhaseInput {
   color?: string;
   startDate?: string | null;
   endDate?: string | null;
+  /** External-source identity (set by sync/import, not by end users). */
+  externalRef?: ExternalRef | null;
 }
 
 export interface UpdatePhaseInput {
@@ -73,6 +108,35 @@ export interface UpdatePhaseInput {
   order?: number;
   startDate?: string | null;
   endDate?: string | null;
+}
+
+export interface CreateMilestoneInput {
+  title: string;
+  date: string;
+  phaseId?: string | null;
+  color?: string;
+  externalRef?: ExternalRef | null;
+}
+
+export interface UpdateMilestoneInput {
+  title?: string;
+  date?: string;
+  phaseId?: string | null;
+  color?: string;
+  order?: number;
+}
+
+export interface CreateCustomFieldDefInput {
+  name: string;
+  type: CustomFieldType;
+  options?: string[];
+}
+
+export interface UpdateCustomFieldDefInput {
+  name?: string;
+  type?: CustomFieldType;
+  options?: string[];
+  order?: number;
 }
 
 const PHASE_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#6366f1", "#14b8a6"];
@@ -194,6 +258,8 @@ function ensureProjectAccessInitialized(project: Project): boolean {
     for (const [id, raw] of Object.entries(store.projects)) {
       const project = raw as Project;
       if (!project.phases) project.phases = [];
+      if (!project.milestones) project.milestones = [];
+      if (!project.customFieldDefs) project.customFieldDefs = [];
       if (project.parentProjectId === undefined) project.parentProjectId = null;
       if (!project.tags) project.tags = [];
       if (project.sortOrder === undefined) project.sortOrder = 0;
@@ -311,6 +377,33 @@ export function getProjectById(id: string): Project | null {
   return projectsById.get(id) ?? null;
 }
 
+/**
+ * Finds an accessible project previously mirrored from an external source.
+ * Used by the sync engine to make re-imports idempotent (no duplicate project).
+ */
+export function findProjectByExternalRef(
+  uid: string,
+  userEmail: string,
+  provider: ExternalRef["provider"],
+  externalId: string,
+): Project | null {
+  for (const p of projectsById.values()) {
+    if (p.externalRef?.provider === provider && p.externalRef?.externalId === externalId) {
+      if (canAccessProject(uid, userEmail, p)) return p;
+    }
+  }
+  return null;
+}
+
+/** Persists external-source bookkeeping (lastSyncedAt) on a project after a sync pass. */
+export function touchProjectExternalRef(projectId: string, ref: ExternalRef): void {
+  const project = projectsById.get(projectId);
+  if (!project) return;
+  project.externalRef = { ...ref };
+  project.updatedAt = new Date().toISOString();
+  persist();
+}
+
 /** Direct child projects (e.g. sub-projects of a root project). */
 export function listChildProjects(parentId: string): Project[] {
   const out: Project[] = [];
@@ -382,6 +475,7 @@ export function createProject(uid: string, userEmail: string, input: CreateProje
     sortOrder: 0,
     status: "active",
     phases: [],
+    externalRef: normalizeExternalRef(input.externalRef) ?? undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -600,6 +694,7 @@ export function addPhase(projectId: string, input: CreatePhaseInput): ProjectPha
     order: project.phases.length,
     startDate,
     endDate,
+    externalRef: normalizeExternalRef(input.externalRef) ?? undefined,
     createdAt: new Date().toISOString(),
   };
   project.phases.push(phase);
@@ -645,6 +740,173 @@ export function deletePhase(projectId: string, phaseId: string): void {
   if (idx === -1) throw new NotFoundError("Phase introuvable");
   project.phases.splice(idx, 1);
   project.phases.forEach((p, i) => { p.order = i; });
+  project.updatedAt = new Date().toISOString();
+  persist();
+}
+
+// ── Milestones ──
+
+const MAX_MILESTONES = 50;
+
+function ensureMilestones(project: Project): ProjectMilestone[] {
+  if (!project.milestones) project.milestones = [];
+  return project.milestones;
+}
+
+function parseMilestoneDate(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) throw new ValidationError("Date de jalon invalide");
+  return d.toISOString().split("T")[0];
+}
+
+export function addMilestone(projectId: string, input: CreateMilestoneInput): ProjectMilestone {
+  const project = projectsById.get(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!input.title?.trim()) throw new ValidationError("Le titre du jalon est requis");
+  const milestones = ensureMilestones(project);
+  if (milestones.length >= MAX_MILESTONES) {
+    throw new ValidationError(`Maximum ${MAX_MILESTONES} jalons par projet`);
+  }
+  if (input.phaseId) {
+    const phase = project.phases.find((p) => p.id === input.phaseId);
+    if (!phase) throw new NotFoundError("Phase introuvable");
+  }
+  const milestone: ProjectMilestone = {
+    id: crypto.randomUUID(),
+    projectId,
+    title: input.title.trim().substring(0, 200),
+    date: parseMilestoneDate(input.date),
+    phaseId: input.phaseId ?? null,
+    color: input.color ?? "#f59e0b",
+    order: milestones.length,
+    externalRef: normalizeExternalRef(input.externalRef) ?? undefined,
+    createdAt: new Date().toISOString(),
+  };
+  milestones.push(milestone);
+  project.updatedAt = new Date().toISOString();
+  persist();
+  return milestone;
+}
+
+export function updateMilestone(
+  projectId: string,
+  milestoneId: string,
+  input: UpdateMilestoneInput,
+): ProjectMilestone {
+  const project = projectsById.get(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  const milestones = ensureMilestones(project);
+  const milestone = milestones.find((m) => m.id === milestoneId);
+  if (!milestone) throw new NotFoundError("Jalon introuvable");
+  if (input.title !== undefined) milestone.title = input.title.trim().substring(0, 200);
+  if (input.date !== undefined) milestone.date = parseMilestoneDate(input.date);
+  if (input.color !== undefined) milestone.color = input.color;
+  if (input.phaseId !== undefined) {
+    if (input.phaseId) {
+      const phase = project.phases.find((p) => p.id === input.phaseId);
+      if (!phase) throw new NotFoundError("Phase introuvable");
+    }
+    milestone.phaseId = input.phaseId;
+  }
+  if (input.order !== undefined) {
+    const oldOrder = milestone.order;
+    const newOrder = Math.max(0, Math.min(Math.floor(input.order), milestones.length - 1));
+    milestones.splice(oldOrder, 1);
+    milestones.splice(newOrder, 0, milestone);
+    milestones.forEach((m, i) => { m.order = i; });
+  }
+  project.updatedAt = new Date().toISOString();
+  persist();
+  return milestone;
+}
+
+export function deleteMilestone(projectId: string, milestoneId: string): void {
+  const project = projectsById.get(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  const milestones = ensureMilestones(project);
+  const idx = milestones.findIndex((m) => m.id === milestoneId);
+  if (idx === -1) throw new NotFoundError("Jalon introuvable");
+  milestones.splice(idx, 1);
+  milestones.forEach((m, i) => { m.order = i; });
+  project.updatedAt = new Date().toISOString();
+  persist();
+}
+
+// ── Custom field definitions ──
+
+const MAX_CUSTOM_FIELD_DEFS = 20;
+const VALID_CUSTOM_FIELD_TYPES = new Set<CustomFieldType>(["text", "number", "date", "select", "checkbox"]);
+
+function ensureCustomFieldDefs(project: Project): ProjectCustomFieldDef[] {
+  if (!project.customFieldDefs) project.customFieldDefs = [];
+  return project.customFieldDefs;
+}
+
+export function addCustomFieldDef(projectId: string, input: CreateCustomFieldDefInput): ProjectCustomFieldDef {
+  const project = projectsById.get(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!input.name?.trim()) throw new ValidationError("Le nom du champ est requis");
+  if (!VALID_CUSTOM_FIELD_TYPES.has(input.type)) {
+    throw new ValidationError("Type de champ invalide");
+  }
+  const defs = ensureCustomFieldDefs(project);
+  if (defs.length >= MAX_CUSTOM_FIELD_DEFS) {
+    throw new ValidationError(`Maximum ${MAX_CUSTOM_FIELD_DEFS} champs personnalisés par projet`);
+  }
+  if (input.type === "select" && (!input.options?.length)) {
+    throw new ValidationError("Les champs select nécessitent au moins une option");
+  }
+  const def: ProjectCustomFieldDef = {
+    id: crypto.randomUUID(),
+    name: input.name.trim().substring(0, 80),
+    type: input.type,
+    options: input.type === "select" ? input.options!.map((o) => o.trim()).filter(Boolean).slice(0, 20) : undefined,
+    order: defs.length,
+  };
+  defs.push(def);
+  project.updatedAt = new Date().toISOString();
+  persist();
+  return def;
+}
+
+export function updateCustomFieldDef(
+  projectId: string,
+  fieldId: string,
+  input: UpdateCustomFieldDefInput,
+): ProjectCustomFieldDef {
+  const project = projectsById.get(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  const defs = ensureCustomFieldDefs(project);
+  const def = defs.find((d) => d.id === fieldId);
+  if (!def) throw new NotFoundError("Champ introuvable");
+  if (input.name !== undefined) def.name = input.name.trim().substring(0, 80);
+  if (input.type !== undefined) {
+    if (!VALID_CUSTOM_FIELD_TYPES.has(input.type)) throw new ValidationError("Type de champ invalide");
+    def.type = input.type;
+  }
+  if (input.options !== undefined) {
+    def.options = input.options.map((o) => o.trim()).filter(Boolean).slice(0, 20);
+  }
+  if (input.order !== undefined) {
+    const oldOrder = def.order;
+    const newOrder = Math.max(0, Math.min(Math.floor(input.order), defs.length - 1));
+    defs.splice(oldOrder, 1);
+    defs.splice(newOrder, 0, def);
+    defs.forEach((d, i) => { d.order = i; });
+  }
+  project.updatedAt = new Date().toISOString();
+  persist();
+  return def;
+}
+
+export function deleteCustomFieldDef(projectId: string, fieldId: string): void {
+  const project = projectsById.get(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  const defs = ensureCustomFieldDefs(project);
+  const idx = defs.findIndex((d) => d.id === fieldId);
+  if (idx === -1) throw new NotFoundError("Champ introuvable");
+  defs.splice(idx, 1);
+  defs.forEach((d, i) => { d.order = i; });
   project.updatedAt = new Date().toISOString();
   persist();
 }

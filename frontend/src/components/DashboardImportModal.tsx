@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type ChangeEvent } from "react";
+import Link from "next/link";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import {
@@ -94,6 +95,20 @@ export default function DashboardImportModal({
           </button>
         </div>
         <div className="mt-5 flex flex-col gap-2">
+          <Link
+            href="/migrate/notion"
+            onClick={onClose}
+            className="w-full text-left rounded-lg border border-zinc-200 dark:border-slate-600 px-4 py-3 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            {t("migrate.notion.menuLabel")}
+          </Link>
+          <Link
+            href="/migrate/monday"
+            onClick={onClose}
+            className="w-full text-left rounded-lg border border-violet-200 dark:border-violet-800 px-4 py-3 text-sm font-medium text-violet-800 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
+          >
+            {t("migrate.monday.menuLabel")}
+          </Link>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}

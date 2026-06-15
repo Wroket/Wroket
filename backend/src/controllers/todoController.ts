@@ -118,7 +118,7 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
-  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags, sortOrder } = req.body as Partial<CreateTodoInput>;
+  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags, sortOrder, id } = req.body as Partial<CreateTodoInput>;
   if (typeof title !== "string" || typeof priority !== "string") {
     throw new ValidationError("Titre et priorité requis (chaînes)");
   }
@@ -126,7 +126,12 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError("Titre et priorité requis");
   }
 
-  const todo = await createTodo(req.user!.uid, req.user!.email ?? "", {
+  const uid = req.user!.uid;
+  const clientId = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : undefined;
+  const existingBefore = clientId ? findTodoForUser(uid, clientId)?.todo ?? null : null;
+
+  const todo = await createTodo(uid, req.user!.email ?? "", {
+    id: clientId,
     title,
     priority,
     effort,
@@ -141,33 +146,37 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     tags,
     sortOrder,
   });
-  try {
-    logActivity(req.user!.uid, req.user!.email ?? "", "create", "todo", todo.id, { todoId: todo.id, title: todo.title });
-  } catch (err) {
-    console.warn("[todo.create] activity log failed:", err);
-  }
 
-  try {
-    if (todo.assignedTo && todo.assignedTo !== req.user!.uid) {
-      createNotification(
-        todo.assignedTo,
-        "task_assigned",
-        "Tâche assignée",
-        `${req.user!.email} vous a assigné la tâche "${todo.title}"`,
-        {
-          todoId: todo.id,
-          todoTitle: todo.title,
-          assignerEmail: req.user!.email ?? "",
-          actorEmail: req.user!.email ?? "",
-          assignmentStatus: "pending",
-        }
-      );
+  const isNew = !existingBefore;
+  if (isNew) {
+    try {
+      logActivity(req.user!.uid, req.user!.email ?? "", "create", "todo", todo.id, { todoId: todo.id, title: todo.title });
+    } catch (err) {
+      console.warn("[todo.create] activity log failed:", err);
     }
-  } catch (err) {
-    console.warn("[todo.create] notification failed:", err);
+
+    try {
+      if (todo.assignedTo && todo.assignedTo !== req.user!.uid) {
+        createNotification(
+          todo.assignedTo,
+          "task_assigned",
+          "Tâche assignée",
+          `${req.user!.email} vous a assigné la tâche "${todo.title}"`,
+          {
+            todoId: todo.id,
+            todoTitle: todo.title,
+            assignerEmail: req.user!.email ?? "",
+            actorEmail: req.user!.email ?? "",
+            assignmentStatus: "pending",
+          }
+        );
+      }
+    } catch (err) {
+      console.warn("[todo.create] notification failed:", err);
+    }
   }
 
-  res.status(201).json(todoToClientJson(todo));
+  res.status(isNew ? 201 : 200).json(todoToClientJson(todo));
 }
 
 export async function update(req: AuthenticatedRequest, res: Response) {

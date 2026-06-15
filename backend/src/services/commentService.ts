@@ -13,6 +13,8 @@ export interface Comment {
   createdAt: string;
   editedAt?: string;
   reactions?: Record<string, string[]>;
+  /** Mirrored from external import (e.g. Notion Description); updated on re-sync only for this comment. */
+  mirroredFrom?: "notion-description";
 }
 
 const commentsByTodo = new Map<string, Comment[]>();
@@ -106,6 +108,49 @@ export function addComment(todoId: string, userId: string, userEmail: string, te
   list.push(comment);
   persist();
   return comment;
+}
+
+const MAX_COMMENT_LEN = 2000;
+
+/**
+ * Creates or updates the single Notion-description mirror comment on a task.
+ * Other user comments are never modified. Empty description is a no-op.
+ */
+export function upsertMirroredDescriptionComment(
+  todoId: string,
+  userId: string,
+  userEmail: string,
+  text: string | null | undefined,
+): void {
+  const trimmed = text?.trim().substring(0, MAX_COMMENT_LEN) ?? "";
+  if (!trimmed) return;
+
+  const list = commentsByTodo.get(todoId) ?? [];
+  const existing = list.find((c) => c.mirroredFrom === "notion-description");
+  if (existing) {
+    if (existing.text === trimmed) return;
+    existing.text = trimmed;
+    existing.editedAt = new Date().toISOString();
+    if (!commentsByTodo.has(todoId)) commentsByTodo.set(todoId, list);
+    persist();
+    return;
+  }
+
+  const comment: Comment = {
+    id: crypto.randomUUID(),
+    todoId,
+    userId,
+    userEmail,
+    text: trimmed,
+    createdAt: new Date().toISOString(),
+    mirroredFrom: "notion-description",
+  };
+  if (!commentsByTodo.has(todoId)) {
+    commentsByTodo.set(todoId, [comment]);
+  } else {
+    list.unshift(comment);
+  }
+  persist();
 }
 
 export function deleteComment(todoId: string, commentId: string, userId: string): void {

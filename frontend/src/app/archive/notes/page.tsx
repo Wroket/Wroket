@@ -1,14 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import AppShell from "@/components/AppShell";
-import ArchivedNotesPanel from "../_components/ArchivedNotesPanel";
-
-export default function ArchiveNotesPage() {
-  return (
-    <AppShell>
-      <div className="max-w-[900px] mx-auto px-4 py-6">
-        <ArchivedNotesPanel />
-      </div>
-    </AppShell>
-  );
+/** @deprecated Use Archive → Données → Documents (`/archive/data/documents`). */
+export default function ArchiveNotesRedirectPage() {
+  redirect("/archive/data/documents");
 }

@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 
 const SITE_URL = "https://wroket.com";
 const SITE_NAME = "Wroket";
-const DEFAULT_TITLE = "Wroket — Travaillez efficacement. Ensemble.";
+const DEFAULT_TITLE = "Wroket";
 const DEFAULT_DESCRIPTION = SITE_DESCRIPTION_FR;
 const OG_DESCRIPTION = SITE_OG_DESCRIPTION_FR;
 
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Wroket — Travaillez efficacement. Ensemble.",
+        alt: "Wroket",
       },
     ],
   },

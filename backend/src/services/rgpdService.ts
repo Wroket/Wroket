@@ -8,15 +8,22 @@ import { purgeNotesRuntimeForUid } from "./noteService";
 import { deleteAllTodosV2ForOwner } from "./todoDocStore";
 import { purgeAttachmentsForTodoIds } from "./attachmentService";
 import { cancelStripeSubscriptionsById } from "./stripeBillingService";
+import { exportContactsForOwner, purgeContactsForOwner } from "./contactService";
+import { exportDatabasesForOwner, purgeDatabasesForOwner } from "./userDatabaseService";
+import { exportNoteFoldersForOwner, purgeNoteFoldersForOwner } from "./noteFolderService";
 export interface UserDataExport {
   user: Record<string, unknown>;
   todos: unknown[];
   comments: unknown[];
   notifications: unknown[];
   notes: unknown[];
+  noteFolders: unknown[];
   teams: unknown[];
   projects: unknown[];
   activityLog: unknown[];
+  contacts: unknown[];
+  userDatabases: unknown[];
+  userDatabaseRows: Record<string, unknown[]>;
 }
 
 export interface ExportUserDataOptions {
@@ -96,7 +103,24 @@ export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserD
   const activityStore = (store.activityLog ?? []) as Array<Record<string, unknown>>;
   const activityLog = activityStore.filter((e) => e.userId === uid);
 
-  return { user: sanitizeUserForExport(user), todos, comments, notifications, notes, teams, projects, activityLog };
+  const contacts = exportContactsForOwner(uid) as unknown[];
+  const { databases, rows } = exportDatabasesForOwner(uid);
+  const noteFolders = exportNoteFoldersForOwner(uid) as unknown[];
+
+  return {
+    user: sanitizeUserForExport(user),
+    todos,
+    comments,
+    notifications,
+    notes,
+    noteFolders,
+    teams,
+    projects,
+    activityLog,
+    contacts,
+    userDatabases: databases as unknown[],
+    userDatabaseRows: rows as Record<string, unknown[]>,
+  };
 }
 
 const SENSITIVE_FIELDS = [
@@ -206,6 +230,7 @@ export async function deleteUserData(uid: string): Promise<void> {
   const archivedNoteStore = (store.archivedNotes ?? {}) as Record<string, unknown>;
   delete archivedNoteStore[uid];
   scheduleSave("archivedNotes");
+  purgeNoteFoldersForOwner(uid);
   const noteAttachmentStore = (store.noteAttachments ?? {}) as Record<string, unknown[]>;
   for (const noteId of noteIds) {
     delete noteAttachmentStore[noteId];
@@ -284,6 +309,9 @@ export async function deleteUserData(uid: string): Promise<void> {
     });
   }
   scheduleSave("collaborators");
+
+  purgeContactsForOwner(uid);
+  purgeDatabasesForOwner(uid);
 
   await cancelStripeSubscriptionsById(uid, stripeSubIds);
 

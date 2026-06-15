@@ -18,7 +18,8 @@ vi.mock("./stripeBillingService", () => ({
 }));
 
 import { getStore, initStore } from "../persistence";
-import { deleteUserData } from "./rgpdService";
+import { exportUserData, deleteUserData } from "./rgpdService";
+import { createUserDatabase, createDatabaseRow } from "./userDatabaseService";
 import { register, findUserByUid, purgeAuthRuntimeForUid } from "./authService";
 import { purgeTodoRuntimeForUid, listTodoIdsForOwner } from "./todoService";
 import { purgeNotesRuntimeForUid } from "./noteService";
@@ -73,5 +74,21 @@ describe("deleteUserData", () => {
     purgeTodoRuntimeForUid("orphan-uid");
     expect(listTodoIdsForOwner("orphan-uid")).toEqual([]);
     purgeNotesRuntimeForUid("orphan-uid");
+  });
+});
+
+describe("exportUserData", () => {
+  beforeAll(async () => {
+    await initStore();
+  });
+
+  it("includes user databases in export", () => {
+    const { uid } = register({ email: "rgpd-export@test.local", password: "password123" });
+    const db = createUserDatabase(uid, { name: "Export DB", columns: [{ id: "c1", name: "Nom", type: "text" }] });
+    createDatabaseRow(uid, db.id, { c1: "Ligne 1" });
+    const data = exportUserData(uid);
+    expect(data.userDatabases).toHaveLength(1);
+    expect((data.userDatabases[0] as { name: string }).name).toBe("Export DB");
+    expect(Object.keys(data.userDatabaseRows)).toContain(db.id);
   });
 });

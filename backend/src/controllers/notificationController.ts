@@ -2,7 +2,7 @@ import { Response } from "express";
 
 import { AuthenticatedRequest } from "./authController";
 import {
-  listNotifications,
+  listNotificationsForDisplay,
   unreadCount,
   markAsRead,
   markAllAsRead,
@@ -44,7 +44,7 @@ function enrichNotificationsForDisplay(userId: string, list: Notification[]): No
 export async function list(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const userEmail = req.user!.email;
-  const raw = listNotifications(uid);
+  const raw = listNotificationsForDisplay(uid);
   let notifications = enrichNotificationsForDisplay(uid, raw);
 
   // For note_mention notifications, flag those whose note is no longer accessible

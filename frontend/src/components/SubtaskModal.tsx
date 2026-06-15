@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -143,6 +143,11 @@ export default function SubtaskModal({
   const [effort, setEffort] = useState<Effort>("medium");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
+  const submitInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!creating) submitInFlightRef.current = false;
+  }, [creating]);
 
   void onDeleteSubtask;
 
@@ -174,7 +179,8 @@ export default function SubtaskModal({
   if (!parent) return null;
 
   const handleSubmit = () => {
-    if (!title.trim()) return;
+    if (!title.trim() || creating || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     onCreateSubtask({ title, priority, effort, startDate, deadline });
     setTitle("");
     setPriority("medium");

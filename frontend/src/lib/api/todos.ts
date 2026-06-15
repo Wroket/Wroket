@@ -24,6 +24,17 @@ export interface Recurrence {
   endDate?: string;
 }
 
+export type ExternalProvider = "notion" | "monday";
+
+/** External-source identity for entities mirrored from Notion/Monday. */
+export interface ExternalRef {
+  provider: ExternalProvider;
+  externalId: string;
+  connectionId?: string;
+  externalParentId?: string;
+  lastSyncedAt?: string;
+}
+
 export interface Todo {
   id: string;
   userId: string;
@@ -43,6 +54,9 @@ export interface Todo {
   suggestedSlot: SuggestedSlot | null;
   recurrence: Recurrence | null;
   sortOrder?: number | null;
+  blockedByTodoIds?: string[];
+  customFieldValues?: Record<string, string | number | boolean | null>;
+  externalRef?: ExternalRef | null;
   status: TodoStatus;
   statusChangedAt: string;
   createdAt: string;
@@ -50,6 +64,8 @@ export interface Todo {
 }
 
 export interface CreateTodoPayload {
+  /** Client UUID for idempotent create (retry / double-submit protection). */
+  id?: string;
   title: string;
   priority: Priority;
   effort?: Effort;
@@ -83,6 +99,43 @@ export interface UpdateTodoPayload {
   scheduledSlot?: ScheduledSlot | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
+  blockedByTodoIds?: string[];
+  customFieldValues?: Record<string, string | number | boolean | null>;
+}
+
+export type UpdateTodoApiResult =
+  | { ok: true; todo: Todo }
+  | {
+      ok: false;
+      status: 422;
+      code: string;
+      message: string;
+      details?: Record<string, unknown>;
+    };
+
+export async function updateTodoApi(id: string, payload: UpdateTodoPayload): Promise<UpdateTodoApiResult> {
+  const res = await fetch(`${API_BASE_URL}/todos/${id}`, {
+    ...apiFetchDefaults,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.ok) {
+    broadcastTodosMutated();
+    return { ok: true, todo: body as unknown as Todo };
+  }
+  const message = extractApiMessage(body, "Impossible de modifier la tâche");
+  if (res.status === 422) {
+    return {
+      ok: false,
+      status: 422,
+      code: (body.code as string) ?? "TASK_VALIDATION",
+      message,
+      details: body.details as Record<string, unknown> | undefined,
+    };
+  }
+  throw new Error(message);
 }
 
 export async function getTodos(): Promise<Todo[]> {

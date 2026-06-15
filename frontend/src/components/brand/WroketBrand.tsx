@@ -17,6 +17,7 @@ interface WroketLockupProps {
   markSize?: number;
   className?: string;
   markContainerClassName?: string;
+  wordmarkClassName?: string;
 }
 
 function wordmarkThemeClasses(theme: BrandTheme): { wro: string; ket: string } {
@@ -46,8 +47,9 @@ export function WroketMark({ size = 40, className = "" }: WroketMarkProps) {
 
 export function WroketWordmark({ theme = "auto", className = "" }: WroketWordmarkProps) {
   const cls = wordmarkThemeClasses(theme);
+  const typography = className || "text-xl font-bold";
   return (
-    <span className={`text-xl font-bold ${className}`}>
+    <span className={typography}>
       <span className={cls.wro}>Wro</span>
       <span className={cls.ket}>ket</span>
     </span>
@@ -59,6 +61,7 @@ export function WroketLockup({
   markSize = 40,
   className = "",
   markContainerClassName = "",
+  wordmarkClassName = "",
 }: WroketLockupProps) {
   const markContainer =
     markContainerClassName ||
@@ -73,7 +76,7 @@ export function WroketLockup({
       <span className={markContainer}>
         <WroketMark size={markSize} />
       </span>
-      <WroketWordmark theme={theme} />
+      <WroketWordmark theme={theme} className={wordmarkClassName} />
     </span>
   );
 }

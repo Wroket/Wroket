@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
-import type { ProjectPhase, Todo, TranslationKey } from "./types";
+import type { ProjectPhase, ProjectMilestone, Todo, TranslationKey } from "./types";
 
 const COL_W = 28;
 const HANDLE_W = 8;
@@ -122,9 +122,10 @@ interface BarDragState {
 interface GanttChartProps {
   phases: ProjectPhase[];
   tasks: Todo[];
+  milestones?: ProjectMilestone[];
   t: (key: TranslationKey) => string;
   locale: string;
-  variant?: "interactive" | "export";
+  variant?: "interactive" | "export" | "readonly";
   onMoveTask?: (taskId: string, newPhaseId: string | null, newIndex: number) => void;
   onTaskClick?: (task: Todo) => void;
   onPhaseClick?: (phase: ProjectPhase) => void;
@@ -137,9 +138,11 @@ interface GanttChartProps {
 interface GanttChartBodyProps {
   phases: ProjectPhase[];
   tasks: Todo[];
+  milestones?: ProjectMilestone[];
   t: (key: TranslationKey) => string;
   locale: string;
   isExport: boolean;
+  isReadonly?: boolean;
   onTaskClick?: (task: Todo) => void;
   onPhaseClick?: (phase: ProjectPhase) => void;
   onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
@@ -228,9 +231,11 @@ function GanttTimelineGrid({
 function GanttChartBody({
   phases,
   tasks,
+  milestones = [],
   t,
   locale,
   isExport,
+  isReadonly = false,
   onTaskClick,
   onPhaseClick,
   onBarDateMove,
@@ -253,6 +258,16 @@ function GanttChartBody({
     }
     return map;
   }, [tasks]);
+
+  const tasksById = useMemo(() => new Map(tasks.map((td) => [td.id, td])), [tasks]);
+  const isTaskBlocked = useCallback(
+    (task: Todo) =>
+      (task.blockedByTodoIds ?? []).some((id) => {
+        const b = tasksById.get(id);
+        return b && b.status === "active";
+      }),
+    [tasksById],
+  );
 
   const phaseById = useMemo(() => {
     const map = new Map<string, ProjectPhase>();
@@ -300,6 +315,9 @@ function GanttChartBody({
       if (task.startDate) allDates.push(parseDate(task.startDate));
       if (task.deadline) allDates.push(parseDate(task.deadline));
     }
+    for (const m of milestones) {
+      if (m.date) allDates.push(parseDate(m.date));
+    }
 
     if (allDates.length <= 1) {
       return { minDate: today, totalDays: 30, months: [], phaseBarData: new Map<string, { startDay: number | null; endDay: number | null }>() };
@@ -336,7 +354,7 @@ function GanttChartBody({
     }
 
     return { minDate: minD, totalDays: total, months: builtMonths, phaseBarData: pbd };
-  }, [phases, tasks, locale]);
+  }, [phases, tasks, milestones, locale]);
 
   const { weekTicks, weekLineDays } = useMemo(() => {
     const lineDays: number[] = [];
@@ -544,8 +562,8 @@ function GanttChartBody({
     const textMuted = isExport ? "text-zinc-600" : "text-zinc-600 dark:text-slate-400";
     const borderCls = isExport ? "border-zinc-100" : "border-zinc-100 dark:border-slate-800";
     const hasBar = bar.startDay !== null || bar.endDay !== null;
-    const rowInteractive = !isExport && onTaskClick;
-    const barInteractive = !isExport && !!(onBarDateMove || onTaskClick);
+    const rowInteractive = !isExport && !isReadonly && onTaskClick;
+    const barInteractive = !isExport && !isReadonly && !!(onBarDateMove || onTaskClick);
     const isPreview = dragPreview?.kind === "task" && dragPreview.id === task.id;
 
     return (
@@ -561,6 +579,9 @@ function GanttChartBody({
             <span className={`text-[10px] font-mono font-semibold mr-1.5 ${isExport ? "text-zinc-400" : "text-zinc-400 dark:text-slate-500"}`}>{numbering}</span>
           )}
           {isSubtask && <span className={`mr-1 ${isExport ? "text-zinc-300" : "text-zinc-300 dark:text-slate-600"}`}>↳</span>}
+          {isTaskBlocked(task) && (
+            <span className="mr-1 text-amber-500" title={t("dependencies.blockedBadge")}>⛔</span>
+          )}
           <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
         </button>
         <div className={`${timelineClass} relative`} style={{ ...timelineStyle, height: "100%" }}>
@@ -614,11 +635,11 @@ function GanttChartBody({
     phase?: ProjectPhase,
   ) => {
     const phaseTasks = tasksByPhase.get(phaseId) ?? [];
-    const showConvert = !isExport && phaseId !== "__none__" && canConvertPhaseToSubproject && onConvertPhase;
+    const showConvert = !isExport && !isReadonly && phaseId !== "__none__" && canConvertPhaseToSubproject && onConvertPhase;
     const headerBg = isExport ? "bg-zinc-50/50" : "bg-zinc-50/50 dark:bg-slate-800/30";
     const headerText = isExport ? "text-zinc-700" : "text-zinc-700 dark:text-slate-300";
     const borderCls = isExport ? "border-zinc-100" : "border-zinc-100 dark:border-slate-800";
-    const phaseInteractive = !isExport && phaseId !== "__none__" && phase && (onPhaseClick || onPhaseDateChange);
+    const phaseInteractive = !isExport && !isReadonly && phaseId !== "__none__" && phase && (onPhaseClick || onPhaseDateChange);
 
     const taskList = renderTaskList(phaseTasks, phaseColor);
 
@@ -748,6 +769,36 @@ function GanttChartBody({
         </div>
       </div>
 
+      {milestones.length > 0 && (
+        <div className={`flex items-center border-b ${headerBorder}`} style={{ height: 28 }}>
+          <div
+            className={`shrink-0 px-3 text-[10px] font-semibold uppercase tracking-wide ${monthText}`}
+            style={{ width: labelW }}
+          >
+            {t("projects.milestonesTitle")}
+          </div>
+          <div className={`${timelineClass} relative`} style={{ ...timelineStyle, height: 28 }}>
+            {milestones.map((m) => {
+              const day = daysBetween(minDate, parseDate(m.date));
+              if (day < 0 || day > totalDays) return null;
+              return (
+                <div
+                  key={m.id}
+                  className="absolute top-1/2 -translate-y-1/2 z-10"
+                  style={{ left: day * COL_W + COL_W / 2 - 5 }}
+                  title={`${m.title} — ${m.date}`}
+                >
+                  <div
+                    className="w-2.5 h-2.5 rotate-45 border border-white dark:border-slate-900 shadow-sm"
+                    style={{ backgroundColor: m.color }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {chronoPhases.map((phase) =>
         renderPhaseSection(phase.id, phase.name, phase.color, phaseBarData.get(phase.id) ?? null, phase),
       )}
@@ -766,6 +817,7 @@ function GanttChartBody({
 export default function GanttChart({
   phases,
   tasks,
+  milestones = [],
   t,
   locale,
   variant = "interactive",
@@ -780,6 +832,7 @@ export default function GanttChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const isExport = variant === "export";
+  const isReadonly = variant === "readonly";
 
   const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const hasData = parentTasks.length > 0;
@@ -863,9 +916,11 @@ export default function GanttChart({
     <GanttChartBody
       phases={phases}
       tasks={tasks}
+      milestones={milestones}
       t={t}
       locale={locale}
       isExport={isExport}
+      isReadonly={isReadonly}
       onTaskClick={onTaskClick}
       onPhaseClick={onPhaseClick}
       onBarDateMove={onBarDateMove}
@@ -875,8 +930,8 @@ export default function GanttChart({
     />
   );
 
-  if (isExport) {
-    return <div className="overflow-visible bg-white">{body}</div>;
+  if (isExport || isReadonly) {
+    return <div className="overflow-x-auto">{body}</div>;
   }
 
   return (

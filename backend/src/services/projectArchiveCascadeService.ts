@@ -1,5 +1,6 @@
 import { listChildProjects, updateProject } from "./projectService";
 import { archiveTodosByProjectId } from "./todoService";
+import { cascadeProjectNoteFoldersOnArchive } from "./projectNoteFolderCascade";
 
 /**
  * After a root project is set to archived, archive each active direct sub-project
@@ -14,6 +15,7 @@ export async function cascadeArchiveActiveSubprojects(
     if (child.status !== "active") continue;
     updateProject(uid, email, child.id, { status: "archived" });
     await archiveTodosByProjectId(child.id);
+    cascadeProjectNoteFoldersOnArchive(child.id);
   }
 }
 

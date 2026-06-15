@@ -25,7 +25,7 @@ export const SITE_DESCRIPTION_FR =
 export const SITE_OG_DESCRIPTION_FR =
   "Wroket priorise pour vous — tâches, agenda et collaboration d'équipe.";
 const OG_IMAGE = "/og.png";
-const OG_IMAGE_ALT = "Wroket — Travaillez efficacement. Ensemble.";
+const OG_IMAGE_ALT = "Wroket";
 
 export interface PageMetadataInput {
   /**

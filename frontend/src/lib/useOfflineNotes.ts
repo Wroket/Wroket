@@ -10,8 +10,12 @@ import {
   updateNoteApi,
   deleteNoteApi,
   syncNotesApi,
+  getNoteFolders,
+  createNoteFolderApi,
+  deleteNoteFolderApi,
   Note,
 } from "@/lib/api";
+import type { NoteFolderSummary } from "@/lib/api/notes";
 import { mergeOwnNotesFromServer } from "@/lib/notesMerge";
 import { broadcastResourceChange, useResourceSync } from "@/lib/useResourceSync";
 
@@ -21,13 +25,15 @@ const NOTES_RESOURCE_POLL_MS = 90_000;
 const LS_KEY = "wroket_notes";
 const LS_DIRTY_KEY = "wroket_notes_dirty";
 const LS_DELETED_KEY = "wroket_notes_deleted";
+const LS_FOLDERS_KEY = "wroket_note_folders";
 
-/** Clears notes offline cache (own list, dirty queue, pending deletes). */
+/** Clears notes offline cache (own list, dirty queue, pending deletes, folders). */
 export function clearNotesLocalStorage(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(LS_KEY);
   localStorage.removeItem(LS_DIRTY_KEY);
   localStorage.removeItem(LS_DELETED_KEY);
+  localStorage.removeItem(LS_FOLDERS_KEY);
 }
 
 function readLocal(): Note[] {
@@ -83,8 +89,46 @@ function clearDeleted() {
   localStorage.removeItem(LS_DELETED_KEY);
 }
 
+function readLocalFolderNames(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_FOLDERS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalFolderNames(names: string[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LS_FOLDERS_KEY, JSON.stringify(names));
+}
+
+function buildFolderSummaries(notes: Note[], persistedNames: string[]): NoteFolderSummary[] {
+  const names = new Set<string>(persistedNames);
+  for (const n of notes) {
+    const f = n.folder?.trim();
+    if (f) names.add(f);
+  }
+  const persistedSet = new Set(persistedNames);
+  return [...names]
+    .sort((a, b) => a.localeCompare(b, "fr"))
+    .map((name) => {
+      const notesInFolder = notes.filter((n) => n.folder?.trim() === name);
+      const projectIds = [...new Set(notesInFolder.map((n) => n.projectId).filter(Boolean))] as string[];
+      return {
+        name,
+        createdAt: new Date(0).toISOString(),
+        noteCount: notesInFolder.length,
+        persisted: persistedSet.has(name),
+        projectId: projectIds.length === 1 ? projectIds[0] : undefined,
+      };
+    });
+}
+
 export function useOfflineNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [folders, setFolders] = useState<NoteFolderSummary[]>([]);
   const [online, setOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -140,17 +184,36 @@ export function useOfflineNotes() {
           const synced = await syncNotesApi(dirtyNotes);
           clearDirty();
           const ownNotes = mergeOwnNotes(synced);
-          setNotes(sortNotes([...ownNotes, ...sharedNotes]));
+          const merged = sortNotes([...ownNotes, ...sharedNotes]);
+          setNotes(merged);
+          try {
+            const serverFolders = await getNoteFolders();
+            setFolders(serverFolders);
+            writeLocalFolderNames(serverFolders.filter((f) => f.persisted).map((f) => f.name));
+          } catch {
+            setFolders(buildFolderSummaries(ownNotes, readLocalFolderNames()));
+          }
           return;
         }
       }
 
       clearDirty();
       const ownNotes = mergeOwnNotes(serverNotes);
-      setNotes(sortNotes([...ownNotes, ...sharedNotes]));
+      const merged = sortNotes([...ownNotes, ...sharedNotes]);
+      setNotes(merged);
+      try {
+        const serverFolders = await getNoteFolders();
+        setFolders(serverFolders);
+        writeLocalFolderNames(serverFolders.filter((f) => f.persisted).map((f) => f.name));
+      } catch {
+        setFolders(buildFolderSummaries(ownNotes, readLocalFolderNames()));
+      }
     } catch {
       const local = readLocal();
-      if (local.length > 0) setNotes(local);
+      if (local.length > 0) {
+        setNotes(local);
+        setFolders(buildFolderSummaries(local, readLocalFolderNames()));
+      }
     } finally {
       setSyncing(false);
     }
@@ -381,8 +444,54 @@ export function useOfflineNotes() {
     }
   }, [fetchAndSync]);
 
+  const createFolder = useCallback(async (name: string): Promise<void> => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (folders.some((f) => f.name === trimmed)) {
+      throw new Error("folder exists");
+    }
+    const now = new Date().toISOString();
+    const optimistic: NoteFolderSummary = {
+      name: trimmed,
+      createdAt: now,
+      noteCount: 0,
+      persisted: true,
+    };
+    setFolders((prev) => [...prev, optimistic].sort((a, b) => a.name.localeCompare(b.name, "fr")));
+    const localNames = [...readLocalFolderNames(), trimmed];
+    writeLocalFolderNames(localNames);
+    if (online) {
+      try {
+        await createNoteFolderApi(trimmed);
+        const serverFolders = await getNoteFolders();
+        setFolders(serverFolders);
+        writeLocalFolderNames(serverFolders.filter((f) => f.persisted).map((f) => f.name));
+      } catch (err) {
+        setFolders((prev) => prev.filter((f) => f.name !== trimmed));
+        writeLocalFolderNames(readLocalFolderNames().filter((n) => n !== trimmed));
+        throw err;
+      }
+    }
+  }, [folders, online]);
+
+  const removeFolder = useCallback(async (name: string): Promise<void> => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setFolders((prev) => prev.filter((f) => f.name !== trimmed));
+    writeLocalFolderNames(readLocalFolderNames().filter((n) => n !== trimmed));
+    if (online) {
+      try {
+        await deleteNoteFolderApi(trimmed);
+      } catch {
+        await fetchAndSync();
+        throw new Error("delete folder failed");
+      }
+    }
+  }, [online, fetchAndSync]);
+
   return {
     notes,
+    folders,
     loading,
     online,
     syncing,
@@ -390,6 +499,8 @@ export function useOfflineNotes() {
     saveNote,
     removeNote,
     togglePin,
+    createFolder,
+    removeFolder,
     reload: fetchAndSync,
     pushToServer,
   };

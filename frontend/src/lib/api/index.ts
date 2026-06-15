@@ -114,6 +114,7 @@ export {
   removeTeamMemberApi,
   updateMemberRoleApi,
   getTeamDashboard,
+  getTeamPortfolio,
   getTeamReporting,
   deleteTeamApi,
   getOwnedTeams,
@@ -134,6 +135,8 @@ export type {
   Team,
   ReceivedInvitation,
   TeamDashboardData,
+  TeamPortfolioSnapshot,
+  TeamPortfolioProjectRow,
   TeamReportingPeriodDays,
   TeamReportingMemberRow,
   TeamReportingProjectRow,
@@ -164,10 +167,21 @@ export {
   confirmCsvImport,
   exportProjectData,
   importProjectTasksFile,
+  getProjectMilestones,
+  createProjectMilestone,
+  updateProjectMilestone,
+  deleteProjectMilestone,
+  getProjectCustomFieldDefs,
+  createProjectCustomFieldDef,
+  deleteProjectCustomFieldDef,
+  getProjectNotesApi,
 } from "./projects";
 export type {
   ProjectStatus,
   ProjectPhase,
+  ProjectMilestone,
+  ProjectCustomFieldDef,
+  CustomFieldType,
   Project,
   ProjectAccessRole,
   ProjectAccessEntry,
@@ -226,8 +240,11 @@ export {
   exportNotesMarkdown,
   exportNotes,
   importNotesFile,
+  getNoteFolders,
+  createNoteFolderApi,
+  deleteNoteFolderApi,
 } from "./notes";
-export type { Note } from "./notes";
+export type { Note, NoteFolderSummary } from "./notes";
 
 export {
   getWebhooks,
@@ -270,3 +287,37 @@ export type {
 
 export { postPricingContact } from "./marketing";
 export type { PostPricingContactBody, PostPricingContactResult } from "./marketing";
+
+export { previewNotionImport, confirmNotionImport } from "./notionImport";
+export type {
+  NotionImportPreview,
+  NotionImportConfirmResult,
+  NotionDatabasePreview,
+  NotionImportCapacity,
+} from "./notionImport";
+
+export {
+  getSharedProjectView,
+  listProjectShareLinks,
+  createProjectShareLink,
+  revokeProjectShareLink,
+  buildShareProjectUrl,
+} from "./projectShare";
+export type { ProjectShareLink, SharedProjectView, ShareLinkExpiryDays, ShareLinkTab } from "./projectShare";
+
+export {
+  getTodoTimeSessions,
+  startTodoTimer,
+  stopTodoTimer,
+  addManualTodoTimeSession,
+} from "./timeSessions";
+export type { TimeSession, TimeSessionsResponse } from "./timeSessions";
+
+export {
+  getContacts,
+  getContact,
+  createContact,
+  updateContact,
+  deleteContact,
+} from "./contacts";
+export type { Contact, CreateContactPayload, UpdateContactPayload } from "./contacts";

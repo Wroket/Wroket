@@ -1,7 +1,7 @@
 import { parseApiErrorResponse } from "@/lib/apiErrors";
 
 import {
-  API_BASE_URL, parseJsonOrThrow, extractApiMessage,
+  API_BASE_URL, apiFetchDefaults, parseJsonOrThrow, extractApiMessage,
 } from "./core";
 import type { Todo } from "./todos";
 import { broadcastResourceChange } from "@/lib/useResourceSync";
@@ -210,6 +210,30 @@ export async function getTeamDashboard(teamId: string): Promise<TeamDashboardDat
   const res = await fetch(`${API_BASE_URL}/teams/${teamId}/dashboard`, { credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger le dashboard équipe");
   return res.json();
+}
+
+export interface TeamPortfolioProjectRow {
+  projectId: string;
+  projectName: string;
+  teamId: string | null;
+  health: "done" | "overdue" | "at-risk" | "on-track" | "empty";
+  completionRatio: number | null;
+  activeCount: number;
+  overdueCount: number;
+  atRiskCount: number;
+  nextMilestone: { phaseName: string; endDate: string; daysLeft: number } | null;
+}
+
+export interface TeamPortfolioSnapshot {
+  teamId: string;
+  generatedAt: string;
+  projects: TeamPortfolioProjectRow[];
+}
+
+export async function getTeamPortfolio(teamId: string): Promise<TeamPortfolioSnapshot> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/portfolio`, { ...apiFetchDefaults, method: "GET" });
+  if (!res.ok) throw new Error("Impossible de charger le portfolio");
+  return res.json() as Promise<TeamPortfolioSnapshot>;
 }
 
 export type TeamReportingPeriodDays = 7 | 14 | 30;

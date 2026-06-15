@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+import DatabasesSection from "@/app/notes/_components/DatabasesSection";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
@@ -16,6 +17,7 @@ import { clearNotesLocalStorage, useOfflineNotes } from "@/lib/useOfflineNotes";
 import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 import { personalNotesCreateBlocked } from "@/lib/freeQuota";
+import { newClientEntityId } from "@/lib/newClientId";
 
 function NotesPageInner() {
   const { t } = useLocale();
@@ -23,7 +25,7 @@ function NotesPageInner() {
   const { user: authUser } = useAuth();
   const currentUid = authUser?.uid ?? null;
   const searchParams = useSearchParams();
-  const { notes, loading, online, syncing, addNote, saveNote, removeNote, togglePin, reload, pushToServer } = useOfflineNotes();
+  const { notes, folders, loading, online, syncing, addNote, saveNote, removeNote, togglePin, createFolder, removeFolder, reload, pushToServer } = useOfflineNotes();
   const [resyncing, setResyncing] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,7 +40,7 @@ function NotesPageInner() {
   const contentRef = useRef<HTMLDivElement>(null);
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
-  type NotesHomeView = "tiles" | "list";
+  type NotesHomeView = "tiles" | "list" | "databases";
   const [homeView, setHomeView] = useState<NotesHomeView>("tiles");
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
@@ -54,6 +56,14 @@ function NotesPageInner() {
   );
 
   useEffect(() => {
+    const section = searchParams.get("section");
+    const db = searchParams.get("db");
+    if (section === "databases") {
+      setHomeView("databases");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
     getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
     getTeams().then(setTeams).catch(() => setTeams([]));
@@ -67,14 +77,31 @@ function NotesPageInner() {
   const stripHtml = (value: string): string =>
     value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
-  const folderNames = useMemo(() => {
-    const s = new Set<string>();
-    for (const n of notes) {
-      const f = n.folder?.trim();
-      if (f) s.add(f);
+  const folderNames = useMemo(
+    () => folders.map((f) => f.name).filter((name) => name !== t("notes.folderUntitled")),
+    [folders, t],
+  );
+
+  const folderNoteCount = useCallback(
+    (name: string) => folders.find((f) => f.name === name)?.noteCount
+      ?? notes.filter((n) => n.folder === name).length,
+    [folders, notes],
+  );
+
+  const isProjectLinkedFolder = useCallback(
+    (name: string) => Boolean(folders.find((f) => f.name === name)?.projectId),
+    [folders],
+  );
+
+  const promptDeleteFolder = useCallback((folderName: string) => {
+    if (isProjectLinkedFolder(folderName)) {
+      toast.error(t("notes.deleteFolderProjectBlocked"));
+      return;
     }
-    return [...s].sort((a, b) => a.localeCompare(b, "fr"));
-  }, [notes]);
+    setDeleteFolderModal(folderName);
+    setDeleteFolderChoice("a");
+    setDeleteFolderTarget("");
+  }, [isProjectLinkedFolder, toast, t]);
 
   const listScoped = useMemo(() => {
     if (homeView !== "list") return [];
@@ -126,34 +153,45 @@ function NotesPageInner() {
     setDeleteConfirm(null);
   }, []);
 
-  const handleCreateFolderSubmit = useCallback(() => {
+  const handleCreateFolderSubmit = useCallback(async () => {
     const name = createFolderName.trim();
     if (!name) return;
-    if (personalNotesCreateBlocked(authUser)) {
-      toast.error(t("quota.free.noteLimitHint"));
-      return;
-    }
     if (folderNames.includes(name)) {
       setCreateFolderOpen(false);
       setCreateFolderName("");
       handleOpenFolderTile(name);
       return;
     }
-    const id = addNote(undefined, { folder: name });
-    setCreateFolderOpen(false);
-    setCreateFolderName("");
-    setActiveFolder(name);
-    setHomeView("list");
-    setSelectedId(id);
-    setMobileShowEditor(true);
-    setTimeout(() => titleRef.current?.focus(), 50);
-  }, [createFolderName, folderNames, addNote, handleOpenFolderTile, authUser, toast, t]);
+    try {
+      await createFolder(name);
+      setCreateFolderOpen(false);
+      setCreateFolderName("");
+      handleOpenFolderTile(name);
+      toast.success(t("notes.folderCreated"));
+    } catch {
+      toast.error(t("notes.folderExists"));
+    }
+  }, [createFolderName, folderNames, createFolder, handleOpenFolderTile, toast, t]);
 
   const executeDeleteFolder = useCallback(async () => {
     const folderName = deleteFolderModal;
     if (!folderName) return;
+    if (isProjectLinkedFolder(folderName)) {
+      toast.error(t("notes.deleteFolderProjectBlocked"));
+      setDeleteFolderModal(null);
+      return;
+    }
     const targets = notes.filter((n) => n.folder === folderName && isOwnNote(n));
     try {
+      if (targets.length === 0) {
+        await removeFolder(folderName);
+        setDeleteFolderModal(null);
+        setDeleteFolderChoice("a");
+        setDeleteFolderTarget("");
+        toast.success(t("notes.saved"));
+        if (activeFolder === folderName) handleBackToTiles();
+        return;
+      }
       if (deleteFolderChoice === "a") {
         for (const n of targets) saveNote(n.id, { folder: "" });
       } else if (deleteFolderChoice === "b") {
@@ -173,6 +211,11 @@ function NotesPageInner() {
       setDeleteFolderModal(null);
       setDeleteFolderChoice("a");
       setDeleteFolderTarget("");
+      try {
+        await removeFolder(folderName);
+      } catch {
+        /* persisted entry may already be gone for legacy-only folders */
+      }
       toast.success(t("notes.saved"));
       if (activeFolder === folderName) handleBackToTiles();
     } catch {
@@ -186,10 +229,12 @@ function NotesPageInner() {
     isOwnNote,
     saveNote,
     removeNote,
+    removeFolder,
     toast,
     t,
     activeFolder,
     handleBackToTiles,
+    isProjectLinkedFolder,
   ]);
 
   const handleSelect = useCallback((note: Note) => {
@@ -262,7 +307,7 @@ function NotesPageInner() {
 
   useEffect(() => {
     void Promise.resolve().then(() => {
-      const idParam = searchParams.get("id");
+      const idParam = searchParams.get("id") ?? searchParams.get("note");
       if (idParam && notes.some((n) => n.id === idParam)) {
         const found = notes.find((x) => x.id === idParam);
         setSelectedId(idParam);
@@ -335,6 +380,7 @@ function NotesPageInner() {
   const handleSlashCreateTask = useCallback(
     async (payload: SlashTaskPayload) => {
       const todo = await createTodo({
+        id: newClientEntityId(),
         title: payload.title,
         priority: payload.priority,
         effort: "medium",
@@ -386,7 +432,14 @@ function NotesPageInner() {
 
   return (
     <AppShell>
-      {homeView === "tiles" ? (
+      {homeView === "databases" ? (
+        <div className="min-h-[calc(100vh-65px)] overflow-y-auto bg-zinc-50 dark:bg-slate-950">
+          <DatabasesSection
+            initialDatabaseId={searchParams.get("db")}
+            onBack={() => setHomeView("tiles")}
+          />
+        </div>
+      ) : homeView === "tiles" ? (
         <div className="min-h-[calc(100vh-65px)] overflow-y-auto bg-zinc-50 dark:bg-slate-950">
           <div className="max-w-5xl mx-auto p-4 md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -399,6 +452,7 @@ function NotesPageInner() {
                   iconOnly
                   title={t("notes.title")}
                   items={[
+                    { text: t("help.notes.bases") },
                     { text: t("help.notes.slash") },
                     { text: t("help.notes.folders") },
                     { text: t("help.notes.tags") },
@@ -409,10 +463,10 @@ function NotesPageInner() {
                   ]}
                 />
                 <Link
-                  href="/archive/notes"
+                  href="/archive/data"
                   className="inline-flex items-center justify-center rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
-                  title={t("notes.archiveTitle")}
-                  aria-label={t("notes.archiveTitle")}
+                  title={t("archives.data.hubTitle")}
+                  aria-label={t("archives.data.hubTitle")}
                 >
                   <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -473,6 +527,14 @@ function NotesPageInner() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <button
                   type="button"
+                  onClick={() => setHomeView("databases")}
+                  className="text-left rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/30 p-4 shadow-sm hover:border-indigo-400 transition-colors min-h-[120px] flex flex-col"
+                >
+                  <span className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("notes.databases.tile")}</span>
+                  <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2">{t("notes.databases.tileHint")}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleOpenFolderTile(null)}
                   className="text-left rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors min-h-[120px] flex flex-col"
                 >
@@ -487,25 +549,50 @@ function NotesPageInner() {
                   )}
                 </button>
                 {folderNames.map((fn) => (
-                  <button
+                  <div
                     key={fn}
-                    type="button"
-                    onClick={() => handleOpenFolderTile(fn)}
-                    className="text-left rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors min-h-[120px] flex flex-col"
+                    className="group relative text-left rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors min-h-[120px] flex flex-col"
                   >
-                    <span className="text-lg font-semibold text-zinc-900 dark:text-slate-100 truncate">{fn}</span>
-                    <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2">
-                      {t("notes.folderCount").replace(
-                        "{{count}}",
-                        String(notes.filter((x) => x.folder === fn).length),
-                      )}
-                    </span>
-                    {latestUpdatedInFolder(fn) && (
-                      <span className="text-[11px] text-zinc-400 dark:text-slate-500 mt-auto pt-3">
-                        {formatDate(latestUpdatedInFolder(fn)!)}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFolderTile(fn)}
+                      className="flex-1 text-left p-4 flex flex-col"
+                      aria-label={t("notes.openFolder").replace("{name}", fn)}
+                    >
+                      <div className="flex items-start gap-2 pr-6">
+                        <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                          </svg>
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-lg font-semibold text-zinc-900 dark:text-slate-100 truncate block">{fn}</span>
+                        </div>
+                      </div>
+                      <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2 ml-7">
+                        {t("notes.folderCount").replace(
+                          "{{count}}",
+                          String(folderNoteCount(fn)),
+                        )}
                       </span>
+                      {latestUpdatedInFolder(fn) && (
+                        <span className="text-[11px] text-zinc-400 dark:text-slate-500 mt-auto pt-3 ml-7">
+                          {formatDate(latestUpdatedInFolder(fn)!)}
+                        </span>
+                      )}
+                    </button>
+                    {!isProjectLinkedFolder(fn) && (
+                      <button
+                        type="button"
+                        onClick={() => promptDeleteFolder(fn)}
+                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-xs text-red-500 hover:text-red-700"
+                        title={t("notes.deleteFolder")}
+                        aria-label={t("notes.deleteFolder")}
+                      >
+                        ×
+                      </button>
                     )}
-                  </button>
+                  </div>
                 ))}
                 <button
                   type="button"
@@ -582,14 +669,10 @@ function NotesPageInner() {
                 <h1 className="text-base font-bold text-zinc-900 dark:text-slate-100 truncate leading-tight">
                   {activeFolder ?? t("notes.folderUntitled")}
                 </h1>
-                {activeFolder && (
+                {activeFolder && !isProjectLinkedFolder(activeFolder) && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setDeleteFolderModal(activeFolder);
-                      setDeleteFolderChoice("a");
-                      setDeleteFolderTarget("");
-                    }}
+                    onClick={() => promptDeleteFolder(activeFolder)}
                     className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
                   >
                     {t("notes.deleteFolder")}
@@ -602,6 +685,7 @@ function NotesPageInner() {
                   iconOnly
                   title={t("notes.title")}
                   items={[
+                    { text: t("help.notes.bases") },
                     { text: t("help.notes.slash") },
                     { text: t("help.notes.folders") },
                     { text: t("help.notes.tags") },
@@ -612,10 +696,10 @@ function NotesPageInner() {
                   ]}
                 />
                 <Link
-                  href="/archive/notes"
+                  href="/archive/data"
                   className="inline-flex items-center justify-center rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
-                  title={t("notes.archiveTitle")}
-                  aria-label={t("notes.archiveTitle")}
+                  title={t("archives.data.hubTitle")}
+                  aria-label={t("archives.data.hubTitle")}
                 >
                   <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -1094,7 +1178,10 @@ function NotesPageInner() {
         </div>
       </div>
       )}
-      {deleteFolderModal && (
+      {deleteFolderModal && (() => {
+        const deleteFolderNoteCount = notes.filter((x) => x.folder === deleteFolderModal && isOwnNote(x)).length;
+        const isEmptyFolder = deleteFolderNoteCount === 0;
+        return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4" role="presentation">
           <div
             role="dialog"
@@ -1103,10 +1190,15 @@ function NotesPageInner() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="del-folder-title" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
-              {t("notes.deleteFolderTitle")
-                .replace("{{count}}", String(notes.filter((x) => x.folder === deleteFolderModal && isOwnNote(x)).length))
-                .replace("{{name}}", deleteFolderModal)}
+              {isEmptyFolder
+                ? t("notes.deleteFolderEmptyTitle").replace("{{name}}", deleteFolderModal)
+                : t("notes.deleteFolderTitle")
+                    .replace("{{count}}", String(deleteFolderNoteCount))
+                    .replace("{{name}}", deleteFolderModal)}
             </h2>
+            {isEmptyFolder ? (
+              <p className="text-sm text-zinc-600 dark:text-slate-400">{t("notes.deleteFolderEmptyHint")}</p>
+            ) : (
             <div className="space-y-3 text-sm">
               <label className="flex gap-2 cursor-pointer items-start">
                 <input type="radio" name="del-folder" checked={deleteFolderChoice === "a"} onChange={() => { setDeleteFolderChoice("a"); setDeleteFolderTarget(""); }} className="mt-1" />
@@ -1134,6 +1226,7 @@ function NotesPageInner() {
                 <span className="text-red-700 dark:text-red-400">{t("notes.deleteFolderOptD")}</span>
               </label>
             </div>
+            )}
             <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-slate-800">
               <button
                 type="button"
@@ -1144,16 +1237,17 @@ function NotesPageInner() {
               </button>
               <button
                 type="button"
-                disabled={deleteFolderChoice === "b" && !deleteFolderTarget.trim()}
+                disabled={!isEmptyFolder && deleteFolderChoice === "b" && !deleteFolderTarget.trim()}
                 onClick={() => void executeDeleteFolder()}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed ${deleteFolderChoice === "d" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed ${!isEmptyFolder && deleteFolderChoice === "d" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
               >
                 {t("notes.deleteFolderConfirm")}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </AppShell>
   );
 }

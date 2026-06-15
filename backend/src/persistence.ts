@@ -30,7 +30,7 @@ export function todoShardDocId(shardIndex: number): string {
 
 const DOMAINS = [
   "users", "notifications", "collaborators",
-  "teams", "projects", "sessions", "webhooks", "inviteLog", "pricingContactLeads", "comments", "notes", "archivedNotes", "activityLog", "attachments", "noteAttachments",
+  "teams", "projects", "sessions", "webhooks", "inviteLog", "pricingContactLeads", "comments", "notes", "archivedNotes", "noteFolders", "archivedNoteFolders", "activityLog", "attachments", "noteAttachments",
   "pendingCommentMentions",
   /** Short-lived tokens for password/Google login when TOTP is enabled (multi-instance safe) */
   "pendingTwoFactor",
@@ -38,6 +38,23 @@ const DOMAINS = [
   "notifDigestQueue",
   /** User-defined task templates. */
   "taskTemplates",
+  /** Public read-only project share links (keyed by token). */
+  "projectShareLinks",
+  "timeSessions",
+  /** External app connections (Notion, Monday, ...) keyed by connection id. */
+  "externalConnections",
+  /** Personal contact directory (keyed by owner uid). */
+  "contacts",
+  /** Soft-deleted contacts (keyed by owner uid). */
+  "archivedContacts",
+  /** User-defined databases (Notes › Bases). */
+  "userDatabases",
+  /** Rows keyed by database id. */
+  "userDatabaseRows",
+  /** Soft-deleted databases (keyed by owner uid). */
+  "archivedUserDatabases",
+  /** Rows for archived databases (keyed by database id). */
+  "archivedUserDatabaseRows",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -58,6 +75,10 @@ export interface StoreData {
   notes?: Record<string, Record<string, unknown>>;
   /** Soft-deleted notes (same shape as `notes`), document `store/archivedNotes` in Firestore. */
   archivedNotes?: Record<string, Record<string, unknown>>;
+  /** Persisted note folder names (empty folders allowed), keyed by owner uid. */
+  noteFolders?: Record<string, Record<string, unknown>>;
+  /** Dossiers liés à un projet archivé, keyed by owner uid. */
+  archivedNoteFolders?: Record<string, Record<string, unknown>>;
   activityLog?: unknown[];
   attachments?: Record<string, unknown[]>;
   /** Note-namespace file attachment metadata (note not linked to a task). */
@@ -70,6 +91,24 @@ export interface StoreData {
   notifDigestQueue?: Record<string, unknown[]>;
   /** User-defined task templates (list per user uid). */
   taskTemplates?: Record<string, unknown[]>;
+  /** Token → share link metadata for public project views. */
+  projectShareLinks?: Record<string, unknown>;
+  /** Time tracking sessions keyed by session id. */
+  timeSessions?: Record<string, unknown>;
+  /** External app connections (Notion, Monday, ...) keyed by connection id. */
+  externalConnections?: Record<string, unknown>;
+  /** Personal contacts keyed by owner uid. */
+  contacts?: Record<string, unknown[]>;
+  /** Soft-deleted contacts keyed by owner uid. */
+  archivedContacts?: Record<string, unknown[]>;
+  /** User databases keyed by owner uid. */
+  userDatabases?: Record<string, unknown[]>;
+  /** Database rows keyed by database id. */
+  userDatabaseRows?: Record<string, unknown[]>;
+  /** Soft-deleted user databases keyed by owner uid. */
+  archivedUserDatabases?: Record<string, unknown[]>;
+  /** Rows for archived databases keyed by database id. */
+  archivedUserDatabaseRows?: Record<string, unknown[]>;
 }
 
 let cachedStore: StoreData = {};

@@ -455,3 +455,10 @@ export async function deleteTeamCollaborator(req: AuthenticatedRequest, res: Res
   removeTeamCollaborator(teamId, req.user!.uid, req.user!.email, email);
   res.status(200).json({ ok: true });
 }
+
+export async function getTeamPortfolio(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const { buildTeamPortfolio } = await import("../services/teamPortfolioService");
+  const snap = buildTeamPortfolio(teamId, req.user!.uid, req.user!.email ?? "");
+  res.status(200).json(snap);
+}

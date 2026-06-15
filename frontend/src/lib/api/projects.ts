@@ -1,7 +1,7 @@
 import {
   API_BASE_URL, parseJsonOrThrow, extractApiMessage,
 } from "./core";
-import type { Priority, Effort, Todo } from "./todos";
+import type { Priority, Effort, Todo, ExternalRef } from "./todos";
 import { broadcastResourceChange } from "@/lib/useResourceSync";
 
 export type ProjectStatus = "active" | "archived";
@@ -14,7 +14,29 @@ export interface ProjectPhase {
   order: number;
   startDate: string | null;
   endDate: string | null;
+  externalRef?: ExternalRef | null;
   createdAt: string;
+}
+
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
+  title: string;
+  date: string;
+  phaseId: string | null;
+  color: string;
+  order: number;
+  createdAt: string;
+}
+
+export type CustomFieldType = "text" | "number" | "date" | "select" | "checkbox";
+
+export interface ProjectCustomFieldDef {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options?: string[];
+  order: number;
 }
 
 export type ProjectAccessRole = "viewer" | "editor" | "admin";
@@ -36,6 +58,9 @@ export interface Project {
   sortOrder: number;
   status: ProjectStatus;
   phases: ProjectPhase[];
+  milestones?: ProjectMilestone[];
+  customFieldDefs?: ProjectCustomFieldDef[];
+  externalRef?: ExternalRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -355,4 +380,107 @@ export async function importProjectTasksFile(projectId: string, file: File): Pro
   const res = await fetch(`${API_BASE_URL}/projects/${projectId}/import`, { method: "POST", body: fd, credentials: "include" });
   if (!res.ok) throw new Error("Import failed");
   return res.json();
+}
+
+// ── Milestones ──
+
+export async function getProjectMilestones(projectId: string): Promise<ProjectMilestone[]> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/milestones`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les jalons");
+  const data = (await res.json()) as { milestones: ProjectMilestone[] };
+  return data.milestones;
+}
+
+export async function createProjectMilestone(
+  projectId: string,
+  payload: { title: string; date: string; phaseId?: string | null; color?: string },
+): Promise<ProjectMilestone> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/milestones`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const result = (await res.json()) as ProjectMilestone;
+  broadcastResourceChange("projects");
+  return result;
+}
+
+export async function updateProjectMilestone(
+  projectId: string,
+  milestoneId: string,
+  payload: Partial<{ title: string; date: string; phaseId: string | null; color: string; order: number }>,
+): Promise<ProjectMilestone> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/milestones/${milestoneId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const result = (await res.json()) as ProjectMilestone;
+  broadcastResourceChange("projects");
+  return result;
+}
+
+export async function deleteProjectMilestone(projectId: string, milestoneId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/milestones/${milestoneId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur");
+  broadcastResourceChange("projects");
+}
+
+// ── Custom field definitions ──
+
+export async function getProjectCustomFieldDefs(projectId: string): Promise<ProjectCustomFieldDef[]> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/custom-field-defs`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les champs");
+  const data = (await res.json()) as { fields: ProjectCustomFieldDef[] };
+  return data.fields;
+}
+
+export async function createProjectCustomFieldDef(
+  projectId: string,
+  payload: { name: string; type: CustomFieldType; options?: string[] },
+): Promise<ProjectCustomFieldDef> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/custom-field-defs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const result = (await res.json()) as ProjectCustomFieldDef;
+  broadcastResourceChange("projects");
+  return result;
+}
+
+export async function deleteProjectCustomFieldDef(projectId: string, fieldId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/custom-field-defs/${fieldId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erreur");
+  broadcastResourceChange("projects");
+}
+
+// ── Project notes (wiki) ──
+
+export async function getProjectNotesApi(projectId: string): Promise<import("./notes").Note[]> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/notes`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les notes du projet");
+  const data = (await res.json()) as { notes: import("./notes").Note[] };
+  return data.notes;
 }

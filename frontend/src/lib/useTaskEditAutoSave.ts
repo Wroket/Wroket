@@ -13,10 +13,11 @@ export type TaskEditFormSnapshot = {
   tags: string[];
   recurrence: unknown;
   projectId: string | null;
+  blockedByTodoIds?: string[];
 };
 
 function basePayload(form: TaskEditFormSnapshot): UpdateTodoPayload {
-  return {
+  const payload: UpdateTodoPayload = {
     title: form.title,
     priority: form.priority as UpdateTodoPayload["priority"],
     effort: form.effort as UpdateTodoPayload["effort"],
@@ -28,6 +29,10 @@ function basePayload(form: TaskEditFormSnapshot): UpdateTodoPayload {
     recurrence: form.recurrence as UpdateTodoPayload["recurrence"],
     projectId: form.projectId,
   };
+  if (form.blockedByTodoIds !== undefined) {
+    payload.blockedByTodoIds = form.blockedByTodoIds;
+  }
+  return payload;
 }
 
 /**

@@ -12,13 +12,29 @@
 | **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause**. **P2 en cours** : PWA + **Web Push** — Android E2E OK (2026-06-07) ; **desktop/multi-appareil** livré (`a9d0c1e` + correctifs icône opaque + actions Accepter/Refuser via deep-link app) — E2E §I-bis à valider post-deploy ; **prochaine priorité → import Notion ZIP**. **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause**. **P2 en cours** : PWA + **Web Push** livrés ; **Gantt interactif + quadrillage** livrés (2026-06-08). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
-### Prochaine priorité
+### Trois priorités produit (arbitrage 2026-06-08)
 
-**Import Notion ZIP (P2 acquisition)** — wizard preview/confirm, landing `/migrate/notion`. Séquence produit : ~~PWA~~ → ~~Web Push~~ → **import Notion** → liens partageables → a11y.
+Exécution **unifiée** (pas trois silos) — détail des vagues : [docs/project-roadmap-pmo.md §12](docs/project-roadmap-pmo.md#12-alignement-3-priorités-produit).
 
-Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce tableau **ordonne** les chantiers pour maximiser l’attractivité perçue (fiabilité → monétisation → plaisir d’usage → profondeur).
+| Priorité | Focus | Prochain livrable |
+|----------|--------|-------------------|
+| **A — PMO** | Finir [plan PMO](docs/project-roadmap-pmo.md) (partage, portfolio, jalons, E2E) | Liens lecture seule + portfolio (vague 2) |
+| **B — Notion-Like** | Acquisition + profondeur Notion | **Import ZIP** (vague 1) |
+| **C — Monday-Like** | Acquisition PMO Monday | Import board (vague 4, après orchestrateur Notion) |
+
+**Vague 1 (Now)** : Import Notion ZIP + dépendances tâches + validation E2E Gantt §G.12.
+
+**Vague 2 (Next)** : Liens partageables + portfolio équipe + marketing Notion.
+
+**Vagues 3–4 (Later)** : wiki, time tracking, champs perso., jalons dédiés → puis import Monday, automations, dashboard équipe.
+
+### Prochaine priorité (sprint)
+
+**Vague 1 — socle** : **Import Notion ZIP** + **dépendances tâches** (couvre PMO phase 2 partiel + Notion-Like v1–v2). En parallèle : cocher E2E checklist §G.12 (quadrillage Gantt).
+
+Les cases `[ ]` des sections thématiques restent la **source de vérité** ; le plan PMO §12 **ordonne** les trois priorités entre elles.
 
 ## Audit complétude (passe 2)
 
@@ -64,9 +80,9 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; ce
 
 ### Next (6-12 semaines)
 
-- **P2 acquisition** : import Notion ZIP (vague 1) + landing `/migrate/notion` — **priorité sprint**.
-- **P2 restant** : liens partageables lecture seule, a11y ciblée.
-- **P1 (reprise)** : Stripe Checkout self-service.
+- **Vague 1 (3 priorités)** : import Notion ZIP + dépendances tâches + E2E Gantt §G.12 — voir [project-roadmap-pmo.md §12](docs/project-roadmap-pmo.md#12-alignement-3-priorités-produit)
+- **Vague 2** : liens partageables lecture seule + portfolio équipe + marketing Notion
+- **P1 (reprise)** : Stripe Checkout self-service
 
 ### Later (12+ semaines)
 
@@ -318,6 +334,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Archives notes (soft delete)** — Supprimer une note l’archive côté serveur (`store/archivedNotes` / domaine `archivedNotes`), plus suppression définitive immédiate ; API `GET /notes/archived`, `POST /notes/archived/:id/restore`, `DELETE /notes/archived/:id` ; page `/archive/notes` (liste, restaurer, supprimer définitivement)
 - [x] **Projets — archivage depuis la liste** — L’action de suppression archive le projet (`status: archived`) pour qu’il apparaisse dans Archives › Projets ; confirmation « Archiver » ; corbeille liste / détail alignées sur l’archive plutôt que `DELETE` projet
 - [x] **UX — projets, équipes, bloc-notes** — Annuler fiable sur la modal de création projet ; sélecteur d’équipe plus visible sur `/teams/dashboard` ; en-tête notes : titre sur une ligne avec Aide + lien « Annulé » (archives) + nouvelle note, retrait du menu Données du header (import/export CSV/JSON rappelé dans l’aide / paramètres)
+- [x] **Notes › Bases (V1)** — Bases tabulaires personnelles (`/user-databases`) : CRUD bases/colonnes/lignes, section **Bases** dans **Données**, vues tableau/board/calendrier, colonnes relation entre bases ; online-only ; export RGPD ; doc [docs/donnees-notion-v1.md](docs/donnees-notion-v1.md)
+- [x] **Import Notion — 3 destinations** — Routage Projet / Contacts (mapping manuel + `Contact.notes` local) / Bases (`preview-data-sync`, `confirm-data-sync`) ; wizard `/migrate/notion` avec `?mode=contacts|data` ; liens Paramètres › Intégrations
 - [x] **Qualité ESLint (règles React)** — Passage `eslint --max-warnings 0` : effets sans `setState` synchrone problématique, refs (`SlashCommandMenu`, `useUserLookup` → `cacheRef`), pureté radar, deps hooks ajustées
 - [x] **Google Meet — hardening V2 (idempotence + lifecycle)** — Anti-doublon sur `POST /calendar/meet/:todoId` (verrou in-flight), création/patch/suppression alignés sur le calendrier réellement lié (`bookingCalendarId`, `bookingAccountId`), suppression des événements fantômes
 - [x] **Google Meet — erreurs actionnables** — Mapping backend des erreurs Google (permissions, politique invités externes, calendrier invalide, invités rejetés) + toasts frontend guidant la correction
@@ -365,7 +383,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Acquisition & migration (Notion / Monday)
 
-*Plans détaillés : Notion [`.cursor/plans/features_notion-like_e3797d3f.plan.md`](.cursor/plans/features_notion-like_e3797d3f.plan.md) · Monday [`.cursor/plans/features_monday-like_ad9b7e9b.plan.md`](.cursor/plans/features_monday-like_ad9b7e9b.plan.md) — vagues livrables indépendamment ; imports **gratuits sans quota dédié** (seule restriction = capacité du compte selon palier `free` / `first` / `earlyBird` / `small` / `large`, voir [docs/plan-quotas.md](docs/plan-quotas.md)).*
+*Plans détaillés : Notion (vagues ci-dessous + [plan PMO §12](docs/project-roadmap-pmo.md#12-alignement-3-priorités-produit)) · Monday (idem) — vagues livrables indépendamment ; imports **gratuits sans quota dédié** (seule restriction = capacité du compte selon palier `free` / `first` / `earlyBird` / `small` / `large`, voir [docs/plan-quotas.md](docs/plan-quotas.md)).*
 
 ### Notion-Like (priorité acquisition Notion)
 
@@ -375,12 +393,14 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [ ] **Time tracking MVP** — Sessions par tâche, chrono + saisie manuelle, comparatif `estimatedMinutes` ; rapports projet/équipe ; **Small teams+** (item aligné section Premium ci-dessous)
 - [ ] **Champs personnalisés** — Définitions par projet, filtres Board/Kanban, mapping colonnes Notion à l'import ; rollups simples (retard, % complété) ; **Small teams+**
 - [ ] **Marketing migration Notion** — FAQ `/pricing`, checklist E2E import, post-import in-app (calendrier, dépendances, équipe)
+- [x] **Contacts + import Notion People (V1)** — Répertoire Contacts sous Collaborations ; sync pull API + mapping manuel ; suggest `/contacts/suggest` ; recherche globale ; doc [docs/contacts-notion-v1.md](docs/contacts-notion-v1.md)
 
 ### Monday-Like (priorité acquisition PMO léger)
 
 *Prérequis : orchestrateur import de la vague 1 Notion-Like ; vagues partagées Notion (dépendances v2, time tracking v4, custom fields v5) pour colonnes Dependencies / Duration / Labels avancés.*
 
-- [ ] **Import Monday board** — Export Excel/CSV Monday : `POST /import/monday/preview` + `confirm`, parser XLSX, wizard Paramètres/Dashboard, page `/migrate/monday` ; groupes → phases, items → tâches, sous-items → `parentId` ; preview capacité par statut ; import partiel + modales upgrade Free
+- [ ] **Import Monday board** — Export Excel/CSV Monday : `POST /import/monday/preview` + `confirm`, parser XLSX, wizard Paramètres/Dashboard, page `/migrate/monday` ; groupes → phases, items → tâches, sous-items → `parentId` ; preview capacité par statut ; import partiel + modales upgrade Free — *API OAuth + CSV livrés en dev ; cocher après validation prod*
+- [ ] **Import Monday Docs → Documents** — Workdocs via `docs:read` + `export_markdown_from_doc` ; sync pull idempotente vers Notes (`externalRef`) ; onglet Documents sur `/migrate/monday` ; doc [docs/monday-docs-v1.md](docs/monday-docs-v1.md)
 - [ ] **Colonnes & statuts Monday** — Mapping labels Status Monday → statut Wroket (config projet) ; colonnes board configurables (préset « Vue Monday ») ; import colonnes custom → champs personnalisés (après vague 5 Notion) ; **Small teams+** pour mapping avancé
 - [ ] **Automations légères** — Extension `automationService` : retard assigné/owner (existant), **deadline sans créneau** (24h), option statut « stuck » ; règles **par projet** + toggles UI ; pas de builder no-code ; **Small teams+**
 - [ ] **Dashboard équipe renforcé** — Widgets : retard par membre, sans deadline, sans créneau semaine, charge `estimatedMinutes`, vélocité 4 semaines ; actions deep link Agenda ; export CSV période ; widgets basiques Small+, export avancé Large+ (aligné `teamReporting`)

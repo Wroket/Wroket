@@ -64,12 +64,14 @@ steps:
       # rollback (revert this line to `dual`, redeploy) but are no longer written.
       # Pre-flight before cutover: drift audit returned 0 for every uid
       # (see backend/src/scripts/reconcileLegacyV2Drift.ts).
-      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,MICROSOFT_TENANT_ID=common,MICROSOFT_SSO_REDIRECT_URI=https://api.wroket.com/auth/microsoft/callback,MICROSOFT_GRAPH_REDIRECT_URI=https://api.wroket.com/calendar/microsoft/callback,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs,TODOS_STORAGE_MODE=v2,TODOS_DOC_COLLECTION=todos_v2,VAPID_SUBJECT=mailto:team@wroket.com'
-      # Required in production (server.ts): OAuth state signing + Microsoft SSO + Web Push VAPID from Secret Manager.
+      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,MICROSOFT_TENANT_ID=common,MICROSOFT_SSO_REDIRECT_URI=https://api.wroket.com/auth/microsoft/callback,MICROSOFT_GRAPH_REDIRECT_URI=https://api.wroket.com/calendar/microsoft/callback,NOTION_REDIRECT_URI=https://api.wroket.com/integrations/notion/callback,MONDAY_REDIRECT_URI=https://api.wroket.com/integrations/monday/callback,MONDAY_OAUTH_SCOPES=boards:read docs:read,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs,TODOS_STORAGE_MODE=v2,TODOS_DOC_COLLECTION=todos_v2,VAPID_SUBJECT=mailto:team@wroket.com'
+      # Required in production (server.ts): OAuth state signing + Microsoft SSO + Web Push VAPID + Notion/Monday OAuth from Secret Manager.
       # Create secrets first: `npx web-push generate-vapid-keys` → VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY in Secret Manager.
+      # Notion: NOTION_CLIENT_ID + NOTION_CLIENT_SECRET (Secret Manager) + NOTION_REDIRECT_URI (env above).
+      # Monday: MONDAY_CLIENT_ID + MONDAY_CLIENT_SECRET (Secret Manager) + MONDAY_REDIRECT_URI (env above).
       # Grant wroket-run@… Secret Accessor on each secret. --set-secrets replaces the full list (see .cursor/rules/cloudbuild.mdc).
       - '--set-secrets'
-      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest'
+      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,NOTION_CLIENT_ID=NOTION_CLIENT_ID:latest,NOTION_CLIENT_SECRET=NOTION_CLIENT_SECRET:latest,MONDAY_CLIENT_ID=MONDAY_CLIENT_ID:latest,MONDAY_CLIENT_SECRET=MONDAY_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest'
 
   # Single-var update: comma inside ADMIN_EMAILS needs alternate delimiter (gcloud topic escaping).
   - name: 'gcr.io/cloud-builders/gcloud'
