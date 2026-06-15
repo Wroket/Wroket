@@ -4,7 +4,7 @@ import { buildPageMetadata, SITE_DESCRIPTION_FR, SITE_OG_DESCRIPTION_FR } from "
 
 import HomePageClient from "./HomePageClient";
 
-const TITLE = "Wroket — Travaillez efficacement. Ensemble.";
+const TITLE = "Wroket";
 const DESCRIPTION = SITE_DESCRIPTION_FR;
 
 export const metadata: Metadata = buildPageMetadata({

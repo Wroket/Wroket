@@ -1,8 +1,10 @@
 import { getStore } from "../persistence";
 import { listProjects } from "./projectService";
+import { listContacts } from "./contactService";
+import { listUserDatabases } from "./userDatabaseService";
 
 export interface SearchResult {
-  type: "todo" | "project" | "note";
+  type: "todo" | "project" | "note" | "contact" | "database";
   id: string;
   title: string;
   snippet?: string;
@@ -58,6 +60,25 @@ export function search(uid: string, query: string, userEmail: string): SearchRes
       const idx = content.toLowerCase().indexOf(q);
       const snippetStart = Math.max(0, idx - 30);
       results.push({ type: "note", id: note.id as string, title: title || "Sans titre", snippet: content.substring(snippetStart, snippetStart + 80) });
+    }
+  }
+
+  for (const contact of listContacts(uid, q)) {
+    if (results.length >= MAX_RESULTS) break;
+    const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim() || contact.email || "—";
+    const snippet = [contact.email, contact.company].filter(Boolean).join(" · ");
+    results.push({ type: "contact", id: contact.id, title: name, snippet: snippet || undefined });
+  }
+
+  for (const db of listUserDatabases(uid)) {
+    if (results.length >= MAX_RESULTS) break;
+    if (db.name.toLowerCase().includes(q)) {
+      results.push({
+        type: "database",
+        id: db.id,
+        title: db.name,
+        snippet: `${db.columns.length} col.`,
+      });
     }
   }
 

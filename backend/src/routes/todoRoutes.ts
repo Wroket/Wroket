@@ -6,6 +6,12 @@ import {
   archived, assigned, create, list, remove, purgeAllArchived, update, move, getComments, postComment, removeComment, editCommentHandler,
   toggleReactionHandler, commentCounts, attachmentCounts, exportTodos, importTodos, previewTaskImport, confirmTaskImport, taskActivity, reorderTodos,
 } from "../controllers/todoController";
+import {
+  addManualSession,
+  listTodoTimeSessions,
+  startTimer,
+  stopTimer,
+} from "../controllers/timeSessionController";
 import { requireAuth } from "../middlewares/requireAuth";
 import { noStoreCache } from "../middlewares/noStoreCache";
 
@@ -30,6 +36,10 @@ todoRoutes.put("/reorder", reorderTodos);
 todoRoutes.post("/:id/move", move);
 todoRoutes.put("/:id", update);
 todoRoutes.delete("/:id", remove);
+todoRoutes.get("/:id/time-sessions", listTodoTimeSessions);
+todoRoutes.post("/:id/time-sessions/start", startTimer);
+todoRoutes.post("/:id/time-sessions/stop", stopTimer);
+todoRoutes.post("/:id/time-sessions/manual", addManualSession);
 todoRoutes.get("/:id/activity", taskActivity);
 todoRoutes.get("/:id/comments", getComments);
 todoRoutes.post("/:id/comments", postComment);

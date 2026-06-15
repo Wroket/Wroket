@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -46,6 +46,14 @@ import type { Locale, TranslationKey } from "@/lib/i18n";
 import { useToast } from "@/components/Toast";
 import { useWebPush } from "@/hooks/useWebPush";
 import { formatUserFacingError } from "@/lib/apiErrors";
+import {
+  connectNotionOAuth,
+  connectMondayOAuth,
+  disconnectNotionConnection,
+  disconnectMondayConnection,
+  getConnections,
+  type AppConnectionSummary,
+} from "@/lib/api/integrations";
 import {
   billingPlanCodeKey,
   billingPlanMarketingKey,
@@ -1657,6 +1665,260 @@ function WebPushSettingsBlock() {
   );
 }
 
+function ConnectedAppsBlock({
+  hasIntegrations,
+  showHeader = true,
+}: {
+  hasIntegrations: boolean;
+  showHeader?: boolean;
+}) {
+  const { t } = useLocale();
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const oauthToastHandled = useRef(false);
+  const [connections, setConnections] = useState<AppConnectionSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+
+  const integrationActionBtn =
+    "w-full rounded-md px-3 py-2 text-xs font-medium text-center border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/25 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors";
+  const integrationSecondaryBtn =
+    "w-full rounded-md px-3 py-2 text-xs font-medium text-center border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors";
+  const integrationConnectBtn =
+    "w-full rounded-md px-3 py-2 text-xs font-medium border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 disabled:opacity-50 transition-colors";
+  const integrationIconShell = "bg-zinc-900 dark:bg-zinc-100";
+  const integrationIconLetter = "text-white dark:text-zinc-900";
+
+  const refresh = useCallback(async () => {
+    try {
+      const list = await getConnections();
+      setConnections(list);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasIntegrations) {
+      setLoading(false);
+      return;
+    }
+    void refresh();
+  }, [hasIntegrations, refresh]);
+
+  const oauthQuery = searchParams.toString();
+
+  useEffect(() => {
+    const params = new URLSearchParams(oauthQuery);
+    const notionOk = params.get("notion") === "connected";
+    const mondayOk = params.get("monday") === "connected";
+    if (!notionOk && !mondayOk) {
+      oauthToastHandled.current = false;
+      return;
+    }
+    if (oauthToastHandled.current) return;
+    oauthToastHandled.current = true;
+
+    if (notionOk) toast.success(t("settings.notionConnectedToast"));
+    if (mondayOk) toast.success(t("settings.mondayConnectedToast"));
+    void refresh();
+
+    params.delete("notion");
+    params.delete("monday");
+    const qs = params.toString();
+    router.replace(qs ? `/settings?${qs}` : "/settings", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthQuery]);
+
+  const apps: Array<{
+    provider: AppConnectionSummary["provider"];
+    labelKey: TranslationKey;
+    descKey: TranslationKey;
+    available: boolean;
+    connection?: AppConnectionSummary;
+    connectedActions?: Array<
+      | { kind: "link"; href: string; labelKey: TranslationKey }
+      | { kind: "button"; labelKey: TranslationKey; onClick: () => void }
+    >;
+    connect: () => void;
+    disconnect: () => Promise<void>;
+  }> = [
+    {
+      provider: "notion",
+      labelKey: "settings.connectionNotion",
+      descKey: "settings.connectionNotionDesc",
+      available: true,
+      connection: connections.find((c) => c.provider === "notion"),
+      connect: () => connectNotionOAuth("/settings?tab=integrations"),
+      disconnect: disconnectNotionConnection,
+      connectedActions: [
+        { kind: "link", href: "/migrate/notion", labelKey: "settings.connectionSyncProject" },
+        { kind: "link", href: "/migrate/notion?mode=contacts", labelKey: "settings.connectionSyncContacts" },
+        { kind: "link", href: "/migrate/notion?mode=data", labelKey: "settings.connectionSyncData" },
+        {
+          kind: "button",
+          labelKey: "settings.connectionExtendNotion",
+          onClick: () => connectNotionOAuth("/settings?tab=integrations"),
+        },
+      ],
+    },
+    {
+      provider: "monday",
+      labelKey: "settings.connectionMonday",
+      descKey: "settings.connectionMondayDesc",
+      available: true,
+      connection: connections.find((c) => c.provider === "monday"),
+      connect: () => connectMondayOAuth("/settings?tab=integrations"),
+      disconnect: disconnectMondayConnection,
+      connectedActions: [
+        { kind: "link", href: "/migrate/monday?target=project", labelKey: "settings.connectionSyncProject" },
+        { kind: "link", href: "/migrate/monday?target=database", labelKey: "settings.connectionSyncData" },
+        { kind: "link", href: "/migrate/monday?target=document", labelKey: "settings.connectionSyncNotes" },
+        {
+          kind: "button",
+          labelKey: "settings.connectionReconnectMonday",
+          onClick: () => connectMondayOAuth("/settings?tab=integrations"),
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {showHeader && (
+        <div>
+          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.connectionsTitle")}</h4>
+          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.connectionsDesc")}</p>
+        </div>
+      )}
+      {!hasIntegrations ? (
+        <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.integrationsPremiumLockedHint")}</p>
+      ) : loading ? (
+        <div className="flex justify-center py-8">
+          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {apps.map((app) => {
+            const connected = app.connection?.status === "connected";
+            return (
+              <div
+                key={app.provider}
+                className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 flex flex-col min-h-[180px] hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${integrationIconShell}`}>
+                    <span className={`text-sm font-bold tracking-tight ${integrationIconLetter}`}>
+                      {app.provider === "notion" ? "N" : "M"}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t(app.labelKey)}</p>
+                    <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t(app.descKey)}</p>
+                    {connected && app.connection?.workspaceName && (
+                      <p className="text-[10px] text-zinc-400 dark:text-slate-500 truncate mt-1">
+                        {app.connection.workspaceName}
+                        {app.connection.connectedAt
+                          ? ` · ${new Date(app.connection.connectedAt).toLocaleDateString()}`
+                          : ""}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-auto space-y-3">
+                  <span
+                    className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      !app.available
+                        ? "bg-zinc-100 text-zinc-400 dark:bg-slate-800 dark:text-slate-500"
+                        : connected
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : "bg-zinc-100 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
+                    }`}
+                  >
+                    {!app.available
+                      ? t("settings.connectionComingSoon")
+                      : connected
+                        ? t("settings.connectionConnected")
+                        : t("settings.connectionNotConnected")}
+                  </span>
+                  {app.available && (
+                    <div className="w-full space-y-3">
+                      {connected && app.connectedActions && (
+                        <div className="grid grid-cols-1 gap-1.5 w-full">
+                          {app.connectedActions.map((action) =>
+                            action.kind === "link" ? (
+                              <Link
+                                key={action.href}
+                                href={action.href}
+                                className={integrationActionBtn}
+                              >
+                                {t(action.labelKey)}
+                              </Link>
+                            ) : (
+                              <button
+                                key={action.labelKey}
+                                type="button"
+                                onClick={action.onClick}
+                                className={integrationSecondaryBtn}
+                              >
+                                {t(action.labelKey)}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      )}
+                      <div
+                        className={
+                          connected && app.connectedActions
+                            ? "flex justify-end pt-2 border-t border-zinc-100 dark:border-slate-800"
+                            : "flex justify-start"
+                        }
+                      >
+                        <button
+                          type="button"
+                          disabled={!hasIntegrations || disconnecting === app.provider}
+                          onClick={async () => {
+                            if (!app.available) return;
+                            if (connected) {
+                              setDisconnecting(app.provider);
+                              try {
+                                await app.disconnect();
+                                await refresh();
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : t("toast.genericError"));
+                              } finally {
+                                setDisconnecting(null);
+                              }
+                            } else {
+                              app.connect();
+                            }
+                          }}
+                          className={
+                            connected
+                              ? "rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-50 transition-colors"
+                              : integrationConnectBtn
+                          }
+                        >
+                          {connected ? t("settings.connectionDisconnect") : t("settings.connectionConnect")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type IntegrationSubSection = "connections" | "webhooks" | "notifications" | null;
+
 function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -1688,6 +1950,16 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean } | null>(null);
 
+  const searchParams = useSearchParams();
+  const [activeSubSection, setActiveSubSection] = useState<IntegrationSubSection>(null);
+  const [connections, setConnections] = useState<AppConnectionSummary[]>([]);
+
+  useEffect(() => {
+    if (searchParams.get("notion") === "connected") {
+      setActiveSubSection("connections");
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1702,8 +1974,11 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
           setDigestHour(me.notificationDigestHour ?? 8);
         }
         if (hasIntegrations) {
-          const list = await getWebhooks();
-          if (!cancelled) setWebhooks(list);
+          const [list, conns] = await Promise.all([getWebhooks(), getConnections()]);
+          if (!cancelled) {
+            setWebhooks(list);
+            setConnections(conns);
+          }
         }
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
@@ -1988,255 +2263,390 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     </div>
   );
 
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
-      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.integrationsDesc")}</p>
+  const connectedAppsCount = connections.filter((c) => c.status === "connected").length;
+  const deliverySummary = deliveryRadios.find((d) => d.mode === deliveryMode);
 
-      <AutomationSettingsBlock sectionCardCls={sectionCardCls} saveBtnCls={saveBtnCls} />
-
-      <WebPushSettingsBlock />
-
-      {/* ── Notification type filters ── */}
-      <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
-        <div>
-          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notifTypesTitle")}</h4>
-          <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notifTypesDesc")}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th className="text-left text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 pr-4">{t("settings.webhookEvents")}</th>
-                <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">{t("settings.notifColInApp")}</th>
-                <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">
-                  {t("settings.notifColOutbound")}
-                  {!hasIntegrations && (
-                    <span className="block font-normal text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5" title={t("settings.notifColOutboundLocked")}>
-                      Small teams
+  const advancedWebhooksPanel = !hasIntegrations ? (
+    <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-slate-800/30">
+      <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.integrationsPremiumLockedHint")}</p>
+      <Link
+        href="/pricing"
+        className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
+      >
+        {t("settings.viewAllPlans")}
+      </Link>
+    </div>
+  ) : loading ? (
+    <div className="flex justify-center py-8">
+      <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ) : (
+    <>
+      {webhooks.length === 0 && !showForm && (
+        <p className="text-sm text-zinc-400 dark:text-slate-500 italic py-4">{t("settings.webhookNone")}</p>
+      )}
+      {webhooks.length > 0 && (
+        <div className="space-y-3">
+          {webhooks.map((wh) => (
+            <div key={wh.id} className="group rounded-md border border-zinc-200 dark:border-slate-700 p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{platformIcon(wh.platform)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate">{wh.label}</p>
+                  <p className="text-[10px] text-zinc-400 dark:text-slate-500 truncate">{wh.url}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggle(wh)}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
+                    wh.enabled
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                      : "bg-zinc-100 text-zinc-400 dark:bg-slate-800 dark:text-slate-500"
+                  }`}
+                >
+                  {wh.enabled ? t("settings.webhookEnabled") : t("settings.webhookDisabled")}
+                </button>
+                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => handleTest(wh)}
+                    disabled={testing === wh.id}
+                    className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    {testing === wh.id ? "…" : t("settings.webhookTest")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(wh)}
+                    className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(wh.id)}
+                    className="rounded p-1.5 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {wh.events.map((ev) => {
+                  const evMeta = ALL_EVENTS.find((e) => e.key === ev);
+                  return (
+                    <span key={ev} className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-slate-800 text-zinc-500 dark:text-slate-400">
+                      {evMeta ? t(evMeta.tKey) : ev}
                     </span>
-                  )}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-slate-700/50">
-              {ALL_EVENTS.map(({ key, tKey }) => {
-                const inAppEnabled = !disabledInApp.includes(key as NotificationType);
-                const outboundEnabled = !disabledOutbound.includes(key as NotificationType);
+                  );
+                })}
+              </div>
+              {testResult?.id === wh.id && (
+                <p className={`text-xs mt-2 font-medium ${testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                  {testResult.ok ? t("settings.webhookTestOk") : t("settings.webhookTestFail")}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {showForm ? (
+        <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookLabel")}</label>
+              <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("settings.webhookLabelPlaceholder")} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookPlatform")}</label>
+              <select value={platform} onChange={(e) => setPlatform(e.target.value as WebhookPlatform)} className={inputCls}>
+                {PLATFORMS.map((p) => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookUrl")}</label>
+            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.webhookUrlPlaceholder")} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">{t("settings.webhookEvents")}</label>
+            <div className="flex flex-wrap gap-2">
+              {ALL_EVENTS.map((ev) => {
+                const active = events.includes(ev.key);
                 return (
-                  <tr key={key}>
-                    <td className="py-2 pr-4 text-zinc-800 dark:text-slate-200">{t(tKey)}</td>
-                    <td className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={inAppEnabled}
-                        onChange={() => toggleInApp(key as NotificationType)}
-                        className="accent-emerald-600"
-                      />
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={outboundEnabled}
-                        disabled={!hasIntegrations || !inAppEnabled}
-                        title={!hasIntegrations ? t("settings.notifColOutboundLocked") : undefined}
-                        onChange={() => toggleOutbound(key as NotificationType)}
-                        className="accent-emerald-600 disabled:opacity-40"
-                      />
-                    </td>
-                  </tr>
+                  <button
+                    key={ev.key}
+                    type="button"
+                    onClick={() => toggleEvent(ev.key)}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      active
+                        ? "bg-emerald-600 text-white dark:bg-emerald-500"
+                        : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {t(ev.tKey)}
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-        {!hasIntegrations && (
-          <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.notifColOutboundLocked")}</p>
-        )}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void handleSaveTypes()}
-            disabled={savingTypes}
-            className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
-          >
-            {savingTypes ? t("settings.saving") : t("settings.notifTypesSave")}
-          </button>
-          {typesSaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.notifTypesSaved")}</span>}
-        </div>
-      </div>
-
-      <IntegrationsPremiumGate enabled={hasIntegrations}>{deliveryBlock}</IntegrationsPremiumGate>
-      <IntegrationsPremiumGate enabled={hasIntegrations}>{frequencyBlock}</IntegrationsPremiumGate>
-
-      {!hasIntegrations ? (
-        <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-slate-800/30">
-          <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.webhooksAdvancedTitle")}</h4>
-          <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.integrationsPremiumLockedHint")}</p>
-          <Link
-            href="/pricing"
-            className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline-offset-2 hover:underline"
-          >
-            {t("settings.viewAllPlans")}
-          </Link>
-        </div>
-      ) : loading ? (
-        <div className="flex justify-center py-8">
-          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !url.trim()}
+              className="rounded bg-emerald-600 dark:bg-emerald-500 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors"
+            >
+              {saving ? t("settings.saving") : t("settings.save")}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              {t("teams.cancel")}
+            </button>
+          </div>
         </div>
       ) : (
-        <>
-          {/* Existing webhooks */}
-          {webhooks.length === 0 && !showForm && (
-            <p className="text-sm text-zinc-400 dark:text-slate-500 italic py-4">{t("settings.webhookNone")}</p>
-          )}
+        <button
+          type="button"
+          onClick={() => { resetForm(); setShowForm(true); }}
+          className="inline-flex items-center gap-2 rounded-md border border-dashed border-zinc-300 dark:border-slate-600 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-800 hover:border-zinc-400 dark:hover:border-slate-500 transition-colors w-full justify-center"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          {t("settings.webhookAdd")}
+        </button>
+      )}
+    </>
+  );
 
-          {webhooks.length > 0 && (
-            <div className="space-y-3">
-              {webhooks.map((wh) => (
-                <div key={wh.id} className="group rounded-md border border-zinc-200 dark:border-slate-700 p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{platformIcon(wh.platform)}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate">{wh.label}</p>
-                      <p className="text-[10px] text-zinc-400 dark:text-slate-500 truncate">{wh.url}</p>
+  const hubCards: Array<{
+    key: Exclude<IntegrationSubSection, null>;
+    titleKey: TranslationKey;
+    descKey: TranslationKey;
+    iconBg: string;
+    icon: ReactNode;
+    badge: string;
+  }> = [
+    {
+      key: "connections",
+      titleKey: "settings.integrationsCardConnections",
+      descKey: "settings.integrationsCardConnectionsDesc",
+      iconBg: "bg-slate-100 dark:bg-slate-800",
+      icon: (
+        <svg className="w-6 h-6 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      ),
+      badge: hasIntegrations
+        ? t("settings.integrationsConnectedCount").replace("{count}", String(connectedAppsCount))
+        : "Small teams+",
+    },
+    {
+      key: "webhooks",
+      titleKey: "settings.integrationsCardWebhooks",
+      descKey: "settings.integrationsCardWebhooksDesc",
+      iconBg: "bg-amber-100 dark:bg-amber-900/30",
+      icon: (
+        <svg className="w-6 h-6 text-amber-700 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+        </svg>
+      ),
+      badge: !hasIntegrations
+        ? "Small teams+"
+        : webhooks.length > 0
+          ? t("settings.integrationsWebhookCount").replace("{count}", String(webhooks.length))
+          : t("settings.integrationsNoWebhooks"),
+    },
+    {
+      key: "notifications",
+      titleKey: "settings.integrationsCardNotifications",
+      descKey: "settings.integrationsCardNotificationsDesc",
+      iconBg: "bg-blue-100 dark:bg-blue-900/30",
+      icon: (
+        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      ),
+      badge: deliverySummary ? t(deliverySummary.tKey) : t("settings.deliveryNone"),
+    },
+  ];
+
+  const subSectionTitle: Record<Exclude<IntegrationSubSection, null>, TranslationKey> = {
+    connections: "settings.integrationsCardConnections",
+    webhooks: "settings.integrationsCardWebhooks",
+    notifications: "settings.integrationsCardNotifications",
+  };
+
+  const subSectionDesc: Record<Exclude<IntegrationSubSection, null>, TranslationKey> = {
+    connections: "settings.integrationsCardConnectionsDesc",
+    webhooks: "settings.integrationsCardWebhooksDesc",
+    notifications: "settings.integrationsCardNotificationsDesc",
+  };
+
+  return (
+    <div className="space-y-6">
+      {!activeSubSection ? (
+        <>
+          <div>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.integrationsTitle")}</h3>
+            <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.integrationsHubDesc")}</p>
+          </div>
+          {!hasIntegrations && (
+            <p className="text-xs text-zinc-500 dark:text-slate-400 rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/40 px-3 py-2">
+              {t("settings.integrationsPremiumLockedHint")}
+            </p>
+          )}
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {hubCards.map((card) => (
+                <button
+                  key={card.key}
+                  type="button"
+                  onClick={() => setActiveSubSection(card.key)}
+                  className="text-left bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 cursor-pointer hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200 group min-h-[140px] flex flex-col"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}>
+                      {card.icon}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(wh)}
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
-                        wh.enabled
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          : "bg-zinc-100 text-zinc-400 dark:bg-slate-800 dark:text-slate-500"
-                      }`}
-                    >
-                      {wh.enabled ? t("settings.webhookEnabled") : t("settings.webhookDisabled")}
-                    </button>
-                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => handleTest(wh)}
-                        disabled={testing === wh.id}
-                        className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-                      >
-                        {testing === wh.id ? "…" : t("settings.webhookTest")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(wh)}
-                        className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(wh.id)}
-                        className="rounded p-1.5 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                        {t(card.titleKey)}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t(card.descKey)}</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {wh.events.map((ev) => {
-                      const evMeta = ALL_EVENTS.find((e) => e.key === ev);
-                      return (
-                        <span key={ev} className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-slate-800 text-zinc-500 dark:text-slate-400">
-                          {evMeta ? t(evMeta.tKey) : ev}
-                        </span>
-                      );
-                    })}
+                  <div className="mt-auto flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-slate-800 dark:text-slate-400 truncate max-w-[85%]">
+                      {card.badge}
+                    </span>
+                    <svg className="w-4 h-4 text-zinc-300 dark:text-slate-600 group-hover:text-zinc-500 dark:group-hover:text-slate-400 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
                   </div>
-                  {testResult?.id === wh.id && (
-                    <p className={`text-xs mt-2 font-medium ${testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                      {testResult.ok ? t("settings.webhookTestOk") : t("settings.webhookTestFail")}
-                    </p>
-                  )}
-                </div>
+                </button>
               ))}
             </div>
           )}
-
-          {/* Add / Edit form */}
-          {showForm ? (
-            <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookLabel")}</label>
-                  <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("settings.webhookLabelPlaceholder")} className={inputCls} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookPlatform")}</label>
-                  <select
-                    value={platform}
-                    onChange={(e) => setPlatform(e.target.value as WebhookPlatform)}
-                    className={inputCls}
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p.key} value={p.key}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookUrl")}</label>
-                <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.webhookUrlPlaceholder")} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">{t("settings.webhookEvents")}</label>
-                <div className="flex flex-wrap gap-2">
-                  {ALL_EVENTS.map((ev) => {
-                    const active = events.includes(ev.key);
-                    return (
-                      <button
-                        key={ev.key}
-                        type="button"
-                        onClick={() => toggleEvent(ev.key)}
-                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                          active
-                            ? "bg-emerald-600 text-white dark:bg-emerald-500"
-                            : "border border-zinc-300 dark:border-slate-600 text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
-                        }`}
-                      >
-                        {t(ev.tKey)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving || !url.trim()}
-                  className="rounded bg-emerald-600 dark:bg-emerald-500 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors"
-                >
-                  {saving ? t("settings.saving") : t("settings.save")}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="rounded border border-zinc-200 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  {t("teams.cancel")}
-                </button>
-              </div>
-            </div>
-          ) : (
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => { resetForm(); setShowForm(true); }}
-              className="inline-flex items-center gap-2 rounded-md border border-dashed border-zinc-300 dark:border-slate-600 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-800 hover:border-zinc-400 dark:hover:border-slate-500 transition-colors w-full justify-center"
+              onClick={() => { setActiveSubSection(null); resetForm(); }}
+              className="rounded-md p-2 text-zinc-400 hover:text-zinc-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+              aria-label={t("projects.backToList")}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
-              {t("settings.webhookAdd")}
             </button>
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t(subSectionTitle[activeSubSection])}</h3>
+              <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t(subSectionDesc[activeSubSection])}</p>
+            </div>
+          </div>
+
+          {activeSubSection === "connections" && (
+            <ConnectedAppsBlock hasIntegrations={hasIntegrations} showHeader={false} />
+          )}
+
+          {activeSubSection === "webhooks" && (
+            <div className="space-y-6">
+              <AutomationSettingsBlock sectionCardCls={sectionCardCls} saveBtnCls={saveBtnCls} />
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.webhooksAdvancedTitle")}</h4>
+                  <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.integrationsCardWebhooksDesc")}</p>
+                </div>
+                {advancedWebhooksPanel}
+              </div>
+            </div>
+          )}
+
+          {activeSubSection === "notifications" && (
+            <div className="space-y-6">
+              <WebPushSettingsBlock />
+              <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-slate-800/30">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-800 dark:text-slate-200">{t("settings.notifTypesTitle")}</h4>
+                  <p className="text-xs text-zinc-500 dark:text-slate-400 mt-1">{t("settings.notifTypesDesc")}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className="text-left text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 pr-4">{t("settings.webhookEvents")}</th>
+                        <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">{t("settings.notifColInApp")}</th>
+                        <th className="text-center text-xs font-medium text-zinc-500 dark:text-slate-400 pb-2 px-3 w-20">
+                          {t("settings.notifColOutbound")}
+                          {!hasIntegrations && (
+                            <span className="block font-normal text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5" title={t("settings.notifColOutboundLocked")}>
+                              Small teams
+                            </span>
+                          )}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 dark:divide-slate-700/50">
+                      {ALL_EVENTS.map(({ key, tKey }) => {
+                        const inAppEnabled = !disabledInApp.includes(key as NotificationType);
+                        const outboundEnabled = !disabledOutbound.includes(key as NotificationType);
+                        return (
+                          <tr key={key}>
+                            <td className="py-2 pr-4 text-zinc-800 dark:text-slate-200">{t(tKey)}</td>
+                            <td className="py-2 px-3 text-center">
+                              <input type="checkbox" checked={inAppEnabled} onChange={() => toggleInApp(key as NotificationType)} className="accent-emerald-600" />
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={outboundEnabled}
+                                disabled={!hasIntegrations || !inAppEnabled}
+                                title={!hasIntegrations ? t("settings.notifColOutboundLocked") : undefined}
+                                onChange={() => toggleOutbound(key as NotificationType)}
+                                className="accent-emerald-600 disabled:opacity-40"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {!hasIntegrations && (
+                  <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.notifColOutboundLocked")}</p>
+                )}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveTypes()}
+                    disabled={savingTypes}
+                    className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
+                  >
+                    {savingTypes ? t("settings.saving") : t("settings.notifTypesSave")}
+                  </button>
+                  {typesSaved && <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("settings.notifTypesSaved")}</span>}
+                </div>
+              </div>
+              <IntegrationsPremiumGate enabled={hasIntegrations}>{deliveryBlock}</IntegrationsPremiumGate>
+              <IntegrationsPremiumGate enabled={hasIntegrations}>{frequencyBlock}</IntegrationsPremiumGate>
+            </div>
           )}
         </>
       )}

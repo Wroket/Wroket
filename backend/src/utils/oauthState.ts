@@ -14,19 +14,43 @@ function hmac(data: string): string {
   return crypto.createHmac("sha256", SECRET).update(data).digest("base64url");
 }
 
+const ALLOWED_OAUTH_RETURN_PREFIXES = ["/migrate/notion", "/settings", "/notes"] as const;
+
+/** Relative in-app path only — blocks open redirects. */
+export function sanitizeOAuthReturnTo(path: string | undefined): string | undefined {
+  if (!path?.trim()) return undefined;
+  const p = path.trim();
+  if (!p.startsWith("/") || p.startsWith("//") || p.includes("://")) return undefined;
+  const ok = ALLOWED_OAUTH_RETURN_PREFIXES.some(
+    (prefix) => p === prefix || p.startsWith(`${prefix}?`) || p.startsWith(`${prefix}/`),
+  );
+  if (!ok) return undefined;
+  return p.slice(0, 500);
+}
+
+export interface OAuthStatePayload {
+  uid: string;
+  returnTo?: string;
+}
+
 /**
  * Create a signed state token embedding the user's UID and expiration.
  */
-export function createOAuthState(uid: string): string {
-  const payload = JSON.stringify({ uid, exp: Date.now() + TOKEN_TTL_MS });
+export function createOAuthState(uid: string, returnTo?: string): string {
+  const safeReturn = sanitizeOAuthReturnTo(returnTo);
+  const payload = JSON.stringify({
+    uid,
+    exp: Date.now() + TOKEN_TTL_MS,
+    ...(safeReturn ? { r: safeReturn } : {}),
+  });
   const b64 = Buffer.from(payload).toString("base64url");
   return `${b64}.${hmac(b64)}`;
 }
 
 /**
- * Validate the state token. Returns the UID if valid, null otherwise.
+ * Validate the state token. Returns payload if valid, null otherwise.
  */
-export function consumeOAuthState(token: string): string | null {
+export function consumeOAuthState(token: string): OAuthStatePayload | null {
   const dotIdx = token.indexOf(".");
   if (dotIdx < 0) return null;
 
@@ -38,10 +62,15 @@ export function consumeOAuthState(token: string): string | null {
   }
 
   try {
-    const { uid, exp } = JSON.parse(Buffer.from(b64, "base64url").toString());
-    if (typeof uid !== "string" || typeof exp !== "number") return null;
-    if (Date.now() > exp) return null;
-    return uid;
+    const parsed = JSON.parse(Buffer.from(b64, "base64url").toString()) as {
+      uid?: string;
+      exp?: number;
+      r?: string;
+    };
+    if (typeof parsed.uid !== "string" || typeof parsed.exp !== "number") return null;
+    if (Date.now() > parsed.exp) return null;
+    const returnTo = typeof parsed.r === "string" ? sanitizeOAuthReturnTo(parsed.r) : undefined;
+    return { uid: parsed.uid, returnTo };
   } catch {
     return null;
   }

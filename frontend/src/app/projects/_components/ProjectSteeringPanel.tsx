@@ -132,8 +132,13 @@ const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectS
           </p>
           <ul className="space-y-1">
             {snap.upcomingMilestones.map((m) => (
-              <li key={m.phaseId} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-zinc-700 dark:text-slate-300 truncate">{m.phaseName}</span>
+              <li key={m.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-zinc-700 dark:text-slate-300 truncate">
+                  {m.source === "milestone" && (
+                    <span className="mr-1 text-amber-600 dark:text-amber-400" aria-hidden>◆</span>
+                  )}
+                  {m.label}
+                </span>
                 <span className={`shrink-0 tabular-nums ${m.daysLeft < 0 ? "text-red-600 dark:text-red-400 font-medium" : "text-zinc-500 dark:text-slate-400"}`}>
                   {m.daysLeft < 0
                     ? t("projects.steeringMilestoneOverdue").replace("{days}", String(Math.abs(m.daysLeft)))

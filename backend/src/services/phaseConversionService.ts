@@ -11,6 +11,7 @@ import {
   type Project,
   type ProjectPhase,
 } from "./projectService";
+import { cascadeProjectNoteFoldersOnDelete } from "./projectNoteFolderCascade";
 import {
   applyTodoPatchesForPhaseConversion,
   hardRemoveTodosByIds,
@@ -238,6 +239,7 @@ export async function convertSubprojectToPhase(
   await applyTodoPatchesForPhaseConversion(patches);
 
   deleteProject(uid, userEmail, subProjectId);
+  cascadeProjectNoteFoldersOnDelete(subProjectId);
 
   const parentAfter = getProjectById(parentProjectId);
   if (!parentAfter) throw new NotFoundError("Projet introuvable");

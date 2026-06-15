@@ -7,6 +7,7 @@ import { enqueueDigest } from "./digestService";
 import { sendNotificationEmail } from "./emailService";
 import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
 import { sendWebPushForNotification } from "./webPushService";
+import { filterNotificationsForDisplay } from "./notificationDisplayPolicy";
 
 export type NotificationType =
   | "task_assigned"
@@ -163,8 +164,13 @@ export function listNotifications(userId: string): Notification[] {
   return getUserNotifications(userId);
 }
 
+/** Notifications visible in UI (7-day window + upcoming deadline exceptions). */
+export function listNotificationsForDisplay(userId: string): Notification[] {
+  return filterNotificationsForDisplay(getUserNotifications(userId), userId);
+}
+
 export function unreadCount(userId: string): number {
-  return getUserNotifications(userId).filter((n) => !n.read).length;
+  return listNotificationsForDisplay(userId).filter((n) => !n.read).length;
 }
 
 export function markAsRead(userId: string, notifId: string): Notification {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ArchivedDataShell from "./ArchivedDataShell";
 import { useToast } from "@/components/Toast";
 import { getArchivedNotes, purgeArchivedNoteApi, restoreArchivedNoteApi, type Note } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
@@ -164,11 +165,12 @@ export default function ArchivedNotesPanel() {
   }
 
   return (
+    <ArchivedDataShell section="documents">
     <div className="space-y-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("notes.archiveTitle")}</h1>
-          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("notes.archiveSubtitle")}</p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("archives.data.documentsTitle")}</h1>
+          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("archives.data.documentsSubtitle")}</p>
         </div>
         <Link
           href="/notes"
@@ -180,7 +182,7 @@ export default function ArchivedNotesPanel() {
 
       {notes.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-8 text-center">
-          <p className="text-sm text-zinc-400 dark:text-slate-500">{t("notes.archiveEmpty")}</p>
+          <p className="text-sm text-zinc-400 dark:text-slate-500">{t("archives.data.documentsEmpty")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -286,15 +288,15 @@ export default function ArchivedNotesPanel() {
           noteBulkConfirm == null
             ? ""
             : noteBulkConfirm.kind === "restore"
-              ? t("archives.bulkRestoreNotesTitle").replace("{{count}}", String(noteBulkConfirm.notes.length))
-              : t("archives.bulkPurgeNotesTitle").replace("{{count}}", String(noteBulkConfirm.notes.length))
+              ? t("archives.bulkRestoreDocumentsTitle").replace("{{count}}", String(noteBulkConfirm.notes.length))
+              : t("archives.bulkPurgeDocumentsTitle").replace("{{count}}", String(noteBulkConfirm.notes.length))
         }
         message={
           noteBulkConfirm == null
             ? ""
             : noteBulkConfirm.kind === "restore"
-              ? t("archives.bulkRestoreNotesMessage")
-              : t("archives.bulkPurgeNotesMessage")
+              ? t("archives.bulkRestoreDocumentsMessage")
+              : t("archives.bulkPurgeDocumentsMessage")
         }
         variant={noteBulkConfirm?.kind === "restore" ? "info" : "danger"}
         confirmLabel={
@@ -304,5 +306,6 @@ export default function ArchivedNotesPanel() {
         onConfirm={handleNoteBulkConfirm}
       />
     </div>
+    </ArchivedDataShell>
   );
 }

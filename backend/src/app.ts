@@ -20,11 +20,17 @@ import adminRoutes from "./routes/adminRoutes";
 import noteRoutes from "./routes/noteRoutes";
 import attachmentRoutes from "./routes/attachmentRoutes";
 import syncEventsRoutes from "./routes/syncEventsRoutes";
+import notionImportRoutes from "./routes/notionImportRoutes";
+import mondayImportRoutes from "./routes/mondayImportRoutes";
+import integrationRoutes from "./routes/integrationRoutes";
+import sharePublicRoutes from "./routes/sharePublicRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
 import billingRoutes from "./routes/billingRoutes";
 import marketingRoutes from "./routes/marketingRoutes";
 import templateRoutes from "./routes/templateRoutes";
 import pushRoutes from "./routes/pushRoutes";
+import contactRoutes from "./routes/contactRoutes";
+import userDatabaseRoutes from "./routes/userDatabaseRoutes";
 
 dotenv.config();
 
@@ -97,6 +103,12 @@ app.use("/notes", apiLimiter, noteRoutes);
 app.use("/attachments", apiLimiter, attachmentRoutes);
 app.use("/templates", apiLimiter, templateRoutes);
 app.use("/push", apiLimiter, pushRoutes);
+app.use("/contacts", apiLimiter, contactRoutes);
+app.use("/user-databases", apiLimiter, userDatabaseRoutes);
+app.use("/import", notionImportRoutes);
+app.use("/import", mondayImportRoutes);
+app.use("/integrations", apiLimiter, integrationRoutes);
+app.use("/share", sharePublicRoutes);
 /** SSE spike: long-lived connections — not counted by per-minute REST limiter. */
 app.use("/sync", syncEventsRoutes);
 

@@ -24,6 +24,22 @@ import {
   getSteering,
   exportSteering,
 } from "../controllers/projectController";
+import {
+  createProjectShareLinkHandler,
+  listProjectShareLinks,
+  revokeProjectShareLinkHandler,
+} from "../controllers/projectShareController";
+import {
+  createCustomFieldDef,
+  createMilestone,
+  getProjectNotes,
+  listCustomFieldDefs,
+  listMilestones,
+  patchCustomFieldDef,
+  patchMilestone,
+  removeCustomFieldDef,
+  removeMilestone,
+} from "../controllers/projectExtrasController";
 import { uploadMiddleware, preview, confirm } from "../controllers/importController";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -42,6 +58,18 @@ router.put("/:id/access", requireAuth, putAccess);
 router.get("/:id/export", requireAuth, exportProject);
 router.get("/:id/steering", requireAuth, getSteering);
 router.get("/:id/steering/export", requireAuth, exportSteering);
+router.get("/:id/share-links", requireAuth, listProjectShareLinks);
+router.post("/:id/share-links", requireAuth, createProjectShareLinkHandler);
+router.delete("/:id/share-links/:linkId", requireAuth, revokeProjectShareLinkHandler);
+router.get("/:id/milestones", requireAuth, listMilestones);
+router.post("/:id/milestones", requireAuth, createMilestone);
+router.put("/:id/milestones/:milestoneId", requireAuth, patchMilestone);
+router.delete("/:id/milestones/:milestoneId", requireAuth, removeMilestone);
+router.get("/:id/custom-field-defs", requireAuth, listCustomFieldDefs);
+router.post("/:id/custom-field-defs", requireAuth, createCustomFieldDef);
+router.put("/:id/custom-field-defs/:fieldId", requireAuth, patchCustomFieldDef);
+router.delete("/:id/custom-field-defs/:fieldId", requireAuth, removeCustomFieldDef);
+router.get("/:id/notes", requireAuth, getProjectNotes);
 router.post("/:id/import", requireAuth, upload.single("file"), importProjectTasks);
 router.get("/:id", requireAuth, get);
 router.put("/:id", requireAuth, update);

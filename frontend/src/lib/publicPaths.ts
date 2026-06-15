@@ -21,5 +21,7 @@ export const PUBLIC_PATHS = [
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {
-  return (PUBLIC_PATHS as readonly string[]).includes(pathname);
+  if ((PUBLIC_PATHS as readonly string[]).includes(pathname)) return true;
+  if (pathname.startsWith("/share/project/")) return true;
+  return false;
 }

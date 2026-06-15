@@ -37,6 +37,7 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
+import { newClientEntityId } from "@/lib/newClientId";
 import { useUserLookup } from "@/lib/userUtils";
 import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
 import { formatUserFacingError } from "@/lib/apiErrors";
@@ -94,6 +95,7 @@ export default function AgendaPage() {
   const [quickCreateAssignError, setQuickCreateAssignError] = useState<string | null>(null);
   const [quickCreateDuration, setQuickCreateDuration] = useState(30);
   const [quickCreating, setQuickCreating] = useState(false);
+  const quickCreateInFlightRef = useRef(false);
   const quickAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
@@ -450,14 +452,17 @@ export default function AgendaPage() {
   };
 
   const handleQuickCreate = async () => {
-    if (!quickCreateTitle.trim() || quickCreating) return;
+    if (!quickCreateTitle.trim() || quickCreating || quickCreateInFlightRef.current) return;
     if (personalTaskCreateBlocked(user, quickCreateProjectId, projects)) {
       toast.error(t("quota.free.taskLimitHint"));
       return;
     }
+    quickCreateInFlightRef.current = true;
     setQuickCreating(true);
+    const clientId = newClientEntityId();
     try {
       const todo = await createTodo({
+        id: clientId,
         title: quickCreateTitle.trim(),
         priority: quickCreatePriority,
         effort: quickCreateEffort,
@@ -484,6 +489,7 @@ export default function AgendaPage() {
     } catch (err) {
       toast.error(formatUserFacingError(err, "errors.fallback.generic"));
     } finally {
+      quickCreateInFlightRef.current = false;
       setQuickCreating(false);
     }
   };

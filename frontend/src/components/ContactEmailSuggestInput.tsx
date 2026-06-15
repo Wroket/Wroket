@@ -80,18 +80,18 @@ export default function ContactEmailSuggestInput({
       )}
       {showList && (
         <div className="absolute top-full left-0 right-0 mt-1 z-[60] bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-lg py-1 max-h-48 overflow-y-auto">
-          {suggestions.map((email) => (
+          {suggestions.map((item) => (
             <button
-              key={email}
+              key={item.contactId ? `c-${item.contactId}` : item.email}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                onChange(email);
+                onChange(item.email);
                 setOpen(false);
               }}
-              className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors truncate"
+              className="block w-full text-left px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors"
             >
-              {email}
+              <span className="block truncate">{item.label}</span>
             </button>
           ))}
         </div>

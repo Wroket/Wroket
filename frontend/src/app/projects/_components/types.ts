@@ -1,7 +1,7 @@
-import type { Project, ProjectPhase, Team, Todo, Priority, Effort, TodoStatus, AuthMeResponse } from "@/lib/api";
+import type { Project, ProjectPhase, ProjectMilestone, Team, Todo, Priority, Effort, TodoStatus, AuthMeResponse } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 
-export type DetailTab = "board" | "kanban" | "gantt";
+export type DetailTab = "board" | "kanban" | "gantt" | "docs";
 export type ProjectHealth = "done" | "overdue" | "at-risk" | "on-track" | "empty";
 
 interface TemplateSubtask {
@@ -362,4 +362,4 @@ export function getHealthConfig(t: (key: TranslationKey) => string): Record<Proj
   };
 }
 
-export type { Project, ProjectPhase, Team, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey };
+export type { Project, ProjectPhase, ProjectMilestone, Team, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey };

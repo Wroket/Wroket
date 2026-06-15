@@ -17,6 +17,7 @@ import {
   AppNotification,
   SearchResult,
 } from "@/lib/api";
+import { WroketLockup } from "@/components/brand/WroketBrand";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
@@ -77,7 +78,7 @@ const ARCHIVE_NAV = {
     { tKey: "nav.archiveTasks", href: "/archive/tasks" },
     { tKey: "nav.archiveProjects", href: "/archive/projects" },
     { tKey: "nav.archiveTeams", href: "/archive/teams" },
-    { tKey: "nav.archiveNotes", href: "/archive/notes" },
+    { tKey: "nav.archiveData", href: "/archive/data" },
   ],
 };
 
@@ -454,6 +455,8 @@ export default function AppShell({ children }: AppShellProps) {
     if (result.type === "todo") router.push(`/todos?edit=${encodeURIComponent(result.id)}`);
     else if (result.type === "project") router.push(`/projects/${encodeURIComponent(result.id)}`);
     else if (result.type === "note") router.push(`/notes?id=${encodeURIComponent(result.id)}`);
+    else if (result.type === "contact") router.push("/teams?section=contacts");
+    else if (result.type === "database") router.push(`/notes?section=databases&db=${encodeURIComponent(result.id)}`);
   }, [router]);
 
   const [shareOpen, setShareOpen] = useState(false);
@@ -524,17 +527,12 @@ export default function AppShell({ children }: AppShellProps) {
                 </svg>
               )}
             </button>
-            <div className="w-10 h-10 rounded-xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0">
-              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none">
-                <path d="M2 13l4 4 4.5-6" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M11 13l4 4 4.5-6" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M12.4 8l0.7-1" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" />
-                <path d="M21.4 8l0.7-1" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-semibold leading-tight">
-              <span className="text-slate-800 dark:text-slate-100">Wro</span><span className="text-emerald-500 dark:text-emerald-400">ket</span>
-            </h1>
+            <WroketLockup
+              theme="auto"
+              markSize={28}
+              markContainerClassName="w-10 h-10 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0"
+              wordmarkClassName="text-lg font-semibold"
+            />
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Mobile search button */}
@@ -590,11 +588,21 @@ export default function AppShell({ children }: AppShellProps) {
                           ))}
                         </div>
                       )}
-                      {(["todo", "project", "note"] as const).map((type) => {
+                      {(["todo", "project", "note", "contact", "database"] as const).map((type) => {
                         const group = searchResults.filter((r) => r.type === type);
                         if (group.length === 0) return null;
-                        const labelKey = type === "todo" ? "search.todos" : type === "project" ? "search.projects" : "search.notes";
-                        const icon = type === "todo" ? "\u{1F4CB}" : type === "project" ? "\u{1F4C1}" : "\u{1F4DD}";
+                        const labelKey =
+                          type === "todo" ? "search.todos"
+                          : type === "project" ? "search.projects"
+                          : type === "note" ? "search.notes"
+                          : type === "contact" ? "search.contactsRepertoire"
+                          : "search.databases";
+                        const icon =
+                          type === "todo" ? "\u{1F4CB}"
+                          : type === "project" ? "\u{1F4C1}"
+                          : type === "note" ? "\u{1F4DD}"
+                          : type === "contact" ? "\u{1F464}"
+                          : "\u{1F4CA}";
                         return (
                           <div key={type}>
                             <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
@@ -994,20 +1002,26 @@ export default function AppShell({ children }: AppShellProps) {
             </button>
             {archiveOpen && (
               <div className="ml-7 mt-0.5 space-y-0.5">
-                {ARCHIVE_NAV.children.map((child) => (
+                {ARCHIVE_NAV.children.map((child) => {
+                  const active =
+                    child.href === "/archive/data"
+                      ? pathname.startsWith("/archive/data")
+                      : pathname === child.href;
+                  return (
                   <Link
                     key={child.href}
                     href={child.href}
                     onClick={closeMobileMenu}
                     className={`block px-3 py-2 rounded text-sm transition-colors ${
-                      pathname === child.href
+                      active
                         ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
                         : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
                     }`}
                   >
                     {t(child.tKey)}
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1154,19 +1168,25 @@ export default function AppShell({ children }: AppShellProps) {
               </button>
               {archiveOpen && (
                 <div className="ml-7 mt-0.5 space-y-0.5">
-                  {ARCHIVE_NAV.children.map((child) => (
+                  {ARCHIVE_NAV.children.map((child) => {
+                    const active =
+                      child.href === "/archive/data"
+                        ? pathname.startsWith("/archive/data")
+                        : pathname === child.href;
+                    return (
                     <Link
                       key={child.href}
                       href={child.href}
                       className={`block px-3 py-2 rounded text-sm transition-colors ${
-                        pathname === child.href
+                        active
                           ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-50 dark:bg-slate-800/60"
                           : "text-zinc-500 dark:text-slate-400 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-50 dark:hover:bg-slate-800/60"
                       }`}
                     >
                       {t(child.tKey)}
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1239,10 +1259,15 @@ export default function AppShell({ children }: AppShellProps) {
                     ))}
                   </div>
                 )}
-                {(["todo", "project", "note"] as const).map((type) => {
+                {(["todo", "project", "note", "contact", "database"] as const).map((type) => {
                   const group = searchResults.filter((r) => r.type === type);
                   if (group.length === 0) return null;
-                  const labelKey = type === "todo" ? "search.todos" : type === "project" ? "search.projects" : "search.notes";
+                  const labelKey =
+                    type === "todo" ? "search.todos"
+                    : type === "project" ? "search.projects"
+                    : type === "note" ? "search.notes"
+                    : type === "contact" ? "search.contactsRepertoire"
+                    : "search.databases";
                   return (
                     <div key={type}>
                       <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">

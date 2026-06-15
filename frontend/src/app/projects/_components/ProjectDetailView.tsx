@@ -24,6 +24,7 @@ import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
+import TaskBlockedModal, { type TaskBlockerInfo } from "@/components/TaskBlockedModal";
 import { useToast } from "@/components/Toast";
 import {
   updateProject,
@@ -52,6 +53,7 @@ import {
   type ProjectAccessEntry,
   type ProjectAccessInfo,
 } from "@/lib/api";
+import { updateTodoApi } from "@/lib/api/todos";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
@@ -59,6 +61,7 @@ import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import { personalProjectsCreateBlocked } from "@/lib/freeQuota";
+import { newClientEntityId } from "@/lib/newClientId";
 
 import PageHelpButton from "@/components/PageHelpButton";
 import DashboardImportModal from "@/components/DashboardImportModal";
@@ -70,6 +73,10 @@ import { executeTaskMove, computePhaseReorderIds } from "@/lib/projectTaskMove";
 import { broadcastResourceChange } from "@/lib/useResourceSync";
 import type { MoveTodoPayload, MoveTodoStrategy } from "@/lib/api/todos";
 import ProjectSteeringPanel from "./ProjectSteeringPanel";
+import ProjectShareLinksPanel from "@/components/ProjectShareLinksPanel";
+import ProjectMilestonesPanel from "./ProjectMilestonesPanel";
+import ProjectCustomFieldsPanel from "./ProjectCustomFieldsPanel";
+import ProjectDocsTab from "./ProjectDocsTab";
 import { captureElementToPng, downloadSteeringPdf } from "@/lib/steeringPdfExport";
 import { computeProjectSteering } from "@/lib/projectSteering";
 import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
@@ -233,6 +240,8 @@ export default function ProjectDetailView({
   const [newTaskAssignedUser, setNewTaskAssignedUser] = useState<AuthMeResponse | null>(null);
   const [newTaskAssignError, setNewTaskAssignError] = useState<string | null>(null);
   const newTaskAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [addingTask, setAddingTask] = useState(false);
+  const addTaskInFlightRef = useRef(false);
 
   const [convertModal, setConvertModal] = useState<{ phaseId: string; phaseName: string } | null>(null);
   const [convertStep, setConvertStep] = useState<1 | 2>(1);
@@ -243,7 +252,8 @@ export default function ProjectDetailView({
   const [mergingSubId, setMergingSubId] = useState<string | null>(null);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
+  const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null, blockedByTodoIds: [] as string[] });
+  const [blockedModal, setBlockedModal] = useState<{ taskTitle: string; blockers: TaskBlockerInfo[] } | null>(null);
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
@@ -255,6 +265,7 @@ export default function ProjectDetailView({
 
   const [subtaskParent, setSubtaskParent] = useState<Todo | null>(null);
   const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
+  const subtaskCreateInFlightRef = useRef(false);
 
   const [phaseToDelete, setPhaseToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showCreateSub, setShowCreateSub] = useState(false);
@@ -273,6 +284,25 @@ export default function ProjectDetailView({
   const ganttExportRef = useRef<HTMLDivElement>(null);
   const [exportingSteeringPdf, setExportingSteeringPdf] = useState(false);
   const [moveModal, setMoveModal] = useState<TaskMoveModalState | null>(null);
+
+  const canManageProject = useMemo(
+    () =>
+      selectedProject.ownerUid === meUid ||
+      (accessPanel?.access.some(
+        (e) => e.email.toLowerCase() === (user?.email ?? "").toLowerCase() && e.role === "admin",
+      ) ?? false),
+    [selectedProject.ownerUid, meUid, accessPanel, user?.email],
+  );
+
+  const refreshProjectMeta = useCallback(async () => {
+    try {
+      const fresh = await fetchProject(selectedProject.id);
+      setSelectedProject(fresh);
+      setProjects((prev) => prev.map((p) => (p.id === fresh.id ? fresh : p)));
+    } catch {
+      toast.error(t("toast.loadError"));
+    }
+  }, [selectedProject.id, setSelectedProject, setProjects, toast, t]);
 
   const projectsForMove = useMemo(() => [selectedProject], [selectedProject]);
 
@@ -737,6 +767,7 @@ export default function ProjectDetailView({
       tags: todo.tags ?? [],
       recurrence: todo.recurrence ?? null,
       projectId: todo.projectId ?? null,
+      blockedByTodoIds: todo.blockedByTodoIds ?? [],
     });
     setEditAssignEmail("");
     setEditAssignedUser(null);
@@ -845,10 +876,13 @@ export default function ProjectDetailView({
   const openSubtaskModal = (todo: Todo) => setSubtaskParent(todo);
 
   const handleCreateSubtask = async (data: { title: string; priority: Priority; effort: Effort; startDate: string; deadline: string }) => {
-    if (!subtaskParent) return;
+    if (!subtaskParent || subtaskCreateInFlightRef.current) return;
+    subtaskCreateInFlightRef.current = true;
     setSubtaskSubmitting(true);
+    const clientId = newClientEntityId();
     try {
       const todo = await createTodo({
+        id: clientId,
         title: data.title,
         priority: data.priority,
         effort: data.effort,
@@ -862,6 +896,7 @@ export default function ProjectDetailView({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {
+      subtaskCreateInFlightRef.current = false;
       setSubtaskSubmitting(false);
     }
   };
@@ -884,9 +919,13 @@ export default function ProjectDetailView({
   };
 
   const handleAddTask = async () => {
-    if (!newTaskTitle.trim()) return;
+    if (addTaskInFlightRef.current || !newTaskTitle.trim()) return;
+    addTaskInFlightRef.current = true;
+    setAddingTask(true);
+    const clientId = newClientEntityId();
     try {
       const todo = await createTodo({
+        id: clientId,
         title: newTaskTitle.trim(),
         priority: newTaskPriority,
         effort: newTaskEffort,
@@ -910,6 +949,9 @@ export default function ProjectDetailView({
       toast.success(t("toast.taskUpdated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      addTaskInFlightRef.current = false;
+      setAddingTask(false);
     }
   };
 
@@ -978,12 +1020,29 @@ export default function ProjectDetailView({
 
   const handleTaskStatusChange = async (todo: Todo, status: TodoStatus) => {
     try {
-      const updated = await updateTodo(todo.id, { status });
-      setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+      const result = await updateTodoApi(todo.id, { status });
+      if (!result.ok) {
+        if (result.status === 422 && result.code === "TASK_BLOCKED_BY_ACTIVE") {
+          const blockers = (result.details?.blockers as TaskBlockerInfo[] | undefined) ?? [];
+          setBlockedModal({ taskTitle: todo.title, blockers });
+          return;
+        }
+        toast.error(result.message);
+        return;
+      }
+      setProjectTodos((prev) => prev.map((td) => (td.id === result.todo.id ? result.todo : td)));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     }
   };
+
+  const taskHasActiveBlockers = useCallback((todo: Todo) => {
+    const byId = new Map(projectTodos.map((t) => [t.id, t]));
+    return (todo.blockedByTodoIds ?? []).some((id) => {
+      const b = byId.get(id);
+      return b && b.status === "active";
+    });
+  }, [projectTodos]);
 
   const handleScheduleUpdate = useCallback((updated: Todo) => {
     setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
@@ -1196,6 +1255,9 @@ export default function ProjectDetailView({
         )}
 
         <span className={`flex-1 text-sm truncate ${todo.status === "completed" ? "line-through text-zinc-400 dark:text-slate-500" : "text-zinc-800 dark:text-slate-200"}`}>
+          {taskHasActiveBlockers(todo) && (
+            <span className="mr-1 text-amber-500" title={t("dependencies.blockedBadge")}>⛔</span>
+          )}
           {displayTodoTitle(todo.title, t("todos.untitled"))}
           {subtaskCount > 0 && (
             <span className="ml-1.5 text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.5 rounded">{subtaskCount} ↳</span>
@@ -1620,6 +1682,32 @@ export default function ProjectDetailView({
           />
         )}
 
+        {!loadingTodos && (
+          <ProjectShareLinksPanel
+            projectId={selectedProject.id}
+            canManage={canManageProject}
+          />
+        )}
+
+        {!loadingTodos && (
+          <div className="grid gap-4 md:grid-cols-2">
+            <ProjectMilestonesPanel
+              projectId={selectedProject.id}
+              phases={orderedPhases}
+              milestones={selectedProject.milestones ?? []}
+              canEdit={canManageProject}
+              onChange={() => void refreshProjectMeta()}
+            />
+            <ProjectCustomFieldsPanel
+              projectId={selectedProject.id}
+              fields={selectedProject.customFieldDefs ?? []}
+              canEdit={canManageProject}
+              canUse={!!user?.entitlements?.integrations}
+              onChange={() => void refreshProjectMeta()}
+            />
+          </div>
+        )}
+
         {!loadingTodos && hasGanttExportData(projectTodos) && (
           <div aria-hidden className="fixed left-[-10000px] top-0 pointer-events-none">
             <div ref={ganttExportRef} className="bg-white p-4 text-zinc-900">
@@ -1628,6 +1716,7 @@ export default function ProjectDetailView({
                 variant="export"
                 phases={orderedPhases}
                 tasks={projectTodos}
+                milestones={selectedProject.milestones ?? []}
                 t={t}
                 locale={locale}
               />
@@ -1668,7 +1757,7 @@ export default function ProjectDetailView({
 
         {/* Tab bar */}
         <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-1">
-          {(["board", "kanban", "gantt"] as DetailTab[]).map((tab) => (
+          {(["board", "kanban", "gantt", "docs"] as DetailTab[]).map((tab) => (
             <button key={tab} onClick={() => setDetailTab(tab)} className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}>
               {t(`projects.${tab}`)}
             </button>
@@ -2072,12 +2161,19 @@ export default function ProjectDetailView({
               ) : null}
             </DragOverlay>
           </DndContext>
+        ) : detailTab === "docs" ? (
+          <ProjectDocsTab
+            projectId={selectedProject.id}
+            projectName={selectedProject.name}
+            canEdit={canManageProject}
+          />
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-4">{t("gantt.title")}</h3>
             <GanttChart
               phases={orderedPhases}
               tasks={projectTodos}
+              milestones={selectedProject.milestones ?? []}
               t={t}
               locale={locale}
               canConvertPhaseToSubproject={canConvertToSubproject}
@@ -2190,7 +2286,7 @@ export default function ProjectDetailView({
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
-                <button onClick={handleAddTask} disabled={!newTaskTitle.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
+                <button onClick={handleAddTask} disabled={addingTask || !newTaskTitle.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{addingTask ? t("todos.adding") : t("projects.save")}</button>
               </div>
             </div>
           </div>
@@ -2393,6 +2489,27 @@ export default function ProjectDetailView({
           onRequestDeleteTask={async (t) => {
             await closeTaskEditModal();
             handleDeleteTask(t);
+          }}
+          projectTasks={projectTodos}
+          canUseDependencies={!!user?.entitlements?.integrations}
+          customFieldDefs={selectedProject.customFieldDefs ?? []}
+          canUseCustomFields={!!user?.entitlements?.integrations}
+          canUseTimeTracking={!!user?.entitlements?.integrations}
+          onTodoUpdated={(updated) => {
+            setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+            setEditingTodo(updated);
+          }}
+        />
+
+        <TaskBlockedModal
+          open={!!blockedModal}
+          taskTitle={blockedModal?.taskTitle ?? ""}
+          blockers={blockedModal?.blockers ?? []}
+          onClose={() => setBlockedModal(null)}
+          onOpenBlocker={(id) => {
+            const target = projectTodos.find((t) => t.id === id);
+            setBlockedModal(null);
+            if (target) openEdit(target);
           }}
         />
 

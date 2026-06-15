@@ -1,8 +1,9 @@
 import { ValidationError } from "../utils/errors";
 import { createProject, addPhase } from "./projectService";
-import { createTodo, type Priority, type Effort } from "./todoService";
+import { createTodo, type Priority, type Effort, type TodoStatus } from "./todoService";
 import { findUserByEmail } from "./authService";
 import type { Project } from "./projectService";
+import type { ExternalRef } from "./externalRef";
 
 export interface CsvRow {
   phase: string;
@@ -26,6 +27,15 @@ export interface ParsedTask {
   assigneeEmail: string | null;
   assigneeUid: string | null;
   tags: string[];
+  status?: TodoStatus;
+  /** Stable external object id (Notion page / Monday item) when available. */
+  externalId?: string;
+  /** Normalized external phase key this task belongs to (defaults to phase name). */
+  externalPhaseId?: string;
+  /** External ids of tasks blocking this one (resolved during sync). */
+  blockedByExternalIds?: string[];
+  /** Full external ref attached to the created/updated task. */
+  externalRef?: ExternalRef | null;
 }
 
 export interface ImportError {
@@ -221,6 +231,8 @@ export async function executeImport(
       projectId: project.id,
       phaseId: phaseIdMap.get(task.phase) ?? null,
       assignedTo: task.assigneeUid,
+      status: task.status,
+      allowPastDeadline: true,
     });
     count++;
   }

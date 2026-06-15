@@ -33,9 +33,18 @@ import type {
   Recurrence,
   RecurrenceFrequency,
   Project,
+  ProjectCustomFieldDef,
   SuggestedSlot,
   Attachment,
 } from "@/lib/api";
+import {
+  getTodoTimeSessions,
+  startTodoTimer,
+  stopTodoTimer,
+  addManualTodoTimeSession,
+  type TimeSession,
+} from "@/lib/api/timeSessions";
+import { updateTodo } from "@/lib/api";
 
 export interface TaskEditModalProps {
   todo: Todo | null;
@@ -50,6 +59,7 @@ export interface TaskEditModalProps {
     tags: string[];
     recurrence: Recurrence | null;
     projectId: string | null;
+    blockedByTodoIds?: string[];
   };
   onFormChange: (updates: Partial<TaskEditModalProps["form"]>) => void;
   /** Close the modal (parent should flush auto-save if used). */
@@ -86,6 +96,13 @@ export interface TaskEditModalProps {
   onExternalSlotSynced?: () => void | Promise<void>;
   /** Soft-delete (archives / corbeille Wroket) — parent opens confirmation then calls delete API. */
   onRequestDeleteTask?: (todo: Todo) => void | Promise<void>;
+  /** Same-project tasks for dependency picker (project views). */
+  projectTasks?: Todo[];
+  canUseDependencies?: boolean;
+  customFieldDefs?: ProjectCustomFieldDef[];
+  canUseCustomFields?: boolean;
+  canUseTimeTracking?: boolean;
+  onTodoUpdated?: (todo: Todo) => void;
 }
 
 export default function TaskEditModal({
@@ -117,6 +134,12 @@ export default function TaskEditModal({
   canSyncToCalendar = false,
   onExternalSlotSynced,
   onRequestDeleteTask,
+  projectTasks = [],
+  canUseDependencies = false,
+  customFieldDefs = [],
+  canUseCustomFields = false,
+  canUseTimeTracking = false,
+  onTodoUpdated,
 }: TaskEditModalProps) {
   void _onAssignLookup;
   const { t } = useLocale();
@@ -167,6 +190,13 @@ export default function TaskEditModal({
 
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
+  const [timeSessions, setTimeSessions] = useState<TimeSession[]>([]);
+  const [timeTotalMinutes, setTimeTotalMinutes] = useState(0);
+  const [activeTimer, setActiveTimer] = useState<TimeSession | null>(null);
+  const [timeLoading, setTimeLoading] = useState(false);
+  const [manualMinutes, setManualMinutes] = useState("");
+  const [timeSaving, setTimeSaving] = useState(false);
+  const [customFieldsSaving, setCustomFieldsSaving] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
@@ -211,10 +241,92 @@ export default function TaskEditModal({
     let cancelled = false;
     getComments(todo.id).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
     getAttachments(todo.id).then((a) => { if (!cancelled) setAttachments(a); }).catch(() => {});
+    if (canUseTimeTracking) {
+      setTimeLoading(true);
+      getTodoTimeSessions(todo.id)
+        .then((data) => {
+          if (cancelled) return;
+          setTimeSessions(data.sessions);
+          setTimeTotalMinutes(data.totalMinutes);
+          setActiveTimer(data.activeTimer);
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setTimeLoading(false); });
+    }
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") void onClose(); };
     document.addEventListener("keydown", handleKey);
     return () => { cancelled = true; document.removeEventListener("keydown", handleKey); };
-  }, [todo, onClose, loadComments]);
+  }, [todo, onClose, loadComments, canUseTimeTracking]);
+
+  const formatLoggedMins = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ""}` : `${m}m`;
+  };
+
+  const handleStartTimer = async () => {
+    if (!todo) return;
+    setTimeSaving(true);
+    try {
+      const session = await startTodoTimer(todo.id);
+      setActiveTimer(session);
+      toast.success(t("timeTracking.running"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("timeTracking.error"));
+    } finally {
+      setTimeSaving(false);
+    }
+  };
+
+  const handleStopTimer = async () => {
+    if (!todo) return;
+    setTimeSaving(true);
+    try {
+      const session = await stopTodoTimer(todo.id);
+      setActiveTimer(null);
+      setTimeSessions((prev) => [session, ...prev]);
+      setTimeTotalMinutes((n) => n + (session.durationMinutes ?? 0));
+      toast.success(t("timeTracking.saved"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("timeTracking.error"));
+    } finally {
+      setTimeSaving(false);
+    }
+  };
+
+  const handleAddManualTime = async () => {
+    if (!todo) return;
+    const mins = Number(manualMinutes);
+    if (!Number.isFinite(mins) || mins < 1) return;
+    setTimeSaving(true);
+    try {
+      const session = await addManualTodoTimeSession(todo.id, { durationMinutes: mins });
+      setTimeSessions((prev) => [session, ...prev]);
+      setTimeTotalMinutes((n) => n + (session.durationMinutes ?? 0));
+      setManualMinutes("");
+      toast.success(t("timeTracking.saved"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("timeTracking.error"));
+    } finally {
+      setTimeSaving(false);
+    }
+  };
+
+  const handleCustomFieldChange = async (fieldId: string, value: string | number | boolean | null) => {
+    if (!todo || !isTaskOwner) return;
+    const prev = { ...(todo.customFieldValues ?? {}) };
+    const next = { ...prev, [fieldId]: value };
+    setCustomFieldsSaving(true);
+    try {
+      const updated = await updateTodo(todo.id, { customFieldValues: next });
+      onTodoUpdated?.(updated);
+      toast.success(t("toast.taskUpdated"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("toast.updateError"));
+    } finally {
+      setCustomFieldsSaving(false);
+    }
+  };
 
   if (!todo) return null;
 
@@ -511,6 +623,9 @@ export default function TaskEditModal({
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
               {t("edit.titleField")}
             </label>
+            {todo.externalRef?.provider === "notion" && (
+              <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-1">{t("tasks.managedByNotion")}</p>
+            )}
             <input
               type="text"
               value={form.title}
@@ -921,6 +1036,170 @@ export default function TaskEditModal({
             <button type="button" onClick={() => void handleAddTag()} disabled={!tagInput.trim() || tagsSaving} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
           </div>
         </div>
+
+        {canUseDependencies && todo?.projectId && isTaskOwner && (
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
+              {t("dependencies.blockedBy")}
+            </label>
+            <div className="max-h-32 overflow-y-auto space-y-1">
+              {projectTasks
+                .filter((pt) => pt.id !== todo.id && !pt.parentId && pt.status === "active")
+                .map((pt) => {
+                  const selected = (form.blockedByTodoIds ?? todo.blockedByTodoIds ?? []).includes(pt.id);
+                  return (
+                    <label key={pt.id} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => {
+                          const cur = form.blockedByTodoIds ?? todo.blockedByTodoIds ?? [];
+                          const next = e.target.checked
+                            ? [...cur, pt.id]
+                            : cur.filter((id) => id !== pt.id);
+                          onFormChange({ blockedByTodoIds: next });
+                        }}
+                        className="rounded border-zinc-300 dark:border-slate-600"
+                      />
+                      <span className="truncate">{pt.title || t("todos.untitled")}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            {projectTasks.filter((pt) => pt.id !== todo.id && !pt.parentId).length === 0 && (
+              <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dependencies.noneAvailable")}</p>
+            )}
+          </div>
+        )}
+
+        {canUseTimeTracking && isTaskOwner && (
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
+              {t("timeTracking.title")}
+            </label>
+            {timeLoading ? (
+              <p className="text-xs text-zinc-400">…</p>
+            ) : (
+              <>
+                <p className="text-xs text-zinc-600 dark:text-slate-300 mb-2">
+                  {t("timeTracking.total")}: <span className="font-semibold">{formatLoggedMins(timeTotalMinutes)}</span>
+                </p>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {activeTimer ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleStopTimer()}
+                      disabled={timeSaving}
+                      className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                    >
+                      {t("timeTracking.stop")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void handleStartTimer()}
+                      disabled={timeSaving}
+                      className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                    >
+                      {t("timeTracking.start")}
+                    </button>
+                  )}
+                  <input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={manualMinutes}
+                    onChange={(e) => setManualMinutes(e.target.value)}
+                    placeholder={t("timeTracking.minutes")}
+                    className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddManualTime()}
+                    disabled={timeSaving || !manualMinutes}
+                    className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs disabled:opacity-50"
+                  >
+                    {t("timeTracking.manualAdd")}
+                  </button>
+                </div>
+                {timeSessions.length > 0 && (
+                  <ul className="text-[10px] text-zinc-500 dark:text-slate-400 space-y-0.5 max-h-20 overflow-y-auto">
+                    {timeSessions.slice(0, 5).map((s) => (
+                      <li key={s.id}>
+                        {formatLoggedMins(s.durationMinutes ?? 0)} — {new Date(s.startedAt).toLocaleDateString()}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {canUseCustomFields && customFieldDefs.length > 0 && todo.projectId && isTaskOwner && (
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
+              {t("projects.customFieldsTitle")}
+            </label>
+            <div className="space-y-2">
+              {[...customFieldDefs].sort((a, b) => a.order - b.order).map((def) => {
+                const val = todo.customFieldValues?.[def.id];
+                return (
+                  <div key={def.id}>
+                    <span className="text-[10px] text-zinc-500 dark:text-slate-400">{def.name}</span>
+                    {def.type === "checkbox" ? (
+                      <label className="flex items-center gap-2 mt-0.5 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={val === true}
+                          disabled={customFieldsSaving}
+                          onChange={(e) => void handleCustomFieldChange(def.id, e.target.checked)}
+                          className="rounded border-zinc-300"
+                        />
+                      </label>
+                    ) : def.type === "select" ? (
+                      <select
+                        value={typeof val === "string" ? val : ""}
+                        disabled={customFieldsSaving}
+                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value || null)}
+                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
+                      >
+                        <option value="">—</option>
+                        {(def.options ?? []).map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    ) : def.type === "date" ? (
+                      <input
+                        type="date"
+                        value={typeof val === "string" ? val : ""}
+                        disabled={customFieldsSaving}
+                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value || null)}
+                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
+                      />
+                    ) : def.type === "number" ? (
+                      <input
+                        type="number"
+                        value={typeof val === "number" ? val : ""}
+                        disabled={customFieldsSaving}
+                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value === "" ? null : Number(e.target.value))}
+                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={typeof val === "string" ? val : ""}
+                        disabled={customFieldsSaving}
+                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value || null)}
+                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         </>}
 
         {/* Attachments */}

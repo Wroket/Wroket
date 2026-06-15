@@ -95,6 +95,7 @@ export default function SlashCommandMenu({
   const [taskProject, setTaskProject] = useState("");
   const [taskAssign, setTaskAssign] = useState("");
   const [taskCreating, setTaskCreating] = useState(false);
+  const taskCreateInFlightRef = useRef(false);
   const [assignEmail, setAssignEmail] = useState("");
   const [deadlineValue, setDeadlineValue] = useState("");
   const [projectSearch, setProjectSearch] = useState("");
@@ -228,7 +229,8 @@ export default function SlashCommandMenu({
   /* ── Interactive action handlers ── */
 
   const handleCreateTask = useCallback(async () => {
-    if (!taskTitle.trim() || !onCreateTask) return;
+    if (!taskTitle.trim() || !onCreateTask || taskCreateInFlightRef.current || taskCreating) return;
+    taskCreateInFlightRef.current = true;
     setTaskCreating(true);
     try {
       await onCreateTask({
@@ -241,9 +243,11 @@ export default function SlashCommandMenu({
       insertText(`✅ ${t("slash.task.created")} : "${taskTitle.trim()}"` + (taskDeadline ? ` — ${t("slash.deadline.inserted")} ${taskDeadline}` : "") + (taskProject ? ` — ${t("slash.project.inserted")}` : ""));
     } catch {
       insertText(`❌ ${t("slash.task.error")} : "${taskTitle.trim()}"`);
+    } finally {
+      taskCreateInFlightRef.current = false;
+      setTaskCreating(false);
     }
-    setTaskCreating(false);
-  }, [taskTitle, taskPriority, taskDeadline, taskProject, taskAssign, onCreateTask, insertText, t]);
+  }, [taskTitle, taskPriority, taskDeadline, taskProject, taskAssign, onCreateTask, insertText, t, taskCreating]);
 
   const handleAssign = useCallback(() => {
     if (!assignEmail.trim()) return;

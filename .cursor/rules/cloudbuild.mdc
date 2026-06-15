@@ -16,6 +16,8 @@ Pour `gcloud run deploy`, **`--set-secrets` définit la liste complète** des va
 
 - En production, `backend/src/server.ts` exige **`OAUTH_STATE_SECRET`** (`NODE_ENV=production`). Sans cette variable, le processus **quitte avant** `listen` → erreur Cloud Run « container failed to start / PORT 8080 ».
 - Après la migration **sans chiffrement contenu** (Option A), **`CRYPTO_KEK_BASE64` ne doit plus** être injecté au runtime pour l’API. Le `cloudbuild.yaml` doit monter **`OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest`** (et pas remplacer par erreur par le seul KEK).
+- Intégrations Notion : **`NOTION_CLIENT_ID`**, **`NOTION_CLIENT_SECRET`** (Secret Manager) + **`NOTION_REDIRECT_URI`** (env en clair dans `--update-env-vars`, ex. `https://api.wroket.com/integrations/notion/callback`).
+- Intégrations Monday : **`MONDAY_CLIENT_ID`**, **`MONDAY_CLIENT_SECRET`** (Secret Manager) + **`MONDAY_REDIRECT_URI`** (env en clair, ex. `https://api.wroket.com/integrations/monday/callback`). Scopes OAuth : `boards:read docs:read` via **`MONDAY_OAUTH_SCOPES`** (doit correspondre exactement aux scopes cochés dans Monday Dev).
 - Le compte **`wroket-run@…`** doit avoir **Secret Manager Secret Accessor** sur chaque secret référencé.
 
 ## Avant un push sur `main`

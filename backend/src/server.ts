@@ -87,6 +87,8 @@ async function main(): Promise<void> {
     hydrateTodosFromLegacyStore();
   }
   await hydrateTodosFromV2IfNeeded();
+  const { reloadShareLinksFromStore } = await import("./services/projectShareLinkService");
+  reloadShareLinksFromStore();
   // Attach cross-replica cache invalidation AFTER hydration so that the initial
   // onSnapshot calls (which would replay existing data) are safely skipped.
   attachLiveInvalidation();

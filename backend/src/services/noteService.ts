@@ -5,6 +5,12 @@ import { NotFoundError, ValidationError, PaymentRequiredError } from "../utils/e
 import { getTeam, getTeamRole } from "./teamService";
 import { normalizeEmail, findUserByEmail, findUserByUid, shouldApplyFreeTierVolumeQuotas } from "./authService";
 import { FREE_QUOTA_CODE_NOTES, FREE_TIER_MAX_PERSONAL_NOTES } from "./freeTierQuotaConstants";
+import { ensureNoteFolder } from "./noteFolderService";
+import { getProjectById } from "./projectService";
+import { normalizeExternalRef, type ExternalRef, type ExternalProvider } from "./externalRef";
+
+/** Aligné sur `noteFolderService` — nom de dossier max. */
+const MAX_NOTE_FOLDER_NAME_LEN = 80;
 
 export interface Note {
   id: string;
@@ -26,6 +32,8 @@ export interface Note {
   ownerEmail?: string;
   /** Set when the note is in `archivedNotes` (soft delete). */
   archivedAt?: string;
+  /** External source identity (Monday doc, future Notion page, …). */
+  externalRef?: ExternalRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,7 +96,7 @@ function persistArchived(): void {
     for (const [uid, notes] of Object.entries(store.notes)) {
       const map = new Map<string, Note>();
       for (const [id, note] of Object.entries(notes as Record<string, Note>)) {
-        map.set(id, note);
+        map.set(id, { ...note, externalRef: normalizeExternalRef(note.externalRef) });
         count++;
       }
       notesByUser.set(uid, map);
@@ -139,6 +147,13 @@ export function listNotes(userId: string): Note[] {
   });
 }
 
+/** Notes linked to a project (wiki / docs tab). */
+export function listNotesForProject(userId: string, projectId: string): Note[] {
+  const pid = projectId.trim();
+  if (!pid) return [];
+  return listNotes(userId).filter((n) => n.projectId === pid && !n.archivedAt);
+}
+
 export function getNote(userId: string, noteId: string): Note {
   const note = getUserNotes(userId).get(noteId);
   if (!note) throw new NotFoundError("Note introuvable");
@@ -169,18 +184,62 @@ export function countPersonalNotesForQuota(userId: string): number {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function folderNameForProjectId(projectId: string): string | undefined {
+  const projectName = getProjectById(projectId)?.name?.trim();
+  if (!projectName) return undefined;
+  return projectName.length > MAX_NOTE_FOLDER_NAME_LEN
+    ? projectName.slice(0, MAX_NOTE_FOLDER_NAME_LEN)
+    : projectName;
+}
+
+/** Détache les notes d'un projet supprimé (dossier + lien projet). */
+export function clearProjectNotesOrganizationGlobally(projectId: string): void {
+  const pid = projectId.trim();
+  if (!pid) return;
+  const now = new Date().toISOString();
+  let changed = false;
+
+  const touch = (note: Note) => {
+    if (note.projectId !== pid) return;
+    if (note.folder) {
+      delete note.folder;
+      changed = true;
+    }
+    note.projectId = undefined;
+    note.updatedAt = now;
+    changed = true;
+  };
+
+  for (const map of notesByUser.values()) {
+    for (const note of map.values()) touch(note);
+  }
+  for (const map of archivedNotesByUser.values()) {
+    for (const note of map.values()) touch(note);
+  }
+
+  if (changed) {
+    persist();
+    persistArchived();
+  }
+}
+
 export function createNote(userId: string, input: CreateNoteInput): Note {
   const title = (input.title ?? "").trim();
   if (title.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
   const content = input.content ?? "";
   if (content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
 
-  const folder = input.folder?.trim() || undefined;
-  const tags = input.tags?.length ? input.tags.slice(0, 10) : undefined;
   const todoId = input.todoId?.trim() || undefined;
   const projectId = input.projectId?.trim() || undefined;
   const shared = input.shared ?? undefined;
   const teamId = input.teamId?.trim() || undefined;
+
+  let folder = input.folder?.trim() || undefined;
+  if (!folder && projectId) {
+    folder = folderNameForProjectId(projectId);
+  }
+
+  const tags = input.tags?.length ? input.tags.slice(0, 10) : undefined;
 
   validateSharing(userId, shared, teamId);
 
@@ -224,6 +283,7 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
 
   getUserNotes(userId).set(note.id, note);
   persist();
+  if (folder) ensureNoteFolder(userId, folder, projectId);
   return note;
 }
 
@@ -253,6 +313,12 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
   }
   if (input.projectId !== undefined) {
     note.projectId = input.projectId?.trim() || undefined;
+    if (note.projectId && !note.folder && input.folder === undefined) {
+      const projectFolder = folderNameForProjectId(note.projectId);
+      if (projectFolder) {
+        note.folder = projectFolder;
+      }
+    }
   }
   if (input.shared !== undefined || input.teamId !== undefined) {
     const wantShared = input.shared ?? note.shared;
@@ -284,6 +350,9 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
 
   note.updatedAt = new Date().toISOString();
   persist();
+  if (note.folder) {
+    ensureNoteFolder(userId, note.folder, note.projectId);
+  }
   return note;
 }
 
@@ -479,4 +548,100 @@ export function purgeNotesRuntimeForUid(uid: string): string[] {
   notesByUser.delete(uid);
   archivedNotesByUser.delete(uid);
   return [...ids];
+}
+
+/** All active notes for owner (sync internal — no list cap). */
+export function listAllNotes(userId: string): Note[] {
+  return Array.from(getUserNotes(userId).values()).filter((n) => !n.archivedAt);
+}
+
+export function findNoteByExternalId(
+  userId: string,
+  provider: ExternalProvider,
+  externalId: string,
+): Note | undefined {
+  return listAllNotes(userId).find(
+    (n) => n.externalRef?.provider === provider && n.externalRef.externalId === externalId,
+  );
+}
+
+export interface MondayDocSyncRowInput {
+  externalId: string;
+  title: string;
+  contentHtml: string;
+  folder?: string;
+  projectId?: string | null;
+}
+
+export interface UpsertNoteFromMondaySyncResult {
+  note: Note;
+  created: boolean;
+  changedFields: string[];
+}
+
+/** Upserts one note from a Monday doc pull (bounded mirror: title + content). */
+export function upsertNoteFromMondaySync(
+  userId: string,
+  row: MondayDocSyncRowInput,
+  refs: { connectionId: string },
+): UpsertNoteFromMondaySyncResult {
+  const title = (row.title ?? "").trim() || "Sans titre";
+  if (title.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
+  const content = row.contentHtml ?? "";
+  if (content.length > 50_000) {
+    throw new ValidationError("Contenu trop long (max 50 000 caractères) — document Monday trop volumineux");
+  }
+
+  const now = new Date().toISOString();
+  const externalRef: ExternalRef = {
+    provider: "monday",
+    externalId: row.externalId,
+    connectionId: refs.connectionId,
+    lastSyncedAt: now,
+  };
+
+  const existing = findNoteByExternalId(userId, "monday", row.externalId);
+  if (existing) {
+    const changedFields: string[] = [];
+    if (existing.title !== title) changedFields.push("title");
+    if (existing.content !== content) changedFields.push("content");
+    if (changedFields.length > 0) {
+      existing.title = title;
+      existing.content = content;
+      existing.updatedAt = now;
+    }
+    existing.externalRef = externalRef;
+    persist();
+    return { note: existing, created: false, changedFields };
+  }
+
+  const folder = row.folder?.trim() || undefined;
+  const projectId = row.projectId?.trim() || undefined;
+
+  if (!row.projectId && shouldApplyFreeTierVolumeQuotas(userId)) {
+    if (countPersonalNotesForQuota(userId) >= FREE_TIER_MAX_PERSONAL_NOTES) {
+      throw new PaymentRequiredError(
+        `Le palier gratuit est limité à ${FREE_TIER_MAX_PERSONAL_NOTES} notes personnelles. Passez à un palier payant pour lever cette limite.`,
+        FREE_QUOTA_CODE_NOTES,
+      );
+    }
+  }
+
+  const note: Note = {
+    id: crypto.randomUUID(),
+    userId,
+    title,
+    content,
+    pinned: false,
+    folder,
+    projectId,
+    externalRef,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  getUserNotes(userId).set(note.id, note);
+  persist();
+  if (folder) ensureNoteFolder(userId, folder, projectId);
+  return { note, created: true, changedFields: ["title", "content"] };
 }

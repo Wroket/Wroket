@@ -24,6 +24,47 @@ export interface Note {
   archivedAt?: string;
 }
 
+export interface NoteFolderSummary {
+  name: string;
+  createdAt: string;
+  noteCount: number;
+  persisted: boolean;
+  projectId?: string;
+}
+
+export async function getNoteFolders(): Promise<NoteFolderSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/folders`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les dossiers");
+  return res.json();
+}
+
+export async function createNoteFolderApi(name: string): Promise<{ name: string; createdAt: string; updatedAt: string }> {
+  const res = await fetch(`${API_BASE_URL}/notes/folders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? "Impossible de créer le dossier");
+  }
+  return res.json();
+}
+
+export async function deleteNoteFolderApi(name: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/notes/folders/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string; code?: string };
+    const e = new Error(err.message ?? "Impossible de supprimer le dossier") as Error & { code?: string };
+    e.code = err.code;
+    throw e;
+  }
+}
+
 export async function getNotes(): Promise<Note[]> {
   const res = await fetch(`${API_BASE_URL}/notes`, { credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger les notes");

@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
+import ContactsSection from "@/app/teams/_components/ContactsSection";
 import { useLocale } from "@/lib/LocaleContext";
 import { useResourceSync } from "@/lib/useResourceSync";
 import { useToast } from "@/components/Toast";
@@ -25,18 +27,29 @@ import {
   Team,
   TeamMemberRole,
 } from "@/lib/api";
+import { getContacts, type Contact } from "@/lib/api/contacts";
 
 interface NewTeamMember {
   email: string;
   isNew?: boolean;
 }
 
-type Section = "collaborators" | "teams";
+type Section = "collaborators" | "teams" | "contacts";
 
 export default function TeamsPage() {
+  return (
+    <Suspense>
+      <TeamsPageContent />
+    </Suspense>
+  );
+}
+
+function TeamsPageContent() {
   const { t } = useLocale();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [receivedInvites, setReceivedInvites] = useState<ReceivedInvitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,14 +75,16 @@ export default function TeamsPage() {
 
   const refreshData = useCallback(async () => {
     try {
-      const [collabs, received, teamList] = await Promise.all([
+      const [collabs, received, teamList, contactList] = await Promise.all([
         getCollaborators(),
         getReceivedInvitations(),
         getTeams(),
+        getContacts(),
       ]);
       setCollaborators(collabs);
       setReceivedInvites(received);
       setTeams(teamList);
+      setContacts(contactList);
     } catch { /* handled by AppShell */ }
   }, []);
 
@@ -92,6 +107,13 @@ export default function TeamsPage() {
       window.removeEventListener("collaborators-updated", onCollabUpdate);
     };
   }, [refreshData]);
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (section === "contacts" || section === "collaborators" || section === "teams") {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !inviteEmail.includes("@")) return;
@@ -207,7 +229,7 @@ export default function TeamsPage() {
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Collaborators summary card */}
                 <div
                   onClick={() => setActiveSection("collaborators")}
@@ -303,9 +325,49 @@ export default function TeamsPage() {
                     </svg>
                   </div>
                 </div>
+
+                {/* Contacts summary card */}
+                <div
+                  onClick={() => setActiveSection("contacts")}
+                  className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 cursor-pointer hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200 group"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-11 h-11 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                        {t("teams.contactsCard")}
+                      </p>
+                      <p className="text-xs text-zinc-400 dark:text-slate-500">
+                        {contacts.length === 0
+                          ? t("teams.contactsCardEmpty")
+                          : t("teams.contactsCardCount").replace("{count}", String(contacts.length))}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    {contacts.length > 0 ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                        {contacts.length} {t("contacts.countLabel").toLowerCase()}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-zinc-400 dark:text-slate-500">{t("contacts.emptyShort")}</span>
+                    )}
+                    <svg className="w-4 h-4 text-zinc-300 dark:text-slate-600 group-hover:text-zinc-500 dark:group-hover:text-slate-400 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             )}
           </>
+        )}
+
+        {activeSection === "contacts" && (
+          <ContactsSection onBack={goBack} />
         )}
 
         {/* ═══════════════════════════════ COLLABORATORS DETAIL ═══════════════════════════════ */}

@@ -21,10 +21,11 @@ export interface OverdueTaskRow {
 }
 
 export interface UpcomingMilestone {
-  phaseId: string;
-  phaseName: string;
+  id: string;
+  label: string;
   endDate: string;
   daysLeft: number;
+  source: "phase" | "milestone";
 }
 
 export interface ProjectSteeringSnapshot {
@@ -114,21 +115,40 @@ export function computeProjectSteering(
   }
 
   const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const upcomingMilestones: UpcomingMilestone[] = (project.phases ?? [])
+
+  const fromPhases: UpcomingMilestone[] = (project.phases ?? [])
     .filter((p) => p.endDate?.trim())
     .map((p) => {
       const end = new Date(p.endDate! + "T23:59:59");
       const daysLeft = Math.ceil((end.getTime() - todayMs) / (24 * 60 * 60 * 1000));
       return {
-        phaseId: p.id,
-        phaseName: p.name,
+        id: `phase:${p.id}`,
+        label: p.name,
         endDate: p.endDate!,
         daysLeft,
+        source: "phase" as const,
       };
-    })
+    });
+
+  const fromMilestones: UpcomingMilestone[] = (project.milestones ?? [])
+    .filter((m) => m.date?.trim())
+    .map((m) => {
+      const end = new Date(m.date + "T23:59:59");
+      const daysLeft = Math.ceil((end.getTime() - todayMs) / (24 * 60 * 60 * 1000));
+      const phaseName = m.phaseId ? phaseMap.get(m.phaseId)?.name : null;
+      return {
+        id: `milestone:${m.id}`,
+        label: phaseName ? `${m.title} (${phaseName})` : m.title,
+        endDate: m.date,
+        daysLeft,
+        source: "milestone" as const,
+      };
+    });
+
+  const upcomingMilestones: UpcomingMilestone[] = [...fromPhases, ...fromMilestones]
     .filter((m) => m.daysLeft >= -7)
     .sort((a, b) => a.daysLeft - b.daysLeft)
-    .slice(0, 5);
+    .slice(0, 8);
 
   const topOverdue: OverdueTaskRow[] = overdueActive
     .sort((a, b) => {

@@ -19,6 +19,7 @@ import {
   postTransferOwnership,
   getMyTeamRole,
   getTeamDashboard,
+  getTeamPortfolio,
   getTeamReporting,
   getTeamCollaborators,
   postAddTeamCollaborator,
@@ -44,6 +45,7 @@ teamRoutes.get("/owned", getOwnedTeams);
 teamRoutes.post("/", postCreateTeam);
 teamRoutes.get("/:teamId/role", getMyTeamRole);
 teamRoutes.get("/:teamId/dashboard", getTeamDashboard);
+teamRoutes.get("/:teamId/portfolio", getTeamPortfolio);
 teamRoutes.get("/:teamId/reporting", getTeamReporting);
 teamRoutes.post("/:teamId/members", postAddMember);
 teamRoutes.patch("/:teamId/members/role", postUpdateMemberRole);
