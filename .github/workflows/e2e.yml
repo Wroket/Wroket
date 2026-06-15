@@ -14,7 +14,8 @@ jobs:
   e2e-smoke:
     name: Playwright smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # First run can spend ~15 min on browser download + system deps; webServer timeout is 6 min in CI.
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +46,33 @@ jobs:
             'FRONTEND_URL=http://localhost:3000' \
             > backend/.env
 
-      - name: Install Playwright Chromium
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: e2e
+        run: |
+          echo "version=$(node -e "console.log(require('@playwright/test/package.json').version)")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium (full)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         # Use npm --prefix (npx does not support --prefix; it was passed to playwright and failed).
         run: npm run install:browsers --prefix e2e
+
+      - name: Install Playwright Chromium (from cache)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: |
+          npx playwright install-deps chromium
+          npx playwright install chromium
+        working-directory: e2e
 
       - name: Run E2E smoke
         run: npm run test:e2e
