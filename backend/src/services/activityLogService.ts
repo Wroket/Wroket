@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
+import { stripUndefinedDeep } from "../utils/firestoreSanitize";
 
 type Firestore = import("@google-cloud/firestore").Firestore;
 
@@ -106,7 +107,7 @@ export function logActivity(
 async function appendToFirestore(entry: ActivityLogEntry): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) return;
-  await dbConn.collection(COLLECTION).doc(entry.id).set(entry);
+  await dbConn.collection(COLLECTION).doc(entry.id).set(stripUndefinedDeep(entry));
 }
 
 interface ActivityLogFilters {
@@ -146,15 +147,18 @@ async function readFromFirestoreOrMemory(filters?: ActivityLogFilters): Promise<
     let q: FirebaseFirestore.Query = dbConn.collection(COLLECTION);
     if (filters?.userId) q = q.where("userId", "==", filters.userId);
     else if (filters?.entityId) q = q.where("entityId", "==", filters.entityId);
-    if (filters?.since) q = q.where("createdAt", ">=", filters.since);
-    q = q.orderBy("createdAt", "desc");
-    // Read a generous slice so client-side filters (entityType, secondary
-    // predicates) still have a meaningful count for `total` and pagination.
-    q = q.limit(Math.min(MAX_ENTRIES, Math.max(500, (filters?.limit ?? 50) + (filters?.offset ?? 0))));
-    const snap = await q.get();
+    // Avoid composite indexes (userId/entityId + orderBy createdAt) — sort in memory.
+    const snap = await q.limit(MAX_ENTRIES).get();
     let rows = snap.docs.map((d) => d.data() as ActivityLogEntry);
     if (filters?.entityType) rows = rows.filter((e) => e.entityType === filters.entityType);
     if (filters?.entityId && filters?.userId) rows = rows.filter((e) => e.entityId === filters.entityId);
+    if (filters?.since) {
+      const sinceMs = new Date(filters.since).getTime();
+      if (!Number.isNaN(sinceMs)) {
+        rows = rows.filter((e) => new Date(e.createdAt).getTime() >= sinceMs);
+      }
+    }
+    rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return rows;
   } catch (err) {
     console.warn("[activityLog] firestore read failed, falling back to memory: %s", err);

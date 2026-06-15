@@ -1,5 +1,7 @@
 type Firestore = import("@google-cloud/firestore").Firestore;
 
+import { stripUndefinedDeep } from "../utils/firestoreSanitize";
+
 const USE_LOCAL = process.env.USE_LOCAL_STORE === "true";
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT?.trim() ?? "";
 const COLLECTION = process.env.TODOS_DOC_COLLECTION?.trim() || "todos_v2";
@@ -67,7 +69,7 @@ async function upsertWithCondition(dbConn: Firestore, todo: TodoDocWrite): Promi
           return;
         }
       }
-      tx.set(ref, todo);
+      tx.set(ref, stripUndefinedDeep(todo));
     });
   } catch {
     counters.write_conflict_count += 1;
@@ -81,7 +83,7 @@ async function upsertWithCondition(dbConn: Firestore, todo: TodoDocWrite): Promi
           return;
         }
       }
-      tx.set(ref, todo);
+      tx.set(ref, stripUndefinedDeep(todo));
     });
     counters.retry_success_count += 1;
   }

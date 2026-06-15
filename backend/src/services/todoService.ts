@@ -443,8 +443,11 @@ export function todoToClientJson(todo: Todo): Todo {
 }
 
 function todoToPersisted(todo: Todo): Todo {
-  const { encV1: _e, ...rest } = todo as Todo & { encV1?: string };
-  return { ...rest };
+  const { encV1: _e, externalRef, customFieldValues, ...rest } = todo as Todo & { encV1?: string };
+  const out: Todo = { ...rest };
+  if (externalRef) out.externalRef = { ...externalRef };
+  if (customFieldValues) out.customFieldValues = { ...customFieldValues };
+  return out;
 }
 
 /**
