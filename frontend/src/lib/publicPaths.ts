@@ -11,6 +11,7 @@ export const PUBLIC_PATHS = [
   "/reset-password",
   "/verify-email",
   "/pricing",
+  "/docs",
   "/privacy",
   "/terms",
   "/agenda-taches",
@@ -23,5 +24,6 @@ export const PUBLIC_PATHS = [
 export function isPublicPath(pathname: string): boolean {
   if ((PUBLIC_PATHS as readonly string[]).includes(pathname)) return true;
   if (pathname.startsWith("/share/project/")) return true;
+  if (pathname === "/docs" || pathname.startsWith("/docs/")) return true;
   return false;
 }

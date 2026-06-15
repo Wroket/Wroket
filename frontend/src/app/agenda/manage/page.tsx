@@ -306,7 +306,7 @@ export default function ManageCalendarsPage() {
     <AppShell>
       <div className="max-w-[700px] space-y-6">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{t("agenda.manageCalendars")}</h1>
             <PageHelpButton
               title={t("agenda.manageCalendars")}
@@ -316,6 +316,12 @@ export default function ManageCalendarsPage() {
                 { text: t("help.manage.colors") },
               ]}
             />
+            <Link
+              href="/docs/integrations/calendar"
+              className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline"
+            >
+              {t("agenda.calendarDocsLink")}
+            </Link>
           </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("agenda.manageDesc")}</p>
           {!authLoading && user && !user.entitlements?.integrations && (

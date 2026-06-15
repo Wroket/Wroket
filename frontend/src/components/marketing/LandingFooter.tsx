@@ -44,10 +44,16 @@ export function LandingFooter({ hidePricingLink = false, className = "" }: Landi
                 </Link>
               )}
             </nav>
-            <nav className="flex flex-col gap-2.5" aria-label={t("landing.footerNavLegal")}>
+            <nav className="flex flex-col gap-2.5" aria-label={t("docs.footer.resources")}>
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-slate-500">
-                {t("landing.footerNavLegal")}
+                {t("docs.footer.resources")}
               </p>
+              <Link href="/docs" className={linkClass}>
+                {t("docs.footer.documentation")}
+              </Link>
+              <Link href="/docs/integrations/notion" className={linkClass}>
+                {t("docs.footer.migrateNotion")}
+              </Link>
               <Link href="/privacy" className={linkClass}>
                 {t("landing.footerPrivacy")}
               </Link>

@@ -400,6 +400,12 @@ function MondayMigrateContent() {
           </Link>
           <h1 className="text-xl font-semibold mt-2">{t("migrate.monday.title")}</h1>
           <p className="text-sm text-zinc-600 dark:text-slate-400 mt-1">{t("migrate.monday.hint")}</p>
+          <Link
+            href="/docs/integrations/monday"
+            className="inline-block mt-2 text-sm text-emerald-700 dark:text-emerald-400 hover:underline"
+          >
+            {t("migrate.monday.docsLink")}
+          </Link>
         </div>
 
         <div className="flex gap-1 rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">

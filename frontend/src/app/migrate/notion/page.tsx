@@ -670,15 +670,23 @@ function MigrateNotionPageContent() {
   return (
     <AppShell>
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-slate-100">{t("migrate.notion.title")}</h1>
-          <button
-            type="button"
-            onClick={() => router.push("/settings?tab=integrations")}
-            className="text-sm text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200"
-          >
-            {t("migrate.notion.backSettings")}
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/docs/integrations/notion?section=template"
+              className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline"
+            >
+              {t("migrate.notion.docsLink")}
+            </Link>
+            <button
+              type="button"
+              onClick={() => router.push("/settings?tab=integrations")}
+              className="text-sm text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200"
+            >
+              {t("migrate.notion.backSettings")}
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-6">

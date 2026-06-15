@@ -20,6 +20,9 @@ const PUBLIC_ROUTES: Array<{
 }> = [
   { path: "/", sourceFile: "src/app/page.tsx", changeFrequency: "weekly", priority: 1 },
   { path: "/pricing", sourceFile: "src/app/pricing/page.tsx", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/docs", sourceFile: "src/app/docs/page.tsx", changeFrequency: "monthly", priority: 0.75 },
+  { path: "/docs/integrations/notion", sourceFile: "src/app/docs/integrations/[slug]/page.tsx", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/docs/integrations/monday", sourceFile: "src/app/docs/integrations/[slug]/page.tsx", changeFrequency: "monthly", priority: 0.7 },
   { path: "/agenda-taches", sourceFile: "src/app/agenda-taches/page.tsx", changeFrequency: "monthly", priority: 0.7 },
   { path: "/gestion-taches-equipe", sourceFile: "src/app/gestion-taches-equipe/page.tsx", changeFrequency: "monthly", priority: 0.7 },
   { path: "/matrice-eisenhower", sourceFile: "src/app/matrice-eisenhower/page.tsx", changeFrequency: "monthly", priority: 0.6 },

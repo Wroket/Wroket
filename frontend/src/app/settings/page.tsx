@@ -1737,6 +1737,7 @@ function ConnectedAppsBlock({
     provider: AppConnectionSummary["provider"];
     labelKey: TranslationKey;
     descKey: TranslationKey;
+    guideHref: string;
     available: boolean;
     connection?: AppConnectionSummary;
     connectedActions?: Array<
@@ -1750,6 +1751,7 @@ function ConnectedAppsBlock({
       provider: "notion",
       labelKey: "settings.connectionNotion",
       descKey: "settings.connectionNotionDesc",
+      guideHref: "/docs/integrations/notion",
       available: true,
       connection: connections.find((c) => c.provider === "notion"),
       connect: () => connectNotionOAuth("/settings?tab=integrations"),
@@ -1769,6 +1771,7 @@ function ConnectedAppsBlock({
       provider: "monday",
       labelKey: "settings.connectionMonday",
       descKey: "settings.connectionMondayDesc",
+      guideHref: "/docs/integrations/monday",
       available: true,
       connection: connections.find((c) => c.provider === "monday"),
       connect: () => connectMondayOAuth("/settings?tab=integrations"),
@@ -1818,6 +1821,12 @@ function ConnectedAppsBlock({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t(app.labelKey)}</p>
                     <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t(app.descKey)}</p>
+                    <Link
+                      href={app.guideHref}
+                      className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+                    >
+                      {t("settings.viewIntegrationGuide")}
+                    </Link>
                     {connected && app.connection?.workspaceName && (
                       <p className="text-[10px] text-zinc-400 dark:text-slate-500 truncate mt-1">
                         {app.connection.workspaceName}

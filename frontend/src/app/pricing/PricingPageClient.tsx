@@ -427,6 +427,23 @@ export default function PricingPage() {
                 <dd className="mt-2 text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">{t(a)}</dd>
               </div>
             ))}
+            <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-900/50 p-5">
+              <dt className="font-semibold text-zinc-900 dark:text-slate-100">{t("docs.pricing.faq5q")}</dt>
+              <dd className="mt-2 text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">
+                {t("docs.pricing.faq5a")}{" "}
+                <Link href="/docs/integrations/notion" className="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
+                  {t("docs.pricing.faq5linkNotion")}
+                </Link>
+                {" · "}
+                <Link href="/docs/integrations/monday" className="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
+                  {t("docs.pricing.faq5linkMonday")}
+                </Link>
+                {" · "}
+                <Link href="/docs" className="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
+                  {t("docs.footer.documentation")}
+                </Link>
+              </dd>
+            </div>
           </dl>
         </section>
 

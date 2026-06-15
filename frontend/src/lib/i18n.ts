@@ -1,3 +1,5 @@
+import { docsTranslations } from "./docsI18n";
+
 export type Locale = "fr" | "en";
 
 const translations = {
@@ -3032,6 +3034,7 @@ const translations = {
   "toast.noteCreateError": { fr: "Impossible de créer la note", en: "Failed to create note" },
   "toast.genericError": { fr: "Erreur", en: "Error" },
   "toast.steeringPdfError": { fr: "Impossible de générer le PDF de pilotage.", en: "Could not generate steering PDF." },
+  ...docsTranslations,
 } as const;
 
 export type TranslationKey = keyof typeof translations;
