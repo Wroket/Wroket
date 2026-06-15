@@ -73,8 +73,8 @@ Permettre l'import Notion API vers :
 |-----------------|-------------|
 | `project` | Projet Wroket |
 | `contacts` | Contacts (+ mapping manuel) |
-| `data` / générique | Bases Notes |
-| `ambiguous` | Choix utilisateur (3 boutons) |
+| `ambiguous` | Choix utilisateur (projet / contacts / bases) |
+| `data` | Bases Notes — **choix explicite** à l’import (jamais auto-suggéré par score) |
 
 ### Sync Bases
 

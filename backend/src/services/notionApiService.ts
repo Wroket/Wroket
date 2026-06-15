@@ -291,7 +291,6 @@ export function detectNotionDatabaseKind(
   let suggestedKind: NotionDatabaseKind;
   if (score >= 4) suggestedKind = "contacts";
   else if (score <= 0) suggestedKind = "project";
-  else if (score >= 2) suggestedKind = "data";
   else suggestedKind = "ambiguous";
 
   return { suggestedKind, kindScore: score };

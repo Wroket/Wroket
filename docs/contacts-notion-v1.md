@@ -138,12 +138,12 @@ Heuristique **score** sur le schéma de la base (propriétés Notion), exécuté
 
 - **Score ≥ 4** → suggestion `kind: "contacts"`.
 - **Score ≤ 0** → suggestion `kind: "project"`.
-- Entre les deux → `kind: "ambiguous"` — l’utilisateur choisit.
+- **Entre les deux** → `kind: "ambiguous"` — l’utilisateur choisit (projet, contacts ou bases). Le kind `data` n’est jamais auto-suggéré par le score.
 
 Expose :
 
 ```ts
-type NotionDatabaseKind = "project" | "contacts" | "ambiguous";
+type NotionDatabaseKind = "project" | "contacts" | "data" | "ambiguous";
 
 interface NotionDatabaseSummary {
   id: string;
