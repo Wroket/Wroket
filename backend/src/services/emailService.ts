@@ -525,3 +525,234 @@ export async function sendPricingContactLeadEmails(
 
   return { teamSent, ackSent };
 }
+
+export interface AppFeedbackPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  message: string;
+  locale: "fr" | "en";
+}
+
+/**
+ * Sends in-app feedback: (1) team inbox with Reply-To user, (2) ack to user.
+ */
+export async function sendAppFeedbackEmails(
+  p: AppFeedbackPayload,
+): Promise<{ teamSent: boolean; ackSent: boolean }> {
+  if (!isSmtpConfiguredForOutbound()) {
+    return { teamSent: false, ackSent: false };
+  }
+
+  const safeFirst = escapeHtml(p.firstName);
+  const safeLast = escapeHtml(p.lastName);
+  const safeEmail = escapeHtml(p.email);
+  const safeMessage = escapeHtml(p.message).replace(/\n/g, "<br>");
+  const displayName = [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.email;
+  const safeDisplayName = escapeHtml(displayName);
+  const t = getTransporter();
+
+  const teamSubject =
+    p.locale === "fr" ? "Wroket — Feedback in-app" : "Wroket — In-app feedback";
+
+  const teamHtml =
+    p.locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Retour utilisateur (application)</h2>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Nom</td><td style="padding:6px 0;color:#334155">${safeDisplayName}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Email</td><td style="padding:6px 0;color:#334155">${safeEmail}</td></tr>
+        </table>
+        <p style="color:#475569;line-height:1.6;margin:16px 0 8px"><strong>Message :</strong></p>
+        <p style="color:#334155;line-height:1.6;white-space:pre-wrap">${safeMessage}</p>
+        <p style="font-size:13px;color:#64748b">Répondre directement pour joindre l'utilisateur (Reply-To).</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">User feedback (app)</h2>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Name</td><td style="padding:6px 0;color:#334155">${safeDisplayName}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Email</td><td style="padding:6px 0;color:#334155">${safeEmail}</td></tr>
+        </table>
+        <p style="color:#475569;line-height:1.6;margin:16px 0 8px"><strong>Message:</strong></p>
+        <p style="color:#334155;line-height:1.6;white-space:pre-wrap">${safeMessage}</p>
+        <p style="font-size:13px;color:#64748b">Reply to this message to reach the sender (Reply-To).</p>
+        ${emailFooter()}
+      </div>`;
+
+  let teamSent = false;
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: PRICING_CONTACT_TO,
+      replyTo: p.email.trim(),
+      subject: teamSubject,
+      html: teamHtml,
+    });
+    teamSent = true;
+    console.log("[email] App feedback sent to team from %s", p.email);
+  } catch (err) {
+    console.error("[email] Failed to send app feedback to team: %s", err);
+  }
+
+  if (!teamSent) {
+    return { teamSent: false, ackSent: false };
+  }
+
+  const ackSubject =
+    p.locale === "fr"
+      ? "Wroket — Nous avons bien reçu votre retour"
+      : "Wroket — We have received your feedback";
+
+  const ackHtml =
+    p.locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Merci ${safeFirst || safeDisplayName}</h2>
+        <p style="color:#475569;line-height:1.6">Nous avons bien reçu votre retour. Notre équipe le lit avec attention et vous répondra si nécessaire à l'adresse <strong>${safeEmail}</strong>.</p>
+        <p style="font-size:13px;color:#64748b">Si vous n'êtes pas à l'origine de ce message, vous pouvez l'ignorer.</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Thank you, ${safeFirst || safeDisplayName}</h2>
+        <p style="color:#475569;line-height:1.6">We have received your feedback. Our team will review it carefully and get back to you if needed at <strong>${safeEmail}</strong>.</p>
+        <p style="font-size:13px;color:#64748b">If you did not submit this feedback, you can safely ignore this email.</p>
+        ${emailFooter()}
+      </div>`;
+
+  let ackSent = false;
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: p.email.trim(),
+      subject: ackSubject,
+      html: ackHtml,
+    });
+    ackSent = true;
+    console.log("[email] App feedback ack sent to %s", p.email);
+  } catch (err) {
+    console.error("[email] Failed to send app feedback ack to %s: %s", p.email, err);
+  }
+
+  return { teamSent, ackSent };
+}
+
+export interface EarlyBirdEnrollPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  uid: string;
+  locale: "fr" | "en";
+}
+
+/**
+ * Sends early bird self-enrollment: (1) team inbox, (2) ack to user.
+ */
+export async function sendEarlyBirdEnrollEmails(
+  p: EarlyBirdEnrollPayload,
+): Promise<{ teamSent: boolean; ackSent: boolean }> {
+  if (!isSmtpConfiguredForOutbound()) {
+    return { teamSent: false, ackSent: false };
+  }
+
+  const safeFirst = escapeHtml(p.firstName);
+  const safeLast = escapeHtml(p.lastName);
+  const safeEmail = escapeHtml(p.email);
+  const safeUid = escapeHtml(p.uid);
+  const displayName = [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.email;
+  const safeDisplayName = escapeHtml(displayName);
+  const enrolledAt = new Date().toISOString();
+  const t = getTransporter();
+
+  const teamSubject =
+    p.locale === "fr" ? "Wroket — Inscription Early Bird" : "Wroket — Early Bird enrollment";
+
+  const teamHtml =
+    p.locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Nouvelle inscription Early Bird</h2>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Nom</td><td style="padding:6px 0;color:#334155">${safeDisplayName}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Email</td><td style="padding:6px 0;color:#334155">${safeEmail}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">UID</td><td style="padding:6px 0;color:#334155;font-family:monospace;font-size:12px">${safeUid}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Date</td><td style="padding:6px 0;color:#334155">${escapeHtml(enrolledAt)}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Source</td><td style="padding:6px 0;color:#334155">Tutoriel onboarding</td></tr>
+        </table>
+        <p style="font-size:13px;color:#64748b">Répondre directement pour joindre l'utilisateur (Reply-To).</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">New Early Bird enrollment</h2>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Name</td><td style="padding:6px 0;color:#334155">${safeDisplayName}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Email</td><td style="padding:6px 0;color:#334155">${safeEmail}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">UID</td><td style="padding:6px 0;color:#334155;font-family:monospace;font-size:12px">${safeUid}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Date</td><td style="padding:6px 0;color:#334155">${escapeHtml(enrolledAt)}</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;color:#64748b">Source</td><td style="padding:6px 0;color:#334155">Onboarding tutorial</td></tr>
+        </table>
+        <p style="font-size:13px;color:#64748b">Reply to this message to reach the sender (Reply-To).</p>
+        ${emailFooter()}
+      </div>`;
+
+  let teamSent = false;
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: PRICING_CONTACT_TO,
+      replyTo: p.email.trim(),
+      subject: teamSubject,
+      html: teamHtml,
+    });
+    teamSent = true;
+    console.log("[email] Early bird enroll notified to team for %s", p.email);
+  } catch (err) {
+    console.error("[email] Failed to send early bird enroll to team: %s", err);
+  }
+
+  if (!teamSent) {
+    return { teamSent: false, ackSent: false };
+  }
+
+  const ackSubject =
+    p.locale === "fr"
+      ? "Wroket — Bienvenue parmi les Early Birds"
+      : "Wroket — Welcome to Early Bird";
+
+  const ackHtml =
+    p.locale === "fr"
+      ? `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Merci ${safeFirst || safeDisplayName}</h2>
+        <p style="color:#475569;line-height:1.6">Votre statut <strong>Early Bird</strong> est maintenant actif sur Wroket. Vous bénéficiez d'un accès étendu : intégrations (Notion, Monday, calendriers), notifications d'équipe et reporting, sans frais supplémentaires.</p>
+        <p style="font-size:13px;color:#64748b">Si vous n'êtes pas à l'origine de cette inscription, contactez team@wroket.com.</p>
+        ${emailFooter()}
+      </div>`
+      : `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        ${emailHeader()}
+        <h2 style="color:#334155">Thank you, ${safeFirst || safeDisplayName}</h2>
+        <p style="color:#475569;line-height:1.6">Your <strong>Early Bird</strong> status is now active on Wroket. You get extended access: integrations (Notion, Monday, calendars), team notifications, and reporting — at no extra cost.</p>
+        <p style="font-size:13px;color:#64748b">If you did not sign up for this, contact team@wroket.com.</p>
+        ${emailFooter()}
+      </div>`;
+
+  let ackSent = false;
+  try {
+    await t.sendMail({
+      from: `"Wroket" <${FROM_ADDRESS}>`,
+      to: p.email.trim(),
+      subject: ackSubject,
+      html: ackHtml,
+    });
+    ackSent = true;
+    console.log("[email] Early bird enroll ack sent to %s", p.email);
+  } catch (err) {
+    console.error("[email] Failed to send early bird enroll ack to %s: %s", p.email, err);
+  }
+
+  return { teamSent, ackSent };
+}

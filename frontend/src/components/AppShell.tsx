@@ -22,6 +22,8 @@ import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 import TutorialModal, { useTutorial } from "@/components/TutorialModal";
+import EarlyBirdBadge from "@/components/EarlyBirdBadge";
+import FeedbackModal from "@/components/FeedbackModal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
 import FreeQuotaBanner from "@/components/FreeQuotaBanner";
@@ -149,6 +151,15 @@ const DOCS_ITEM = {
   ),
 };
 
+const FEEDBACK_ITEM = {
+  tKey: "nav.feedback",
+  icon: (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  ),
+};
+
 function isDocsPath(pathname: string): boolean {
   return pathname === "/docs" || pathname.startsWith("/docs/");
 }
@@ -189,6 +200,19 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: R
   );
 }
 
+function NavButton({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
 function timeAgo(iso: string, t: (k: import("@/lib/i18n").TranslationKey) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -210,10 +234,11 @@ export default function AppShell({ children }: AppShellProps) {
   const router = useRouter();
   const { t } = useLocale();
   const { toast } = useToast();
-  const { user: me, loading } = useAuth();
+  const { user: me, loading, refresh } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
 
   const { showTutorial, openTutorial, closeTutorial } = useTutorial();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
@@ -547,6 +572,12 @@ export default function AppShell({ children }: AppShellProps) {
               markContainerClassName="w-10 h-10 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0"
               wordmarkClassName="text-lg font-semibold"
             />
+            {me?.earlyBird ? (
+              <>
+                <EarlyBirdBadge className="hidden sm:inline-flex" />
+                <EarlyBirdBadge compact className="sm:hidden" />
+              </>
+            ) : null}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Mobile search button */}
@@ -1055,6 +1086,13 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
           </div>
           <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+            {me && (
+              <NavButton
+                icon={FEEDBACK_ITEM.icon}
+                label={t(FEEDBACK_ITEM.tKey)}
+                onClick={() => { closeMobileMenu(); setFeedbackOpen(true); }}
+              />
+            )}
             <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} onClick={closeMobileMenu} />
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
             {me && userSeesAdminNav(me) && (
@@ -1221,6 +1259,13 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
             </div>
             <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+              {me && (
+                <NavButton
+                  icon={FEEDBACK_ITEM.icon}
+                  label={t(FEEDBACK_ITEM.tKey)}
+                  onClick={() => setFeedbackOpen(true)}
+                />
+              )}
               <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} />
               <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
               {me && userSeesAdminNav(me) && (
@@ -1237,7 +1282,20 @@ export default function AppShell({ children }: AppShellProps) {
         </main>
       </div>
 
-      <TutorialModal open={showTutorial} onClose={closeTutorial} />
+      <TutorialModal
+        open={showTutorial}
+        onClose={closeTutorial}
+        earlyBird={!!me?.earlyBird}
+        onEarlyBirdEnrolled={refresh}
+      />
+
+      {me && (
+        <FeedbackModal
+          open={feedbackOpen}
+          onClose={() => setFeedbackOpen(false)}
+          user={{ firstName: me.firstName, lastName: me.lastName, email: me.email }}
+        />
+      )}
 
       {mobileSearchOpen && (
         <div className="fixed inset-0 z-[110] bg-white dark:bg-slate-950 flex flex-col sm:hidden">

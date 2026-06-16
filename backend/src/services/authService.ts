@@ -1275,6 +1275,23 @@ export function setEarlyBirdForUid(uid: string, value: boolean): void {
   persistUsers();
 }
 
+/** Self-service depuis le tutoriel onboarding — idempotent si déjà early bird. */
+export function enrollEarlyBirdForUid(uid: string): { alreadyEnrolled: boolean } {
+  const user = usersByUid.get(uid);
+  if (!user) {
+    console.warn("[auth] enrollEarlyBirdForUid: utilisateur introuvable %s", uid);
+    return { alreadyEnrolled: false };
+  }
+  if (user.earlyBird) {
+    return { alreadyEnrolled: true };
+  }
+  user.earlyBird = true;
+  usersByUid.set(uid, user);
+  persistUsers();
+  console.log("[auth] early bird activé (self-service) pour %s", uid);
+  return { alreadyEnrolled: false };
+}
+
 export function getStripeCustomerIdForUid(uid: string): string | undefined {
   const id = usersByUid.get(uid)?.stripeCustomerId?.trim();
   return id && id.length > 0 ? id : undefined;

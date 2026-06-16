@@ -51,9 +51,6 @@ export function LandingFooter({ hidePricingLink = false, className = "" }: Landi
               <Link href="/docs" className={linkClass}>
                 {t("docs.footer.documentation")}
               </Link>
-              <Link href="/docs/integrations/notion" className={linkClass}>
-                {t("docs.footer.migrateNotion")}
-              </Link>
               <Link href="/privacy" className={linkClass}>
                 {t("landing.footerPrivacy")}
               </Link>

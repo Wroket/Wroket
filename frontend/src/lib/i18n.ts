@@ -83,6 +83,7 @@ const translations = {
   "nav.teams": { fr: "Collaboration", en: "Collaboration" },
   "nav.myTeams": { fr: "Mes équipes", en: "My teams" },
   "nav.settings": { fr: "Paramètres", en: "Settings" },
+  "nav.feedback": { fr: "Feedback", en: "Feedback" },
   "loading": { fr: "Chargement…", en: "Loading…" },
   "cancel": { fr: "Annuler", en: "Cancel" },
   "confirm": { fr: "Confirmer", en: "Confirm" },
@@ -1844,19 +1845,81 @@ const translations = {
   "tutorial.finish": { fr: "C'est parti !", en: "Let's go!" },
   "tutorial.skip": { fr: "Passer", en: "Skip" },
   "tutorial.stepOf": { fr: "sur", en: "of" },
-  "tutorial.step1.title": { fr: "Vos tâches, sans prise de tête", en: "Your tasks, hassle-free" },
+  "tutorial.step1.title": { fr: "Connectez votre agenda", en: "Connect your calendar" },
   "tutorial.step1.desc": {
-    fr: "Créez des tâches avec échéance et effort : la vue Radar montre quoi traiter en premier. Ouvrez une tâche pour planifier un créneau et retrouvez-la dans l’agenda — liste, cartes ou Radar, tout est cherchable depuis la barre de recherche.",
-    en: "Create tasks with deadlines and effort: the Radar shows what to tackle first. Open a task to book a slot and see it on the calendar — list, cards, or Radar; everything is searchable from the bar.",
+    fr: "Avant de créer des tâches ou un projet, connectez votre agenda pour réserver un temps alloué.",
+    en: "Before creating tasks or a project, connect your calendar to reserve dedicated time.",
   },
-  "tutorial.step2.title": { fr: "Vos projets, une vision claire", en: "Projects with a clear view" },
-  "tutorial.step2.desc": { fr: "Regroupez vos tâches par projet : tableau, Kanban ou Gantt. Une structure simple pour suivre l'avancement sans vous noyer dans les détails.", en: "Group tasks into projects: board, Kanban, or Gantt. A simple structure to track progress without overload." },
-  "tutorial.step3.title": { fr: "Allez plus loin : agenda et import", en: "Go further: calendar and import" },
-  "tutorial.step3.desc": { fr: "Connectez Google Calendar pour réserver des créneaux et ne laissez plus jamais une tâche au bas de la pile ! Importez vos tâches ou un projet pour repartir de ce que vous avez déjà.", en: "Connect Google Calendar to book time slots and stop letting tasks sink to the bottom of the pile. Import your tasks or a project to pick up where you left off." },
-  "tutorial.step4.title": { fr: "Travail d'équipe", en: "Teamwork" },
+  "tutorial.step2.title": { fr: "Vos tâches, sans prise de tête", en: "Your tasks, hassle-free" },
+  "tutorial.step2.desc": {
+    fr: "Créez des tâches en évaluant l'échéance et l'effort et réservez un créneau.",
+    en: "Create tasks by assessing deadline and effort, then book a time slot.",
+  },
+  "tutorial.step3.title": { fr: "Vos projets, une vision claire", en: "Projects with a clear view" },
+  "tutorial.step3.desc": {
+    fr: "Tableau, Kanban ou Gantt : maîtrisez vos projets et vos échéances.",
+    en: "Board, Kanban, or Gantt: stay on top of your projects and deadlines.",
+  },
+  "tutorial.step4.title": { fr: "Travaillez en équipe", en: "Work as a team" },
   "tutorial.step4.desc": {
-    fr: "Créez une équipe, ou invitez des collaborateurs. Assignez des tâches, partagez vos projets et vos notes ; vos collègues seront informés en temps réel !",
-    en: "Create a team, or invite collaborators. Assign tasks, share your projects and notes; your colleagues will be informed in real time!",
+    fr: "Créez une équipe, invitez vos collaborateurs, assignez et partagez vos projets.",
+    en: "Create a team, invite collaborators, assign tasks, and share your projects.",
+  },
+  "tutorial.step5.title": { fr: "Early Bird", en: "Early Bird" },
+  "tutorial.step5.desc": {
+    fr: "Pour vous remercier de travailler avec Wroket, bénéficiez d'un accès total et gratuit à l'application.",
+    en: "As a thank-you for working with Wroket, get full free access to the app.",
+  },
+  "tutorial.earlyBird.cta": { fr: "Devenir Early Bird", en: "Become an Early Bird" },
+  "tutorial.earlyBird.submitting": { fr: "Inscription…", en: "Signing up…" },
+  "tutorial.earlyBird.success": {
+    fr: "Vous êtes Early Bird — profitez de l'accès complet dès maintenant.",
+    en: "You're an Early Bird — enjoy full access right away.",
+  },
+  "tutorial.earlyBird.successAlready": {
+    fr: "Votre statut Early Bird est déjà actif.",
+    en: "Your Early Bird status is already active.",
+  },
+  "tutorial.earlyBird.error": {
+    fr: "Impossible de finaliser l'inscription. Réessayez plus tard.",
+    en: "Could not complete signup. Please try again later.",
+  },
+  "header.earlyBirdBadge": { fr: "Early Bird", en: "Early Bird" },
+
+  // ── Feedback ──
+  "feedback.title": { fr: "Feedback", en: "Feedback" },
+  "feedback.intro": {
+    fr: "Wroket avance avec vous. Partagez vos idées et retours — chaque message nous aide à prioriser les bonnes améliorations.",
+    en: "Wroket grows with you. Share your ideas and feedback — every message helps us prioritize what matters.",
+  },
+  "feedback.placeholder": {
+    fr: "Votre message…",
+    en: "Your message…",
+  },
+  "feedback.send": { fr: "Envoyer", en: "Send" },
+  "feedback.cancel": { fr: "Annuler", en: "Cancel" },
+  "feedback.close": { fr: "Fermer", en: "Close" },
+  "feedback.sending": { fr: "Envoi…", en: "Sending…" },
+  "feedback.sentAs": {
+    fr: "Envoyé en tant que {name} ({email})",
+    en: "Sending as {name} ({email})",
+  },
+  "feedback.successTitle": { fr: "Merci pour votre retour", en: "Thanks for your feedback" },
+  "feedback.successBody": {
+    fr: "Votre message a bien été transmis à notre équipe. Un accusé de réception vous a été envoyé par email.",
+    en: "Your message has been sent to our team. A confirmation email has been sent to you.",
+  },
+  "feedback.successBodyNoAck": {
+    fr: "Votre message a bien été transmis à notre équipe. L'accusé de réception n'a pas pu être envoyé ; vérifiez vos courriers indésirables ou contactez team@wroket.com.",
+    en: "Your message has been sent to our team. We could not send the confirmation email; check spam or contact team@wroket.com.",
+  },
+  "feedback.submitError": {
+    fr: "Impossible d'envoyer le message. Réessayez plus tard.",
+    en: "Could not send your message. Please try again later.",
+  },
+  "feedback.emptyError": {
+    fr: "Veuillez saisir un message.",
+    en: "Please enter a message.",
   },
 
   // ── Page help items ──

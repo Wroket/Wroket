@@ -32,3 +32,6 @@ uploads/
 
 improvements/
 .claude/
+
+# INPI e-Soleau deposit output (archives, PDFs — do not commit)
+inpi-deposit/output/

@@ -41,7 +41,6 @@ export const docsTranslations = {
   "docs.cta.agendaManage": { fr: "Gérer mes calendriers", en: "Manage my calendars" },
   "docs.footer.resources": { fr: "Ressources", en: "Resources" },
   "docs.footer.documentation": { fr: "Documentation", en: "Documentation" },
-  "docs.footer.migrateNotion": { fr: "Migrer depuis Notion", en: "Migrate from Notion" },
 
   "docs.hub.notion.title": { fr: "Notion", en: "Notion" },
   "docs.hub.notion.summary": {

@@ -2,39 +2,42 @@
 
 ## Priorités produit (ordre recommandé)
 
-**Objectif** : rendre Wroket **fiable en prod**, **agréable au quotidien** (mobile, rappels, vues focus), **crédible pour les équipes** (2FA, écosystème Microsoft), puis **monétisable** — avant d’investir dans les intégrations lourdes (bots Slack, sync bidirectionnelle) ou le R&D lourd (notes temps réel, CRDT).
+**Objectif** : rendre Wroket **fiable en prod**, **agréable au quotidien** (mobile, rappels, vues focus), **crédible pour les équipes** (2FA, écosystème Microsoft), puis **monétisable** — avec une montée en profondeur par étapes : **Slack+** (webhook+, OAuth, actions) puis **IA agentique connectable** avant une IA intégrée minimale.
 
 | Phase | Focus | Pistes principales (détail dans les sections ci-dessous) |
 |-------|--------|---------------------------------------------------------|
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
 | **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ (Android + desktop enrichi livré, E2E desktop §I-bis à valider) ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
-| **P3** | Intégrations & profondeur | **Intégrations & Connecteurs** — bots N2, sync Slack N3 ; **Features Notion-Like** (dépendances, docs) ; **Features Monday-Like** (import board, automations, dashboard) ; **À l’étude** — notes collaboratives, CalDAV |
-| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics… |
+| **P3** | Intégrations & profondeur | **Slack+** (Webhook+ PMO, OAuth, actions bidirectionnelles), **Features Notion-Like** (dépendances, docs), **Features Monday-Like** (import board, automations, dashboard) |
+| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics, **IA intégrée minimale** (après socle agentique) |
 
 **P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause**. **P2 en cours** : PWA + **Web Push** livrés ; **Gantt interactif + quadrillage** livrés (2026-06-08). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
 
-### Trois priorités produit (arbitrage 2026-06-08)
+**Arbitrage 2026-06-15** : priorité d’exécution **Slack puis IA** ; **Stripe Checkout reste en pause** tant que le MVP Slack+ (lots 1-2) et le cadrage IA agentique (go/no-go) ne sont pas validés.
 
-Exécution **unifiée** (pas trois silos) — détail des vagues : [docs/project-roadmap-pmo.md §12](docs/project-roadmap-pmo.md#12-alignement-3-priorités-produit).
+### Trois priorités produit (arbitrage 2026-06-15)
+
+Exécution priorisée en séquence : **Slack+**, puis **IA agentique**, puis optimisation PMO continue.
 
 | Priorité | Focus | Prochain livrable |
 |----------|--------|-------------------|
-| **A — PMO** | Finir [plan PMO](docs/project-roadmap-pmo.md) (partage, portfolio, jalons, E2E) | Liens lecture seule + portfolio (vague 2) |
-| **B — Notion-Like** | Acquisition + profondeur Notion | **Import ZIP** (vague 1) |
-| **C — Monday-Like** | Acquisition PMO Monday | Import board (vague 4, après orchestrateur Notion) |
+| **A — Slack+** | Approfondir l’intégration Slack (au-delà du webhook entrant) | Lot 1 Webhook+ PMO + Lot 2 OAuth natif |
+| **B — IA agentique** | Rendre Wroket connectable aux agents (Cursor/Claude/...) | Action surface PMO + gate go/no-go (6–8 semaines) |
+| **C — PMO** | Stabilisation et valeur continue | Liens partageables/portfolio selon traction, hors migration Notion/Monday |
 
-**Vague 1 (Now)** : Import Notion ZIP + dépendances tâches + validation E2E Gantt §G.12.
-
-**Vague 2 (Next)** : Liens partageables + portfolio équipe + marketing Notion.
-
-**Vagues 3–4 (Later)** : wiki, time tracking, champs perso., jalons dédiés → puis import Monday, automations, dashboard équipe.
+**Décisions produit associées :**
+- **Notion-Like** et **Monday-Like** sont considérés **aboutis en MVP acquisition** pour le besoin actuel.
+- **Import Notion ZIP** et imports **CSV** supplémentaires Notion/Monday sont **dépriorisés**.
+- **E2E Gantt §G.12** est considéré validé.
 
 ### Prochaine priorité (sprint)
 
-**Vague 1 — socle** : **Import Notion ZIP** + **dépendances tâches** (couvre PMO phase 2 partiel + Notion-Like v1–v2). En parallèle : cocher E2E checklist §G.12 (quadrillage Gantt).
+1. **Slack+ Lot 1** : Webhook+ PMO (events, delivery health, filtres projet/équipe).
+2. **Slack+ Lot 2** : connexion Slack OAuth native (workspace/channel).
+3. **IA agentique Phase 1** : cadrage action surface, sécurité, audit, KPI et seuils go/no-go.
 
-Les cases `[ ]` des sections thématiques restent la **source de vérité** ; le plan PMO §12 **ordonne** les trois priorités entre elles.
+Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ## Audit complétude (passe 2)
 
@@ -80,13 +83,15 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité** ; le
 
 ### Next (6-12 semaines)
 
-- **Vague 1 (3 priorités)** : import Notion ZIP + dépendances tâches + E2E Gantt §G.12 — voir [project-roadmap-pmo.md §12](docs/project-roadmap-pmo.md#12-alignement-3-priorités-produit)
-- **Vague 2** : liens partageables lecture seule + portfolio équipe + marketing Notion
-- **P1 (reprise)** : Stripe Checkout self-service
+- **Slack+ (MVP lots 1-2)** : Webhook+ PMO (events, delivery health) puis connexion Slack OAuth native (workspace/channel)
+- **IA agentique (phase 1)** : Wroket connectable aux agents (action surface PMO, sécurité, audit, go/no-go 6-8 semaines)
+- **PMO ciblé** : liens partageables lecture seule + portfolio équipe selon traction terrain
+- **P1 (reprise, en pause)** : Stripe Checkout self-service (reprendre après validation Slack+ MVP + gate IA)
 
 ### Later (12+ semaines)
 
-- Bots interactifs Slack/Discord et sync bidirectionnelle.
+- Slack+ lots 3-4 : actions bidirectionnelles Slack + workflows PMO managers (`my-week`, `team-risk`, `overdue`).
+- IA : couche intégrée minimale (2-3 commandes natives) sur primitives agentiques validées.
 - Notes collaboratives temps réel (chantier lourd).
 - Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
 
@@ -133,7 +138,7 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
 3. **Plan & Billing Core**  
    - Charge: **12-15 jours**  
    - Deadline cible: **2026-06-13**  
-   - Livrables: plans Free/Pro/Team, Stripe Checkout + webhooks, page `/pricing`.
+   - Livrables: plans Free/Pro/Team, webhooks + portail + page `/pricing` ; Stripe Checkout mis en pause (reprise ultérieure).
 4. **Microsoft path (SSO + Outlook MVP)**  
    - Charge: **8-10 jours**  
    - Deadline cible: **2026-06-27**  
@@ -364,7 +369,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Intégrations & Connecteurs
 
-*Niveau 1 livré ; N2/N3 = charge d’intégration élevée — placer après P1/P2 sauf besoin client fort (cf. priorités P3).*
+*Niveau 1 livré ; priorité d’exécution 2026-06 : **Slack+ MVP (lots 1-2)** puis **Slack actions (lots 3-4)**. Les autres connecteurs restent en backlog.*
 
 - [x] **Webhooks sortants (Niveau 1)** — Notifications Wroket vers Slack, Discord, Microsoft Teams
   - Configuration par utilisateur dans Paramètres > Intégrations
@@ -372,40 +377,28 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - Support multi-webhooks (un par channel/plateforme)
   - Bouton "Tester" pour valider la configuration
   - Payloads formatés par plateforme (Slack Block Kit, Discord Embeds, Teams Adaptive Cards)
-- [ ] **Bots interactifs (Niveau 2)** — Commandes slash depuis Slack/Discord
-  - `/wroket add "titre" --priority high --effort medium` — créer une tâche
-  - `/wroket today` — lister les tâches du jour
-  - `/wroket done #id` — marquer une tâche comme terminée
-  - Nécessite une app Slack/Discord avec OAuth + serveur de commandes
-- [ ] **Sync bidirectionnelle (Niveau 3)** — Messages Slack ↔ commentaires Wroket
-  - Réponses aux notifications Wroket dans Slack remontées comme commentaires
-  - Threads Slack liés aux tâches Wroket
+- [ ] **Slack+ Lot 1 — Webhook+ PMO** — enrichir les événements (`project_at_risk`, `milestone_due_soon`, `dependency_blocked`), filtrage projet/équipe, observabilité de livraison (dernier statut, erreurs successives, backoff 429/5xx)
+- [ ] **Slack+ Lot 2 — Connexion native OAuth** — connect/disconnect Slack dans le hub intégrations, stockage workspace/channel, scopes minimaux notifications puis actions
+- [ ] **Slack+ Lot 3 — Actions bidirectionnelles** — actions Slack vers Wroket (accepter/refuser, marquer terminé, ouvrir tâche), vérification signature Slack, idempotence retries, audit
+- [ ] **Slack+ Lot 4 — Workflows PMO managers** — commandes `/wroket my-week`, `/wroket team-risk`, `/wroket overdue`, digest équipe, recap steering
+- [ ] **Autres connecteurs interactifs (backlog)** — bots Discord, sync bidirectionnelle multi-plateformes, commentaires/threads unifiés
 
 ## Acquisition & migration (Notion / Monday)
 
-*Plans détaillés : Notion (vagues ci-dessous + [plan PMO §12](docs/project-roadmap-pmo.md#12-alignement-3-priorités-produit)) · Monday (idem) — vagues livrables indépendamment ; imports **gratuits sans quota dédié** (seule restriction = capacité du compte selon palier `free` / `first` / `earlyBird` / `small` / `large`, voir [docs/plan-quotas.md](docs/plan-quotas.md)).*
+*Décision produit 2026-06-15 : Notion-Like et Monday-Like sont considérés **aboutis en MVP acquisition** pour le besoin actuel. Les chantiers d’imports ZIP/CSV supplémentaires sont **dépriorisés** ; ne les rouvrir qu’en cas de besoin client fort.*
 
-### Notion-Like (priorité acquisition Notion)
+### Notion-Like (MVP acquisition abouti)
 
-- [ ] **Import Notion ZIP** — Export officiel Markdown & CSV : `POST /import/notion/preview` + `confirm`, wizard Paramètres/Dashboard, page `/migrate/notion` ; preview capacité par statut ; import partiel + modales upgrade si dépassement Free ; limites techniques anti-abus (taille ZIP, rate limit preview)
-- [ ] **Dépendances tâches** — `blockedByTodoIds`, détection de cycles, modales à la complétion, lien Gantt/Kanban ; résolution colonne « Blocked by » à l'import Notion ; **Small teams+**
-- [ ] **Wiki projet (docs liés)** — Onglet Docs sur fiche projet, notes `projectId`, backlinks tâche ↔ note ; import MD rattaché au projet
-- [ ] **Time tracking MVP** — Sessions par tâche, chrono + saisie manuelle, comparatif `estimatedMinutes` ; rapports projet/équipe ; **Small teams+** (item aligné section Premium ci-dessous)
-- [ ] **Champs personnalisés** — Définitions par projet, filtres Board/Kanban, mapping colonnes Notion à l'import ; rollups simples (retard, % complété) ; **Small teams+**
-- [ ] **Marketing migration Notion** — FAQ `/pricing`, checklist E2E import, post-import in-app (calendrier, dépendances, équipe)
+- [x] **MVP Notion-Like livré** — sync Projet/Contacts/Bases via `/migrate/notion`, points d’entrée Paramètres/Dashboard, docs intégration.
 - [x] **Contacts + import Notion People (V1)** — Répertoire Contacts sous Collaborations ; sync pull API + mapping manuel ; suggest `/contacts/suggest` ; recherche globale ; doc [docs/contacts-notion-v1.md](docs/contacts-notion-v1.md)
+- [x] ~~**Import Notion ZIP**~~ — non retenu pour l’instant (dépriorisé).
+- [ ] **Backlog optionnel Notion-Like** — wiki projet avancé, marketing migration complémentaire.
 
-### Monday-Like (priorité acquisition PMO léger)
+### Monday-Like (MVP acquisition abouti)
 
-*Prérequis : orchestrateur import de la vague 1 Notion-Like ; vagues partagées Notion (dépendances v2, time tracking v4, custom fields v5) pour colonnes Dependencies / Duration / Labels avancés.*
-
-- [ ] **Import Monday board** — Export Excel/CSV Monday : `POST /import/monday/preview` + `confirm`, parser XLSX, wizard Paramètres/Dashboard, page `/migrate/monday` ; groupes → phases, items → tâches, sous-items → `parentId` ; preview capacité par statut ; import partiel + modales upgrade Free — *API OAuth + CSV livrés en dev ; cocher après validation prod*
-- [ ] **Import Monday Docs → Documents** — Workdocs via `docs:read` + `export_markdown_from_doc` ; sync pull idempotente vers Notes (`externalRef`) ; onglet Documents sur `/migrate/monday` ; doc [docs/monday-docs-v1.md](docs/monday-docs-v1.md)
-- [ ] **Colonnes & statuts Monday** — Mapping labels Status Monday → statut Wroket (config projet) ; colonnes board configurables (préset « Vue Monday ») ; import colonnes custom → champs personnalisés (après vague 5 Notion) ; **Small teams+** pour mapping avancé
-- [ ] **Automations légères** — Extension `automationService` : retard assigné/owner (existant), **deadline sans créneau** (24h), option statut « stuck » ; règles **par projet** + toggles UI ; pas de builder no-code ; **Small teams+**
-- [ ] **Dashboard équipe renforcé** — Widgets : retard par membre, sans deadline, sans créneau semaine, charge `estimatedMinutes`, vélocité 4 semaines ; actions deep link Agenda ; export CSV période ; widgets basiques Small+, export avancé Large+ (aligné `teamReporting`)
-- [ ] **Vues portfolio & templates** — Filtres sauvegardés par projet ; template « depuis board importé » ; portfolio léger multi-projets équipe (santé, % complété, retard)
-- [ ] **Marketing migration Monday** — FAQ `/pricing`, checklist E2E import Monday, post-import in-app (automations, planifier créneaux, inviter équipe) ; message « Moins cher qu'un board Monday + agenda Google/Outlook natif »
+- [x] **MVP Monday-Like livré** — sync board/data/docs via `/migrate/monday`, connecteur OAuth, docs intégration.
+- [x] ~~**Imports CSV/XLSX additionnels Monday**~~ — non retenus pour l’instant (dépriorisés).
+- [ ] **Backlog optionnel Monday-Like** — automations avancées, dashboard équipe renforcé, templates portfolio.
 
 *Non-objectifs : clone éditeur Notion, moteur de formules Notion, Monday Work OS (CRM, dev, mirror/formule boards, automations illimitées).*
 
@@ -413,7 +406,10 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 *Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
 
-- [ ] **IA assistive** — Étude produit & technique : cas d’usage, ROI, risques RGPD, fournisseur — voir [docs/ai-opportunities.md](docs/ai-opportunities.md) ; décision go/no-go avant tout envoi de contenu utilisateur vers un LLM.
+- [ ] **IA agentique connectable (Phase 1 prioritaire)** — Wroket comme système d’actions pour agents (Cursor, Claude, etc.) : action surface PMO (8-12 actions), scopes/permissions, idempotence, audit, quotas ; packaging Small/Large ; gate go/no-go en 6-8 semaines
+- [ ] **IA intégrée minimale (Phase 2)** — 2-3 commandes natives à forte valeur (`prépare mon comité`, `planifie ma semaine`, `résume les risques`) réutilisant les primitives phase 1
+- [ ] **IA orchestrateur (Phase 3)** — workflows multi-outils Notion/Monday/Calendar/Webhooks, différenciation \"orchestrateur fiable\" (après validation usage phase 1/2)
+- [ ] **Cadre décisionnel IA** — KPI adoption/ROI, seuils de sécurité (zéro incident critique d’autorisation), politique RGPD et conservation des traces
 - [x] **Paramètres — panneau Abonnement (lisibilité)** — Cards (palier marketing Pro/Team, code technique, entitlements, Stripe) + mapping terminologie + lien `/pricing` (2026-06-07).
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
@@ -478,7 +474,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - Free : 25 tâches actives, pas d'archives (purge auto 7j), 3 notes, pas de récurrence, pas de pièces jointes, Google Calendar en lecture seule, planification manuelle uniquement
   - Pro ($9/mois ou $89/an) : tâches illimitées, archives complètes, planification intelligente + détection de conflits, récurrence + jours ouvrés, notes et pièces jointes illimitées, Google Calendar lecture/écriture (multi-comptes), import/export CSV, webhooks
   - Team ($12/utilisateur/mois ou $119/utilisateur/an, min 2 sièges) : tout Pro + équipes, assignation de tâches, projets/phases/Kanban/Gantt, notes partagées, dashboard équipe, rôles RBAC
-- [ ] **Stripe Checkout** — Intégration paiement : Stripe Checkout pour upgrade self-service, gestion abonnements ; complète les webhooks + portail déjà en place
+- [ ] **Stripe Checkout (en pause)** — Intégration paiement self-service ; reprise après Slack+ MVP (lots 1-2) et cadrage IA agentique validé ; complète les webhooks + portail déjà en place
 
 ## Fonctionnalités Premium (Business tier — $20-25/utilisateur/mois)
 

@@ -27,6 +27,8 @@ import sharePublicRoutes from "./routes/sharePublicRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
 import billingRoutes from "./routes/billingRoutes";
 import marketingRoutes from "./routes/marketingRoutes";
+import feedbackRoutes from "./routes/feedbackRoutes";
+import earlyBirdRoutes from "./routes/earlyBirdRoutes";
 import templateRoutes from "./routes/templateRoutes";
 import pushRoutes from "./routes/pushRoutes";
 import contactRoutes from "./routes/contactRoutes";
@@ -91,6 +93,8 @@ app.use("/billing", apiLimiter, billingRoutes);
 
 app.use("/", healthRoutes);
 app.use("/marketing", marketingRoutes);
+app.use("/feedback", apiLimiter, feedbackRoutes);
+app.use("/early-bird", apiLimiter, earlyBirdRoutes);
 app.use("/auth", authRoutes);
 app.use("/todos", apiLimiter, todoRoutes);
 app.use("/notifications", apiLimiter, notificationRoutes);

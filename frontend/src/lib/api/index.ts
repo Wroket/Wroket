@@ -287,6 +287,10 @@ export type {
 
 export { postPricingContact } from "./marketing";
 export type { PostPricingContactBody, PostPricingContactResult } from "./marketing";
+export { postFeedback } from "./feedback";
+export type { PostFeedbackBody, PostFeedbackResult } from "./feedback";
+export { postEarlyBirdEnroll } from "./earlyBird";
+export type { PostEarlyBirdEnrollBody, PostEarlyBirdEnrollResult } from "./earlyBird";
 
 export { previewNotionImport, confirmNotionImport } from "./notionImport";
 export type {
