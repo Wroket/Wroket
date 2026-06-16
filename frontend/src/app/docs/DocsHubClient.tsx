@@ -6,8 +6,26 @@ import { DocsHubCard } from "./_components/DocsPrerequisiteBanner";
 import { DocsShell } from "./_components/DocsShell";
 import { DOC_GUIDES } from "./_components/guideConfigs";
 
+function GuideGrid({ guides }: { guides: typeof DOC_GUIDES }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+      {guides.map((guide) => (
+        <DocsHubCard
+          key={guide.id}
+          titleKey={guide.hubTitleKey}
+          summaryKey={guide.hubSummaryKey}
+          href={guide.href}
+          access={guide.access}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function DocsHubClient() {
   const { t } = useLocale();
+  const productGuides = DOC_GUIDES.filter((g) => g.category === "product");
+  const integrationGuides = DOC_GUIDES.filter((g) => g.category === "integration");
 
   return (
     <DocsShell>
@@ -20,17 +38,19 @@ export function DocsHubClient() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-        {DOC_GUIDES.map((guide) => (
-          <DocsHubCard
-            key={guide.id}
-            titleKey={guide.hubTitleKey}
-            summaryKey={guide.hubSummaryKey}
-            href={guide.href}
-            access={guide.access}
-          />
-        ))}
-      </div>
+      <section className="mb-12" aria-labelledby="docs-hub-product">
+        <h2 id="docs-hub-product" className="text-xl font-semibold text-zinc-900 dark:text-slate-100 mb-4">
+          {t("docs.hub.section.product")}
+        </h2>
+        <GuideGrid guides={productGuides} />
+      </section>
+
+      <section aria-labelledby="docs-hub-integrations">
+        <h2 id="docs-hub-integrations" className="text-xl font-semibold text-zinc-900 dark:text-slate-100 mb-4">
+          {t("docs.hub.section.integrations")}
+        </h2>
+        <GuideGrid guides={integrationGuides} />
+      </section>
     </DocsShell>
   );
 }

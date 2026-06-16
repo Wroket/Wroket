@@ -61,6 +61,20 @@ export function IntegrationGuideClient({ guide, focusSectionId }: IntegrationGui
       <div className="space-y-10">
         <DocsPrerequisiteBanner access={guide.access} />
 
+        {guide.benefitKeys && guide.benefitKeys.length > 0 && (
+          <section aria-labelledby="docs-benefits-heading">
+            <h2 id="docs-benefits-heading" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
+              {t("docs.section.benefits")}
+            </h2>
+            <ul className="mt-3 list-disc pl-5 space-y-2 text-sm text-zinc-700 dark:text-slate-300">
+              {guide.benefitKeys.map((key) => (
+                <li key={key}>{t(key)}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {guide.prerequisiteKeys.length > 0 && (
         <section aria-labelledby="docs-prereq-heading">
           <h2 id="docs-prereq-heading" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
             {t("docs.section.prerequisites")}
@@ -71,6 +85,7 @@ export function IntegrationGuideClient({ guide, focusSectionId }: IntegrationGui
             ))}
           </ul>
         </section>
+        )}
 
         {fullAccess ? (
           <>
