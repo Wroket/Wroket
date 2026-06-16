@@ -21,7 +21,7 @@ export const QUADRANT_CONFIG: Record<
   }
 > = {
   "do-first": {
-    label: "FAIRE",
+    label: "PRIORISER",
     tKey: "quadrant.doFirst" as const,
     icon: "🔥",
     headerBg: "bg-red-500 dark:bg-red-950/90",
@@ -39,7 +39,7 @@ export const QUADRANT_CONFIG: Record<
     accentBar: "bg-blue-500 dark:bg-blue-600",
   },
   delegate: {
-    label: "EXPÉDIER",
+    label: "FAIRE",
     tKey: "quadrant.delegate" as const,
     icon: "⚡",
     headerBg: "bg-amber-400 dark:bg-amber-950/90",

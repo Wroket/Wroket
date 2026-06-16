@@ -554,24 +554,24 @@ const translations = {
   "a11y.selectAllTasks": { fr: "Sélectionner toutes les tâches visibles", en: "Select all visible tasks" },
 
   // ── Quadrants ──
-  "quadrant.doFirst": { fr: "FAIRE", en: "DO" },
+  "quadrant.doFirst": { fr: "PRIORISER", en: "PRIORITIZE" },
   "quadrant.schedule": { fr: "PLANIFIER", en: "SCHEDULE" },
-  "quadrant.delegate": { fr: "EXPÉDIER", en: "EXPEDITE" },
+  "quadrant.delegate": { fr: "FAIRE", en: "DO" },
   "quadrant.eliminate": { fr: "DIFFÉRER", en: "DEFER" },
 
   // ── Filter buttons ──
-  "filter.doFirst": { fr: "Faire", en: "Do" },
+  "filter.doFirst": { fr: "Prioriser", en: "Prioritize" },
   "filter.schedule": { fr: "Planifier", en: "Schedule" },
-  "filter.delegate": { fr: "Expédier", en: "Expedite" },
+  "filter.delegate": { fr: "Faire", en: "Do" },
   "filter.eliminate": { fr: "Différer", en: "Defer" },
   "filter.completed": { fr: "Accomplies", en: "Completed" },
   "filter.cancelled": { fr: "Annulées", en: "Cancelled" },
   "filter.deleted": { fr: "Supprimées", en: "Deleted" },
 
   // ── Quadrant badges ──
-  "badge.doFirst": { fr: "🔥 Faire", en: "🔥 Do" },
+  "badge.doFirst": { fr: "🔥 Prioriser", en: "🔥 Prioritize" },
   "badge.schedule": { fr: "📅 Planifier", en: "📅 Schedule" },
-  "badge.delegate": { fr: "⚡ Expédier", en: "⚡ Expedite" },
+  "badge.delegate": { fr: "⚡ Faire", en: "⚡ Do" },
   "badge.eliminate": { fr: "⏸️ Différer", en: "⏸️ Defer" },
 
   // ── Priority badges ──
@@ -2133,8 +2133,8 @@ const translations = {
   },
   "marketing.eisenhower.s1.title": { fr: "Les quatre quadrants", en: "The four quadrants" },
   "marketing.eisenhower.s1.p1": {
-    fr: "Faire en premier (urgent + important), planifier (important), d\u00e9l\u00e9guer (urgent), \u00e9liminer (ni urgent ni important). Le principe est simple ; le classement manuel de dizaines de t\u00e2ches, moins.",
-    en: "Do first (urgent + important), schedule (important), delegate (urgent), eliminate (neither). The principle is simple; manually sorting dozens of tasks, less so.",
+    fr: "Prioriser (urgent + important), planifier (important), faire (urgent), différer (ni urgent ni important). Le principe est simple ; le classement manuel de dizaines de tâches, moins.",
+    en: "Prioritize (urgent + important), schedule (important), do (urgent), defer (neither). The principle is simple; manually sorting dozens of tasks, less so.",
   },
   "marketing.eisenhower.s2.title": { fr: "Vue Radar : scores automatiques", en: "Radar view: automatic scores" },
   "marketing.eisenhower.s2.p1": {

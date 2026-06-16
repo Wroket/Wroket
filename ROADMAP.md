@@ -213,7 +213,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Vue Radar (Cards)** — Vue visuelle en 4 quadrants avec cartes, limite 5 + expand
 - [x] **Vue Radar (Gartner)** — Scatter plot + liste priorités (12 max), tooltips
 - [x] **Vue Liste** — Tableau triable, filtres quadrant/statut, multi-select quadrants, exclusivité statuts
-- [x] **Filtres catégories** — Faire, Planifier, Expédier, Différer, Accomplies, Annulées, Supprimées
+- [x] **Filtres catégories** — Prioriser, Planifier, Faire, Différer, Accomplies, Annulées, Supprimées
 - [x] **Undo** — Bouton "Annuler dernière action"
 - [x] **Édition inline** — Double-clic → modal d'édition complète
 - [x] **Dark mode** — Toggle light/dark, palette slate/bleu foncé

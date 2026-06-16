@@ -10,9 +10,9 @@ export const FILTER_BUTTONS: {
   icon: string;
   activeClass: string;
 }[] = [
-  { key: "do-first", label: "Faire", tKey: "filter.doFirst" as const, icon: "🔥", activeClass: "bg-red-600 text-white border-red-600" },
+  { key: "do-first", label: "Prioriser", tKey: "filter.doFirst" as const, icon: "🔥", activeClass: "bg-red-600 text-white border-red-600" },
   { key: "schedule", label: "Planifier", tKey: "filter.schedule" as const, icon: "📅", activeClass: "bg-blue-600 text-white border-blue-600" },
-  { key: "delegate", label: "Expédier", tKey: "filter.delegate" as const, icon: "⚡", activeClass: "bg-amber-500 text-white border-amber-500" },
+  { key: "delegate", label: "Faire", tKey: "filter.delegate" as const, icon: "⚡", activeClass: "bg-amber-500 text-white border-amber-500" },
   { key: "eliminate", label: "Différer", tKey: "filter.eliminate" as const, icon: "⏸️", activeClass: "bg-zinc-400 text-white border-zinc-400" },
   { key: "completed", label: "Accomplies", tKey: "filter.completed" as const, icon: "✅", activeClass: "bg-green-600 text-white border-green-600" },
   { key: "cancelled", label: "Annulées", tKey: "filter.cancelled" as const, icon: "🚫", activeClass: "bg-zinc-600 text-white border-zinc-600" },
@@ -21,7 +21,7 @@ export const FILTER_BUTTONS: {
 
 export const QUADRANT_BADGES: Record<Quadrant, { label: string; tKey: TranslationKey; cls: string }> = {
   "do-first": {
-    label: "🔥 Faire",
+    label: "🔥 Prioriser",
     tKey: "badge.doFirst" as const,
     cls: "rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
   },
@@ -31,7 +31,7 @@ export const QUADRANT_BADGES: Record<Quadrant, { label: string; tKey: Translatio
     cls: "rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   },
   delegate: {
-    label: "⚡ Expédier",
+    label: "⚡ Faire",
     tKey: "badge.delegate" as const,
     cls: "rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
   },

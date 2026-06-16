@@ -47,7 +47,7 @@ Les entrées du menu reprendraient les mêmes comportements que les boutons actu
 | Priorité | Haute / moyenne / basse. |
 | Effort | Léger / moyen / lourd. |
 | Échéance | Date limite. |
-| Classification | Quadrant Radar / catégorie de traitement (selon le vocabulaire produit actuel : Planifier, Expédier, etc.). |
+| Classification | Quadrant Radar / catégorie de traitement (Prioriser, Planifier, Faire, Différer). |
 
 **Risques et contraintes.**
 

@@ -6,7 +6,7 @@ Document de référence : une **seule source de vérité** pour la classificatio
 
 | Élément | Implémentation |
 |--------|------------------|
-| Quadrant (FAIRE / PLANIFIER / EXPÉDIER / DIFFÉRER) | [`computeTaskScores`](../frontend/src/lib/taskScores.ts) → champ `quadrant` |
+| Quadrant (PRIORISER / PLANIFIER / FAIRE / DIFFÉRER) | [`computeTaskScores`](../frontend/src/lib/taskScores.ts) → champ `quadrant` |
 | API stable pour une `Todo` | [`classify(todo, nowMs?)`](../frontend/src/lib/classify.ts) = `computeTaskScores(...).quadrant` |
 | Agenda (couleurs tâches Wroket) | [`classifyEvent`](../frontend/src/app/agenda/_utils/calendarUtils.ts) → réutilise la même logique de scores |
 
