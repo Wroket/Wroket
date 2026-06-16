@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import ConfirmDialog from "@/components/ConfirmDialog";
+import PageHelpButton from "@/components/PageHelpButton";
 import { useToast } from "@/components/Toast";
 import { useLocale } from "@/lib/LocaleContext";
 import {
@@ -236,7 +237,10 @@ export default function ContactsSection({ onBack }: ContactsSectionProps) {
             </svg>
           </button>
           <div>
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{t("contacts.title")}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{t("contacts.title")}</h2>
+              <PageHelpButton helpId="collaboration.contacts" />
+            </div>
             <p className="text-xs text-zinc-400 dark:text-slate-500">
               {contacts.length} {t("contacts.countLabel").toLowerCase()}
             </p>

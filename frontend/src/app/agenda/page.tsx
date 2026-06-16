@@ -799,16 +799,7 @@ export default function AgendaPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{t("agenda.title")}</h1>
-            <PageHelpButton
-              title={t("agenda.title")}
-              items={[
-                { text: t("help.agenda.editTask") },
-                { text: t("help.agenda.dragWroket") },
-                { text: t("help.agenda.quickCreate") },
-                { text: t("help.agenda.google") },
-                { text: t("help.agenda.colors") },
-              ]}
-            />
+            <PageHelpButton helpId="agenda" />
             <div className="flex items-center gap-1">
               <button
                 type="button"

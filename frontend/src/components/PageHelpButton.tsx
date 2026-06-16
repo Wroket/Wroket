@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
+import { PAGE_HELP, type PageHelpId } from "@/lib/pageHelpConfigs";
 
 export interface HelpItem {
   icon?: string;
@@ -10,23 +11,38 @@ export interface HelpItem {
 }
 
 interface PageHelpButtonProps {
-  items: HelpItem[];
+  /** Resolves title and items from centralized config. */
+  helpId?: PageHelpId;
+  items?: HelpItem[];
   title?: string;
   /** Compact control (e.g. narrow notes sidebar); label in title + screen reader only. */
   iconOnly?: boolean;
 }
 
-export default function PageHelpButton({ items, title, iconOnly }: PageHelpButtonProps) {
+const POPOVER_WIDTH = 256;
+
+export default function PageHelpButton({ helpId, items: itemsProp, title: titleProp, iconOnly }: PageHelpButtonProps) {
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
+  const { title, items } = useMemo(() => {
+    if (helpId) {
+      const config = PAGE_HELP[helpId];
+      return {
+        title: t(config.titleKey),
+        items: config.itemKeys.map((key): HelpItem => ({ text: t(key) })),
+      };
+    }
+    return { title: titleProp, items: itemsProp ?? [] };
+  }, [helpId, titleProp, itemsProp, t]);
+
   const updatePos = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 8, left: Math.max(8, rect.right - 288) });
+    setPos({ top: rect.bottom + 8, left: Math.max(8, rect.right - POPOVER_WIDTH) });
   }, []);
 
   useEffect(() => {
@@ -80,7 +96,7 @@ export default function PageHelpButton({ items, title, iconOnly }: PageHelpButto
       {open && createPortal(
         <div
           ref={popRef}
-          className="fixed z-[9999] w-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-zinc-200 dark:border-slate-600 overflow-hidden"
+          className="fixed z-[9999] w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-zinc-200 dark:border-slate-600 overflow-hidden"
           style={{ top: pos.top, left: pos.left }}
         >
           {title && (
@@ -88,7 +104,7 @@ export default function PageHelpButton({ items, title, iconOnly }: PageHelpButto
               <p className="text-xs font-bold text-zinc-700 dark:text-slate-200 uppercase tracking-wide">{title}</p>
             </div>
           )}
-          <ul className="pr-4 pl-7 py-2.5 space-y-1 list-disc list-outside">
+          <ul className="pr-4 pl-7 py-2.5 space-y-0.5 list-disc list-outside">
             {items.map((item, i) => (
               <li key={i} className="text-[11px] text-zinc-600 dark:text-slate-300 leading-relaxed marker:text-zinc-400 dark:marker:text-slate-500">
                 {item.icon && <span className="mr-1">{item.icon}</span>}{item.text}

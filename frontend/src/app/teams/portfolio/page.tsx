@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import AppShell from "@/components/AppShell";
+import PageHelpButton from "@/components/PageHelpButton";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { getTeams, getTeamPortfolio, type Team, type TeamPortfolioProjectRow } from "@/lib/api";
@@ -43,7 +44,10 @@ export default function TeamPortfolioPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold text-zinc-900 dark:text-slate-100">{t("portfolio.title")}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-zinc-900 dark:text-slate-100">{t("portfolio.title")}</h1>
+              <PageHelpButton helpId="teamPortfolio" />
+            </div>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("portfolio.hint")}</p>
           </div>
           <Link

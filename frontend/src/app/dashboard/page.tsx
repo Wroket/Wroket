@@ -424,16 +424,7 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("dashboard.title")}</h2>
-            <PageHelpButton
-              title={t("dashboard.title")}
-              items={[
-                { text: t("help.dashboard.overview") },
-                { text: t("help.dashboard.search") },
-                { text: t("help.dashboard.radar") },
-                { text: t("help.dashboard.notifs") },
-                { text: t("help.dashboard.progress") },
-              ]}
-            />
+            <PageHelpButton helpId="dashboard" />
           </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("dashboard.subtitle")}</p>
         </div>

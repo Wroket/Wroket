@@ -188,18 +188,7 @@ function SettingsContent() {
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("settings.title")}</h2>
-            <PageHelpButton
-              title={t("settings.title")}
-              items={[
-                { text: t("help.settings.lang") },
-                { text: t("help.settings.hours") },
-                { text: t("help.settings.security") },
-                { text: t("help.settings.integrations") },
-                { text: t("help.settings.google") },
-                { text: t("help.settings.teams") },
-                { text: t("help.settings.activity") },
-              ]}
-            />
+            <PageHelpButton helpId="settings" />
           </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.subtitle")}</p>
         </div>

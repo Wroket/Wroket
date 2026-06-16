@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import AppShell from "@/components/AppShell";
+import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import { useAuth } from "@/components/AuthContext";
@@ -346,6 +347,7 @@ export default function TeamDashboardPage() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
               {t("teamDash.title")}
             </h1>
+            <PageHelpButton helpId="teamDashboard" />
             <Link
               href="/teams/portfolio"
               className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"

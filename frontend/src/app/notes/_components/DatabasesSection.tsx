@@ -20,7 +20,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import ConfirmDialog from "@/components/ConfirmDialog";import { useToast } from "@/components/Toast";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import PageHelpButton from "@/components/PageHelpButton";import { useToast } from "@/components/Toast";
 import { useLocale } from "@/lib/LocaleContext";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { getImportSourceBadge } from "@/lib/importSourceBadge";
@@ -454,6 +455,7 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <PageHelpButton helpId="notes.databases" iconOnly />
             <Link
               href="/migrate/notion?mode=data"
               className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"

@@ -479,17 +479,7 @@ export default function ProjectListView({
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("projects.title")}</h2>
-              <PageHelpButton
-                title={t("projects.title")}
-                items={[
-                  { text: t("help.projects.create") },
-                  { text: t("help.projects.views") },
-                  { text: t("help.projects.kanbanDnd") },
-                  { text: t("help.projects.gantt") },
-                  { text: t("help.projects.import") },
-                  { text: t("help.projects.undo") },
-                ]}
-              />
+              <PageHelpButton helpId="projects.list" />
             </div>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("projects.subtitle")}</p>
           </div>

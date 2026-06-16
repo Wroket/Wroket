@@ -308,14 +308,7 @@ export default function ManageCalendarsPage() {
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{t("agenda.manageCalendars")}</h1>
-            <PageHelpButton
-              title={t("agenda.manageCalendars")}
-              items={[
-                { text: t("help.manage.connect") },
-                { text: t("help.manage.select") },
-                { text: t("help.manage.colors") },
-              ]}
-            />
+            <PageHelpButton helpId="agenda.manage" />
             <Link
               href="/docs/integrations/calendar"
               className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline"

@@ -448,20 +448,7 @@ function NotesPageInner() {
                 <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("notes.homeTiles")}</p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <PageHelpButton
-                  iconOnly
-                  title={t("notes.title")}
-                  items={[
-                    { text: t("help.notes.bases") },
-                    { text: t("help.notes.slash") },
-                    { text: t("help.notes.folders") },
-                    { text: t("help.notes.tags") },
-                    { text: t("help.notes.export") },
-                    { text: t("help.notes.sharing") },
-                    { text: t("help.notes.offline") },
-                    { text: t("help.notes.push") },
-                  ]}
-                />
+                <PageHelpButton helpId="notes.hub" iconOnly />
                 <Link
                   href="/archive/data"
                   className="inline-flex items-center justify-center rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
@@ -681,20 +668,7 @@ function NotesPageInner() {
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <PageHelpButton
-                  iconOnly
-                  title={t("notes.title")}
-                  items={[
-                    { text: t("help.notes.bases") },
-                    { text: t("help.notes.slash") },
-                    { text: t("help.notes.folders") },
-                    { text: t("help.notes.tags") },
-                    { text: t("help.notes.export") },
-                    { text: t("help.notes.sharing") },
-                    { text: t("help.notes.offline") },
-                    { text: t("help.notes.push") },
-                  ]}
-                />
+                <PageHelpButton helpId="notes.editor" iconOnly />
                 <Link
                   href="/archive/data"
                   className="inline-flex items-center justify-center rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"

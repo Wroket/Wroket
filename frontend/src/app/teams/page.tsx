@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
+import PageHelpButton from "@/components/PageHelpButton";
 import ContactsSection from "@/app/teams/_components/ContactsSection";
 import { useLocale } from "@/lib/LocaleContext";
 import { useResourceSync } from "@/lib/useResourceSync";
@@ -193,9 +194,12 @@ function TeamsPageContent() {
           <>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
-                  {t("teams.title")}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
+                    {t("teams.title")}
+                  </h2>
+                  <PageHelpButton helpId="collaboration.hub" />
+                </div>
                 <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">
                   {t("teams.subtitle")}
                 </p>
@@ -385,9 +389,12 @@ function TeamsPageContent() {
                   </svg>
                 </button>
                 <div>
-                  <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
-                    {t("teams.collaborators")}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
+                      {t("teams.collaborators")}
+                    </h2>
+                    <PageHelpButton helpId="collaboration.collaborators" />
+                  </div>
                   <p className="text-xs text-zinc-400 dark:text-slate-500">
                     {totalCollabCount} {t("teams.collaborators").toLowerCase()}
                   </p>
@@ -624,9 +631,12 @@ function TeamsPageContent() {
                   </svg>
                 </button>
                 <div>
-                  <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
-                    {t("teams.teamsList")}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-zinc-900 dark:text-slate-100">
+                      {t("teams.teamsList")}
+                    </h2>
+                    <PageHelpButton helpId="collaboration.teams" />
+                  </div>
                   <p className="text-xs text-zinc-400 dark:text-slate-500">
                     {teams.length} {t("teams.teamsList").toLowerCase()}
                   </p>

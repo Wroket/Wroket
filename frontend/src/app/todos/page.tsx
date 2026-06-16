@@ -1370,18 +1370,7 @@ export default function TodosPage() {
               <h2 className="text-base font-semibold text-zinc-700 dark:text-slate-300 tracking-wide uppercase">
                 {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
               </h2>
-              <PageHelpButton
-                title={t("todos.listTitle")}
-                items={[
-                  ...(mainView === "radar" ? [{ text: t("help.todos.radarWorkflow") }] : []),
-                  { text: t("help.todos.views") },
-                  { text: t("help.todos.dnd") },
-                  { text: t("help.todos.edit") },
-                  { text: t("help.todos.attachments") },
-                  { text: t("help.todos.comments") },
-                  { text: t("help.todos.export") },
-                ]}
-              />
+              <PageHelpButton helpId={mainView === "radar" ? "todos.radar" : "todos"} />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
                 {(["all", "personal", "assigned", "delegated"] as TaskScope[]).map((s) => (
                   <button

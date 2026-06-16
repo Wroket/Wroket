@@ -1540,16 +1540,7 @@ export default function ProjectDetailView({
                   templateCsv="title,priority,effort,estimatedMinutes,startDate,deadline,tags,phaseName,assignedTo\nMy task,medium,medium,,,,,Phase 1,"
                   templateJson={JSON.stringify([{ title: "My task", priority: "medium", effort: "medium", phaseName: "Phase 1" }], null, 2)}
                 />
-                <PageHelpButton
-                  title={t("projects.helpTitle")}
-                  items={[
-                    { icon: "📋", text: t("projects.helpBoard") },
-                    { icon: "📊", text: t("projects.helpKanban") },
-                    { icon: "📅", text: t("projects.helpGantt") },
-                    { text: t("projects.helpImportExport") },
-                    { text: t("projects.helpTagsHealth") },
-                  ]}
-                />
+                <PageHelpButton helpId="projects.detail" />
               </div>
             </div>
           )}

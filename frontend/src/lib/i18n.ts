@@ -1621,11 +1621,6 @@ const translations = {
   "projects.convertPhasesWarning": { fr: "Les tâches principales seront supprimées en tant que tâches : leur titre devient le nom de phase.", en: "Top-level tasks will be removed as tasks: their titles become phase names." },
   "projects.completion": { fr: "Avancement", en: "Completion" },
   "projects.helpTitle": { fr: "Vue projet", en: "Project view" },
-  "projects.helpBoard": { fr: "Board : tâches par phase, glisser-déposer, suppression de phase (tâches conservées ou non)", en: "Board: tasks by phase, drag & drop, delete phase (keep or move tasks)" },
-  "projects.helpKanban": { fr: "Kanban : cartes entre colonnes de phases ; même glisser-déposer que le Board", en: "Kanban: cards across phase columns; same drag & drop as Board" },
-  "projects.helpGantt": { fr: "Gantt : timeline ; déplacer les tâches entre phases par glisser-déposer", en: "Gantt: timeline; drag tasks between phases" },
-  "projects.helpImportExport": { fr: "Menu Export/Import : export CSV/JSON du projet, import de tâches (CSV) avec phases", en: "Export/Import menu: project CSV/JSON export, task import (CSV) with phases" },
-  "projects.helpTagsHealth": { fr: "Tags projet, indicateurs de santé et temps estimé par phase", en: "Project tags, health indicators and estimated time per phase" },
   "projects.discardChanges": { fr: "Abandonner les modifications ?", en: "Discard changes?" },
   "projects.suggestSlot": { fr: "Suggérer un créneau", en: "Suggest a slot" },
   "projects.suggestedSlot": { fr: "Créneau suggéré", en: "Suggested slot" },
@@ -1830,9 +1825,6 @@ const translations = {
   },
   "agenda.startTime": { fr: "Heure de début", en: "Start time" },
   "agenda.duration": { fr: "Durée (min)", en: "Duration (min)" },
-  "help.manage.connect": { fr: "Connectez des comptes Google et/ou Outlook (Microsoft 365) pour agréger vos calendriers", en: "Connect Google and/or Outlook (Microsoft 365) accounts to aggregate your calendars" },
-  "help.manage.select": { fr: "Cochez les calendriers à afficher dans l'agenda (par compte)", en: "Pick which calendars to show in the agenda (per account)" },
-  "help.manage.colors": { fr: "Chaque compte connecté a une couleur pour distinguer ses événements sur la grille", en: "Each connected account has a color to distinguish its events on the grid" },
 
   // ── Tutorial ──
   "tutorial.title": { fr: "Bienvenue sur Wroket", en: "Welcome to Wroket" },
@@ -1922,88 +1914,85 @@ const translations = {
     en: "Please enter a message.",
   },
 
-  // ── Page help items ──
-  "help.todos.views": {
-    fr: "3 vues : Liste (drag & drop), Cartes (par quadrant comme le Radar) et Radar 360°. Les quadrants (Planifier, Expédier…) sont la même classification partout.",
-    en: "3 views: List (drag & drop), Cards (by quadrant like the Radar), and 360° Radar. Quadrants (Schedule, Expedite…) are the same classification everywhere.",
-  },
-  "help.todos.radarWorkflow": {
-    fr: "Radar → clic sur un point ou la carte : modifier la tâche et réserver un créneau ; l’agenda reprend les mêmes couleurs de quadrant.",
-    en: "Radar → click a dot or card: edit the task and book a slot; the calendar uses the same quadrant colors.",
-  },
-  "help.todos.scope": { fr: "Filtre d'affichage : Toutes, Personnelles, Reçues (attribuées à vous), Déléguées", en: "Display filter: All, Personal, Assigned to me, Assigned out" },
-  "help.todos.dnd": { fr: "Glissez-déposez les tâches pour réordonner en vue Liste", en: "Drag & drop tasks to reorder in List view" },
-  "help.todos.edit": { fr: "Double-cliquez sur une tâche pour la modifier (priorité, effort, échéance, assignation, projet, créneau)", en: "Double-click a task to edit it (priority, effort, deadline, assignee, project, slot)" },
-  "help.todos.recurrence": { fr: "Tâches récurrentes : quotidien, hebdomadaire ou mensuel avec intervalle personnalisable", en: "Recurring tasks: daily, weekly or monthly with custom interval" },
-  "help.todos.attachments": { fr: "Ajoutez des pièces jointes (images, PDF, documents) à chaque tâche", en: "Add attachments (images, PDF, documents) to each task" },
-  "help.todos.comments": { fr: "Commentaires, @mentions et réactions emoji par tâche", en: "Comments, @mentions and emoji reactions per task" },
-  "help.todos.export": { fr: "Export CSV ou JSON ; import avec fichier (aperçu des lignes puis confirmation)", en: "Export CSV or JSON; import from file (row preview then confirm)" },
-  "help.todos.sync": { fr: "Au retour sur cet onglet, la liste se recharge ; les autres onglets Wroket se mettent à jour après une modification", en: "Returning to this tab reloads the list; other Wroket tabs refresh after a change" },
+  // ── Page help (short contextual tips per screen) ──
+  "help.page.dashboard.1": { fr: "Statistiques et vue d'ensemble de vos tâches", en: "Stats and overview of your tasks" },
+  "help.page.dashboard.2": { fr: "Recherche rapide : tâches, projets, notes", en: "Quick search: tasks, projects, notes" },
+  "help.page.dashboard.3": { fr: "Radar et notifications récentes", en: "Radar and recent notifications" },
+  "help.page.dashboard.4": { fr: "Bilan hebdomadaire et progression", en: "Weekly summary and progress" },
 
-  "help.projects.create": { fr: "Créez des projets, sous-projets (un niveau), phases et tags", en: "Create projects, sub-projects (one level), phases and tags" },
-  "help.projects.views": { fr: "3 vues : Board (tableau), Kanban (colonnes) et Gantt (timeline)", en: "3 views: Board (table), Kanban (columns) and Gantt (timeline)" },
-  "help.projects.kanbanDnd": { fr: "Glissez-déposez les tâches entre colonnes en vue Kanban", en: "Drag & drop tasks between columns in Kanban view" },
-  "help.projects.gantt": { fr: "Vue Gantt : timeline des phases et tâches, glisser-déposer entre phases", en: "Gantt view: phase and task timeline, drag & drop between phases" },
-  "help.projects.import": { fr: "Nouveau projet : import CSV (phases + tâches) ou JSON ; réordonnancement des projets par glisser-déposer", en: "New project: import CSV (phases + tasks) or JSON; reorder projects via drag & drop" },
-  "help.projects.undo": { fr: "Bouton Annuler : annule la dernière action projet (quelques secondes)", en: "Undo button: reverses the last project action (within a few seconds)" },
+  "help.page.todos.1": { fr: "Liste, cartes ou Radar selon vos besoins", en: "List, cards, or Radar as you need" },
+  "help.page.todos.2": { fr: "Glisser-déposer pour réordonner en liste", en: "Drag and drop to reorder in list view" },
+  "help.page.todos.3": { fr: "Double-clic sur une tâche pour l'éditer", en: "Double-click a task to edit it" },
+  "help.page.todos.4": { fr: "Commentaires, pièces jointes et export", en: "Comments, attachments, and export" },
 
-  "help.notes.slash": { fr: "Tapez / dans l'éditeur : /task, /assign, /deadline, /project, /date, /time, /code, /warning", en: "Type / in the editor: /task, /assign, /deadline, /project, /date, /time, /code, /warning" },
-  "help.notes.folders": { fr: "Organisez vos notes en dossiers", en: "Organize your notes in folders" },
-  "help.notes.tags": { fr: "Ajoutez des tags pour catégoriser vos notes", en: "Add tags to categorize your notes" },
-  "help.notes.export": {
-    fr: "Export / import CSV ou JSON depuis Paramètres › Exporter mes données ; export Markdown possible aussi.",
-    en: "CSV/JSON import & export under Settings › Export my data; Markdown export is also available.",
-  },
-  "help.notes.bases": {
-    fr: "Bases : tableaux personnels (colonnes typées, lignes) — en ligne uniquement ; import Notion depuis Paramètres ou la section Bases.",
-    en: "Databases: personal tables (typed columns, rows) — online only; Notion import from Settings or the Databases section.",
-  },
-  "help.notes.sharing": {
-    fr: "Partage équipe : cochez « Partager avec l'équipe », choisissez l'équipe — les membres peuvent consulter la note. Les notes liées à une tâche ou un projet restent aussi liées à ce contexte.",
-    en: "Team sharing: check Share with team, pick a team — members can read the note. Notes linked to a task or project stay tied to that context too.",
-  },
-  "help.notes.offline": { fr: "Mode hors-ligne : notes sauvées localement, synchro auto au retour en ligne", en: "Offline mode: notes saved locally, auto-sync when back online" },
-  "help.notes.push": {
-    fr: "Envoyer vers le serveur : pousse titre, texte et épingle de vos notes (pas les tags ni le partage). Utile si le cache local et le serveur divergent.",
-    en: "Push to server: uploads your notes' title, body, and pin (not tags or sharing). Use when local cache and server drift apart.",
-  },
+  "help.page.todos.radar.1": { fr: "Cliquez un point : modifier et réserver un créneau", en: "Click a dot: edit and book a slot" },
+  "help.page.todos.radar.2": { fr: "Liste, cartes ou Radar selon vos besoins", en: "List, cards, or Radar as you need" },
+  "help.page.todos.radar.3": { fr: "Double-clic sur une tâche pour l'éditer", en: "Double-click a task to edit it" },
+  "help.page.todos.radar.4": { fr: "Les couleurs reprennent celles de l'agenda", en: "Colors match the calendar view" },
 
-  "help.agenda.viewDay": { fr: "Vue Jour : grille horaire, tâches Wroket et événements Google / Outlook", en: "Day view: hourly grid, Wroket tasks and Google / Outlook events" },
-  "help.agenda.viewWeek": { fr: "Vue Semaine : colonnes par jour, fusion Wroket + calendriers externes", en: "Week view: day columns, Wroket plus external calendars merged" },
-  "help.agenda.viewMonth": { fr: "Vue Mois : calendrier mensuel condensé", en: "Month view: condensed monthly calendar" },
-  "help.agenda.editTask": { fr: "Double-clic sur une tâche Wroket : édition complète (récurrence, projet, assignation…)", en: "Double-click a Wroket task: full edit (recurrence, project, assignee…)" },
-  "help.agenda.dragWroket": {
-    fr: "Glisser-déposer une tâche Wroket sur la grille (vue Jour/Semaine) pour déplacer son créneau ; les occurrences récurrentes ne sont pas déplaçables ainsi.",
-    en: "Drag a Wroket task on the grid (Day/Week) to move its slot; recurring occurrences cannot be moved this way.",
-  },
-  "help.agenda.quickCreate": { fr: "Double-clic sur un créneau vide : création rapide (durée, priorité, projet, assignation)", en: "Double-click an empty slot: quick create (duration, priority, project, assignee)" },
-  "help.agenda.google": { fr: "Google et Outlook : Agenda > Gérer les agendas (connexion, calendriers visibles, calendrier par défaut pour réservations et Meet/Teams)", en: "Google and Outlook: Agenda > Manage Calendars (connect, visible calendars, default for bookings and Meet/Teams)" },
-  "help.agenda.colors": {
-    fr: "Couleurs par quadrant Radar pour les tâches Wroket, et une couleur par compte Google ou Outlook.",
-    en: "Radar quadrant colors for Wroket tasks, plus one color per Google or Outlook account.",
-  },
-  "help.agenda.recurring": { fr: "Les tâches récurrentes apparaissent à chaque occurrence sur la période affichée", en: "Recurring tasks appear on each occurrence in the visible range" },
-  "help.agenda.smartSlots": { fr: "Créneaux suggérés selon priorité et deadline (paramètres > heures de travail)", en: "Suggested slots from priority and deadline (Settings > working hours)" },
+  "help.page.projects.list.1": { fr: "Créez projets, sous-projets, phases et tags", en: "Create projects, sub-projects, phases, and tags" },
+  "help.page.projects.list.2": { fr: "Board, Kanban et Gantt dans chaque projet", en: "Board, Kanban, and Gantt in each project" },
+  "help.page.projects.list.3": { fr: "Import CSV ou JSON à la création", en: "Import CSV or JSON when creating" },
+  "help.page.projects.list.4": { fr: "Réordonnez vos projets par glisser-déposer", en: "Reorder projects via drag and drop" },
 
-  "help.settings.lang": { fr: "Langue (FR/EN), fuseau horaire, profil (nom, e-mail affiché)", en: "Language (FR/EN), timezone, profile (name, displayed email)" },
-  "help.settings.hours": { fr: "Heures de travail pour les propositions de créneaux et l'agenda", en: "Working hours for slot suggestions and the calendar" },
-  "help.settings.google": { fr: "Calendriers Google et Outlook : menu Agenda > Gérer les agendas", en: "Google and Outlook calendars: Agenda > Manage Calendars" },
-  "help.settings.teams": { fr: "Équipes, invitations, rôles ; tableau de bord équipe dans la navigation", en: "Teams, invites, roles; team dashboard in the sidebar" },
-  "help.settings.activity": { fr: "Historique de vos actions ; export ou suppression de compte (données)", en: "Your action history; export or delete account (data)" },
-  "help.settings.security": { fr: "Sécurité : 2FA (application TOTP ou code e-mail), sessions, mot de passe", en: "Security: 2FA (authenticator app or email code), sessions, password" },
-  "help.settings.integrations": {
-    fr: "Automatisations simples ; filtres in-app ; canal de notification (email ou webhook Slack, Teams, Google Chat) et digests ; webhooks avancés (filtres d’événements).",
-    en: "Simple automations; in-app filters; notification channel (email or Slack, Teams, Google Chat webhook) and digests; advanced webhooks (event filters).",
-  },
+  "help.page.projects.detail.1": { fr: "Board, Kanban ou Gantt : déplacez les tâches entre phases", en: "Board, Kanban, or Gantt: move tasks between phases" },
+  "help.page.projects.detail.2": { fr: "Export et import depuis le menu du projet", en: "Export and import from the project menu" },
+  "help.page.projects.detail.3": { fr: "Tags, santé et temps estimé par phase", en: "Tags, health, and estimated time per phase" },
+  "help.page.projects.detail.4": { fr: "Annulez la dernière action (quelques secondes)", en: "Undo the last action (within a few seconds)" },
 
-  "help.dashboard.overview": { fr: "Statistiques : tâches actives, assignées, déléguées, complétées, retard", en: "Stats: active, assigned, delegated, completed, overdue tasks" },
-  "help.dashboard.radar": {
-    fr: "Vue Radar compacte et répartition par quadrant — même logique que Mes tâches › Radar.",
-    en: "Compact Radar and quadrant breakdown — same logic as My tasks › Radar.",
-  },
-  "help.dashboard.notifs": { fr: "Notifications récentes ; lien vers la page Notifications", en: "Recent notifications; link to Notifications page" },
-  "help.dashboard.progress": { fr: "Bilan hebdomadaire et indicateurs de progression", en: "Weekly summary and progress indicators" },
-  "help.dashboard.search": { fr: "Barre de recherche en tête de page : tâches, projets, notes", en: "Top search bar: tasks, projects, notes" },
+  "help.page.notes.hub.1": { fr: "Choisissez Notes, Bases ou Données archivées", en: "Choose Notes, Databases, or archived data" },
+  "help.page.notes.hub.2": { fr: "Les notes se synchronisent en ligne", en: "Notes sync when you are online" },
+  "help.page.notes.hub.3": { fr: "Lien vers les archives données", en: "Link to archived data" },
+
+  "help.page.notes.editor.1": { fr: "Dossiers et tags pour classer", en: "Folders and tags to organize" },
+  "help.page.notes.editor.2": { fr: "Tapez / pour une tâche ou une date", en: "Type / to insert a task or date" },
+  "help.page.notes.editor.3": { fr: "Partagez avec une équipe si besoin", en: "Share with a team when needed" },
+
+  "help.page.notes.databases.1": { fr: "Créez des colonnes et des lignes", en: "Create columns and rows" },
+  "help.page.notes.databases.2": { fr: "Vues tableau, kanban ou calendrier", en: "Table, kanban, or calendar views" },
+  "help.page.notes.databases.3": { fr: "Import Notion depuis Paramètres", en: "Import Notion from Settings" },
+
+  "help.page.agenda.1": { fr: "Jour, semaine ou mois : tâches et calendriers externes", en: "Day, week, or month: tasks and external calendars" },
+  "help.page.agenda.2": { fr: "Double-clic tâche ou créneau vide pour créer ou éditer", en: "Double-click a task or empty slot to create or edit" },
+  "help.page.agenda.3": { fr: "Glissez les tâches Wroket pour les repositionner", en: "Drag Wroket tasks to reschedule them" },
+  "help.page.agenda.4": { fr: "Couleurs par quadrant et par compte connecté", en: "Colors by quadrant and connected account" },
+
+  "help.page.agenda.manage.1": { fr: "Connectez Google et/ou Outlook", en: "Connect Google and/or Outlook" },
+  "help.page.agenda.manage.2": { fr: "Choisissez les calendriers visibles", en: "Choose which calendars to show" },
+  "help.page.agenda.manage.3": { fr: "Calendrier par défaut pour réservations et Meet/Teams", en: "Default calendar for bookings and Meet/Teams" },
+
+  "help.page.settings.1": { fr: "Langue, fuseau horaire et profil", en: "Language, timezone, and profile" },
+  "help.page.settings.2": { fr: "Heures de travail et créneaux suggérés", en: "Working hours and suggested slots" },
+  "help.page.settings.3": { fr: "Sécurité : 2FA, sessions et mot de passe", en: "Security: 2FA, sessions, and password" },
+  "help.page.settings.4": { fr: "Intégrations : calendriers, Notion, Monday", en: "Integrations: calendars, Notion, Monday" },
+  "help.page.settings.5": { fr: "Équipes, activité et suppression de compte", en: "Teams, activity, and account deletion" },
+
+  "help.page.collaboration.hub.1": { fr: "Trois espaces : collaborateurs, équipes, contacts", en: "Three areas: collaborators, teams, contacts" },
+  "help.page.collaboration.hub.2": { fr: "Invitez par e-mail", en: "Invite by email" },
+  "help.page.collaboration.hub.3": { fr: "Acceptez les invitations reçues", en: "Accept invitations you receive" },
+
+  "help.page.collaboration.collaborators.1": { fr: "Invitez un collègue pour lui déléguer des tâches", en: "Invite a colleague to delegate tasks" },
+  "help.page.collaboration.collaborators.2": { fr: "Statuts : en attente, actif", en: "Statuses: pending, active" },
+  "help.page.collaboration.collaborators.3": { fr: "Retirez un collaborateur à tout moment", en: "Remove a collaborator anytime" },
+
+  "help.page.collaboration.teams.1": { fr: "Créez une équipe et ajoutez des membres", en: "Create a team and add members" },
+  "help.page.collaboration.teams.2": { fr: "Rôles propriétaire / membre", en: "Owner and member roles" },
+  "help.page.collaboration.teams.3": { fr: "Partagez notes et projets avec l'équipe", en: "Share notes and projects with the team" },
+
+  "help.page.collaboration.contacts.1": { fr: "Répertoire de contacts (e-mail, entreprise…)", en: "Contact directory (email, company…)" },
+  "help.page.collaboration.contacts.2": { fr: "Invitez un contact à rejoindre Wroket", en: "Invite a contact to join Wroket" },
+  "help.page.collaboration.contacts.3": { fr: "Import Notion en mode Contacts", en: "Import Notion in Contacts mode" },
+
+  "help.page.teamDashboard.1": { fr: "Vue des tâches de l'équipe", en: "View of the team's tasks" },
+  "help.page.teamDashboard.2": { fr: "Filtres et échéances", en: "Filters and deadlines" },
+  "help.page.teamDashboard.3": { fr: "Reporting (palier Large ou Early Bird)", en: "Reporting (Large or Early Bird tier)" },
+
+  "help.page.teamPortfolio.1": { fr: "Santé et avancement des projets de l'équipe", en: "Health and progress of team projects" },
+  "help.page.teamPortfolio.2": { fr: "Sélectionnez une équipe dans la liste", en: "Select a team from the list" },
+
+  "help.page.notifications.1": { fr: "Activité récente : assignations, commentaires, invitations", en: "Recent activity: assignments, comments, invitations" },
+  "help.page.notifications.2": { fr: "Marquez tout comme lu", en: "Mark all as read" },
+  "help.page.notifications.3": { fr: "Cliquez pour ouvrir la tâche ou la note", en: "Click to open the task or note" },
 
   "landing.tagline": { fr: "Wroket priorise pour vous", en: "Wroket prioritizes for you" },
   "landing.heroBadge": { fr: "Wroket travaille pour vous", en: "Wroket works for you" },
@@ -2403,7 +2392,7 @@ const translations = {
     fr: "Les liens « Blocked by » seront ignorés sans palier Small teams+.",
     en: "“Blocked by” links will be skipped without Small teams+ plan.",
   },
-  "migrate.notion.menuLabel": { fr: "Migrer depuis Notion (ZIP)", en: "Migrate from Notion (ZIP)" },
+  "migrate.notion.menuLabel": { fr: "Migrer depuis Notion", en: "Migrate from Notion" },
   "migrate.notion.modeZip": { fr: "Import ZIP (export manuel)", en: "ZIP import (manual export)" },
   "migrate.notion.modeApi": { fr: "Synchroniser via API", en: "Sync via API" },
   "migrate.notion.apiHint": {
@@ -2515,7 +2504,7 @@ const translations = {
   "migrate.monday.confirm": { fr: "Confirmer l'import", en: "Confirm import" },
   "migrate.monday.syncSuccess": { fr: "Synchronisation Monday réussie", en: "Monday sync successful" },
   "migrate.monday.importSuccess": { fr: "Import Monday réussi", en: "Monday import successful" },
-  "migrate.monday.menuLabel": { fr: "Migrer depuis Monday (API ou CSV)", en: "Migrate from Monday (API or CSV)" },
+  "migrate.monday.menuLabel": { fr: "Migrer depuis Monday", en: "Migrate from Monday" },
   "migrate.monday.modeDocs": { fr: "Documents (Workdocs)", en: "Documents (Workdocs)" },
   "migrate.monday.docsHint": {
     fr: "Importez vos Monday Workdocs vers Documents Wroket. Requiert le scope docs:read (reconnectez Monday si besoin).",
