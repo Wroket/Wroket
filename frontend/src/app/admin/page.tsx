@@ -10,8 +10,15 @@ import {
   postAdminUserBillingPortalSession, patchAdminUserBillingPlan, patchAdminUserEarlyBird,
   postAdminInviteRemind,
   deleteAdminInvite,
+  getAdminEngagement,
+  getAdminOps,
+  getAdminLeads,
   AdminStats, AdminUser, AdminInviteLogEntry,
   ActivityLogEntry, SessionInfo, IntegrationOverview, CompletionRate,
+  type AdminEngagementPeriodDays,
+  type AdminEngagementSnapshot,
+  type AdminOpsSnapshot,
+  type AdminPricingLeadsSnapshot,
   type BillingPlan,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
@@ -27,9 +34,24 @@ function StatCard({ label, value, sub }: { label: string; value: number | string
   );
 }
 
-type Tab = "stats" | "users" | "activity" | "sessions" | "integrations" | "rgpd";
+function TrendBar({ value, max, label }: { value: number; max: number; label: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs text-zinc-600 dark:text-slate-400">
+        <span>{label}</span>
+        <span className="font-medium text-zinc-800 dark:text-slate-200">{value}</span>
+      </div>
+      <div className="h-2 rounded-full bg-zinc-100 dark:bg-slate-800 overflow-hidden">
+        <div className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
 
-const TABS: Tab[] = ["stats", "users", "activity", "sessions", "integrations", "rgpd"];
+type Tab = "stats" | "users" | "engagement" | "activity" | "sessions" | "integrations" | "ops" | "rgpd";
+
+const TABS: Tab[] = ["stats", "users", "engagement", "activity", "sessions", "integrations", "ops", "rgpd"];
 
 const BILLING_PLAN_OPTIONS: BillingPlan[] = ["free", "first", "small", "large"];
 
@@ -72,6 +94,15 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [earlyBirdReason, setEarlyBirdReason] = useState("");
   const [earlyBirdSaving, setEarlyBirdSaving] = useState(false);
+  const [engagement, setEngagement] = useState<AdminEngagementSnapshot | null>(null);
+  const [engagementPeriod, setEngagementPeriod] = useState<AdminEngagementPeriodDays>(7);
+  const [engagementLoading, setEngagementLoading] = useState(false);
+  const [ops, setOps] = useState<AdminOpsSnapshot | null>(null);
+  const [leads, setLeads] = useState<AdminPricingLeadsSnapshot | null>(null);
+  const [activityUserId, setActivityUserId] = useState("");
+  const [activityEntityType, setActivityEntityType] = useState("");
+  const [activityAction, setActivityAction] = useState("");
+  const [activityFilters, setActivityFilters] = useState({ userId: "", entityType: "", action: "" });
 
   const refreshUsers = useCallback((syncUid?: string) => {
     getAdminUsers()
@@ -94,16 +125,42 @@ export default function AdminPage() {
 
   const ACTIVITY_PAGE_SIZE = 100;
 
-  const loadActivity = useCallback(() => {
-    getAdminActivity({ limit: ACTIVITY_PAGE_SIZE })
-      .then((r) => { setActivity(r.entries); setActivityTotal(r.total); })
+  const loadActivity = useCallback((filters = activityFilters, reset = true) => {
+    getAdminActivity({
+      limit: ACTIVITY_PAGE_SIZE,
+      offset: reset ? 0 : undefined,
+      userId: filters.userId || undefined,
+      entityType: filters.entityType || undefined,
+      action: filters.action || undefined,
+    })
+      .then((r) => {
+        if (reset) {
+          setActivity(r.entries);
+        } else {
+          setActivity((prev) => {
+            const seen = new Set(prev.map((e) => e.id));
+            const merged = [...prev];
+            for (const e of r.entries) {
+              if (!seen.has(e.id)) merged.push(e);
+            }
+            return merged;
+          });
+        }
+        setActivityTotal(r.total);
+      })
       .catch(() => {});
-  }, []);
+  }, [activityFilters]);
 
   const loadMoreActivity = useCallback(async () => {
     setActivityLoadingMore(true);
     try {
-      const r = await getAdminActivity({ limit: ACTIVITY_PAGE_SIZE, offset: activity.length });
+      const r = await getAdminActivity({
+        limit: ACTIVITY_PAGE_SIZE,
+        offset: activity.length,
+        userId: activityFilters.userId || undefined,
+        entityType: activityFilters.entityType || undefined,
+        action: activityFilters.action || undefined,
+      });
       setActivity((prev) => {
         // Defensive de-dup: if the underlying total grows between fetches the
         // new page may overlap the tail of `prev`. Filter by id to avoid React
@@ -121,7 +178,21 @@ export default function AdminPage() {
     } finally {
       setActivityLoadingMore(false);
     }
-  }, [activity.length]);
+  }, [activity.length, activityFilters]);
+
+  const loadEngagement = useCallback((period: AdminEngagementPeriodDays) => {
+    setEngagementLoading(true);
+    getAdminEngagement(period)
+      .then(setEngagement)
+      .catch(() => {})
+      .finally(() => setEngagementLoading(false));
+  }, []);
+
+  const loadOps = useCallback(() => {
+    Promise.all([getAdminOps(), getAdminLeads()])
+      .then(([o, l]) => { setOps(o); setLeads(l); })
+      .catch(() => {});
+  }, []);
 
   const loadSessions = useCallback(() => {
     getAdminSessions().then(setSessions).catch(() => {});
@@ -181,7 +252,13 @@ export default function AdminPage() {
     if (tab === "sessions" && sessions.length === 0) loadSessions();
     if (tab === "integrations" && !integrations) loadIntegrations();
     if (tab === "users") loadCompletionRates();
-  }, [tab, activity.length, sessions.length, integrations, loadActivity, loadSessions, loadIntegrations, loadCompletionRates]);
+    if (tab === "engagement" && !engagement && !engagementLoading) loadEngagement(engagementPeriod);
+    if (tab === "ops" && !ops) loadOps();
+  }, [tab, activity.length, sessions.length, integrations, engagement, engagementLoading, engagementPeriod, ops, loadActivity, loadSessions, loadIntegrations, loadCompletionRates, loadEngagement, loadOps]);
+
+  useEffect(() => {
+    if (tab === "engagement") loadEngagement(engagementPeriod);
+  }, [engagementPeriod, tab, loadEngagement]);
 
   const handleExportUser = async (uid: string) => {
     try {
@@ -323,6 +400,36 @@ export default function AdminPage() {
   };
 
   const rateForUser = (uid: string) => completionRates.find((r) => r.uid === uid);
+
+  const applyActivityFilters = () => {
+    const next = { userId: activityUserId, entityType: activityEntityType, action: activityAction };
+    setActivityFilters(next);
+    loadActivity(next, true);
+  };
+
+  const exportActivityCsv = () => {
+    const header = ["date", "userEmail", "action", "entityType", "entityId"];
+    const rows = activity.map((a) => [
+      a.createdAt,
+      a.userEmail,
+      a.action,
+      a.entityType,
+      a.entityId,
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "wroket-admin-activity.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const sessionCountByUid = sessions.reduce<Record<string, number>>((acc, s) => {
+    acc[s.uid] = (acc[s.uid] ?? 0) + 1;
+    return acc;
+  }, {});
 
   const formatUptime = (seconds: number) => {
     const d = Math.floor(seconds / 86400);
@@ -829,8 +936,165 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Engagement tab */}
+        {tab === "engagement" && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <label htmlFor="admin-engagement-period" className="text-sm text-zinc-600 dark:text-slate-400">
+                {t("admin.engagement.period")}
+              </label>
+              <select
+                id="admin-engagement-period"
+                value={engagementPeriod}
+                onChange={(e) => setEngagementPeriod(Number(e.target.value) as AdminEngagementPeriodDays)}
+                className="rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm px-3 py-1.5"
+              >
+                {([7, 14, 30] as const).map((d) => (
+                  <option key={d} value={d}>{t("admin.engagement.periodDays").replace("{n}", String(d))}</option>
+                ))}
+              </select>
+            </div>
+
+            {engagementLoading && !engagement ? (
+              <p className="text-sm text-zinc-500">{t("admin.activity.loadingMore")}</p>
+            ) : engagement ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <StatCard label={t("admin.engagement.dau")} value={engagement.activeUsers.dau} sub={t("admin.engagement.ofTotal").replace("{total}", String(engagement.activeUsers.totalUsers))} />
+                  <StatCard label={t("admin.engagement.wau")} value={engagement.activeUsers.wau} sub={t("admin.engagement.ofTotal").replace("{total}", String(engagement.activeUsers.totalUsers))} />
+                  <StatCard label={t("admin.engagement.mau")} value={engagement.activeUsers.mau} sub={t("admin.engagement.ofTotal").replace("{total}", String(engagement.activeUsers.totalUsers))} />
+                  <StatCard label={t("admin.engagement.verificationRate")} value={`${engagement.growth.emailVerificationRate}%`} />
+                </div>
+
+                <div>
+                  <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.engagement.taskSummary")}</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <StatCard label={t("admin.engagement.active")} value={engagement.tasks.summary.active} />
+                    <StatCard label={t("admin.engagement.created")} value={engagement.tasks.summary.createdInPeriod} />
+                    <StatCard label={t("admin.engagement.completed")} value={engagement.tasks.summary.completedInPeriod} />
+                    <StatCard label={t("admin.engagement.cancelled")} value={engagement.tasks.summary.cancelledInPeriod} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4 space-y-3">
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("admin.engagement.weeklyTrends")}</h3>
+                    {(() => {
+                      const max = Math.max(1, ...engagement.growth.weeklyTrends.map((w) => Math.max(w.signups, w.completions)));
+                      return engagement.growth.weeklyTrends.map((w) => (
+                        <div key={w.weekStartUtc} className="space-y-2 border-b border-zinc-100 dark:border-slate-800 pb-3 last:border-0">
+                          <p className="text-xs text-zinc-500">{w.weekStartUtc} → {w.weekEndUtc}</p>
+                          <TrendBar value={w.signups} max={max} label={t("admin.engagement.signups")} />
+                          <TrendBar value={w.completions} max={max} label={t("admin.engagement.completions")} />
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4 space-y-3">
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("admin.engagement.velocity")}</h3>
+                    {(() => {
+                      const max = Math.max(1, ...engagement.tasks.velocityWeeks.map((w) => w.completed));
+                      return engagement.tasks.velocityWeeks.map((w) => (
+                        <TrendBar key={w.weekStartUtc} value={w.completed} max={max} label={`${w.weekStartUtc}`} />
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {([
+                    ["admin.engagement.byStatus", engagement.tasks.byStatus],
+                    ["admin.engagement.byPriority", engagement.tasks.byPriority],
+                    ["admin.engagement.byEffort", engagement.tasks.byEffort],
+                  ] as const).map(([titleKey, map]) => (
+                    <div key={titleKey} className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4">
+                      <h3 className="text-xs font-semibold uppercase text-zinc-500 mb-2">{t(titleKey)}</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(map).map(([k, v]) => (
+                          <span key={k} className="text-xs rounded-full bg-zinc-100 dark:bg-slate-800 px-2 py-1">
+                            {k} <strong>{v}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.engagement.adoption")}</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {engagement.adoption.map((item) => {
+                      const labelKey = `admin.engagement.adoption.${item.key}` as TranslationKey;
+                      return (
+                        <StatCard
+                          key={item.key}
+                          label={t(labelKey)}
+                          value={item.count}
+                          sub={`${item.percent}%`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+        )}
+
         {/* Activity tab */}
         {tab === "activity" && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2 items-end bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4">
+              <div>
+                <label htmlFor="activity-filter-user" className="block text-xs text-zinc-500 mb-1">{t("admin.activity.filterUser")}</label>
+                <select
+                  id="activity-filter-user"
+                  value={activityUserId}
+                  onChange={(e) => setActivityUserId(e.target.value)}
+                  className="rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm px-2 py-1.5 min-w-[180px]"
+                >
+                  <option value="">{t("admin.activity.all")}</option>
+                  {users.map((u) => (
+                    <option key={u.uid} value={u.uid}>{u.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="activity-filter-entity" className="block text-xs text-zinc-500 mb-1">{t("admin.activity.filterEntity")}</label>
+                <input
+                  id="activity-filter-entity"
+                  value={activityEntityType}
+                  onChange={(e) => setActivityEntityType(e.target.value)}
+                  placeholder="todo, project, user…"
+                  className="rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm px-2 py-1.5 w-36"
+                />
+              </div>
+              <div>
+                <label htmlFor="activity-filter-action" className="block text-xs text-zinc-500 mb-1">{t("admin.activity.filterAction")}</label>
+                <input
+                  id="activity-filter-action"
+                  value={activityAction}
+                  onChange={(e) => setActivityAction(e.target.value)}
+                  placeholder="todo_created, admin_billing_plan…"
+                  className="rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm px-2 py-1.5 w-44"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={applyActivityFilters}
+                className="text-sm rounded-lg bg-emerald-600 text-white px-3 py-1.5 hover:bg-emerald-700"
+              >
+                {t("admin.activity.applyFilters")}
+              </button>
+              <button
+                type="button"
+                onClick={exportActivityCsv}
+                disabled={activity.length === 0}
+                className="text-sm rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 disabled:opacity-40"
+              >
+                {t("admin.activity.exportCsv")}
+              </button>
+            </div>
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
             <div className="px-4 py-2 text-xs text-zinc-400 dark:text-slate-500 border-b border-zinc-200 dark:border-slate-700 flex items-center justify-between gap-3">
               <span>
@@ -860,6 +1124,7 @@ export default function AdminPage() {
                         a.action === "update" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" :
                         a.action === "delete" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
                         a.action === "admin_billing_portal" || a.action === "admin_billing_plan" || a.action === "admin_early_bird"
+                          || a.action === "admin_user_export" || a.action === "admin_user_delete"
                           ? "bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300"
                           : "bg-zinc-100 dark:bg-slate-800 text-zinc-600 dark:text-slate-400"
                       }`}>{a.action}</span>
@@ -887,6 +1152,7 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+          </div>
         )}
 
         {/* Sessions tab */}
@@ -896,18 +1162,29 @@ export default function AdminPage() {
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
                   <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.sessions.email")}</th>
-                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">Expire</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.sessions.createdAt")}</th>
+                  <th className="text-left px-4 py-3 font-medium text-zinc-500 dark:text-slate-400">{t("admin.sessions.expires")}</th>
                 </tr>
               </thead>
               <tbody>
                 {sessions.map((s, i) => (
                   <tr key={`${s.uid}-${i}`} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/30">
-                    <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">{s.email}</td>
-                    <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs">{new Date(s.expiresAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+                    <td className="px-4 py-3 text-zinc-900 dark:text-slate-100 font-mono text-xs">
+                      {s.email}
+                      {(sessionCountByUid[s.uid] ?? 0) > 1 && (
+                        <span className="ml-2 inline-flex rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-[10px] font-semibold px-1.5 py-0.5">
+                          {t("admin.sessions.multi")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs whitespace-nowrap">
+                      {s.createdAt ? formatDateTime(new Date(s.createdAt).toISOString()) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs whitespace-nowrap">{formatDateTime(new Date(s.expiresAt).toISOString())}</td>
                   </tr>
                 ))}
                 {sessions.length === 0 && (
-                  <tr><td colSpan={2} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.sessions.empty")}</td></tr>
+                  <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-400 dark:text-slate-500">{t("admin.sessions.empty")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -931,6 +1208,86 @@ export default function AdminPage() {
                       {platform} <span className="font-bold">{count}</span>
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ops tab */}
+        {tab === "ops" && ops && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard
+                label={t("admin.ops.status")}
+                value={ops.status === "ok" ? t("admin.ops.ok") : t("admin.ops.degraded")}
+                sub={ops.store.backend}
+              />
+              <StatCard label={t("admin.uptime")} value={formatUptime(ops.uptime)} />
+              <StatCard label={t("admin.ops.sessions")} value={ops.sessions.total} />
+              <StatCard label={t("admin.ops.multiSession")} value={ops.sessions.usersWithMultiple} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className={`rounded-xl border p-4 ${ops.persistence.consecutiveFlushFailures > 0 ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/20" : "border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-2">{t("admin.ops.persistence")}</h3>
+                <dl className="text-sm space-y-1">
+                  <div className="flex justify-between"><dt className="text-zinc-500">{t("admin.ops.flushFailures")}</dt><dd className="font-mono">{ops.persistence.consecutiveFlushFailures}</dd></div>
+                  <div className="flex justify-between"><dt className="text-zinc-500">{t("admin.ops.lastFlush")}</dt><dd className="text-xs">{ops.persistence.lastFlushAt ? formatDateTime(ops.persistence.lastFlushAt) : "—"}</dd></div>
+                </dl>
+              </div>
+              <div className={`rounded-xl border p-4 ${ops.todosDrift.status === "drift" || ops.todosDrift.status === "error" ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/20" : "border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-2">{t("admin.ops.drift")}</h3>
+                <dl className="text-sm space-y-1">
+                  <div className="flex justify-between"><dt className="text-zinc-500">status</dt><dd className="font-mono">{ops.todosDrift.status}</dd></div>
+                  <div className="flex justify-between"><dt className="text-zinc-500">source</dt><dd className="font-mono text-xs">{ops.todosDrift.source ?? "—"}</dd></div>
+                  {ops.todosDrift.countDriftOwners != null && (
+                    <div className="flex justify-between"><dt className="text-zinc-500">drift owners</dt><dd className="font-mono">{ops.todosDrift.countDriftOwners}</dd></div>
+                  )}
+                </dl>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-500">
+              <a
+                href="https://console.cloud.google.com/monitoring?project=involuted-reach-490718-h4"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                {t("admin.ops.monitoring")}
+              </a>
+            </p>
+
+            {leads && (
+              <div>
+                <div className="flex flex-wrap gap-3 mb-3">
+                  <StatCard label={t("admin.ops.leads7d")} value={leads.last7d} />
+                  <StatCard label={t("admin.ops.leads30d")} value={leads.last30d} />
+                </div>
+                <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t("admin.ops.leads")}</h2>
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 overflow-hidden overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50">
+                        <th className="text-left px-4 py-3 font-medium text-zinc-500">{t("admin.email")}</th>
+                        <th className="text-left px-4 py-3 font-medium text-zinc-500">{t("admin.ops.leadTier")}</th>
+                        <th className="text-left px-4 py-3 font-medium text-zinc-500">{t("admin.ops.leadDate")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leads.leads.map((lead) => (
+                        <tr key={lead.email} className="border-b border-zinc-100 dark:border-slate-800">
+                          <td className="px-4 py-3 font-mono text-xs">{lead.email}</td>
+                          <td className="px-4 py-3 text-xs">{lead.lastTier ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-zinc-500">{formatDateTime(lead.lastSubmittedAt)}</td>
+                        </tr>
+                      ))}
+                      {leads.leads.length === 0 && (
+                        <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-400">{t("admin.ops.noLeads")}</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

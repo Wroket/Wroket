@@ -2159,13 +2159,18 @@ export function setGoogleCalendarTokens(uid: string, tokens: GoogleCalendarToken
   persistUsers();
 }
 
-export function getActiveSessions(): Array<{ uid: string; email: string; expiresAt: number }> {
+export function getActiveSessions(): Array<{ uid: string; email: string; expiresAt: number; createdAt: number }> {
   const now = Date.now();
-  const sessions: Array<{ uid: string; email: string; expiresAt: number }> = [];
+  const sessions: Array<{ uid: string; email: string; expiresAt: number; createdAt: number }> = [];
   for (const [, session] of sessionsByToken) {
     if (now <= session.expiresAt) {
       const user = usersByUid.get(session.uid);
-      sessions.push({ uid: session.uid, email: user?.email ?? "?", expiresAt: session.expiresAt });
+      sessions.push({
+        uid: session.uid,
+        email: user?.email ?? "?",
+        expiresAt: session.expiresAt,
+        createdAt: session.createdAt,
+      });
     }
   }
   return sessions;

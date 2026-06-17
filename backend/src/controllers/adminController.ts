@@ -11,6 +11,11 @@ import {
   listTodosForAdminUser,
   resendInviteReminder,
 } from "../services/adminService";
+import {
+  computeAdminEngagementSnapshot,
+  type AdminEngagementPeriodDays,
+} from "../services/adminEngagementService";
+import { getAdminOpsSnapshot, getAdminPricingLeads } from "../services/adminOpsService";
 import { getActivityLog, logActivity } from "../services/activityLogService";
 import {
   findUserByUid,
@@ -66,13 +71,14 @@ export function adminInviteDelete(req: AuthenticatedRequest, res: Response): voi
 const MAX_ACTIVITY_LIMIT = 500;
 
 export async function adminActivity(req: AuthenticatedRequest, res: Response) {
-  const { userId, entityType, limit, offset } = req.query as Record<string, string | undefined>;
+  const { userId, entityType, action, limit, offset } = req.query as Record<string, string | undefined>;
   const parsedLimit = limit ? parseInt(limit, 10) : 50;
   const parsedOffset = offset ? parseInt(offset, 10) : 0;
   const rawOffset = Number.isFinite(parsedOffset) ? parsedOffset : 0;
   const result = await getActivityLog({
     userId: userId || undefined,
     entityType: entityType || undefined,
+    action: action || undefined,
     limit: Math.min(Number.isFinite(parsedLimit) ? parsedLimit : 50, MAX_ACTIVITY_LIMIT),
     offset: Math.max(0, rawOffset),
   });
@@ -93,13 +99,21 @@ export async function adminIntegrations(_req: AuthenticatedRequest, res: Respons
 
 export async function adminUserExport(req: AuthenticatedRequest, res: Response) {
   const uid = req.params.uid as string;
+  const target = findUserByUid(uid);
   const data = exportUserData(uid);
+  logActivity(req.user!.uid, req.user!.email ?? "", "admin_user_export", "user", uid, {
+    targetEmail: target?.email,
+  });
   res.status(200).json(data);
 }
 
 export async function adminUserDelete(req: AuthenticatedRequest, res: Response) {
   const uid = req.params.uid as string;
+  const target = findUserByUid(uid);
   await deleteUserData(uid);
+  logActivity(req.user!.uid, req.user!.email ?? "", "admin_user_delete", "user", uid, {
+    targetEmail: target?.email,
+  });
   res.status(204).end();
 }
 
@@ -251,4 +265,26 @@ export async function adminCompletionRates(_req: AuthenticatedRequest, res: Resp
   });
 
   res.status(200).json(rates);
+}
+
+function parseEngagementPeriod(raw: string | undefined): AdminEngagementPeriodDays {
+  const n = raw ? parseInt(raw, 10) : 7;
+  if (n === 14) return 14;
+  if (n === 30) return 30;
+  return 7;
+}
+
+export async function adminEngagement(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const { periodDays } = req.query as { periodDays?: string };
+  const snapshot = await computeAdminEngagementSnapshot({ periodDays: parseEngagementPeriod(periodDays) });
+  res.status(200).json(snapshot);
+}
+
+export async function adminOps(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  const snapshot = await getAdminOpsSnapshot();
+  res.status(200).json(snapshot);
+}
+
+export function adminLeads(_req: AuthenticatedRequest, res: Response): void {
+  res.status(200).json(getAdminPricingLeads());
 }

@@ -15,6 +15,9 @@ import {
   adminUserBillingPlanPatch,
   adminUserEarlyBirdPatch,
   adminCompletionRates,
+  adminEngagement,
+  adminOps,
+  adminLeads,
 } from "../controllers/adminController";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
@@ -38,5 +41,8 @@ adminRoutes.delete("/invites/:id", adminInviteDelete);
 adminRoutes.get("/activity", adminActivity);
 adminRoutes.get("/sessions", adminSessions);
 adminRoutes.get("/integrations", adminIntegrations);
+adminRoutes.get("/engagement", adminEngagement);
+adminRoutes.get("/ops", adminOps);
+adminRoutes.get("/leads", adminLeads);
 
 export default adminRoutes;

@@ -273,6 +273,9 @@ export {
   patchAdminUserEarlyBird,
   postAdminInviteRemind,
   deleteAdminInvite,
+  getAdminEngagement,
+  getAdminOps,
+  getAdminLeads,
 } from "./admin";
 export type {
   AdminStats,
@@ -283,6 +286,11 @@ export type {
   SessionInfo,
   IntegrationOverview,
   CompletionRate,
+  AdminEngagementPeriodDays,
+  AdminEngagementSnapshot,
+  AdminOpsSnapshot,
+  AdminPricingLead,
+  AdminPricingLeadsSnapshot,
 } from "./admin";
 
 export { postPricingContact } from "./marketing";

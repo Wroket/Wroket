@@ -53,6 +53,7 @@ export interface SessionInfo {
   uid: string;
   email: string;
   expiresAt: number;
+  createdAt: number;
 }
 
 export interface IntegrationOverview {
@@ -69,6 +70,70 @@ export interface CompletionRate {
   total: number;
   completed: number;
   rate: number;
+}
+
+export type AdminEngagementPeriodDays = 7 | 14 | 30;
+
+export interface AdminEngagementSnapshot {
+  periodDays: AdminEngagementPeriodDays;
+  generatedAt: string;
+  activeUsers: { dau: number; wau: number; mau: number; totalUsers: number };
+  growth: {
+    emailVerificationRate: number;
+    weeklyTrends: Array<{ weekStartUtc: string; weekEndUtc: string; signups: number; completions: number }>;
+  };
+  tasks: {
+    summary: {
+      active: number;
+      createdInPeriod: number;
+      completedInPeriod: number;
+      cancelledInPeriod: number;
+    };
+    velocityWeeks: Array<{ weekStartUtc: string; weekEndUtc: string; completed: number }>;
+    byStatus: Record<string, number>;
+    byPriority: Record<string, number>;
+    byEffort: Record<string, number>;
+  };
+  adoption: Array<{ key: string; count: number; percent: number }>;
+}
+
+export interface AdminOpsSnapshot {
+  status: "ok" | "degraded";
+  uptime: number;
+  timestamp: string;
+  store: { ok: boolean; backend: "local" | "firestore" };
+  persistence: {
+    lastFlushAt: string | null;
+    lastFlushOpsCount: number;
+    lastFlushDurationMs: number | null;
+    consecutiveFlushFailures: number;
+    failedFlushAttempts: number;
+    dirtyDomainsCount: number;
+    dirtyShardsCount: number;
+  };
+  todosDrift: {
+    status: string;
+    checkedAt: string | null;
+    source?: string;
+    owners?: number;
+    countDriftOwners?: number;
+    v2OnlyTotal?: number;
+    inMemoryOnlyTotal?: number;
+    error?: string;
+  };
+  sessions: { total: number; usersWithMultiple: number };
+}
+
+export interface AdminPricingLead {
+  email: string;
+  lastSubmittedAt: string;
+  lastTier: string | null;
+}
+
+export interface AdminPricingLeadsSnapshot {
+  leads: AdminPricingLead[];
+  last7d: number;
+  last30d: number;
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
@@ -130,12 +195,14 @@ export async function getAdminActivity(params?: {
   offset?: number;
   userId?: string;
   entityType?: string;
+  action?: string;
 }): Promise<{ entries: ActivityLogEntry[]; total: number }> {
   const qs = new URLSearchParams();
   if (params?.limit) qs.set("limit", String(params.limit));
   if (params?.offset) qs.set("offset", String(params.offset));
   if (params?.userId) qs.set("userId", params.userId);
   if (params?.entityType) qs.set("entityType", params.entityType);
+  if (params?.action) qs.set("action", params.action);
   const res = await fetch(`${API_BASE_URL}/admin/activity?${qs.toString()}`, { credentials: "include" });
   if (!res.ok) throw new Error("Accès refusé");
   return res.json();
@@ -216,4 +283,22 @@ export async function patchAdminUserEarlyBird(
   const data = (await res.json().catch(() => ({}))) as { message?: string; earlyBird?: boolean; unchanged?: boolean };
   if (!res.ok) throw new Error(data.message ?? "Impossible de mettre à jour le statut early bird");
   return { earlyBird: data.earlyBird ?? earlyBird, unchanged: data.unchanged };
+}
+
+export async function getAdminEngagement(periodDays: AdminEngagementPeriodDays = 7): Promise<AdminEngagementSnapshot> {
+  const res = await fetch(`${API_BASE_URL}/admin/engagement?periodDays=${periodDays}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function getAdminOps(): Promise<AdminOpsSnapshot> {
+  const res = await fetch(`${API_BASE_URL}/admin/ops`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
+}
+
+export async function getAdminLeads(): Promise<AdminPricingLeadsSnapshot> {
+  const res = await fetch(`${API_BASE_URL}/admin/leads`, { credentials: "include" });
+  if (!res.ok) throw new Error("Accès refusé");
+  return res.json();
 }

@@ -114,6 +114,7 @@ interface ActivityLogFilters {
   userId?: string;
   entityType?: string;
   entityId?: string;
+  action?: string;
   limit?: number;
   offset?: number;
   /** ISO timestamp — keep entries with createdAt >= this instant (rolling window). */
@@ -125,6 +126,7 @@ function filterInMemory(filters?: ActivityLogFilters): ActivityLogEntry[] {
   if (filters?.userId) out = out.filter((e) => e.userId === filters.userId);
   if (filters?.entityType) out = out.filter((e) => e.entityType === filters.entityType);
   if (filters?.entityId) out = out.filter((e) => e.entityId === filters.entityId);
+  if (filters?.action) out = out.filter((e) => e.action === filters.action);
   if (filters?.since) {
     const sinceMs = new Date(filters.since).getTime();
     if (!Number.isNaN(sinceMs)) {
@@ -151,6 +153,7 @@ async function readFromFirestoreOrMemory(filters?: ActivityLogFilters): Promise<
     const snap = await q.limit(MAX_ENTRIES).get();
     let rows = snap.docs.map((d) => d.data() as ActivityLogEntry);
     if (filters?.entityType) rows = rows.filter((e) => e.entityType === filters.entityType);
+    if (filters?.action) rows = rows.filter((e) => e.action === filters.action);
     if (filters?.entityId && filters?.userId) rows = rows.filter((e) => e.entityId === filters.entityId);
     if (filters?.since) {
       const sinceMs = new Date(filters.since).getTime();
@@ -169,6 +172,12 @@ async function readFromFirestoreOrMemory(filters?: ActivityLogFilters): Promise<
 export async function getTaskActivity(todoId: string): Promise<ActivityLogEntry[]> {
   const rows = await readFromFirestoreOrMemory({ entityId: todoId, entityType: "todo", limit: 50 });
   return rows.slice(0, 50);
+}
+
+/** All entries since `sinceMs` (for admin engagement metrics). Capped at MAX_ENTRIES. */
+export async function getActivityEntriesSince(sinceMs: number): Promise<ActivityLogEntry[]> {
+  const since = new Date(sinceMs).toISOString();
+  return readFromFirestoreOrMemory({ since });
 }
 
 export async function getActivityLog(
