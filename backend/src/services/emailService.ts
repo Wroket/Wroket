@@ -48,6 +48,27 @@ function getTransporter(): nodemailer.Transporter {
   return transporter;
 }
 
+/** Central outbound send — records delivery stats for SMTP health monitoring. */
+async function sendOutboundMail(
+  options: nodemailer.SendMailOptions,
+): Promise<nodemailer.SentMessageInfo> {
+  const t = getTransporter();
+  try {
+    const info = await sendOutboundMail(options);
+    if (isSmtpConfiguredForOutbound()) {
+      const { recordEmailDeliverySuccess } = await import("./emailDeliveryMonitor");
+      recordEmailDeliverySuccess();
+    }
+    return info;
+  } catch (err) {
+    if (isSmtpConfiguredForOutbound()) {
+      const { recordEmailDeliveryFailure } = await import("./emailDeliveryMonitor");
+      recordEmailDeliveryFailure(err);
+    }
+    throw err;
+  }
+}
+
 /**
  * Sends the email verification link to a newly registered user.
  */
@@ -83,10 +104,8 @@ export async function sendVerificationEmail(
         ${emailFooter()}
       </div>`;
 
-  const t = getTransporter();
-
   try {
-    const info = await t.sendMail({
+    const info = await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: toEmail,
       subject,
@@ -143,10 +162,8 @@ export async function sendInviteEmail(
         ${emailFooter()}
       </div>`;
 
-  const t = getTransporter();
-
   try {
-    const info = await t.sendMail({
+    const info = await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: toEmail,
       subject,
@@ -203,10 +220,8 @@ export async function sendCollaborationInviteEmail(
         ${emailFooter()}
       </div>`;
 
-  const t = getTransporter();
-
   try {
-    const info = await t.sendMail({
+    const info = await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: toEmail,
       subject,
@@ -257,10 +272,8 @@ export async function sendPasswordResetEmail(
         ${emailFooter()}
       </div>`;
 
-  const t = getTransporter();
-
   try {
-    const info = await t.sendMail({
+    const info = await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: toEmail,
       subject,
@@ -324,9 +337,8 @@ export async function sendEmailOtpEmail(
     ${emailFooter()}
   </div>`;
 
-  const t = getTransporter();
   try {
-    const info = await t.sendMail({
+    const info = await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: toEmail,
       subject,
@@ -395,9 +407,8 @@ export async function sendNotificationEmail(
     <p style="color:#475569;line-height:1.5">${escapeHtml(message)}</p>
     ${emailFooter()}
   </div>`;
-  const t = getTransporter();
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: toEmail,
       subject,
@@ -434,7 +445,6 @@ export async function sendPricingContactLeadEmails(
   const safeLast = escapeHtml(p.lastName);
   const safeEmail = escapeHtml(p.email);
   const safeTier = escapeHtml(p.tier);
-  const t = getTransporter();
 
   const teamSubject =
     p.locale === "fr"
@@ -470,7 +480,7 @@ export async function sendPricingContactLeadEmails(
 
   let teamSent = false;
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: PRICING_CONTACT_TO,
       replyTo: p.email.trim(),
@@ -511,7 +521,7 @@ export async function sendPricingContactLeadEmails(
 
   let ackSent = false;
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: p.email.trim(),
       subject: ackSubject,
@@ -550,7 +560,6 @@ export async function sendAppFeedbackEmails(
   const safeMessage = escapeHtml(p.message).replace(/\n/g, "<br>");
   const displayName = [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.email;
   const safeDisplayName = escapeHtml(displayName);
-  const t = getTransporter();
 
   const teamSubject =
     p.locale === "fr" ? "Wroket — Feedback in-app" : "Wroket — In-app feedback";
@@ -584,7 +593,7 @@ export async function sendAppFeedbackEmails(
 
   let teamSent = false;
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: PRICING_CONTACT_TO,
       replyTo: p.email.trim(),
@@ -625,7 +634,7 @@ export async function sendAppFeedbackEmails(
 
   let ackSent = false;
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: p.email.trim(),
       subject: ackSubject,
@@ -665,7 +674,6 @@ export async function sendEarlyBirdEnrollEmails(
   const displayName = [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.email;
   const safeDisplayName = escapeHtml(displayName);
   const enrolledAt = new Date().toISOString();
-  const t = getTransporter();
 
   const teamSubject =
     p.locale === "fr" ? "Wroket — Inscription Early Bird" : "Wroket — Early Bird enrollment";
@@ -701,7 +709,7 @@ export async function sendEarlyBirdEnrollEmails(
 
   let teamSent = false;
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: PRICING_CONTACT_TO,
       replyTo: p.email.trim(),
@@ -742,7 +750,7 @@ export async function sendEarlyBirdEnrollEmails(
 
   let ackSent = false;
   try {
-    await t.sendMail({
+    await sendOutboundMail({
       from: `"Wroket" <${FROM_ADDRESS}>`,
       to: p.email.trim(),
       subject: ackSubject,
@@ -755,4 +763,54 @@ export async function sendEarlyBirdEnrollEmails(
   }
 
   return { teamSent, ackSent };
+}
+
+const ADMIN_OPS_ALERT_TO = (process.env.ADMIN_OPS_ALERT_TO ?? "").trim();
+
+/**
+ * Ops incident alert to platform administrators (ADMIN_EMAILS or ADMIN_OPS_ALERT_TO override).
+ */
+export async function sendAdminOpsAlertEmail(
+  defaultRecipients: readonly string[],
+  title: string,
+  lines: string[],
+): Promise<void> {
+  if (!isSmtpConfiguredForOutbound()) return;
+
+  const recipients = ADMIN_OPS_ALERT_TO
+    ? ADMIN_OPS_ALERT_TO.split(",").map((e) => e.trim()).filter(Boolean)
+    : [...defaultRecipients];
+  if (recipients.length === 0) return;
+
+  const adminUrl = `${process.env.FRONTEND_URL || "https://wroket.com"}/admin`;
+  const monitoringUrl =
+    "https://console.cloud.google.com/monitoring?project=involuted-reach-490718-h4";
+  const bulletHtml = lines
+    .map((line) => `<li style="margin-bottom:8px;color:#475569;line-height:1.5">${escapeHtml(line)}</li>`)
+    .join("");
+
+  const html = `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+    ${emailHeader()}
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:20px">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#b91c1c">Alerte ops Wroket</p>
+      <h2 style="margin:0;color:#991b1b;font-size:18px">${escapeHtml(title)}</h2>
+    </div>
+    <ul style="padding-left:20px;margin:0 0 24px">${bulletHtml}</ul>
+    <p style="margin:0 0 12px">
+      <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">Ouvrir Admin › Ops</a>
+    </p>
+    <p style="margin:0;font-size:13px">
+      <a href="${escapeHtml(monitoringUrl)}" style="color:#64748b">Cloud Monitoring</a>
+      · ${escapeHtml(new Date().toISOString())}
+    </p>
+    ${emailFooter()}
+  </div>`;
+
+  await sendOutboundMail({
+    from: `"Wroket Ops" <${FROM_ADDRESS}>`,
+    to: recipients.join(", "),
+    subject: `[Wroket Ops] ${title}`,
+    html,
+  });
+  console.log("[email] Admin ops alert sent to %s: %s", recipients.join(", "), title);
 }

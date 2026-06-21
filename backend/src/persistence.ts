@@ -265,7 +265,6 @@ async function loadFromFirestore(): Promise<StoreData> {
   return store;
 }
 
-const FIRESTORE_BATCH_LIMIT = 450;
 const FIRESTORE_SAVE_RETRY_ATTEMPTS = 3;
 const FIRESTORE_SAVE_RETRY_BASE_MS = 300;
 
@@ -300,12 +299,24 @@ export function getPersistenceMetrics(): SaveMetrics & {
 async function saveToFirestore(): Promise<void> {
   if (!db || (dirtyDomains.size === 0 && dirtyTodoShards.size === 0)) return;
 
-  const ops: Array<{ ref: FirebaseFirestore.DocumentReference; payload: unknown }> = [];
+  // Legacy monolithic activity log is not flushed in Firestore prod (see activityLogService).
+  if (!USE_LOCAL && dirtyDomains.delete("activityLog")) {
+    console.log("[persistence] skipped legacy store/activityLog flush (activity_log_v2 is source of truth)");
+  }
+
+  type FlushOp = {
+    ref: FirebaseFirestore.DocumentReference;
+    payload: unknown;
+    domain?: Domain;
+    shardIndex?: number;
+  };
+
+  const ops: FlushOp[] = [];
 
   for (const domain of dirtyDomains) {
     const data = (cachedStore as Record<string, unknown>)[domain];
     if (data !== undefined) {
-      ops.push({ ref: db.collection("store").doc(domain), payload: { data } });
+      ops.push({ ref: db.collection("store").doc(domain), payload: { data }, domain });
     }
   }
 
@@ -315,64 +326,100 @@ async function saveToFirestore(): Promise<void> {
     ops.push({
       ref: db.collection("store").doc(todoShardDocId(shardIndex)),
       payload: { data: blob },
+      shardIndex,
     });
   }
 
-  // Snapshot of what THIS attempt is about to commit. We only clear these from
-  // the dirty sets after a successful commit, so a write that arrives during
-  // the in-flight batch is preserved for the next flush instead of being lost.
-  const savingDomains = new Set(dirtyDomains);
-  const savingShards = new Set(dirtyTodoShards);
+  if (ops.length === 0) return;
 
   const startedAt = Date.now();
   let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= FIRESTORE_SAVE_RETRY_ATTEMPTS; attempt++) {
-    try {
-      for (let i = 0; i < ops.length; i += FIRESTORE_BATCH_LIMIT) {
-        const chunk = ops.slice(i, i + FIRESTORE_BATCH_LIMIT);
+  let committed = 0;
+
+  for (const op of ops) {
+    let saved = false;
+    for (let attempt = 1; attempt <= FIRESTORE_SAVE_RETRY_ATTEMPTS; attempt++) {
+      try {
         const batch = db.batch();
-        for (const { ref, payload } of chunk) {
-          batch.set(ref, payload as FirebaseFirestore.DocumentData);
-        }
+        batch.set(op.ref, op.payload as FirebaseFirestore.DocumentData);
         await batch.commit();
-      }
-      for (const d of savingDomains) dirtyDomains.delete(d);
-      for (const s of savingShards) dirtyTodoShards.delete(s);
-      saveMetrics.lastFlushAt = new Date().toISOString();
-      saveMetrics.lastFlushOpsCount = ops.length;
-      saveMetrics.lastFlushDurationMs = Date.now() - startedAt;
-      saveMetrics.consecutiveFlushFailures = 0;
-      if (attempt > 1) {
-        console.warn("[persistence] flush succeeded on attempt %d (ops=%d, durMs=%d)", attempt, ops.length, saveMetrics.lastFlushDurationMs);
-      }
-      return;
-    } catch (err) {
-      lastErr = err;
-      saveMetrics.failedFlushAttempts += 1;
-      const backoff = FIRESTORE_SAVE_RETRY_BASE_MS * Math.pow(2, attempt - 1);
-      console.error(
-        "[persistence] Firestore batch save failed (attempt %d/%d, ops=%d, dirtyDomains=%d, dirtyShards=%d): %s",
-        attempt, FIRESTORE_SAVE_RETRY_ATTEMPTS, ops.length, savingDomains.size, savingShards.size, err,
-      );
-      if (attempt < FIRESTORE_SAVE_RETRY_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, backoff));
+        if (op.domain) dirtyDomains.delete(op.domain);
+        if (op.shardIndex !== undefined) dirtyTodoShards.delete(op.shardIndex);
+        committed += 1;
+        saved = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+        saveMetrics.failedFlushAttempts += 1;
+        const label = op.domain ?? todoShardDocId(op.shardIndex!);
+        console.error(
+          "[persistence] Firestore save failed (doc=%s, attempt %d/%d): %s",
+          label,
+          attempt,
+          FIRESTORE_SAVE_RETRY_ATTEMPTS,
+          err,
+        );
+        if (attempt < FIRESTORE_SAVE_RETRY_ATTEMPTS) {
+          const backoff = FIRESTORE_SAVE_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+          await new Promise((r) => setTimeout(r, backoff));
+        }
       }
     }
+    if (!saved) {
+      console.error("[persistence] giving up on doc=%s after %d attempts", op.domain ?? todoShardDocId(op.shardIndex!), FIRESTORE_SAVE_RETRY_ATTEMPTS);
+    }
   }
+
+  if (committed > 0) {
+    saveMetrics.lastFlushAt = new Date().toISOString();
+    saveMetrics.lastFlushOpsCount = committed;
+    saveMetrics.lastFlushDurationMs = Date.now() - startedAt;
+  }
+
+  if (dirtyDomains.size === 0 && dirtyTodoShards.size === 0) {
+    saveMetrics.consecutiveFlushFailures = 0;
+    return;
+  }
+
   saveMetrics.consecutiveFlushFailures += 1;
-  // Structured log line so a Cloud Logging metric can alert on stuck-dirty state.
+  const lastErrorMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  const dirtyShardIds = Array.from(dirtyTodoShards).slice(0, 20);
   console.error(
-    "[persistence] flush_exhausted attempts=%d consecutiveFlushFailures=%d dirtyDomains=%d dirtyShards=%d dirtyShardIds=%s lastError=%s",
-    FIRESTORE_SAVE_RETRY_ATTEMPTS,
+    "[persistence] flush_exhausted committed=%d/%d consecutiveFlushFailures=%d dirtyDomains=%d dirtyShards=%d dirtyShardIds=%s lastError=%s",
+    committed,
+    ops.length,
     saveMetrics.consecutiveFlushFailures,
     dirtyDomains.size,
     dirtyTodoShards.size,
-    Array.from(dirtyTodoShards).slice(0, 20).join(","),
-    lastErr instanceof Error ? lastErr.message : String(lastErr),
+    dirtyShardIds.join(","),
+    lastErrorMsg,
   );
-  // Re-arm the debounce so we don't leave the dirty sets unflushed forever
-  // if subsequent writes don't trigger a new scheduleSave call (e.g. read-mostly
-  // window after a transient Firestore outage).
+  console.error(
+    JSON.stringify({
+      event: "persistence-flush",
+      status: "exhausted",
+      committed,
+      attempted: ops.length,
+      consecutiveFlushFailures: saveMetrics.consecutiveFlushFailures,
+      dirtyDomains: dirtyDomains.size,
+      dirtyShards: dirtyTodoShards.size,
+      dirtyShardIds,
+      lastError: lastErrorMsg,
+    }),
+  );
+  const { maybeNotifyAdminOpsAlert } = await import("./services/adminOpsAlertService");
+  maybeNotifyAdminOpsAlert({
+    kind: "persistence_flush",
+    title: "Échec de persistance Firestore",
+    lines: [
+      `Échecs de flush consécutifs : ${saveMetrics.consecutiveFlushFailures}`,
+      `Documents commités / tentés : ${committed}/${ops.length}`,
+      `Domaines encore dirty : ${dirtyDomains.size}`,
+      `Shards todos encore dirty : ${dirtyTodoShards.size}`,
+      `Dernière erreur : ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+      "Les écritures store/* (users, sessions, projets…) peuvent ne pas être persistées.",
+    ],
+  });
   armDebounce();
 }
 

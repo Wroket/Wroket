@@ -11,6 +11,7 @@ import { cancelStripeSubscriptionsById } from "./stripeBillingService";
 import { exportContactsForOwner, purgeContactsForOwner } from "./contactService";
 import { exportDatabasesForOwner, purgeDatabasesForOwner } from "./userDatabaseService";
 import { exportNoteFoldersForOwner, purgeNoteFoldersForOwner } from "./noteFolderService";
+import { anonymizeActivityForUser } from "./activityLogService";
 export interface UserDataExport {
   user: Record<string, unknown>;
   todos: unknown[];
@@ -254,7 +255,7 @@ export async function deleteUserData(uid: string): Promise<void> {
   delete notifStore[uid];
   scheduleSave("notifications");
 
-  // Anonymize activity log
+  // Anonymize activity log (activity_log_v2 in prod; legacy doc only in local store mode)
   const activityStore = (store.activityLog ?? []) as Array<Record<string, unknown>>;
   for (const entry of activityStore) {
     if (entry.userId === uid) {
@@ -262,7 +263,10 @@ export async function deleteUserData(uid: string): Promise<void> {
       entry.userEmail = "deleted user";
     }
   }
-  scheduleSave("activityLog");
+  await anonymizeActivityForUser(uid);
+  if (process.env.USE_LOCAL_STORE === "true") {
+    scheduleSave("activityLog");
+  }
 
   // Remove sessions
   const sessionStore = (store.sessions ?? {}) as Record<string, Record<string, unknown>>;

@@ -22,6 +22,34 @@ Ce document complète les actions manuelles dans la console GCP (alertes, uptime
 2. **Uptime check secondaire (optionnel)** : `GET /health/ready` avec fréquence moindre (ex. 5 min) — détecte les pannes Firestore ou mauvaise config IAM.
 3. **Alertes Cloud Monitoring** : sur les métriques Cloud Run (erreurs 5xx, latence) pour `wroket-api` ; sur les métriques Firestore (erreurs, quota) si configurées.
 
+## Alertes email admin (intégrées)
+
+En **production**, si SMTP est configuré, l’API envoie un email aux adresses **`ADMIN_EMAILS`** lorsque :
+
+| Incident | Déclencheur |
+|----------|-------------|
+| Persistance Firestore | Échec flush `store/*` (`consecutiveFlushFailures > 0`) |
+| Flush stale | Sonde 15 min : dirty > 0 sans flush réussi depuis 10 min (sans échec consécutif) |
+| Drift todos | Monitor horaire `todosDriftMonitor` |
+| Firestore injoignable | Sonde readiness toutes les 15 min (si ping échoue) |
+| SMTP dégradé | ≥ 3 échecs SMTP / 1 h sans succès, ou taux d'échec > 80 % (≥ 5 tentatives) |
+
+- Cooldown par défaut : **1 h** par type d’alerte (`ADMIN_OPS_ALERT_COOLDOWN_MINUTES`).
+- Seuil flush stale : `ADMIN_OPS_FLUSH_STALE_MINUTES=10`.
+- Désactiver : `ADMIN_OPS_ALERTS_ENABLED=false`.
+- Destinataires alternatifs : `ADMIN_OPS_ALERT_TO=email1,email2`.
+
+## Alertes Cloud Monitoring (GCP)
+
+| Métrique log-based | Fichiers | Événement source |
+|--------------------|----------|------------------|
+| `todos_drift_events` | `infra/monitoring/log-metric-todos-drift.yaml` | `jsonPayload.event="todos-drift"` |
+| `persistence_flush_exhausted_events` | `infra/monitoring/log-metric-flush-exhausted.yaml` | `jsonPayload.event="persistence-flush" status="exhausted"` |
+
+Déploiement flush exhaustion : voir [`infra/monitoring/README.md`](../infra/monitoring/README.md).
+
+---
+
 ## À compléter (manuel)
 
 Renseigne ici les noms et seuils **réels** de tes politiques d’alerte pour l’équipe :

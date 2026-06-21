@@ -13,6 +13,25 @@ reports drift between the legacy todo store and `todos_v2`.
 | Alert policy | `projects/involuted-reach-490718-h4/alertPolicies/13398049412521343216` |
 | Notification channel | `projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013` (email → team@wroket.com) |
 
+### Flush exhaustion (to deploy)
+
+| Resource | Files |
+|---|---|
+| Log-based metric | `persistence_flush_exhausted_events` ← `log-metric-flush-exhausted.yaml` |
+| Alert policy | `alert-policy-flush-exhausted.yaml` |
+
+```powershell
+gcloud logging metrics create persistence_flush_exhausted_events `
+  --config-from-file=infra/monitoring/log-metric-flush-exhausted.yaml `
+  --project=involuted-reach-490718-h4
+
+gcloud alpha monitoring policies create `
+  --policy-from-file=infra/monitoring/alert-policy-flush-exhausted.yaml `
+  --project=involuted-reach-490718-h4
+```
+
+Use `update` instead of `create` if the metric or policy already exists.
+
 The sections below are kept for future re-application from scratch or for
 adapting to another project.
 
@@ -22,6 +41,8 @@ adapting to another project.
 |---|---|
 | `log-metric-todos-drift.yaml` | Log-based metric counting `jsonPayload.event="todos-drift" status="drift"` lines. |
 | `alert-policy-todos-drift.yaml` | Alert policy firing when the metric is > 0 over the last hour. |
+| `log-metric-flush-exhausted.yaml` | Log-based metric for `jsonPayload.event="persistence-flush" status="exhausted"`. |
+| `alert-policy-flush-exhausted.yaml` | Alert when flush exhaustion events occur in the last hour. |
 
 ## One-time apply
 

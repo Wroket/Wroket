@@ -32,6 +32,10 @@ async function shutdown(signal: string): Promise<void> {
     const { stopTodosDriftMonitor } = await import("./services/todosDriftMonitor");
     stopTodosDriftMonitor();
   } catch { /* not started yet */ }
+  try {
+    const { stopAdminOpsAlertMonitor } = await import("./services/adminOpsAlertService");
+    stopAdminOpsAlertMonitor();
+  } catch { /* not started yet */ }
 
   stopWatchdogFlush();
   detachLiveInvalidation();
@@ -112,11 +116,13 @@ async function main(): Promise<void> {
   const { default: app } = await import("./app");
   const { startReminderJob } = await import("./services/reminderService");
   const { startTodosDriftMonitor } = await import("./services/todosDriftMonitor");
+  const { startAdminOpsAlertMonitor } = await import("./services/adminOpsAlertService");
 
   server = app.listen(port, () => {
     console.log(`[server] Backend listening on port ${port}`);
     startReminderJob();
     startTodosDriftMonitor();
+    startAdminOpsAlertMonitor();
     // 5 s safety-net flush: in addition to the 500 ms debounce, force a write
     // if anything sits dirty. Prevents the "debounce starve" case where a
     // continuous stream of writes keeps re-arming the timer.

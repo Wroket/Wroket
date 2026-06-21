@@ -1,0 +1,49 @@
+# Alert policy for Firestore flush exhaustion (pairs with log-metric-flush-exhausted.yaml).
+#
+# Apply with:
+#   gcloud alpha monitoring policies create \
+#     --policy-from-file=infra/monitoring/alert-policy-flush-exhausted.yaml \
+#     --project=involuted-reach-490718-h4
+
+displayName: "Firestore flush exhausted (store/* not persisted)"
+
+combiner: OR
+
+conditions:
+  - displayName: "persistence_flush_exhausted_events > 0 (1h window)"
+    conditionThreshold:
+      filter: |
+        metric.type="logging.googleapis.com/user/persistence_flush_exhausted_events"
+        resource.type="cloud_run_revision"
+      comparison: COMPARISON_GT
+      thresholdValue: 0
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 3600s
+          perSeriesAligner: ALIGN_SUM
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: ERROR
+
+documentation:
+  mimeType: text/markdown
+  content: |
+    ## Firestore flush exhausted
+
+    The API accepted writes in memory but could not persist one or more
+    `store/*` documents to Firestore after retries. `/health/ready` returns
+    **503** while `consecutiveFlushFailures > 0`.
+
+    **Common causes**:
+    - Document exceeds Firestore 1 MiB limit (historically `store/activityLog`)
+    - IAM / quota / transient Firestore outage
+
+    **What to do**:
+    1. Open Admin › Ops or Cloud Logging: search `event="persistence-flush" status="exhausted"`.
+    2. Check `jsonPayload.lastError` and dirty domain names in the log line.
+    3. Fix the offending document or IAM issue; verify flush recovers and Ops shows OK.
+
+alertStrategy:
+  autoClose: 86400s

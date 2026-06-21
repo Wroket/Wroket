@@ -252,7 +252,17 @@ function flushUserDigest(userId: string): void {
         auth: { user: smtpUser, pass: smtpPass },
       });
       const from = process.env.EMAIL_FROM || smtpUser;
-      void transporter.sendMail({ from: `"Wroket" <${from}>`, to: prefs.email, subject, html });
+      void transporter.sendMail({ from: `"Wroket" <${from}>`, to: prefs.email, subject, html })
+        .then(() => {
+          void import("./emailDeliveryMonitor").then(({ recordEmailDeliverySuccess }) =>
+            recordEmailDeliverySuccess(),
+          );
+        })
+        .catch((err: unknown) => {
+          void import("./emailDeliveryMonitor").then(({ recordEmailDeliveryFailure }) =>
+            recordEmailDeliveryFailure(err),
+          );
+        });
       return;
     }
 

@@ -129,6 +129,19 @@ async function checkOnce(): Promise<void> {
     v2OnlyTotal,
     inMemoryOnlyTotal,
   };
+
+  const { maybeNotifyAdminOpsAlert } = await import("./adminOpsAlertService");
+  maybeNotifyAdminOpsAlert({
+    kind: "todos_drift",
+    title: "Drift détecté entre todos mémoire et todos_v2",
+    lines: [
+      `Propriétaires en drift : ${countDriftOwners}`,
+      `Todos uniquement en mémoire : ${inMemoryOnlyTotal}`,
+      `Todos uniquement dans todos_v2 : ${v2OnlyTotal}`,
+      worst ? `Pire cas (uid) : ${worst.uid} — manquants v2: ${worst.v2Only}, manquants mémoire: ${worst.inMemoryOnly}` : "",
+      "Exécuter reconcileLegacyV2Drift si nécessaire (voir runbook).",
+    ].filter(Boolean),
+  });
 }
 
 export function startTodosDriftMonitor(): void {

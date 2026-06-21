@@ -62,7 +62,12 @@ async function getDb(): Promise<Firestore | null> {
 function persistInMemoryToLegacyDoc(): void {
   const store = getStore();
   store.activityLog = activityLog;
-  scheduleSave("activityLog");
+  // Prod source of truth is `activity_log_v2` (one doc per entry). Rewriting the
+  // monolithic `store/activityLog` doc on every action exceeds Firestore's 1 MiB
+  // limit and blocks the entire store flush (users, sessions, projects, …).
+  if (USE_LOCAL) {
+    scheduleSave("activityLog");
+  }
 }
 
 (function hydrate() {
@@ -188,6 +193,37 @@ export async function getActivityLog(
   const offset = filters?.offset ?? 0;
   const limit = filters?.limit ?? 50;
   return { entries: rows.slice(offset, offset + limit), total };
+}
+
+/**
+ * RGPD: anonymize audit entries for a deleted user (in-memory cache + activity_log_v2).
+ */
+export async function anonymizeActivityForUser(uid: string): Promise<void> {
+  for (const entry of activityLog) {
+    if (entry.userId === uid) {
+      entry.userId = "deleted";
+      entry.userEmail = "deleted user";
+    }
+  }
+
+  const dbConn = await getDb();
+  if (!dbConn) return;
+
+  const BATCH = 400;
+  let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  for (;;) {
+    let q: FirebaseFirestore.Query = dbConn.collection(COLLECTION).where("userId", "==", uid).limit(BATCH);
+    if (lastDoc) q = q.startAfter(lastDoc);
+    const snap = await q.get();
+    if (snap.empty) break;
+    const batch = dbConn.batch();
+    for (const doc of snap.docs) {
+      batch.update(doc.ref, { userId: "deleted", userEmail: "deleted user" });
+    }
+    await batch.commit();
+    lastDoc = snap.docs[snap.docs.length - 1];
+    if (snap.size < BATCH) break;
+  }
 }
 
 /**

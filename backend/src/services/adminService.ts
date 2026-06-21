@@ -71,6 +71,11 @@ export function isAdmin(email: string): boolean {
   return ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
+/** Email allowlist for admin panel and ops alert notifications. */
+export function getAdminEmails(): readonly string[] {
+  return ADMIN_EMAILS;
+}
+
 export interface AdminUserSummary {
   uid: string;
   email: string;
