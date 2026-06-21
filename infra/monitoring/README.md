@@ -25,12 +25,28 @@ gcloud logging metrics create persistence_flush_exhausted_events `
   --config-from-file=infra/monitoring/log-metric-flush-exhausted.yaml `
   --project=involuted-reach-490718-h4
 
-gcloud alpha monitoring policies create `
+gcloud monitoring policies create `
   --policy-from-file=infra/monitoring/alert-policy-flush-exhausted.yaml `
   --project=involuted-reach-490718-h4
 ```
 
-Use `update` instead of `create` if the metric or policy already exists.
+Use `gcloud logging metrics update` / `gcloud monitoring policies update <POLICY_ID>` if the resource already exists.
+
+### Windows : erreur « alpha / beta » ou droits SDK
+
+Les **politiques d’alerte** n’utilisent **pas** `gcloud alpha` : la commande stable est `gcloud monitoring policies create`.
+
+Si une commande demande d’installer `alpha` ou `beta` (ex. `gcloud beta monitoring channels list`) et échoue sur `C:\Program Files (x86)\Google\Cloud SDK\` :
+
+1. Ouvrir **Google Cloud SDK Shell** (icône dédiée) **en administrateur**, puis :
+   ```powershell
+   gcloud components install beta
+   ```
+   (optionnel — seulement pour lister/créer des canaux de notification en CLI)
+2. **Ou** ignorer beta : le canal email prod est déjà référencé dans les YAML (`notificationChannels/12683066122650849013` → team@wroket.com).
+3. **Ou** créer la politique dans la [console Monitoring](https://console.cloud.google.com/monitoring/alerting?project=involuted-reach-490718-h4) en important le filtre métrique `persistence_flush_exhausted_events`.
+
+La métrique log (`gcloud logging metrics create`) ne nécessite ni alpha ni beta.
 
 The sections below are kept for future re-application from scratch or for
 adapting to another project.
@@ -70,7 +86,7 @@ gcloud logging metrics update todos_drift_events `
 List existing channels:
 
 ```powershell
-gcloud alpha monitoring channels list `
+gcloud beta monitoring channels list `
   --project=involuted-reach-490718-h4 `
   --format='value(name,type,displayName)'
 ```
@@ -78,7 +94,7 @@ gcloud alpha monitoring channels list `
 If you need a new email channel:
 
 ```powershell
-gcloud alpha monitoring channels create `
+gcloud beta monitoring channels create `
   --display-name="Wroket prod alerts" `
   --type=email `
   --channel-labels=email_address=francois@broudeur.com `
@@ -93,7 +109,7 @@ Open `alert-policy-todos-drift.yaml` and replace
 `NOTIFICATION_CHANNEL_ID` with the id from step 2, then:
 
 ```powershell
-gcloud alpha monitoring policies create `
+gcloud monitoring policies create `
   --policy-from-file=infra/monitoring/alert-policy-todos-drift.yaml `
   --project=involuted-reach-490718-h4
 ```
@@ -101,10 +117,10 @@ gcloud alpha monitoring policies create `
 To later modify the policy, list and update:
 
 ```powershell
-gcloud alpha monitoring policies list --project=involuted-reach-490718-h4 `
+gcloud monitoring policies list --project=involuted-reach-490718-h4 `
   --format='value(name,displayName)'
 
-gcloud alpha monitoring policies update <POLICY_ID> `
+gcloud monitoring policies update <POLICY_ID> `
   --policy-from-file=infra/monitoring/alert-policy-todos-drift.yaml `
   --project=involuted-reach-490718-h4
 ```
@@ -128,6 +144,6 @@ gcloud logging read 'jsonPayload.event="todos-drift" jsonPayload.status="drift"'
 ## Cleanup / rollback
 
 ```powershell
-gcloud alpha monitoring policies delete <POLICY_ID> --project=involuted-reach-490718-h4
+gcloud monitoring policies delete <POLICY_ID> --project=involuted-reach-490718-h4
 gcloud logging metrics delete todos_drift_events --project=involuted-reach-490718-h4
 ```

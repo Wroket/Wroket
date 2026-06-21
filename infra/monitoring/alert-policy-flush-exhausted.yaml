@@ -1,7 +1,7 @@
 # Alert policy for Firestore flush exhaustion (pairs with log-metric-flush-exhausted.yaml).
 #
 # Apply with:
-#   gcloud alpha monitoring policies create \
+#   gcloud monitoring policies create \
 #     --policy-from-file=infra/monitoring/alert-policy-flush-exhausted.yaml \
 #     --project=involuted-reach-490718-h4
 

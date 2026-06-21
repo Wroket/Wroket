@@ -4,13 +4,13 @@
 #
 # Before applying:
 #   1) List existing notification channels:
-#        gcloud alpha monitoring channels list --project=involuted-reach-490718-h4 --format='value(name,type,displayName)'
+#        gcloud beta monitoring channels list --project=involuted-reach-490718-h4 --format='value(name,type,displayName)'
 #   2) Pick (or create) an email channel and substitute the placeholder
 #      below: replace `NOTIFICATION_CHANNEL_ID` with the trailing id segment
 #      of the channel name (e.g. `1234567890123456789`).
 #
 # Apply with:
-#   gcloud alpha monitoring policies create \
+#   gcloud monitoring policies create \
 #     --policy-from-file=infra/monitoring/alert-policy-todos-drift.yaml \
 #     --project=involuted-reach-490718-h4
 
@@ -36,7 +36,7 @@ conditions:
 
 notificationChannels:
   # Channel "Wroket" → team@wroket.com. To target a different channel, list
-  # available ones with `gcloud alpha monitoring channels list` (see README).
+  # available ones with `gcloud beta monitoring channels list` (see README).
   - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
 
 severity: ERROR
