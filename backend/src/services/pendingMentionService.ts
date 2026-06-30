@@ -76,7 +76,7 @@ export function enqueuePendingMention(
 /**
  * Called after the invitee accepts collaboration with inviter — deliver all queued mention notifications.
  */
-export function deliverPendingMentionsAfterCollaborationAccepted(inviterUid: string, inviteeEmail: string): void {
+export async function deliverPendingMentionsAfterCollaborationAccepted(inviterUid: string, inviteeEmail: string): Promise<void> {
   const inviteeNorm = normalizeEmail(inviteeEmail);
   const toDeliver: PendingCommentMention[] = [];
   const rest: PendingCommentMention[] = [];

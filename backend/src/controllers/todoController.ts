@@ -543,7 +543,7 @@ export async function exportTodos(req: AuthenticatedRequest, res: Response) {
   const todos = archivedOnly
     ? await listArchivedTodos(uid)
     : includeArchived
-      ? [...(await listTodos(uid)), ...await listArchivedTodos(uid))]
+      ? [...(await listTodos(uid)), ...(await listArchivedTodos(uid))]
       : await listTodos(uid);
 
   const fileBase = archivedOnly ? "wroket-tasks-archived" : includeArchived ? "wroket-tasks-all" : "wroket-tasks";

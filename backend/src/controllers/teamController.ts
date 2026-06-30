@@ -140,7 +140,7 @@ export async function postAcceptCollaboration(req: AuthenticatedRequest, res: Re
   acceptCollaboration(req.user!.uid, req.user!.email, inviter.uid, inviterEmail);
 
   try {
-    deliverPendingMentionsAfterCollaborationAccepted(inviter.uid, req.user!.email ?? "");
+    await deliverPendingMentionsAfterCollaborationAccepted(inviter.uid, req.user!.email ?? "");
   } catch (err) {
     console.warn("[team] deliver pending mention notifications failed:", err);
   }
