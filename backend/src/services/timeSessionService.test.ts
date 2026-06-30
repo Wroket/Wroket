@@ -15,7 +15,7 @@ describe("timeSessionService", () => {
     const user = register({ email: "timer@test.com", password: "password123" });
     setBillingPlanForUid(user.uid, "small");
     const todo = await createTodo(user.uid, user.email, { title: "T", priority: "medium" });
-    const started = startTimeTimer(user.uid, user.email, todo.id);
+    const started = await startTimeTimer(user.uid, user.email, todo.id);
     expect(started.endedAt).toBeNull();
 
     const stopped = stopTimeTimer(user.uid, todo.id);
@@ -30,7 +30,7 @@ describe("timeSessionService", () => {
     const user = register({ email: "manual@test.com", password: "password123" });
     setBillingPlanForUid(user.uid, "small");
     const todo = await createTodo(user.uid, user.email, { title: "T2", priority: "low" });
-    addManualTimeSession(user.uid, todo.id, 30);
+    await addManualTimeSession(user.uid, todo.id, 30);
     expect(sumMinutesForTodo(todo.id)).toBe(30);
   });
 });

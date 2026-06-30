@@ -10,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/pricing", "/privacy", "/terms", "/agenda-taches", "/gestion-taches-equipe", "/matrice-eisenhower"],
+        allow: ["/", "/pricing", "/privacy", "/terms", "/docs", "/docs/guides/premiers-pas", "/docs/guides/projects", "/docs/guides/donnees", "/docs/guides/settings", "/docs/integrations/notion", "/docs/integrations/monday", "/agenda-taches", "/gestion-taches-equipe", "/matrice-eisenhower"],
         disallow: [
           "/api/",
           "/dashboard",

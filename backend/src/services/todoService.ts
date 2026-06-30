@@ -7,7 +7,15 @@ import { removeCommentsForTodos } from "./commentService";
 import { detachNotesFromTodoIds } from "./noteService";
 import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent } from "./projectService";
 import { scheduleExternalCleanupForFutureSlots } from "./calendarBookingCleanup";
-import { syncOwnerTodosV2, loadAllTodosV2ByOwner } from "./todoDocStore";
+import {
+  syncOwnerTodosV2,
+  loadAllTodosV2ByOwner,
+  listTodosV2ByOwner,
+  listTodosV2ByAssignedTo,
+  listTodosV2ByProject,
+  getTodoV2ById,
+  type TodoV2Row,
+} from "./todoDocStore";
 import { ExternalRef, normalizeExternalRef } from "./externalRef";
 import {
   FREE_QUOTA_CODE_RECURRENCE,
@@ -392,7 +400,149 @@ const todosByUser = new Map<string, Map<string, Todo>>();
 /** Reverse index: todoId → ownerUserId for O(1) cross-user lookup */
 const ownerIndex = new Map<string, string>();
 const TODOS_STORAGE_MODE = (process.env.TODOS_STORAGE_MODE?.trim().toLowerCase() ?? "legacy") as "legacy" | "dual" | "v2";
-console.log("[todos] storage mode: %s", TODOS_STORAGE_MODE);
+const TODOS_READ_SOURCE = (process.env.TODOS_READ_SOURCE?.trim().toLowerCase() ?? "firestore") as "firestore" | "ram" | "shadow";
+const TODOS_BOOT_HYDRATION = (process.env.TODOS_BOOT_HYDRATION?.trim().toLowerCase() ?? "lazy") as "lazy" | "full";
+const USE_LOCAL_TODOS = process.env.USE_LOCAL_STORE === "true";
+console.log("[todos] storage mode: %s read=%s boot=%s", TODOS_STORAGE_MODE, TODOS_READ_SOURCE, TODOS_BOOT_HYDRATION);
+
+/** Owners whose todos_v2 rows were loaded into RAM (lazy or full boot). */
+const hydratedOwners = new Set<string>();
+
+function shouldReadTodosFromFirestore(): boolean {
+  return TODOS_STORAGE_MODE === "v2"
+    && !USE_LOCAL_TODOS
+    && (TODOS_READ_SOURCE === "firestore" || TODOS_READ_SOURCE === "shadow");
+}
+
+function logTodoReadDrift(scope: string, key: string, firestoreIds: string[], ramIds: string[]): void {
+  const ramSet = new Set(ramIds);
+  const fsSet = new Set(firestoreIds);
+  const onlyFirestore = firestoreIds.filter((id) => !ramSet.has(id));
+  const onlyRam = ramIds.filter((id) => !fsSet.has(id));
+  if (onlyFirestore.length === 0 && onlyRam.length === 0) return;
+  console.warn(JSON.stringify({
+    event: "todo_read_drift",
+    scope,
+    key,
+    onlyFirestore,
+    onlyRam,
+    ts: Date.now(),
+  }));
+}
+
+/** Normalize a todos_v2 Firestore row into an in-memory Todo (same defaults as legacy hydrate). */
+export function normalizeTodoFromV2Row(row: Record<string, unknown>, docId: string, ownerUid: string): Todo {
+  const raw: Record<string, unknown> = { ...row, id: docId, userId: ownerUid, ownerUid };
+  if (raw.encV1 != null) {
+    delete raw.encV1;
+  }
+  const todo = raw as unknown as Todo;
+  if (typeof todo.title !== "string") {
+    todo.title = "";
+  }
+  if (todo.assignmentStatus === undefined) {
+    todo.assignmentStatus = todo.assignedTo ? "pending" : null;
+  }
+  if (todo.projectId === undefined) {
+    todo.projectId = null;
+  }
+  if (todo.phaseId === undefined) {
+    todo.phaseId = null;
+  }
+  if (todo.startDate === undefined) {
+    todo.startDate = null;
+  }
+  if (!todo.effort) {
+    todo.effort = "medium";
+  }
+  if ((todo as unknown as Record<string, unknown>).estimatedMinutes === undefined) {
+    todo.estimatedMinutes = null;
+  }
+  if (!Array.isArray(todo.tags)) {
+    todo.tags = [];
+  }
+  if ((todo as unknown as Record<string, unknown>).scheduledSlot === undefined) {
+    todo.scheduledSlot = null;
+  }
+  if ((todo as unknown as Record<string, unknown>).suggestedSlot === undefined) {
+    todo.suggestedSlot = null;
+  }
+  if ((todo as unknown as Record<string, unknown>).recurrence === undefined) {
+    todo.recurrence = null;
+  }
+  if ((todo as unknown as Record<string, unknown>).sortOrder === undefined) {
+    todo.sortOrder = null;
+  }
+  if ((todo as unknown as Record<string, unknown>).blockedByTodoIds === undefined) {
+    todo.blockedByTodoIds = [];
+  } else {
+    todo.blockedByTodoIds = normalizeBlockedByTodoIds(todo.blockedByTodoIds);
+  }
+  if ((todo as unknown as Record<string, unknown>).customFieldValues === undefined) {
+    todo.customFieldValues = undefined;
+  }
+  if (!todo.statusChangedAt) {
+    todo.statusChangedAt = todo.status === "active" ? todo.createdAt : todo.updatedAt;
+  }
+  return todo;
+}
+
+function mergeTodoIntoCache(ownerUid: string, docId: string, todo: Todo): void {
+  let map = todosByUser.get(ownerUid);
+  if (!map) {
+    map = new Map();
+    todosByUser.set(ownerUid, map);
+  }
+  map.set(docId, todo);
+  ownerIndex.set(docId, ownerUid);
+}
+
+function mergeV2RowsIntoCache(rows: TodoV2Row[]): Todo[] {
+  const result: Todo[] = [];
+  for (const row of rows) {
+    const ownerUid = row.ownerUid || (typeof row.userId === "string" ? row.userId : "");
+    if (!ownerUid) continue;
+    const todo = normalizeTodoFromV2Row(row as Record<string, unknown>, row.id, ownerUid);
+    mergeTodoIntoCache(ownerUid, row.id, todo);
+    result.push(todo);
+  }
+  return result;
+}
+
+async function resolveTodoRead<T extends { id: string }>(
+  scope: string,
+  key: string,
+  firestoreFn: () => Promise<T[]>,
+  ramFn: () => T[],
+  sortFn: (a: T, b: T) => number,
+): Promise<T[]> {
+  if (!shouldReadTodosFromFirestore()) {
+    return ramFn().sort(sortFn);
+  }
+  const fsResult = await firestoreFn();
+  if (TODOS_READ_SOURCE === "shadow") {
+    logTodoReadDrift(scope, key, fsResult.map((t) => t.id), ramFn().map((t) => t.id));
+  }
+  if (TODOS_READ_SOURCE === "ram") {
+    return ramFn().sort(sortFn);
+  }
+  return fsResult.sort(sortFn);
+}
+
+/**
+ * Load todos_v2 for one owner into RAM on first access (lazy boot path).
+ * No-op in legacy/dual/local modes.
+ */
+export async function ensureOwnerHydrated(userId: string): Promise<void> {
+  if (TODOS_STORAGE_MODE !== "v2" || USE_LOCAL_TODOS) return;
+  if (hydratedOwners.has(userId)) return;
+  hydratedOwners.add(userId);
+  const rows = await listTodosV2ByOwner(userId);
+  const count = mergeV2RowsIntoCache(rows).length;
+  if (count > 0) {
+    console.log("[todos] lazy-hydrated %d todo(s) for owner %s", count, userId);
+  }
+}
 
 export function getTodoStoreOwnerId(todoId: string): string | undefined {
   return ownerIndex.get(todoId);
@@ -562,6 +712,10 @@ if (getStore().todos) {
 
 export async function hydrateTodosFromV2IfNeeded(): Promise<void> {
   if (TODOS_STORAGE_MODE !== "v2") return;
+  if (TODOS_BOOT_HYDRATION === "lazy") {
+    console.log("[todos] v2 lazy boot: skipping full collection hydrate");
+    return;
+  }
   const fromV2 = await loadAllTodosV2ByOwner();
   if (Object.keys(fromV2).length === 0) {
     console.warn("[todos] v2 mode enabled but no docs found in todos_v2");
@@ -570,18 +724,20 @@ export async function hydrateTodosFromV2IfNeeded(): Promise<void> {
 
   todosByUser.clear();
   ownerIndex.clear();
+  hydratedOwners.clear();
   let count = 0;
   for (const [userId, todos] of Object.entries(fromV2)) {
+    hydratedOwners.add(userId);
     const map = new Map<string, Todo>();
     for (const [id, row] of Object.entries(todos)) {
-      const todo = row as unknown as Todo;
+      const todo = normalizeTodoFromV2Row(row as Record<string, unknown>, id, userId);
       map.set(id, todo);
       ownerIndex.set(id, userId);
       count++;
     }
     todosByUser.set(userId, map);
   }
-  console.log("[todos] hydrated %d todo(s) from todos_v2", count);
+  console.log("[todos] hydrated %d todo(s) from todos_v2 (full boot)", count);
 }
 
 function getUserTodos(userId: string): Map<string, Todo> {
@@ -679,6 +835,7 @@ export function applyTodoV2DocChange(
 export function _resetTodosForTests(): void {
   todosByUser.clear();
   ownerIndex.clear();
+  hydratedOwners.clear();
 }
 
 /** Remove all in-memory todos for a user (RGPD delete). */
@@ -747,6 +904,12 @@ async function purgeArchivedTodosPastRetentionAllUsers(): Promise<void> {
   }
 }
 
+export interface TodoLookup {
+  todo: Todo;
+  ownerMap: Map<string, Todo>;
+  isOwner: boolean;
+}
+
 /**
  * Archived todos for the signed-in user only (their datastore).
  *
@@ -755,13 +918,15 @@ async function purgeArchivedTodosPastRetentionAllUsers(): Promise<void> {
  * list ({@link listArchivedTodosAssignedToMe}) — otherwise a user could lose sight of
  * their own completed work after a project is deleted or a team membership changes.
  */
-export function listArchivedTodos(userId: string): Todo[] {
-  return listAllTodos(userId)
+export async function listArchivedTodos(userId: string): Promise<Todo[]> {
+  await ensureOwnerHydrated(userId);
+  return Array.from(getUserTodos(userId).values())
     .filter(isArchived)
     .sort((a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime());
 }
 
-export function listTodos(userId: string): Todo[] {
+export async function listTodos(userId: string): Promise<Todo[]> {
+  await ensureOwnerHydrated(userId);
   const todos = getUserTodos(userId);
   return Array.from(todos.values())
     .filter((t) => !isArchived(t))
@@ -771,14 +936,16 @@ export function listTodos(userId: string): Todo[] {
 /**
  * Returns all tasks (including archived) for internal use.
  */
-export function listAllTodos(userId: string): Todo[] {
+export async function listAllTodos(userId: string): Promise<Todo[]> {
+  await ensureOwnerHydrated(userId);
   return Array.from(getUserTodos(userId).values());
 }
 
 /**
  * Returns active (non-archived) todos for multiple user IDs.
  */
-export function listTodosForUsers(userIds: string[]): Todo[] {
+export async function listTodosForUsers(userIds: string[]): Promise<Todo[]> {
+  await Promise.all(userIds.map((uid) => ensureOwnerHydrated(uid)));
   const result: Todo[] = [];
   for (const uid of userIds) {
     const todos = getUserTodos(uid);
@@ -803,13 +970,14 @@ function todoBelongsToPersonalWorkspaceForQuota(todo: Todo): boolean {
 }
 
 /** Active todos in the owner's personal workspace (excludes tasks on team-linked projects). */
-export function countPersonalActiveTodosForQuota(uid: string): number {
-  return listTodos(uid).filter(todoBelongsToPersonalWorkspaceForQuota).length;
+export async function countPersonalActiveTodosForQuota(uid: string): Promise<number> {
+  const todos = await listTodos(uid);
+  return todos.filter(todoBelongsToPersonalWorkspaceForQuota).length;
 }
 
-function assertFreeTierCanAddPersonalActiveTodo(uid: string): void {
+async function assertFreeTierCanAddPersonalActiveTodo(uid: string): Promise<void> {
   if (!shouldApplyFreeTierVolumeQuotas(uid)) return;
-  if (countPersonalActiveTodosForQuota(uid) >= FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL) {
+  if ((await countPersonalActiveTodosForQuota(uid)) >= FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL) {
     throw new PaymentRequiredError(
       `Le palier gratuit est limité à ${FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL} tâches actives hors projets d'équipe. Passez à un palier payant pour lever cette limite.`,
       FREE_QUOTA_CODE_TASKS,
@@ -837,17 +1005,32 @@ function projectedPersonalActiveTodoDelta(
   return (next ? 1 : 0) - (was ? 1 : 0);
 }
 
-/**
- * Returns all todos (any status) belonging to a project, across all users.
- */
-export function listProjectTodos(projectId: string): Todo[] {
+function listProjectTodosFromRam(projectId: string): Todo[] {
   const result: Todo[] = [];
   todosByUser.forEach((todos) => {
     todos.forEach((todo) => {
       if (todo.projectId === projectId) result.push(todo);
     });
   });
-  return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return result;
+}
+
+/**
+ * Returns all todos (any status) belonging to a project, across all users.
+ * In v2 mode reads from Firestore when TODOS_READ_SOURCE=firestore|shadow.
+ */
+export async function listProjectTodos(projectId: string): Promise<Todo[]> {
+  const sortFn = (a: Todo, b: Todo) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  return resolveTodoRead(
+    "listProjectTodos",
+    projectId,
+    async () => {
+      const rows = await listTodosV2ByProject(projectId);
+      return mergeV2RowsIntoCache(rows);
+    },
+    () => listProjectTodosFromRam(projectId),
+    sortFn,
+  );
 }
 
 /**
@@ -855,29 +1038,25 @@ export function listProjectTodos(projectId: string): Todo[] {
  * Active tasks are moved to "completed"; already archived tasks are left unchanged.
  */
 export async function archiveTodosByProjectId(projectId: string): Promise<number> {
-  const snapshotsForCalendar: Todo[] = [];
-  todosByUser.forEach((todos) => {
-    todos.forEach((todo) => {
-      if (todo.projectId !== projectId || todo.status !== "active") return;
-      snapshotsForCalendar.push(structuredClone(todo));
-    });
-  });
+  const projectTodos = await listProjectTodos(projectId);
+  const snapshotsForCalendar = projectTodos
+    .filter((t) => t.status === "active")
+    .map((t) => structuredClone(t));
 
   const now = new Date().toISOString();
   const owners = new Set<string>();
   let updated = 0;
-  todosByUser.forEach((todos, ownerUid) => {
-    todos.forEach((todo) => {
-      if (todo.projectId !== projectId) return;
-      if (todo.status === "active") {
-        todo.status = "completed";
-        todo.statusChangedAt = now;
-        todo.updatedAt = now;
-        updated++;
-        owners.add(ownerUid);
-      }
-    });
-  });
+  for (const todo of projectTodos) {
+    if (todo.status !== "active") continue;
+    const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
+    mergeTodoIntoCache(ownerUid, todo.id, todo);
+    const inMem = getUserTodos(ownerUid).get(todo.id)!;
+    inMem.status = "completed";
+    inMem.statusChangedAt = now;
+    inMem.updatedAt = now;
+    updated++;
+    owners.add(ownerUid);
+  }
   if (owners.size > 0) {
     await persistTodos(...owners);
   }
@@ -896,13 +1075,30 @@ export interface TodoPhaseConversionPatch {
 export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConversionPatch[]): Promise<void> {
   const now = new Date().toISOString();
   const ownersToPersist = new Set<string>();
+  const missing: string[] = [];
+
   for (const p of patches) {
-    const owner = ownerIndex.get(p.todoId);
-    if (!owner) continue;
-    const todos = todosByUser.get(owner);
-    if (!todos) continue;
-    const todo = todos.get(p.todoId);
-    if (!todo) continue;
+    let owner = ownerIndex.get(p.todoId);
+    let todos = owner ? todosByUser.get(owner) : undefined;
+    let todo = todos?.get(p.todoId);
+
+    if (!todo && (shouldReadTodosFromFirestore() || TODOS_STORAGE_MODE === "v2")) {
+      const row = await getTodoV2ById(p.todoId);
+      if (row) {
+        owner = row.ownerUid || (typeof row.userId === "string" ? row.userId : "");
+        if (owner) {
+          todo = normalizeTodoFromV2Row(row as Record<string, unknown>, row.id, owner);
+          mergeTodoIntoCache(owner, row.id, todo);
+          todos = getUserTodos(owner);
+        }
+      }
+    }
+
+    if (!owner || !todos || !todo) {
+      missing.push(p.todoId);
+      continue;
+    }
+
     todo.projectId = p.projectId;
     todo.phaseId = p.phaseId;
     todo.parentId = p.parentId;
@@ -910,6 +1106,13 @@ export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConve
     todos.set(p.todoId, todo);
     ownersToPersist.add(owner);
   }
+
+  if (missing.length > 0) {
+    throw new ValidationError(
+      `Tâches introuvables pour la conversion (${missing.length}) : ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? "…" : ""}`,
+    );
+  }
+
   if (ownersToPersist.size > 0) {
     await persistTodos(...ownersToPersist);
   }
@@ -937,21 +1140,20 @@ function collectDescendantTodoIds(todos: Map<string, Todo>, rootId: string): str
  * including descendant subtasks in each owner's store. Used when a project is deleted.
  */
 export async function permanentlyPurgeTodosByProjectId(projectId: string): Promise<number> {
-  const snapshotsForCalendar = listProjectTodos(projectId).map((t) => structuredClone(t));
+  const projectTodos = await listProjectTodos(projectId);
+  const snapshotsForCalendar = projectTodos.map((t) => structuredClone(t));
   scheduleExternalCleanupForFutureSlots(snapshotsForCalendar);
 
   const seedsByOwner = new Map<string, Set<string>>();
-  todosByUser.forEach((todos, ownerUid) => {
-    todos.forEach((todo) => {
-      if (todo.projectId !== projectId) return;
-      let set = seedsByOwner.get(ownerUid);
-      if (!set) {
-        set = new Set();
-        seedsByOwner.set(ownerUid, set);
-      }
-      set.add(todo.id);
-    });
-  });
+  for (const todo of projectTodos) {
+    const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
+    let set = seedsByOwner.get(ownerUid);
+    if (!set) {
+      set = new Set();
+      seedsByOwner.set(ownerUid, set);
+    }
+    set.add(todo.id);
+  }
 
   let totalRemoved = 0;
   for (const [ownerUid, seeds] of seedsByOwner) {
@@ -1001,7 +1203,7 @@ export async function permanentlyRemoveArchivedTodo(userId: string, todoId: stri
  * Permanently removes every archived todo visible in {@link listArchivedTodos} for this user (plus subtasks in the same chains).
  */
 export async function permanentlyRemoveAllArchivedTodosOwned(userId: string, _userEmail: string): Promise<Todo[]> {
-  const archivedVisible = listArchivedTodos(userId);
+  const archivedVisible = await listArchivedTodos(userId);
   if (archivedVisible.length === 0) return [];
   const own = getUserTodos(userId);
   const allIds = new Set<string>();
@@ -1040,25 +1242,25 @@ export async function hardRemoveTodosByIds(todoIds: string[]): Promise<void> {
 
 /** Clears phaseId on todos that still reference a removed phase (any owner). */
 export async function clearProjectPhaseReferences(projectId: string, phaseId: string): Promise<number> {
+  const projectTodos = await listProjectTodos(projectId);
   let updated = 0;
   const now = new Date().toISOString();
-  todosByUser.forEach((todos) => {
-    todos.forEach((todo) => {
-      if (todo.projectId === projectId && todo.phaseId === phaseId) {
-        todo.phaseId = null;
-        todo.updatedAt = now;
-        updated++;
-      }
-    });
-  });
-  if (updated > 0) await persistTodos();
+  const owners = new Set<string>();
+  for (const todo of projectTodos) {
+    if (todo.phaseId !== phaseId) continue;
+    const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
+    const inMem = todosByUser.get(ownerUid)?.get(todo.id);
+    if (!inMem) continue;
+    inMem.phaseId = null;
+    inMem.updatedAt = now;
+    updated++;
+    owners.add(ownerUid);
+  }
+  if (updated > 0) await persistTodos(...owners);
   return updated;
 }
 
-/**
- * Returns all tasks assigned to `userId` by other users.
- */
-export function listAssignedToMe(userId: string): Todo[] {
+function listAssignedToMeFromRam(userId: string): Todo[] {
   const result: Todo[] = [];
   todosByUser.forEach((todos, ownerUid) => {
     if (ownerUid === userId) return;
@@ -1066,17 +1268,32 @@ export function listAssignedToMe(userId: string): Todo[] {
       if (todo.assignedTo === userId && !isArchived(todo)) result.push(todo);
     });
   });
-  return result.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return result;
 }
 
 /**
- * Archived tasks where the signed-in user is assignee but the todo lives in another user's store.
- * Same visibility rules as {@link listArchivedTodos}: personal (no project) always; project-linked only if
- * the user can still access the project.
+ * Returns all tasks assigned to `userId` by other users.
+ * In v2 mode reads from Firestore when TODOS_READ_SOURCE=firestore|shadow.
  */
-export function listArchivedTodosAssignedToMe(userId: string, userEmail: string): Todo[] {
+export async function listAssignedToMe(userId: string): Promise<Todo[]> {
+  const sortFn = (a: Todo, b: Todo) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  return resolveTodoRead(
+    "listAssignedToMe",
+    userId,
+    async () => {
+      const rows = await listTodosV2ByAssignedTo(userId);
+      const todos = mergeV2RowsIntoCache(rows);
+      return todos.filter((todo) => {
+        const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
+        return ownerUid !== userId && todo.assignedTo === userId && !isArchived(todo);
+      });
+    },
+    () => listAssignedToMeFromRam(userId),
+    sortFn,
+  );
+}
+
+function listArchivedTodosAssignedToMeFromRam(userId: string, userEmail: string): Todo[] {
   const email = userEmail.trim().toLowerCase();
   const result: Todo[] = [];
   todosByUser.forEach((todos, ownerUid) => {
@@ -1091,25 +1308,53 @@ export function listArchivedTodosAssignedToMe(userId: string, userEmail: string)
       result.push(todo);
     });
   });
-  return result.sort(
-    (a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime()
+  return result;
+}
+
+/**
+ * Archived tasks where the signed-in user is assignee but the todo lives in another user's store.
+ */
+export async function listArchivedTodosAssignedToMe(userId: string, userEmail: string): Promise<Todo[]> {
+  const sortFn = (a: Todo, b: Todo) =>
+    new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime();
+  return resolveTodoRead(
+    "listArchivedTodosAssignedToMe",
+    userId,
+    async () => {
+      const rows = await listTodosV2ByAssignedTo(userId);
+      const todos = mergeV2RowsIntoCache(rows);
+      const email = userEmail.trim().toLowerCase();
+      return todos.filter((todo) => {
+        const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
+        if (ownerUid === userId || todo.assignedTo !== userId || !isArchived(todo)) return false;
+        if (todo.projectId) {
+          const p = getProjectById(todo.projectId);
+          if (!p || !canAccessProject(userId, email, p)) return false;
+        }
+        return true;
+      });
+    },
+    () => listArchivedTodosAssignedToMeFromRam(userId, userEmail),
+    sortFn,
   );
 }
 
 /**
  * Check whether `userId` can access (read/comment on) a todo.
  *
- * WHY: The original code had no access check on the comment endpoints.
- * Any authenticated user could read or post comments on any task by
- * supplying an arbitrary todoId. This function is the single source of
- * truth for "can this user see this task?".
- *
  * A user can access a todo if:
  *   1. They own it, OR
- *   2. They are the assignee
+ *   2. They are the assignee, OR
+ *   3. They can view the linked project (team teammate / ACL)
  */
-export function canAccessTodo(userId: string, todoId: string): boolean {
-  return findTodoForUser(userId, todoId) !== null;
+export async function canAccessTodo(userId: string, userEmail: string, todoId: string): Promise<boolean> {
+  const found = await findTodoForUser(userId, todoId);
+  if (found) return true;
+  const row = await getTodoV2ById(todoId);
+  if (!row?.projectId || typeof row.projectId !== "string") return false;
+  const project = getProjectById(row.projectId);
+  if (!project) return false;
+  return canAccessProject(userId, userEmail, project);
 }
 
 const MAX_REORDER_SIZE = 200;
@@ -1122,7 +1367,7 @@ export async function batchReorder(userId: string, todoIds: string[]): Promise<n
   const capped = todoIds.slice(0, MAX_REORDER_SIZE);
   let updated = 0;
   for (let i = 0; i < capped.length; i++) {
-    const found = findTodoForUser(userId, capped[i]);
+    const found = await findTodoForUser(userId, capped[i]);
     if (found && found.isOwner) {
       found.todo.sortOrder = i;
       found.todo.updatedAt = new Date().toISOString();
@@ -1167,7 +1412,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 
   let parentTodo: Todo | null = null;
   if (input.parentId) {
-    const parentFound = findTodoForUser(userId, input.parentId);
+    const parentFound = await findTodoForUser(userId, input.parentId);
     if (!parentFound) throw new NotFoundError("Tâche parente introuvable");
     parentTodo = parentFound.todo;
     if (parentTodo.parentId) throw new ValidationError("Une sous-tâche ne peut pas avoir de sous-tâche");
@@ -1254,7 +1499,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     input.status && VALID_STATUSES.includes(input.status) ? input.status : "active";
 
   if (status === "active" && isPersonalProjectIdForQuota(resolvedProjectId)) {
-    assertFreeTierCanAddPersonalActiveTodo(userId);
+    await assertFreeTierCanAddPersonalActiveTodo(userId);
   }
 
   let assignmentStatus: AssignmentStatus | null = null;
@@ -1303,10 +1548,9 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 }
 
 /**
- * Finds a todo by id — first in the user's own map, then across
- * all users for tasks assigned to this user.
+ * RAM-only lookup — use {@link findTodoForUser} for cross-replica reads.
  */
-export function findTodoForUser(userId: string, todoId: string): { todo: Todo; ownerMap: Map<string, Todo>; isOwner: boolean } | null {
+function findTodoForUserFromRam(userId: string, todoId: string): TodoLookup | null {
   const own = getUserTodos(userId);
   const ownTodo = own.get(todoId);
   if (ownTodo) return { todo: ownTodo, ownerMap: own, isOwner: true };
@@ -1320,8 +1564,38 @@ export function findTodoForUser(userId: string, todoId: string): { todo: Todo; o
   return null;
 }
 
+/** Synchronous RAM-only lookup (background jobs / display filters). */
+export function findTodoForUserInRam(userId: string, todoId: string): TodoLookup | null {
+  return findTodoForUserFromRam(userId, todoId);
+}
+
+/**
+ * Finds a todo by id — first in RAM, then Firestore `todos_v2` on cold replicas.
+ */
+export async function findTodoForUser(userId: string, todoId: string): Promise<TodoLookup | null> {
+  const ram = findTodoForUserFromRam(userId, todoId);
+  if (ram) return ram;
+
+  if (TODOS_STORAGE_MODE !== "v2" || USE_LOCAL_TODOS) return null;
+
+  const row = await getTodoV2ById(todoId);
+  if (!row) return null;
+
+  const ownerUid = row.ownerUid || (typeof row.userId === "string" ? row.userId : "");
+  if (!ownerUid) return null;
+
+  const todo = normalizeTodoFromV2Row(row as Record<string, unknown>, row.id, ownerUid);
+  mergeTodoIntoCache(ownerUid, row.id, todo);
+
+  const isOwner = ownerUid === userId;
+  const isAssignee = todo.assignedTo === userId;
+  if (!isOwner && !isAssignee) return null;
+
+  return { todo, ownerMap: getUserTodos(ownerUid), isOwner };
+}
+
 export async function updateTodo(userId: string, userEmail: string, todoId: string, input: UpdateTodoInput): Promise<Todo> {
-  const found = findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
 
@@ -1330,7 +1604,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     const nextProjectId = input.projectId !== undefined ? input.projectId : todo.projectId;
     const delta = projectedPersonalActiveTodoDelta(todo.status, todo.projectId, nextStatus, nextProjectId);
     if (delta !== 0) {
-      const cur = countPersonalActiveTodosForQuota(todo.userId);
+      const cur = await countPersonalActiveTodosForQuota(todo.userId);
       if (cur + delta > FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL) {
         throw new PaymentRequiredError(
           `Le palier gratuit est limité à ${FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL} tâches actives hors projets d'équipe. Passez à un palier payant pour lever cette limite.`,
@@ -1395,7 +1669,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     const nextBlocked = normalizeBlockedByTodoIds(input.blockedByTodoIds);
     if (nextBlocked.length > 0) {
       assertDependenciesEntitlement(userId);
-      validateBlockedByTodoIds(userId, todoId, todo.projectId, nextBlocked);
+      await validateBlockedByTodoIds(userId, todoId, todo.projectId, nextBlocked);
     }
     todo.blockedByTodoIds = nextBlocked;
   }
@@ -1415,7 +1689,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
       throw new ValidationError("Statut invalide (active, completed, cancelled, deleted)");
     }
     if (input.status === "completed" && input.status !== todo.status) {
-      assertCanCompleteTodo(userId, { ...todo, blockedByTodoIds: todo.blockedByTodoIds ?? [] });
+      await assertCanCompleteTodo(userId, { ...todo, blockedByTodoIds: todo.blockedByTodoIds ?? [] });
     }
     if (input.status === "deleted" && !isOwner) {
       throw new ForbiddenError("Seul le propriétaire peut supprimer la tâche");
@@ -1592,7 +1866,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     const pastEnd = endDate && nextDeadline > endDate;
     if (!pastEnd) {
       if (todoBelongsToPersonalWorkspaceForQuota(todo)) {
-        assertFreeTierCanAddPersonalActiveTodo(todo.userId);
+        await assertFreeTierCanAddPersonalActiveTodo(todo.userId);
       }
       const ownerTodos = getUserTodos(todo.userId);
       const now2 = new Date().toISOString();
@@ -1649,10 +1923,18 @@ export async function moveTodo(
   todoId: string,
   input: MoveTodoInput,
 ): Promise<Todo> {
-  const found = findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, isOwner } = found;
-  if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut déplacer la tâche");
+  if (!isOwner) {
+    if (!todo.projectId) {
+      throw new ForbiddenError("Seul le propriétaire peut déplacer la tâche");
+    }
+    const project = getProjectById(todo.projectId);
+    if (!project || !canEditProjectContent(userId, normalizeUserEmail(userEmail), project)) {
+      throw new ForbiddenError("Seul le propriétaire ou un éditeur du projet peut déplacer la tâche");
+    }
+  }
 
   const strategy = input.strategy ?? "default";
   const phaseChanging = input.phaseId !== undefined && input.phaseId !== todo.phaseId;
@@ -1667,7 +1949,7 @@ export async function moveTodo(
     input.sortOrder === undefined
   ) {
     await batchReorder(userId, input.reorderIds);
-    const after = findTodoForUser(userId, todoId);
+    const after = await findTodoForUser(userId, todoId);
     if (!after) throw new NotFoundError("Tâche introuvable");
     return after.todo;
   }
@@ -1757,7 +2039,7 @@ export async function moveTodo(
 
   if (input.reorderIds && input.reorderIds.length > 0) {
     await batchReorder(userId, input.reorderIds);
-    const after = findTodoForUser(userId, todoId);
+    const after = await findTodoForUser(userId, todoId);
     if (after) return after.todo;
   }
 
@@ -1765,7 +2047,7 @@ export async function moveTodo(
 }
 
 export async function deleteTodo(userId: string, todoId: string): Promise<Todo> {
-  const found = findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
   if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut supprimer la tâche");

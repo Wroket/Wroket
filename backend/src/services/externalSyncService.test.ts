@@ -58,8 +58,8 @@ function makeSnapshot(overrides?: Partial<SyncSnapshot>): SyncSnapshot {
   };
 }
 
-function taskByTitle(projectId: string, title: string): Todo | undefined {
-  return listProjectTodos(projectId).find((t) => t.title === title);
+async function taskByTitle(projectId: string, title: string): Promise<Todo | undefined> {
+  return (await listProjectTodos(projectId)).find((t) => t.title === title);
 }
 
 describe("externalSyncService", () => {
@@ -81,7 +81,7 @@ describe("externalSyncService", () => {
     const owner = uid("owner");
     const snap = makeSnapshot();
 
-    const preview = computeSyncDiff(owner, "owner@test.com", snap);
+    const preview = await computeSyncDiff(owner, "owner@test.com", snap);
     expect(preview.project.action).toBe("create");
     expect(preview.phases.create).toHaveLength(2);
     expect(preview.tasks.create).toHaveLength(2);
@@ -94,7 +94,7 @@ describe("externalSyncService", () => {
     const project = getProjectById(res.projectId)!;
     expect(project.name).toBe("Roadmap");
     expect(project.externalRef?.externalId).toBe(snap.projectExternalId);
-    expect(listProjectTodos(project.id)).toHaveLength(2);
+    expect((await listProjectTodos(project.id))).toHaveLength(2);
   });
 
   it("is idempotent: re-syncing the same snapshot creates no duplicates", async () => {
@@ -108,7 +108,7 @@ describe("externalSyncService", () => {
     expect(second.projectId).toBe(first.projectId);
     expect(second.tasksCreated).toBe(0);
     expect(second.phasesCreated).toBe(0);
-    expect(listProjectTodos(first.projectId)).toHaveLength(2);
+    expect((await listProjectTodos(first.projectId))).toHaveLength(2);
     expect(getProjectById(first.projectId)!.phases).toHaveLength(2);
   });
 
@@ -118,7 +118,7 @@ describe("externalSyncService", () => {
     const res = await applySyncDiff(owner, "owner@test.com", snap);
 
     // User locally tweaks a non-mirror field (sortOrder) on the mirrored task.
-    const t1 = taskByTitle(res.projectId, "Cadrer le besoin")!;
+    const t1 = (await taskByTitle(res.projectId, "Cadrer le besoin"))!;
     await updateTodo(owner, "owner@test.com", t1.id, { sortOrder: 42 });
 
     // Source changes the title + priority (mirror-owned fields).
@@ -132,13 +132,13 @@ describe("externalSyncService", () => {
       ],
     });
 
-    const preview = computeSyncDiff(owner, "owner@test.com", snap2);
+    const preview = await computeSyncDiff(owner, "owner@test.com", snap2);
     const t1Update = preview.tasks.update.find((u) => u.internalId === t1.id);
     expect(t1Update?.changedFields).toEqual(expect.arrayContaining(["title", "priority"]));
 
     await applySyncDiff(owner, "owner@test.com", snap2);
 
-    const updated = listProjectTodos(res.projectId).find((t) => t.id === t1.id)!;
+    const updated = (await listProjectTodos(res.projectId)).find((t) => t.id === t1.id)!;
     expect(updated.title).toBe("Cadrer le besoin (révisé)");
     expect(updated.priority).toBe("high");
     // Local-only field untouched by the bounded mirror.
@@ -158,14 +158,14 @@ describe("externalSyncService", () => {
       tasks: [snap.tasks[0]],
     });
 
-    const preview = computeSyncDiff(owner, "owner@test.com", snap2);
+    const preview = await computeSyncDiff(owner, "owner@test.com", snap2);
     expect(preview.tasks.orphans).toHaveLength(1);
     expect(preview.tasks.orphans[0].label).toBe("Maquetter");
 
     const res2 = await applySyncDiff(owner, "owner@test.com", snap2);
     expect(res2.orphanTasks).toBe(1);
     // The orphaned task still exists in Wroket.
-    expect(taskByTitle(res.projectId, "Maquetter")).toBeTruthy();
+    expect(await taskByTitle(res.projectId, "Maquetter")).toBeTruthy();
   });
 
   it("phase rename produces a new phase and orphans the old one", async () => {
@@ -188,7 +188,7 @@ describe("externalSyncService", () => {
       ],
     });
 
-    const preview = computeSyncDiff(owner, "owner@test.com", snap2);
+    const preview = await computeSyncDiff(owner, "owner@test.com", snap2);
     expect(preview.phases.create.map((c) => c.externalId)).toContain("in-review");
     expect(preview.phases.orphans.map((o) => o.label)).toContain("En cours");
 
@@ -227,7 +227,7 @@ describe("externalSyncService", () => {
 
     const res2 = await applySyncDiff(owner, "owner@test.com", snap2);
     expect(res2.tasksCreated).toBe(1);
-    expect(listProjectTodos(res2.projectId)).toHaveLength(3);
+    expect((await listProjectTodos(res2.projectId))).toHaveLength(3);
     // Project name mirrored.
     expect(getProjectById(res2.projectId)!.name).toBe("Roadmap renommée");
   });
@@ -242,8 +242,8 @@ describe("externalSyncService", () => {
     expect(second.projectId).not.toBe(first.projectId);
     expect(second.projectCreated).toBe(true);
     expect(second.tasksCreated).toBe(2);
-    expect(listProjectTodos(first.projectId)).toHaveLength(2);
-    expect(listProjectTodos(second.projectId)).toHaveLength(2);
+    expect((await listProjectTodos(first.projectId))).toHaveLength(2);
+    expect((await listProjectTodos(second.projectId))).toHaveLength(2);
   });
 
   it("extends existing select custom field options on re-sync", async () => {
@@ -312,7 +312,7 @@ describe("externalSyncService", () => {
     await applySyncDiff(owner, "owner@test.com", snap2);
     const updated = getProjectById(res1.projectId)!;
     expect(updated.customFieldDefs?.[0]?.options).toEqual(["Sales", "Engineering"]);
-    expect(listProjectTodos(res1.projectId)).toHaveLength(2);
+    expect((await listProjectTodos(res1.projectId))).toHaveLength(2);
     entSpy.mockRestore();
   });
 
@@ -342,7 +342,7 @@ describe("externalSyncService", () => {
 
     const res = await applySyncDiff(owner, "owner@test.com", snap);
     const { listComments } = await import("./commentService");
-    const comments = listComments(listProjectTodos(res.projectId)[0]!.id);
+    const comments = listComments((await listProjectTodos(res.projectId))[0]!.id);
     expect(comments).toHaveLength(1);
     expect(comments[0].text).toBe("Hello from Notion");
     expect(comments[0].mirroredFrom).toBe("notion-description");

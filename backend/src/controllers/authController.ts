@@ -34,6 +34,7 @@ import {
 } from "../services/authService";
 import { isAdmin as emailIsInAdminAllowlist } from "../services/adminService";
 import { getFreeQuotaSnapshot } from "../services/quotaUsageService";
+import { getEffectiveEntitlementsForUid } from "../services/teamService";
 import { purgeArchivedTodosPastRetentionForUser } from "../services/todoService";
 import {
   getPendingTwoFactorMethods,
@@ -514,8 +515,8 @@ export async function logout(req: Request, res: Response) {
 }
 
 /** Body for GET/PUT /auth/me — keep in sync with frontend `AuthMeResponse`. */
-function serializeAuthMeResponse(user: AuthUser) {
-  const snap = getFreeQuotaSnapshot(user.uid);
+async function serializeAuthMeResponse(user: AuthUser) {
+  const snap = await getFreeQuotaSnapshot(user.uid);
   return {
     uid: user.uid,
     email: user.email,
@@ -537,7 +538,7 @@ function serializeAuthMeResponse(user: AuthUser) {
     notificationDeliveryWebhookUrl: user.notificationDeliveryWebhookUrl,
     billingPlan: user.billingPlan,
     earlyBird: user.earlyBird,
-    entitlements: user.entitlements,
+    entitlements: getEffectiveEntitlementsForUid(user.uid, user.email),
     stripeCustomerId: user.stripeCustomerId,
     stripeSubscriptionId: user.stripeSubscriptionId,
     stripeSubscriptionStatus: user.stripeSubscriptionStatus,
@@ -560,7 +561,7 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     res.status(401).json({ message: "Non authentifié" });
     return;
   }
-  res.status(200).json(serializeAuthMeResponse(user));
+  res.status(200).json(await serializeAuthMeResponse(user));
 }
 
 export async function lookupUser(req: AuthenticatedRequest, res: Response) {
@@ -710,7 +711,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
       console.warn("[auth] purge archive après mise à jour profil:", err);
     });
   }
-  res.status(200).json(serializeAuthMeResponse(updated));
+  res.status(200).json(await serializeAuthMeResponse(updated));
 }
 
 export async function changePassword(req: Request, res: Response) {
@@ -729,7 +730,7 @@ export async function changePassword(req: Request, res: Response) {
 export async function myExport(req: Request, res: Response) {
   const user = (req as AuthenticatedRequest).user;
   if (!user) { res.status(401).json({ message: "Non authentifié" }); return; }
-  const data = exportUserData(user.uid, { decryptedTaskContent: true });
+  const data = await exportUserData(user.uid, { decryptedTaskContent: true });
   res.status(200).json(data);
 }
 

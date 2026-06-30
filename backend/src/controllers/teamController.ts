@@ -288,7 +288,7 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   }
 
   const teamProjectIds = listActiveProjectIdsForTeam(teamId);
-  const allMemberTodos = listTodosForUsers(memberUids);
+  const allMemberTodos = await listTodosForUsers(memberUids);
   /** Only tasks attached to an active team project — exclude members' personal tasks. */
   const todos = allMemberTodos.filter((t) => t.projectId && teamProjectIds.has(t.projectId));
 
@@ -361,7 +361,7 @@ export async function getTeamReporting(req: AuthenticatedRequest, res: Response)
   }
 
   const teamProjectIds = listActiveProjectIdsForTeam(teamId);
-  const todos = memberUids.flatMap((uid) => listAllTodos(uid));
+  const todos = (await Promise.all(memberUids.map((uid) => listAllTodos(uid)))).flat();
 
   const snapshot = computeTeamReportingSnapshot({
     todos,
@@ -459,6 +459,6 @@ export async function deleteTeamCollaborator(req: AuthenticatedRequest, res: Res
 export async function getTeamPortfolio(req: AuthenticatedRequest, res: Response) {
   const teamId = req.params.teamId as string;
   const { buildTeamPortfolio } = await import("../services/teamPortfolioService");
-  const snap = buildTeamPortfolio(teamId, req.user!.uid, req.user!.email ?? "");
+  const snap = await buildTeamPortfolio(teamId, req.user!.uid, req.user!.email ?? "");
   res.status(200).json(snap);
 }

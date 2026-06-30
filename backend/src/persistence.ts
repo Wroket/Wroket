@@ -267,6 +267,17 @@ async function loadFromFirestore(): Promise<StoreData> {
 
 const FIRESTORE_SAVE_RETRY_ATTEMPTS = 3;
 const FIRESTORE_SAVE_RETRY_BASE_MS = 300;
+/** Firestore document size hard limit; flush fails above ~1 MiB. */
+const FIRESTORE_MAX_DOC_BYTES = 1_048_576;
+const FIRESTORE_SAFE_DOC_BYTES = 900_000;
+
+function estimatePayloadBytes(payload: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(payload), "utf8");
+  } catch {
+    return FIRESTORE_MAX_DOC_BYTES + 1;
+  }
+}
 
 interface SaveMetrics {
   lastFlushAt: string | null;
@@ -337,6 +348,23 @@ async function saveToFirestore(): Promise<void> {
   let committed = 0;
 
   for (const op of ops) {
+    const payloadBytes = estimatePayloadBytes(op.payload);
+    const label = op.domain ?? todoShardDocId(op.shardIndex!);
+    if (payloadBytes > FIRESTORE_SAFE_DOC_BYTES) {
+      console.error(
+        JSON.stringify({
+          event: "persistence-flush",
+          status: "doc_too_large",
+          doc: label,
+          bytes: payloadBytes,
+          limit: FIRESTORE_MAX_DOC_BYTES,
+          hint: "Split domain data or run migration — flush will retry until doc is under limit",
+        }),
+      );
+      lastErr = new Error(`Firestore doc ${label} too large (${payloadBytes} bytes)`);
+      continue;
+    }
+
     let saved = false;
     for (let attempt = 1; attempt <= FIRESTORE_SAVE_RETRY_ATTEMPTS; attempt++) {
       try {
@@ -351,7 +379,6 @@ async function saveToFirestore(): Promise<void> {
       } catch (err) {
         lastErr = err;
         saveMetrics.failedFlushAttempts += 1;
-        const label = op.domain ?? todoShardDocId(op.shardIndex!);
         console.error(
           "[persistence] Firestore save failed (doc=%s, attempt %d/%d): %s",
           label,
@@ -611,51 +638,25 @@ export function _applyTodoShardSnapshot(shardId: string, shardIndex: number, dat
 }
 
 /**
- * Attach Firestore onSnapshot listeners for each domain document and todo shard.
- * When another Cloud Run replica writes to Firestore, the snapshot arrives here
- * and the in-memory cache is updated without a restart — eliminating cross-replica staleness.
- *
- * No-op when USE_LOCAL_STORE=true or when the Firestore client is not initialised.
- * Must be called AFTER initStore() and todo hydration (server.ts startup sequence).
+ * Collection-level todos_v2 listener with automatic reconnect on error.
+ * Keeps cross-replica RAM warm between Firestore-backed reads.
  */
-export function attachLiveInvalidation(): void {
-  if (USE_LOCAL || !db) return;
+function attachTodosV2LiveInvalidation(): void {
+  if (!db) return;
+  // Lazy require to avoid the circular import persistence ↔ todoService.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { applyTodoV2DocChange } = require("./services/todoService") as typeof import("./services/todoService");
+  const collectionName = process.env.TODOS_DOC_COLLECTION?.trim() || "todos_v2";
+  let stopped = false;
+  let attempt = 0;
+  let currentUnsub: (() => void) | null = null;
 
-  const todosStorageMode = (process.env.TODOS_STORAGE_MODE?.trim().toLowerCase() ?? "legacy");
-
-  // Domain documents (notes, projects, teams, todos v1 legacy, etc.)
-  for (const domain of DOMAINS) {
-    const ref = db.collection("store").doc(domain);
-    let isFirst = true;
-    const unsub = ref.onSnapshot(
-      (snap) => {
-        // Skip the initial snapshot — we already have this data from initStore().
-        if (isFirst) { isFirst = false; return; }
-        const data = snap.data()?.data;
-        _applyDomainSnapshot(domain, data);
-      },
-      (err) => {
-        console.error(JSON.stringify({ event: "store.invalidation.error", domain, error: String(err) }));
-      }
-    );
-    liveListenerUnsubs.push(unsub);
-  }
-
-  if (todosStorageMode === "v2") {
-    // v2 source of truth: one Firestore document per todo in TODOS_DOC_COLLECTION.
-    // A single collection-level onSnapshot replaces the 128 shard listeners
-    // and propagates per-row writes to every replica.
-    //
-    // Lazy require to avoid the circular import persistence ↔ todoService.
-    // server.ts already awaits todoService at startup (line ~81), so by the
-    // time attachLiveInvalidation runs the module is fully loaded.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { applyTodoV2DocChange } = require("./services/todoService") as typeof import("./services/todoService");
-    const collectionName = process.env.TODOS_DOC_COLLECTION?.trim() || "todos_v2";
+  const attach = (): void => {
+    if (stopped || !db) return;
     let isFirstV2 = true;
-    const unsub = db.collection(collectionName).onSnapshot(
+    currentUnsub = db.collection(collectionName).onSnapshot(
       (snap) => {
-        // Skip initial replay (cache already hydrated via hydrateTodosFromV2IfNeeded).
+        attempt = 0;
         if (isFirstV2) { isFirstV2 = false; return; }
         let added = 0, modified = 0, removed = 0;
         for (const change of snap.docChanges()) {
@@ -678,10 +679,108 @@ export function attachLiveInvalidation(): void {
         }
       },
       (err) => {
-        console.error(JSON.stringify({ event: "todos_v2.invalidation.error", collection: collectionName, error: String(err) }));
+        console.error(JSON.stringify({
+          event: "todos_v2.invalidation.error",
+          collection: collectionName,
+          error: String(err),
+          attempt,
+          ts: Date.now(),
+        }));
+        if (currentUnsub) {
+          try { currentUnsub(); } catch { /* ignore */ }
+          currentUnsub = null;
+        }
+        if (stopped) return;
+        attempt += 1;
+        const delayMs = Math.min(30_000, 1_000 * Math.pow(2, attempt - 1));
+        console.warn(JSON.stringify({
+          event: "todos_v2.invalidation.reconnect_scheduled",
+          collection: collectionName,
+          delayMs,
+          attempt,
+        }));
+        setTimeout(attach, delayMs);
       },
     );
-    liveListenerUnsubs.push(unsub);
+  };
+
+  attach();
+  liveListenerUnsubs.push(() => {
+    stopped = true;
+    if (currentUnsub) {
+      try { currentUnsub(); } catch { /* ignore */ }
+      currentUnsub = null;
+    }
+  });
+}
+
+/**
+ * Domain document listener with automatic reconnect (same pattern as todos_v2).
+ */
+function attachDomainLiveInvalidation(domain: Domain): void {
+  if (!db) return;
+  let stopped = false;
+  let attempt = 0;
+  let currentUnsub: (() => void) | null = null;
+
+  const attach = (): void => {
+    if (stopped || !db) return;
+    let isFirst = true;
+    currentUnsub = db.collection("store").doc(domain).onSnapshot(
+      (snap) => {
+        attempt = 0;
+        if (isFirst) { isFirst = false; return; }
+        _applyDomainSnapshot(domain, snap.data()?.data);
+      },
+      (err) => {
+        console.error(JSON.stringify({
+          event: "store.invalidation.error",
+          domain,
+          error: String(err),
+          attempt,
+        }));
+        if (currentUnsub) {
+          try { currentUnsub(); } catch { /* ignore */ }
+          currentUnsub = null;
+        }
+        if (stopped) return;
+        attempt += 1;
+        const delayMs = Math.min(30_000, 1_000 * Math.pow(2, attempt - 1));
+        setTimeout(attach, delayMs);
+      },
+    );
+  };
+
+  attach();
+  liveListenerUnsubs.push(() => {
+    stopped = true;
+    if (currentUnsub) {
+      try { currentUnsub(); } catch { /* ignore */ }
+      currentUnsub = null;
+    }
+  });
+}
+
+/**
+ * Attach Firestore onSnapshot listeners for each domain document and todo shard.
+ * When another Cloud Run replica writes to Firestore, the snapshot arrives here
+ * and the in-memory cache is updated without a restart — eliminating cross-replica staleness.
+ *
+ * No-op when USE_LOCAL_STORE=true or when the Firestore client is not initialised.
+ * Must be called AFTER initStore() and todo hydration (server.ts startup sequence).
+ */
+export function attachLiveInvalidation(): void {
+  if (USE_LOCAL || !db) return;
+
+  const todosStorageMode = (process.env.TODOS_STORAGE_MODE?.trim().toLowerCase() ?? "legacy");
+
+  // Domain documents (notes, projects, teams, todos v1 legacy, etc.)
+  for (const domain of DOMAINS) {
+    attachDomainLiveInvalidation(domain);
+  }
+
+  if (todosStorageMode === "v2") {
+    attachTodosV2LiveInvalidation();
   } else {
     // dual / legacy modes: each shard doc gets its own onSnapshot.
     for (let i = 0; i < TODO_SHARD_COUNT; i++) {

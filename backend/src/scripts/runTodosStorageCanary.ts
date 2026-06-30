@@ -38,15 +38,15 @@ async function main(): Promise<void> {
     status: "active",
   });
 
-  const activeAfterCreate = listTodos(uid).some((t) => t.id === created.id && t.status === "active");
+  const activeAfterCreate = (await listTodos(uid)).some((t) => t.id === created.id && t.status === "active");
   if (!activeAfterCreate) throw new Error("Canary failed: created task not found in active list");
 
   const completed = await updateTodo(uid, email, created.id, { status: "completed" });
-  const archivedAfterComplete = listArchivedTodos(uid).some((t) => t.id === completed.id && t.status === "completed");
+  const archivedAfterComplete = (await listArchivedTodos(uid)).some((t) => t.id === completed.id && t.status === "completed");
   if (!archivedAfterComplete) throw new Error("Canary failed: completed task not found in archived list");
 
   await permanentlyRemoveArchivedTodo(uid, completed.id);
-  const stillPresent = listArchivedTodos(uid).some((t) => t.id === completed.id);
+  const stillPresent = (await listArchivedTodos(uid)).some((t) => t.id === completed.id);
   if (stillPresent) throw new Error("Canary failed: cleanup did not remove archived canary task");
 
   console.log("[canary] OK create->update->archive->read->cleanup marker=%s", marker);

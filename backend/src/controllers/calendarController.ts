@@ -14,9 +14,12 @@ import {
   findTodoForUser,
   listAssignedToMe,
   todoToClientJson,
+  ensureOwnerHydrated,
   type RecurrenceFrequency,
   type Todo,
 } from "../services/todoService";
+import { findSlotConflicts } from "../services/calendarConflictService";
+import { getEffectiveEntitlementsForUid } from "../services/teamService";
 import { findPhaseById } from "../services/projectService";
 import {
   findUserByUid,
@@ -43,7 +46,6 @@ import {
   type GoogleCalendarEntry,
   type ResolvedBookingTarget,
 } from "../services/authService";
-import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 import {
   getGoogleAuthUrl,
@@ -75,9 +77,10 @@ import {
 } from "../services/microsoftCalendarService";
 import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
+import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
-function assertCalendarIntegrations(uid: string): void {
-  if (!getEntitlementsForUid(uid).integrations) {
+function assertCalendarIntegrations(uid: string, email: string): void {
+  if (!getEffectiveEntitlementsForUid(uid, email).integrations) {
     throw new ForbiddenError(
       "Google Calendar, Outlook et la réservation sur calendrier externe nécessitent le palier Small teams (pack intégrations) ou le statut early bird (attribué par un administrateur).",
       "CALENDAR_INTEGRATIONS_PLAN_REQUIRED",
@@ -157,8 +160,9 @@ function pushRecurrences(
 export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
+  await ensureOwnerHydrated(uid);
 
-  const found = findTodoForUser(uid, todoId);
+  const found = await findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
 
@@ -172,7 +176,7 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
   const durationSource = hasCustomEstimate ? "task" as const : "settings" as const;
 
   const googleBusySlots: { start: Date; end: Date }[] = [];
-  const extCal = getEntitlementsForUid(uid).integrations;
+  const extCal = getEffectiveEntitlementsForUid(uid, req.user!.email ?? "").integrations;
   const accounts = getGoogleAccounts(uid);
   if (extCal && accounts.length > 0) {
     const now = new Date();
@@ -244,9 +248,10 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
     deadline: effectiveDeadline,
     startDate: effectiveStartDate,
   };
-  const slots = findAvailableSlots(uid, duration, workingHours, googleBusySlots, 3, undefined, ctx);
+  const slots = await findAvailableSlots(uid, duration, workingHours, googleBusySlots, 3, undefined, ctx);
   if (slots.length === 0) {
-    console.log(`[getSlots] 0 slots for todo=${todoId} title="${todo.title}" duration=${duration}min ctx=`, JSON.stringify(ctx), `busySlots=${googleBusySlots.length} occupiedTasks=${listTodos(uid).filter(t => t.scheduledSlot).length}`);
+    const occupied = (await listTodos(uid)).filter((t) => t.scheduledSlot).length;
+    console.log(`[getSlots] 0 slots for todo=${todoId} title="${todo.title}" duration=${duration}min ctx=`, JSON.stringify(ctx), `busySlots=${googleBusySlots.length} occupiedTasks=${occupied}`);
   }
   res.status(200).json({ slots, duration, durationSource, effort, suggestedSlot: todo.suggestedSlot ?? null });
 }
@@ -256,86 +261,10 @@ interface ConflictInfo { id: string; title: string; start: string; end: string }
 const MAX_CONFLICT_CALENDAR_FETCHES = 10;
 const meetCreationInFlight = new Map<string, Promise<Todo>>();
 
-async function findConflicts(uid: string, todoId: string, start: Date, end: Date): Promise<ConflictInfo[]> {
-  const conflicts: ConflictInfo[] = [];
-  const extCal = getEntitlementsForUid(uid).integrations;
-
-  const ownedTodos = listTodos(uid);
-  const assignedTodos = listAssignedToMe(uid);
-  const wroketExternalIds = collectWroketCalendarEventIds([...ownedTodos, ...assignedTodos]);
-
-  const checkTodo = (t: Todo) => {
-    if (t.id === todoId || t.status !== "active" || !t.scheduledSlot) return;
-    const sStart = new Date(t.scheduledSlot.start);
-    const sEnd = new Date(t.scheduledSlot.end);
-    if (start < sEnd && end > sStart) {
-      conflicts.push({ id: t.id, title: t.title, start: t.scheduledSlot.start, end: t.scheduledSlot.end });
-    }
-  };
-
-  for (const t of ownedTodos) checkTodo(t);
-  for (const t of assignedTodos) checkTodo(t);
-
-  const accounts = getGoogleAccounts(uid);
-  if (extCal && accounts.length > 0) {
-    const timeMin = start.toISOString();
-    const timeMax = end.toISOString();
-    const fetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
-    for (const account of accounts) {
-      for (const cal of account.calendars) {
-        if (!cal.enabled || fetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
-        fetches.push(listEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax));
-      }
-    }
-    try {
-      const results = await Promise.all(fetches);
-      for (const events of results) {
-        for (const ev of events) {
-          if (ev.allDay) continue;
-          if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
-          const evStart = new Date(ev.start);
-          const evEnd = new Date(ev.end);
-          if (start < evEnd && end > evStart) {
-            conflicts.push({ id: ev.id, title: ev.summary, start: ev.start, end: ev.end });
-          }
-        }
-      }
-    } catch { /* Google Calendar unavailable — skip */ }
-  }
-
-  const msAccounts = getMicrosoftAccounts(uid);
-  if (extCal && msAccounts.length > 0) {
-    const timeMin = start.toISOString();
-    const timeMax = end.toISOString();
-    const msFetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
-    for (const account of msAccounts) {
-      for (const cal of account.calendars) {
-        if (!cal.enabled || msFetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
-        msFetches.push(listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax));
-      }
-    }
-    try {
-      const results = await Promise.all(msFetches);
-      for (const events of results) {
-        for (const ev of events) {
-          if (ev.allDay) continue;
-          if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
-          const evStart = new Date(ev.start);
-          const evEnd = new Date(ev.end);
-          if (start < evEnd && end > evStart) {
-            conflicts.push({ id: `ms:${ev.id}`, title: ev.summary, start: ev.start, end: ev.end });
-          }
-        }
-      }
-    } catch { /* Outlook unavailable */ }
-  }
-
-  return conflicts;
-}
-
 export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
+  const email = req.user!.email ?? "";
   const { start, end, force } = req.body as { start: string; end: string; force?: unknown };
 
   if (!start || !end) throw new ValidationError("start and end required", "CALENDAR_SLOT_MISSING_RANGE");
@@ -354,12 +283,14 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError("Slot duration too long", "CALENDAR_SLOT_TOO_LONG");
   }
 
-  const found = findTodoForUser(uid, todoId);
+  await ensureOwnerHydrated(uid);
+
+  const found = await findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable", "CALENDAR_TODO_NOT_FOUND");
   const { todo } = found;
 
   if (!force) {
-    const conflicts = await findConflicts(uid, todoId, startDate, endDate);
+    const conflicts = await findSlotConflicts(uid, todoId, startDate, endDate);
     if (conflicts.length > 0) {
       const safeConflicts = conflicts.slice(0, 10).map((c) => ({
         id: c.id,
@@ -387,7 +318,7 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     getGoogleAccounts(uid).length > 0 || getMicrosoftAccounts(uid).length > 0;
   const bookingTarget = resolveBookingTarget(uid);
 
-  if (bookingTarget && !getEntitlementsForUid(uid).integrations) {
+  if (bookingTarget && !getEffectiveEntitlementsForUid(uid, email).integrations) {
     throw new ForbiddenError(
       "La réservation sur Google Calendar ou Outlook nécessite le palier Small teams (pack intégrations) ou le statut early bird (attribué par un administrateur).",
       "CALENDAR_INTEGRATIONS_PLAN_REQUIRED",
@@ -533,17 +464,29 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     }
   }
 
-  const updated = await updateTodo(uid, req.user!.email ?? "", todoId, {
-    scheduledSlot: {
-      start,
-      end,
-      calendarEventId,
-      bookedByUid: uid,
-      bookingCalendarId,
-      bookingAccountId,
-      ...(bookingProvider ? { bookingProvider } : {}),
-    },
-  });
+  let updated: Todo;
+  try {
+    updated = await updateTodo(uid, email, todoId, {
+      scheduledSlot: {
+        start,
+        end,
+        calendarEventId,
+        bookedByUid: uid,
+        bookingCalendarId,
+        bookingAccountId,
+        ...(bookingProvider ? { bookingProvider } : {}),
+      },
+    });
+  } catch (err) {
+    if (calendarEventId && bookingProvider && bookingAccountId) {
+      if (bookingProvider === "google") {
+        await deleteGoogleCalendarEvent(uid, bookingAccountId, calendarEventId).catch(() => null);
+      } else if (bookingProvider === "microsoft") {
+        await deleteMicrosoftCalendarEvent(uid, bookingAccountId, calendarEventId).catch(() => null);
+      }
+    }
+    throw err;
+  }
 
   try {
     logActivity(uid, req.user!.email ?? "", "slot_booked", "todo", todoId, {
@@ -564,8 +507,9 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
 export async function clearSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
+  await ensureOwnerHydrated(uid);
 
-  const found = findTodoForUser(uid, todoId);
+  const found = await findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
 
@@ -589,7 +533,7 @@ export async function clearSlot(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function googleAuthUrl(req: AuthenticatedRequest, res: Response) {
-  assertCalendarIntegrations(req.user!.uid);
+  assertCalendarIntegrations(req.user!.uid, req.user!.email ?? "");
   const state = createOAuthState(req.user!.uid);
   const url = getGoogleAuthUrl(state);
   res.status(200).json({ url });
@@ -611,8 +555,9 @@ export async function googleCallback(req: Request, res: Response) {
     return;
   }
   const uid = statePayload.uid;
+  const oauthUserEmail = findUserByUid(uid)?.email ?? "";
 
-  if (!getEntitlementsForUid(uid).integrations) {
+  if (!getEffectiveEntitlementsForUid(uid, oauthUserEmail).integrations) {
     res.redirect(`${frontendUrl}/settings?tab=integrations&error=calendar_plan_required`);
     return;
   }
@@ -678,7 +623,7 @@ export async function microsoftCalendarAuthUrl(req: AuthenticatedRequest, res: R
     res.status(503).json({ message: "Microsoft Calendar OAuth non configuré sur ce serveur" });
     return;
   }
-  assertCalendarIntegrations(req.user!.uid);
+  assertCalendarIntegrations(req.user!.uid, req.user!.email ?? "");
   const state = createOAuthState(req.user!.uid);
   const url = getMicrosoftCalendarAuthUrl(state);
   res.status(200).json({ url });
@@ -700,8 +645,9 @@ export async function microsoftCalendarCallback(req: Request, res: Response) {
     return;
   }
   const uid = statePayload.uid;
+  const oauthUserEmail = findUserByUid(uid)?.email ?? "";
 
-  if (!getEntitlementsForUid(uid).integrations) {
+  if (!getEffectiveEntitlementsForUid(uid, oauthUserEmail).integrations) {
     redirectMicrosoftCalendarError(res, frontendUrl, "plan_required");
     return;
   }
@@ -767,7 +713,7 @@ export async function disconnectMicrosoft(req: AuthenticatedRequest, res: Respon
 
 export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const accountId = String(req.params.accountId);
 
   const accounts = getMicrosoftAccounts(uid);
@@ -798,7 +744,7 @@ export async function listMicrosoftCalendars(req: AuthenticatedRequest, res: Res
 
 export async function saveMicrosoftCalendarSelection(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const accountId = String(req.params.accountId);
 
   const { calendars } = req.body as { calendars?: GoogleCalendarEntry[] };
@@ -832,10 +778,10 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   const rangeMs = endDateParsed.getTime() - startDate.getTime();
   if (rangeMs > 90 * 24 * 60 * 60 * 1000) throw new ValidationError("Date range too large (max 90 days)");
 
-  const extCal = getEntitlementsForUid(uid).integrations;
+  const extCal = getEffectiveEntitlementsForUid(uid, req.user!.email ?? "").integrations;
 
-  const ownedTodos = listTodos(uid);
-  const assignedTodos = listAssignedToMe(uid);
+  const ownedTodos = await listTodos(uid);
+  const assignedTodos = await listAssignedToMe(uid);
   const seenIds = new Set<string>();
   const wroketEvents: WroketEvent[] = [];
 
@@ -1001,7 +947,7 @@ function redirectMicrosoftCalendarError(res: Response, frontendUrl: string, reas
 
 export async function setPriorityCalendarAccountHandler(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const { provider, accountId } = req.body as { provider?: string; accountId?: string };
   if (provider !== "google" && provider !== "microsoft") {
     throw new ValidationError('provider must be "google" or "microsoft"');
@@ -1039,7 +985,7 @@ export async function setPriorityCalendarAccountHandler(req: AuthenticatedReques
 /** List all calendars for a specific Google account */
 export async function listCalendars(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const accountId = String(req.params.accountId);
 
   const accounts = getGoogleAccounts(uid);
@@ -1071,7 +1017,7 @@ export async function listCalendars(req: AuthenticatedRequest, res: Response) {
 /** Save calendar selection for a specific Google account */
 export async function saveCalendarSelection(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const accountId = String(req.params.accountId);
 
   const { calendars } = req.body as { calendars?: GoogleCalendarEntry[] };
@@ -1101,7 +1047,7 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
 export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
 
   const bookingTarget = resolveBookingTarget(uid);
   if (!bookingTarget) {
@@ -1110,7 +1056,7 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
     );
   }
 
-  const found = findTodoForUser(uid, todoId);
+  const found = await findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
 
@@ -1127,7 +1073,7 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
   const currentInFlight = meetCreationInFlight.get(lockKey);
   if (currentInFlight) {
     await currentInFlight.catch(() => null);
-    const latest = findTodoForUser(uid, todoId);
+    const latest = await findTodoForUser(uid, todoId);
     if (latest?.todo.scheduledSlot?.meetingUrl) {
       res.status(200).json(todoToClientJson(latest.todo));
       return;
@@ -1306,8 +1252,8 @@ export async function createMeet(req: AuthenticatedRequest, res: Response) {
 export async function updateMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
-  const found = findTodoForUser(uid, todoId);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
+  const found = await findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
   if (!todo.scheduledSlot?.calendarEventId || !todo.scheduledSlot?.meetingUrl) {
@@ -1448,7 +1394,7 @@ export async function clearMeet(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
   const uid = req.user!.uid;
 
-  const found = findTodoForUser(uid, todoId);
+  const found = await findTodoForUser(uid, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo } = found;
 
@@ -1517,7 +1463,7 @@ async function pushScheduledSlotToCalendar(
     const startDate = new Date(start);
     const endDate = new Date(end);
     if (options.skipIfConflict) {
-      const conflicts = await findConflicts(uid, todo.id, startDate, endDate);
+      const conflicts = await findSlotConflicts(uid, todo.id, startDate, endDate);
       if (conflicts.length > 0) {
         console.warn("[in-app-sync] todoId=%s skipped (conflict)", todo.id);
         return { outcome: "skipped", message: "Chevauchement avec l'agenda ou une autre tâche." };
@@ -1598,8 +1544,8 @@ async function pushScheduledSlotToCalendar(
  */
 export async function getInAppScheduledSlotsCount(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
-  assertCalendarIntegrations(uid);
-  const count = listAllTodos(uid).filter(isInAppOnlyScheduledSlot).length;
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
+  const count = (await listAllTodos(uid)).filter(isInAppOnlyScheduledSlot).length;
   res.status(200).json({ count });
 }
 
@@ -1611,13 +1557,13 @@ export async function getInAppScheduledSlotsCount(req: AuthenticatedRequest, res
 export async function syncSingleInAppScheduledSlot(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const todoId = (req.params.todoId as string | undefined)?.trim() ?? "";
   if (!todoId) {
     throw new ValidationError("Identifiant de tâche requis.");
   }
 
-  const found = findTodoForUser(uid, todoId);
+  const found = await findTodoForUser(uid, todoId);
   if (!found?.isOwner) {
     throw new NotFoundError("Tâche introuvable.");
   }
@@ -1679,7 +1625,7 @@ export async function syncSingleInAppScheduledSlot(req: AuthenticatedRequest, re
 export async function syncInAppScheduledSlots(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
-  assertCalendarIntegrations(uid);
+  assertCalendarIntegrations(uid, req.user!.email ?? "");
   const bookingTarget = resolveBookingTarget(uid);
   if (!bookingTarget) {
     throw new ValidationError(
@@ -1691,7 +1637,7 @@ export async function syncInAppScheduledSlots(req: AuthenticatedRequest, res: Re
   const user = findUserByUid(uid);
   const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
 
-  const candidates = listAllTodos(uid).filter(isInAppOnlyScheduledSlot).slice(0, MAX_IN_APP_SLOT_SYNC);
+  const candidates = (await listAllTodos(uid)).filter(isInAppOnlyScheduledSlot).slice(0, MAX_IN_APP_SLOT_SYNC);
 
   let synced = 0;
   let skippedConflicts = 0;

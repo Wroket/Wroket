@@ -415,12 +415,12 @@ interface ResolvedContext {
 }
 
 /** Resolves the target project and indexes its mirrored phases/tasks. */
-function resolveContext(
+async function resolveContext(
   uid: string,
   userEmail: string,
   snapshot: SyncSnapshot,
   opts: ResolveOptions,
-): ResolvedContext {
+): Promise<ResolvedContext> {
   let project: Project | null = null;
   const mode = opts.importMode ?? "merge";
   if (mode === "create_new") {
@@ -441,7 +441,7 @@ function resolveContext(
         phaseByExt.set(phase.externalRef!.externalId, phase);
       }
     }
-    for (const todo of listProjectTodos(project.id)) {
+    for (const todo of await listProjectTodos(project.id)) {
       if (matchesProvider(todo.externalRef, snapshot.provider) && todo.externalRef!.externalId) {
         taskByExt.set(todo.externalRef!.externalId, todo);
       }
@@ -460,17 +460,17 @@ function resolveContext(
  * Computes a non-mutating preview of what a sync would do: creates, bounded
  * updates (with the exact mirror fields that change), and orphans.
  */
-export function computeSyncDiff(
+export async function computeSyncDiff(
   uid: string,
   userEmail: string,
   snapshot: SyncSnapshot,
   opts: ResolveOptions = {},
-): SyncDiff {
+): Promise<SyncDiff> {
   const mode = opts.importMode ?? "merge";
   const effective = mode === "create_new"
     ? prepareSnapshotForImportMode(snapshot, "create_new")
     : snapshot;
-  const ctx = resolveContext(uid, userEmail, effective, { ...opts, importMode: mode });
+  const ctx = await resolveContext(uid, userEmail, effective, { ...opts, importMode: mode });
 
   const diff: SyncDiff = {
     provider: snapshot.provider,
@@ -572,7 +572,7 @@ export async function applySyncDiff(
     ? prepareSnapshotForImportMode(snapshot, "create_new")
     : snapshot;
   const now = new Date().toISOString();
-  const ctx = resolveContext(uid, userEmail, effective, { ...opts, importMode: mode });
+  const ctx = await resolveContext(uid, userEmail, effective, { ...opts, importMode: mode });
 
   const result: ApplySyncResult = {
     projectId: "",

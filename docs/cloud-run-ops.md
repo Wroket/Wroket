@@ -64,6 +64,51 @@ gcloud run services update wroket-api \
 |---|---|---|
 | `USE_LOCAL_STORE` | `"true"` | Désactive Firestore ET les listeners live (dev local) |
 | `GOOGLE_CLOUD_PROJECT` | `involuted-reach-490718-h4` | Projet GCP ciblé |
+| `TODOS_STORAGE_MODE` | `v2` | Todos en collection `todos_v2` (prod) |
+| `TODOS_READ_SOURCE` | `firestore` (défaut), `ram`, `shadow` | Source des listes cross-user/projet ; `shadow` logue `todo_read_drift` sans changer la réponse |
+| `TODOS_BOOT_HYDRATION` | `lazy` (défaut), `full` | `lazy` = pas de scan collection au boot ; chargement owner à la première requête |
+
+## Sync todos multi-instance (v2)
+
+Les lectures **assignées** (`listAssignedToMe`) et **projet** (`listProjectTodos`) interrogent Firestore directement, puis fusionnent le cache RAM. Le listener `todos_v2.invalidation.received` garde le cache chaud entre requêtes.
+
+### Index Firestore requis
+
+Déployer [`firestore.indexes.json`](../firestore.indexes.json) avant le code :
+
+```bash
+# Bash / Linux — une ligne par index ; ajouter --async pour ne pas bloquer
+gcloud firestore indexes composite create --project=involuted-reach-490718-h4 \
+  --collection-group=todos_v2 --query-scope=collection \
+  --field-config=field-path=assignedTo,order=ascending \
+  --field-config=field-path=status,order=ascending --async
+
+gcloud firestore indexes composite create --project=involuted-reach-490718-h4 \
+  --collection-group=todos_v2 --query-scope=collection \
+  --field-config=field-path=projectId,order=ascending \
+  --field-config=field-path=createdAt,order=descending --async
+```
+
+**PowerShell** : quoter chaque `--field-config` → voir [`reliability-remediation-plan.md`](reliability-remediation-plan.md).
+
+(`--file` n'est pas supporté par `gcloud` ; [`firestore.indexes.json`](../firestore.indexes.json) = référence / Firebase CLI.)
+
+### Checklist multi-instance (obligatoire avant `max-instances` > 1)
+
+1. **Assignation** : user A crée une tâche et l'assigne à user B → B voit la tâche dans « Assignées » sans F5 (tester idéalement depuis 2 sessions / cold start d'une 2e instance).
+2. **Projet équipe** : tâche créée par A visible dans le Kanban projet chez B (membre équipe).
+3. **Cold start** : forcer une nouvelle instance (`gcloud run services update wroket-api --max-instances=2` + trafic) → première requête `GET /todos/assigned` OK pour un compte avec assignations existantes.
+4. **Logs** : `todos_v2.invalidation.received` après mutation ; pas de `todos_v2.query.index_missing`.
+5. **Shadow (optionnel)** : `TODOS_READ_SOURCE=shadow` 7 j → aucun `todo_read_drift` significatif dans Cloud Logging.
+
+### Logs todos_v2
+
+```jsonl
+{ "event": "todos_v2.invalidation.received", "added": 1, "modified": 0, "removed": 0 }
+{ "event": "todos_v2.invalidation.error", "attempt": 1 }
+{ "event": "todos_v2.invalidation.reconnect_scheduled", "delayMs": 1000, "attempt": 1 }
+{ "event": "todo_read_drift", "scope": "listAssignedToMe", "onlyFirestore": ["..."], "onlyRam": [] }
+```
 
 ## Rollback
 

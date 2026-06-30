@@ -294,6 +294,13 @@ export default function ProjectDetailView({
     [selectedProject.ownerUid, meUid, accessPanel, user?.email],
   );
 
+  const canEditProjectContent = useMemo(() => {
+    if (selectedProject.ownerUid === meUid) return true;
+    const email = (user?.email ?? "").toLowerCase();
+    const entry = accessPanel?.access.find((e) => e.email.toLowerCase() === email);
+    return entry?.role === "editor" || entry?.role === "admin";
+  }, [selectedProject.ownerUid, meUid, accessPanel, user?.email]);
+
   const refreshProjectMeta = useCallback(async () => {
     try {
       const fresh = await fetchProject(selectedProject.id);
@@ -650,6 +657,7 @@ export default function ProjectDetailView({
   }, []);
 
   const handleKanbanDragEnd = useCallback(async (event: DragEndEvent) => {
+    if (!canEditProjectContent) return;
     setDraggedTodoId(null);
     const { active, over } = event;
     if (!over) return;
@@ -706,6 +714,7 @@ export default function ProjectDetailView({
   }, []);
 
   const handleBoardDragEnd = useCallback(async (event: DragEndEvent) => {
+    if (!canEditProjectContent) return;
     setBoardDraggedId(null);
     const { active, over } = event;
     if (!over) return;
@@ -1686,13 +1695,13 @@ export default function ProjectDetailView({
               projectId={selectedProject.id}
               phases={orderedPhases}
               milestones={selectedProject.milestones ?? []}
-              canEdit={canManageProject}
+              canEdit={canEditProjectContent}
               onChange={() => void refreshProjectMeta()}
             />
             <ProjectCustomFieldsPanel
               projectId={selectedProject.id}
               fields={selectedProject.customFieldDefs ?? []}
-              canEdit={canManageProject}
+              canEdit={canEditProjectContent}
               canUse={!!user?.entitlements?.integrations}
               onChange={() => void refreshProjectMeta()}
             />
@@ -2156,7 +2165,7 @@ export default function ProjectDetailView({
           <ProjectDocsTab
             projectId={selectedProject.id}
             projectName={selectedProject.name}
-            canEdit={canManageProject}
+            canEdit={canEditProjectContent}
           />
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">

@@ -52,17 +52,17 @@ import {
 const TERMINAL_STATUSES = new Set(["completed", "cancelled", "deleted"]);
 
 /** Immediate notification if active collaborator; otherwise queue until collaboration is accepted. */
-function applyCommentMentions(
+async function applyCommentMentions(
   authorUid: string,
   authorEmail: string | undefined,
   todoId: string,
   commentId: string,
   emails: string[],
   commentText: string,
-): string[] {
+): Promise<string[]> {
   const mentionInviteNeeded: string[] = [];
   const actor = normalizeEmail(authorEmail ?? "");
-  const todoCtx = findTodoForUser(authorUid, todoId);
+  const todoCtx = await findTodoForUser(authorUid, todoId);
   const todoTitle = todoCtx?.todo.title ?? "Tâche";
   const preview = commentText.replace(/\s+/g, " ").trim().slice(0, 280);
   for (const email of emails) {
@@ -93,12 +93,12 @@ function applyCommentMentions(
 }
 
 export async function list(req: AuthenticatedRequest, res: Response) {
-  const todos = listTodos(req.user!.uid);
+  const todos = await listTodos(req.user!.uid);
   res.status(200).json(todos);
 }
 
 export async function assigned(req: AuthenticatedRequest, res: Response) {
-  const todos = listAssignedToMe(req.user!.uid);
+  const todos = await listAssignedToMe(req.user!.uid);
   res.status(200).json(todos);
 }
 
@@ -106,8 +106,8 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
   await purgeArchivedTodosPastRetentionForUser(uid);
-  const own = listArchivedTodos(uid);
-  const asAssignee = listArchivedTodosAssignedToMe(uid, email);
+  const own = await listArchivedTodos(uid);
+  const asAssignee = await listArchivedTodosAssignedToMe(uid, email);
   const byId = new Map<string, (typeof own)[number]>();
   for (const t of own) byId.set(t.id, t);
   for (const t of asAssignee) byId.set(t.id, t);
@@ -128,7 +128,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
 
   const uid = req.user!.uid;
   const clientId = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : undefined;
-  const existingBefore = clientId ? findTodoForUser(uid, clientId)?.todo ?? null : null;
+  const existingBefore = clientId ? (await findTodoForUser(uid, clientId))?.todo ?? null : null;
 
   const todo = await createTodo(uid, req.user!.email ?? "", {
     id: clientId,
@@ -182,7 +182,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
 export async function update(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const input = req.body as UpdateTodoInput;
-  const prevFound = findTodoForUser(req.user!.uid, id);
+  const prevFound = await findTodoForUser(req.user!.uid, id);
   const previousTodo = prevFound?.todo ? { ...prevFound.todo } : null;
   let todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, input);
 
@@ -430,7 +430,7 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
 
 export async function getComments(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
-  if (!canAccessTodo(req.user!.uid, todoId)) {
+  if (!(await canAccessTodo(req.user!.uid, req.user!.email ?? "", todoId))) {
     throw new ForbiddenError("Accès refusé à cette tâche");
   }
   res.status(200).json(listComments(todoId));
@@ -438,7 +438,7 @@ export async function getComments(req: AuthenticatedRequest, res: Response) {
 
 export async function postComment(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
-  if (!canAccessTodo(req.user!.uid, todoId)) {
+  if (!(await canAccessTodo(req.user!.uid, req.user!.email ?? "", todoId))) {
     throw new ForbiddenError("Accès refusé à cette tâche");
   }
   const { text } = req.body as { text?: string };
@@ -447,7 +447,7 @@ export async function postComment(req: AuthenticatedRequest, res: Response) {
 
   let mentionInviteNeeded: string[] = [];
   try {
-    mentionInviteNeeded = applyCommentMentions(req.user!.uid, req.user!.email, todoId, comment.id, parseMentions(text), text);
+    mentionInviteNeeded = await applyCommentMentions(req.user!.uid, req.user!.email, todoId, comment.id, parseMentions(text), text);
   } catch (err) {
     console.warn("[comment] mention notification failed:", err);
   }
@@ -457,7 +457,7 @@ export async function postComment(req: AuthenticatedRequest, res: Response) {
 
 export async function removeComment(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
-  if (!canAccessTodo(req.user!.uid, todoId)) {
+  if (!(await canAccessTodo(req.user!.uid, req.user!.email ?? "", todoId))) {
     throw new ForbiddenError("Accès refusé à cette tâche");
   }
   const commentId = req.params.commentId as string;
@@ -467,7 +467,7 @@ export async function removeComment(req: AuthenticatedRequest, res: Response) {
 
 export async function editCommentHandler(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
-  if (!canAccessTodo(req.user!.uid, todoId)) {
+  if (!(await canAccessTodo(req.user!.uid, req.user!.email ?? "", todoId))) {
     throw new ForbiddenError("Accès refusé à cette tâche");
   }
   const { text } = req.body as { text?: string };
@@ -479,7 +479,7 @@ export async function editCommentHandler(req: AuthenticatedRequest, res: Respons
 
   let mentionInviteNeeded: string[] = [];
   try {
-    mentionInviteNeeded = applyCommentMentions(
+    mentionInviteNeeded = await applyCommentMentions(
       req.user!.uid,
       req.user!.email,
       todoId,
@@ -496,7 +496,7 @@ export async function editCommentHandler(req: AuthenticatedRequest, res: Respons
 
 export async function toggleReactionHandler(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
-  if (!canAccessTodo(req.user!.uid, todoId)) {
+  if (!(await canAccessTodo(req.user!.uid, req.user!.email ?? "", todoId))) {
     throw new ForbiddenError("Accès refusé à cette tâche");
   }
   const { emoji } = req.body as { emoji?: string };
@@ -513,10 +513,10 @@ export async function commentCounts(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
   const idSet = new Set<string>();
-  for (const t of listTodos(uid)) idSet.add(t.id);
-  for (const t of listAssignedToMe(uid)) idSet.add(t.id);
+  for (const t of await listTodos(uid)) idSet.add(t.id);
+  for (const t of await listAssignedToMe(uid)) idSet.add(t.id);
   for (const p of listProjects(uid, email)) {
-    for (const t of listProjectTodos(p.id)) idSet.add(t.id);
+    for (const t of await listProjectTodos(p.id)) idSet.add(t.id);
   }
   res.status(200).json(getCommentCounts([...idSet]));
 }
@@ -526,10 +526,10 @@ export async function attachmentCounts(req: AuthenticatedRequest, res: Response)
   const uid = req.user!.uid;
   const email = req.user!.email ?? "";
   const idSet = new Set<string>();
-  for (const t of listTodos(uid)) idSet.add(t.id);
-  for (const t of listAssignedToMe(uid)) idSet.add(t.id);
+  for (const t of await listTodos(uid)) idSet.add(t.id);
+  for (const t of await listAssignedToMe(uid)) idSet.add(t.id);
   for (const p of listProjects(uid, email)) {
-    for (const t of listProjectTodos(p.id)) idSet.add(t.id);
+    for (const t of await listProjectTodos(p.id)) idSet.add(t.id);
   }
   res.status(200).json(getAttachmentCounts([...idSet]));
 }
@@ -541,10 +541,10 @@ export async function exportTodos(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
 
   const todos = archivedOnly
-    ? listArchivedTodos(uid)
+    ? await listArchivedTodos(uid)
     : includeArchived
-      ? [...listTodos(uid), ...listArchivedTodos(uid)]
-      : listTodos(uid);
+      ? [...(await listTodos(uid)), ...await listArchivedTodos(uid))]
+      : await listTodos(uid);
 
   const fileBase = archivedOnly ? "wroket-tasks-archived" : includeArchived ? "wroket-tasks-all" : "wroket-tasks";
 
@@ -699,7 +699,7 @@ function csvSafe(value: string): string {
 
 export async function taskActivity(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.id as string;
-  if (!canAccessTodo(req.user!.uid, todoId)) throw new ForbiddenError("Accès refusé");
+  if (!(await canAccessTodo(req.user!.uid, req.user!.email ?? "", todoId))) throw new ForbiddenError("Accès refusé");
   const entries = await getTaskActivity(todoId);
   res.status(200).json(entries);
 }

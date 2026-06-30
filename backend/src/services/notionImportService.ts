@@ -353,12 +353,12 @@ function buildImportPreviewFromRows(
   };
 }
 
-function computeCapacity(
+async function computeCapacity(
   uid: string,
   teamId: string | null,
   activeTaskCount: number,
-): NotionImportCapacity {
-  const quota = getFreeQuotaSnapshot(uid);
+): Promise<NotionImportCapacity> {
+  const quota = await getFreeQuotaSnapshot(uid);
   const dependenciesSupported = getEntitlementsForUid(uid).integrations;
 
   if (!quota) {
@@ -375,7 +375,7 @@ function computeCapacity(
   }
 
   const projectsHeadroom = Math.max(0, FREE_TIER_MAX_PERSONAL_PROJECTS - countPersonalActiveProjectsForQuota(uid));
-  const tasksHeadroom = Math.max(0, FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL - countPersonalActiveTodosForQuota(uid));
+  const tasksHeadroom = Math.max(0, FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL - (await countPersonalActiveTodosForQuota(uid)));
   const personalImport = !teamId;
 
   const canCreateProject = !personalImport || projectsHeadroom > 0;
@@ -396,14 +396,14 @@ function computeCapacity(
   };
 }
 
-export function previewNotionZipImport(
+export async function previewNotionZipImport(
   zipBuffer: Buffer,
   uid: string,
   userEmail: string,
   projectName?: string,
   teamId?: string | null,
   selectedDatabaseIndex = 0,
-): NotionImportPreview {
+): Promise<NotionImportPreview> {
   const entries = extractNotionCsvEntries(zipBuffer);
   const databases: NotionDatabasePreview[] = entries.map((entry, index) => {
     const { rows, errors } = parseNotionCsvBuffer(entry.buffer, entry.name);
@@ -436,7 +436,7 @@ export function previewNotionZipImport(
     suggestedProjectName,
     databases,
     selectedDatabaseIndex: idx,
-    capacity: computeCapacity(uid, teamId ?? null, activeCount),
+    capacity: await computeCapacity(uid, teamId ?? null, activeCount),
     existingProject: findNotionZipExistingProject(uid, userEmail, selected.name),
   };
 }
@@ -551,7 +551,7 @@ export async function confirmNotionZipImport(
     );
   }
 
-  const capacity = computeCapacity(uid, teamId, rows.filter((r) => r.status === "active").length);
+  const capacity = await computeCapacity(uid, teamId, rows.filter((r) => r.status === "active").length);
   const needsNewProject = !existingProject || importMode === "create_new";
   if (needsNewProject && !capacity.canCreateProject) {
     throw new ValidationError(
@@ -596,7 +596,7 @@ export async function confirmNotionZipImport(
 }
 
 /** Re-export for ZIP that is actually a single CSV (tests / edge cases). */
-export function previewNotionCsvBuffer(buffer: Buffer, uid: string, projectName: string, teamId?: string | null): NotionImportPreview {
+export async function previewNotionCsvBuffer(buffer: Buffer, uid: string, projectName: string, teamId?: string | null): Promise<NotionImportPreview> {
   const { rows, errors } = parseNotionCsvBuffer(buffer, projectName);
   const preview = buildImportPreviewFromRows(rows, errors, projectName);
   const activeCount = rows.filter((r) => r.status === "active").length;
@@ -615,7 +615,7 @@ export function previewNotionCsvBuffer(buffer: Buffer, uid: string, projectName:
       },
     ],
     selectedDatabaseIndex: 0,
-    capacity: computeCapacity(uid, teamId ?? null, activeCount),
+    capacity: await computeCapacity(uid, teamId ?? null, activeCount),
   };
 }
 
@@ -624,14 +624,14 @@ export function isZipBuffer(buffer: Buffer): boolean {
   return buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
 }
 
-export function parseUploadAsNotionPreview(
+export async function parseUploadAsNotionPreview(
   buffer: Buffer,
   uid: string,
   userEmail: string,
   projectName?: string,
   teamId?: string | null,
   selectedDatabaseIndex = 0,
-): NotionImportPreview {
+): Promise<NotionImportPreview> {
   if (isZipBuffer(buffer)) {
     return previewNotionZipImport(buffer, uid, userEmail, projectName, teamId, selectedDatabaseIndex);
   }

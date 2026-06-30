@@ -66,9 +66,9 @@ export function getActiveTimerForUser(userId: string): TimeSession | null {
   return sessionsById.get(id) ?? null;
 }
 
-export function startTimeTimer(userId: string, userEmail: string, todoId: string): TimeSession {
+export async function startTimeTimer(userId: string, userEmail: string, todoId: string): Promise<TimeSession> {
   assertTimeTrackingEntitlement(userId);
-  const found = findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
 
   const existing = activeTimerByUser.get(userId);
@@ -117,15 +117,15 @@ export function stopTimeTimer(userId: string, todoId?: string): TimeSession {
   return session;
 }
 
-export function addManualTimeSession(
+export async function addManualTimeSession(
   userId: string,
   todoId: string,
   durationMinutes: number,
   note?: string | null,
   startedAt?: string,
-): TimeSession {
+): Promise<TimeSession> {
   assertTimeTrackingEntitlement(userId);
-  const found = findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId);
   if (!found) throw new NotFoundError("Tâche introuvable");
   if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 24 * 60) {
     throw new ValidationError("durationMinutes doit être entre 1 et 1440");

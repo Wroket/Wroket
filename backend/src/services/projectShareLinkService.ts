@@ -231,7 +231,7 @@ export function resolveShareLink(token: string): ProjectShareLink | null {
   return link;
 }
 
-export function getSharedProjectView(token: string): SharedProjectView {
+export async function getSharedProjectView(token: string): Promise<SharedProjectView> {
   const link = resolveShareLink(token);
   if (!link) {
     throw new NotFoundError("Lien expiré ou révoqué", "SHARE_LINK_INVALID");
@@ -242,7 +242,7 @@ export function getSharedProjectView(token: string): SharedProjectView {
     throw new NotFoundError("Projet introuvable", "SHARE_LINK_INVALID");
   }
 
-  const todos = listProjectTodos(project.id);
+  const todos = await listProjectTodos(project.id);
   const steering = computeProjectSteeringSnapshot(project, todos);
   const phases = [...(project.phases ?? [])].sort((a, b) => a.order - b.order);
   const milestones = [...(project.milestones ?? [])].sort((a, b) => a.order - b.order);

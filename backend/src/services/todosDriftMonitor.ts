@@ -5,7 +5,7 @@ import { getInMemoryTodoIdsByOwner } from "./todoService";
 let timer: NodeJS.Timeout | null = null;
 
 export interface TodosDriftStatus {
-  status: "unknown" | "ok" | "drift" | "error" | "skipped";
+  status: "unknown" | "ok" | "drift" | "error" | "skipped" | "skipped_lazy_boot";
   checkedAt: string | null;
   source: "legacy" | "dual" | "v2" | "unknown";
   owners?: number;
@@ -48,6 +48,19 @@ async function checkOnce(): Promise<void> {
       checkedAt: new Date().toISOString(),
       source: "legacy",
     };
+    return;
+  }
+
+  const bootHydration = (process.env.TODOS_BOOT_HYDRATION ?? "lazy").trim().toLowerCase();
+  if (mode === "v2" && bootHydration === "lazy") {
+    // Lazy boot intentionally keeps RAM partial; Firestore is the read source of truth.
+    // Comparing full v2 counts vs partial RAM would permanently flag drift → /health/ready 503.
+    lastStatus = {
+      status: "skipped_lazy_boot",
+      checkedAt: new Date().toISOString(),
+      source: "v2",
+    };
+    console.log(JSON.stringify({ event: "todos-drift", status: "skipped_lazy_boot", source: "v2" }));
     return;
   }
 

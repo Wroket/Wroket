@@ -126,11 +126,72 @@ export interface TodoV2Row {
   [key: string]: unknown;
 }
 
+/** Single todos_v2 document by id (cross-replica cold lookup). */
+export async function getTodoV2ById(todoId: string): Promise<TodoV2Row | null> {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const snap = await dbConn.collection(COLLECTION).doc(todoId).get();
+  if (!snap.exists) return null;
+  const row = snap.data() as Record<string, unknown>;
+  const ownerUid = typeof row.ownerUid === "string" ? row.ownerUid : "";
+  return { id: snap.id, ownerUid, ...row };
+}
+
 export async function listTodosV2ByOwner(ownerUid: string): Promise<TodoV2Row[]> {
   const dbConn = await getDb();
   if (!dbConn) return [];
   const snap = await dbConn.collection(COLLECTION).where("ownerUid", "==", ownerUid).get();
   return snap.docs.map((d) => ({ id: d.id, ownerUid, ...(d.data() as Record<string, unknown>) }));
+}
+
+/** All todos_v2 rows assigned to `assigneeUid` (cross-owner reads). */
+export async function listTodosV2ByAssignedTo(assigneeUid: string): Promise<TodoV2Row[]> {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  try {
+    const snap = await dbConn.collection(COLLECTION).where("assignedTo", "==", assigneeUid).get();
+    return snap.docs.map((d) => {
+      const row = d.data() as Record<string, unknown>;
+      const ownerUid = typeof row.ownerUid === "string" ? row.ownerUid : "";
+      return { id: d.id, ownerUid, ...row };
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("FAILED_PRECONDITION") || msg.includes("index")) {
+      console.error(JSON.stringify({
+        event: "todos_v2.query.index_missing",
+        field: "assignedTo",
+        assigneeUid,
+        error: msg,
+      }));
+    }
+    throw err;
+  }
+}
+
+/** All todos_v2 rows linked to `projectId` (cross-owner project views). */
+export async function listTodosV2ByProject(projectId: string): Promise<TodoV2Row[]> {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  try {
+    const snap = await dbConn.collection(COLLECTION).where("projectId", "==", projectId).get();
+    return snap.docs.map((d) => {
+      const row = d.data() as Record<string, unknown>;
+      const ownerUid = typeof row.ownerUid === "string" ? row.ownerUid : "";
+      return { id: d.id, ownerUid, ...row };
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("FAILED_PRECONDITION") || msg.includes("index")) {
+      console.error(JSON.stringify({
+        event: "todos_v2.query.index_missing",
+        field: "projectId",
+        projectId,
+        error: msg,
+      }));
+    }
+    throw err;
+  }
 }
 
 export async function countTodosV2ByOwner(): Promise<Map<string, number>> {

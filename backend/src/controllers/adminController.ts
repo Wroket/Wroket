@@ -100,7 +100,7 @@ export async function adminIntegrations(_req: AuthenticatedRequest, res: Respons
 export async function adminUserExport(req: AuthenticatedRequest, res: Response) {
   const uid = req.params.uid as string;
   const target = findUserByUid(uid);
-  const data = exportUserData(uid);
+  const data = await exportUserData(uid);
   logActivity(req.user!.uid, req.user!.email ?? "", "admin_user_export", "user", uid, {
     targetEmail: target?.email,
   });
@@ -244,8 +244,9 @@ export async function adminCompletionRates(_req: AuthenticatedRequest, res: Resp
   const users = getAdminUsers();
   const EXCLUDED = new Set(["cancelled", "deleted"]);
 
-  const rates = users.map((u) => {
-    const userTodos = listTodosForAdminUser(u.uid);
+  const rates = [];
+  for (const u of users) {
+    const userTodos = await listTodosForAdminUser(u.uid);
     let total = 0;
     let completed = 0;
     for (const todo of userTodos) {
@@ -253,7 +254,7 @@ export async function adminCompletionRates(_req: AuthenticatedRequest, res: Resp
       total++;
       if (todo.status === "completed") completed++;
     }
-    return {
+    rates.push({
       uid: u.uid,
       email: u.email,
       firstName: u.firstName,
@@ -261,8 +262,8 @@ export async function adminCompletionRates(_req: AuthenticatedRequest, res: Resp
       total,
       completed,
       rate: total > 0 ? Math.round((completed / total) * 100) : 0,
-    };
-  });
+    });
+  }
 
   res.status(200).json(rates);
 }

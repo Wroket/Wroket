@@ -1,5 +1,5 @@
 import type { Notification, NotificationType } from "./notificationService";
-import { findTodoForUser, type Todo } from "./todoService";
+import { findTodoForUserInRam, type Todo } from "./todoService";
 
 /** Aligné sur Paramètres → Historique (`getMyActivity` days=7). */
 export const NOTIFICATION_DISPLAY_PAST_DAYS = 7;
@@ -45,7 +45,7 @@ function isUpcomingDeadlineNotification(notif: Notification, userId: string, tod
   if (!UPCOMING_DEADLINE_TYPES.has(notif.type)) return false;
   const todoId = notif.data?.todoId;
   if (!todoId) return false;
-  const found = findTodoForUser(userId, todoId);
+  const found = findTodoForUserInRam(userId, todoId);
   if (!found || found.todo.status !== "active") return false;
   const dueDay = getEffectiveDueDayStart(found.todo);
   if (!dueDay) return false;

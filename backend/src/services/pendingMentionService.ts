@@ -100,7 +100,7 @@ export function deliverPendingMentionsAfterCollaborationAccepted(inviterUid: str
 
   for (const p of toDeliver) {
     try {
-      const todoCtx = findTodoForUser(inviterUid, p.todoId);
+      const todoCtx = await findTodoForUser(inviterUid, p.todoId);
       const todoTitle = todoCtx?.todo.title ?? "Tâche";
       const comments = listComments(p.todoId);
       const c = comments.find((x) => x.id === p.commentId);

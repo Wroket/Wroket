@@ -24,7 +24,7 @@ export const publicShareLimiter = rateLimit({
 
 export async function getPublicSharedProject(req: AuthenticatedRequest, res: Response) {
   const token = req.params.token as string;
-  const view = getSharedProjectView(token);
+  const view = await getSharedProjectView(token);
   res.status(200).json(view);
 }
 

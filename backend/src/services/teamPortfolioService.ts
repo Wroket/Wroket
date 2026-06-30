@@ -26,7 +26,7 @@ export interface TeamPortfolioSnapshot {
   projects: TeamPortfolioProjectRow[];
 }
 
-export function buildTeamPortfolio(teamId: string, uid: string, userEmail: string): TeamPortfolioSnapshot {
+export async function buildTeamPortfolio(teamId: string, uid: string, userEmail: string): Promise<TeamPortfolioSnapshot> {
   const team = getTeam(teamId);
   if (!team) throw new ValidationError("Équipe introuvable");
   const role = getTeamRole(team, uid, userEmail);
@@ -40,7 +40,7 @@ export function buildTeamPortfolio(teamId: string, uid: string, userEmail: strin
     const project = getProjectById(projectId);
     if (!project || project.status !== "active" || project.parentProjectId) continue;
 
-    const todos = listProjectTodos(project.id);
+    const todos = await listProjectTodos(project.id);
     const snap = computeProjectSteeringSnapshot(project, todos);
     const next = snap.upcomingMilestones[0] ?? null;
 

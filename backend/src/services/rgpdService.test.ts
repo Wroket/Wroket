@@ -82,11 +82,11 @@ describe("exportUserData", () => {
     await initStore();
   });
 
-  it("includes user databases in export", () => {
+  it("includes user databases in export", async () => {
     const { uid } = register({ email: "rgpd-export@test.local", password: "password123" });
     const db = createUserDatabase(uid, { name: "Export DB", columns: [{ id: "c1", name: "Nom", type: "text" }] });
     createDatabaseRow(uid, db.id, { c1: "Ligne 1" });
-    const data = exportUserData(uid);
+    const data = await exportUserData(uid);
     expect(data.userDatabases).toHaveLength(1);
     expect((data.userDatabases[0] as { name: string }).name).toBe("Export DB");
     expect(Object.keys(data.userDatabaseRows)).toContain(db.id);

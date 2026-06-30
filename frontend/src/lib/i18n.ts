@@ -2797,6 +2797,8 @@ const translations = {
   "admin.ops.persistence": { fr: "Persistance Firestore", en: "Firestore persistence" },
   "admin.ops.flushFailures": { fr: "Échecs flush consécutifs", en: "Consecutive flush failures" },
   "admin.ops.lastFlush": { fr: "Dernier flush", en: "Last flush" },
+  "admin.ops.dirtyDomains": { fr: "Domaines dirty", en: "Dirty domains" },
+  "admin.ops.dirtyShards": { fr: "Shards todos dirty", en: "Dirty todo shards" },
   "admin.ops.drift": { fr: "Drift todos_v2", en: "todos_v2 drift" },
   "admin.ops.sessions": { fr: "Sessions actives", en: "Active sessions" },
   "admin.ops.multiSession": { fr: "Utilisateurs multi-sessions", en: "Multi-session users" },
@@ -3054,6 +3056,50 @@ const translations = {
   "errors.code.CALENDAR_SLOT_CONFLICT": {
     fr: "Ce créneau chevauche un autre événement.",
     en: "This slot overlaps another event.",
+  },
+  "errors.code.TASK_PHASE_DATE_MISMATCH": {
+    fr: "Les dates de la tâche ne correspondent pas à la phase cible.",
+    en: "Task dates do not match the target phase window.",
+  },
+  "errors.code.TASK_PHASE_SLOT_MISMATCH": {
+    fr: "Le créneau planifié ne correspond pas à la phase cible.",
+    en: "The scheduled slot does not fit the target phase.",
+  },
+  "errors.code.TASK_MOVE_CONFLICT": {
+    fr: "Conflit de calendrier lors du déplacement.",
+    en: "Calendar conflict while moving the task.",
+  },
+  "errors.code.TASK_BLOCKED_BY_ACTIVE": {
+    fr: "Cette tâche est bloquée par d'autres tâches non terminées.",
+    en: "This task is blocked by other incomplete tasks.",
+  },
+  "errors.code.DEPENDENCY_PROJECT_REQUIRED": {
+    fr: "Les dépendances ne sont disponibles que sur les tâches de projet.",
+    en: "Dependencies are only available on project tasks.",
+  },
+  "errors.code.DEPENDENCY_INVALID": {
+    fr: "Liste de dépendances invalide.",
+    en: "Invalid dependency list.",
+  },
+  "errors.code.DEPENDENCY_SELF": {
+    fr: "Une tâche ne peut pas dépendre d'elle-même.",
+    en: "A task cannot depend on itself.",
+  },
+  "errors.code.DEPENDENCY_NOT_FOUND": {
+    fr: "Tâche bloquante introuvable dans ce projet.",
+    en: "Blocking task not found in this project.",
+  },
+  "errors.code.DEPENDENCY_CROSS_PROJECT": {
+    fr: "Les dépendances doivent rester dans le même projet.",
+    en: "Dependencies must stay within the same project.",
+  },
+  "errors.code.DEPENDENCY_CYCLE": {
+    fr: "Cette dépendance créerait un cycle.",
+    en: "This dependency would create a cycle.",
+  },
+  "errors.code.RATE_LIMIT_EXCEEDED": {
+    fr: "Trop de requêtes — réessayez dans un instant.",
+    en: "Too many requests — try again shortly.",
   },
   "errors.code.MEET_INVALID_INVITEE_EMAIL": {
     fr: "Un ou plusieurs emails d’invités sont invalides.",

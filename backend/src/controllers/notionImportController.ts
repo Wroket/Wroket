@@ -44,7 +44,7 @@ export async function previewNotionImport(req: AuthenticatedRequest, res: Respon
   const teamId = (req.body?.teamId as string | undefined) || null;
   const databaseIndex = Number.parseInt(String(req.body?.databaseIndex ?? "0"), 10);
 
-  const result = parseUploadAsNotionPreview(
+  const result = await parseUploadAsNotionPreview(
     req.file.buffer,
     req.user!.uid,
     req.user!.email,

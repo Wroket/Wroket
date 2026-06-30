@@ -62,12 +62,12 @@ function wasAutomationSentToday(userId: string, automationKey: string, todayStr:
   );
 }
 
-function allTodosFlat(): Todo[] {
+async function allTodosFlat(): Promise<Todo[]> {
   const store = getStore();
   const todoStore = store.todos ?? {};
   const out: Todo[] = [];
   for (const userId of Object.keys(todoStore)) {
-    out.push(...listAllTodos(userId));
+    out.push(...(await listAllTodos(userId)));
   }
   const seen = new Set<string>();
   return out.filter((t) => {
@@ -80,13 +80,13 @@ function allTodosFlat(): Todo[] {
 /**
  * Hourly automation pass for opt-in rules (deduped once per day per todo).
  */
-export function runAutomationChecks(now: Date = new Date()): void {
+export async function runAutomationChecks(now: Date = new Date()): Promise<void> {
   const store = getStore();
   const users = store.users as Record<string, Record<string, unknown>> | undefined;
   if (!users) return;
 
   const todayStr = now.toISOString().split("T")[0];
-  const allTodos = allTodosFlat().filter((t) => t.status === "active" && isEffectivelyOverdue(t, now));
+  const allTodos = (await allTodosFlat()).filter((t) => t.status === "active" && isEffectivelyOverdue(t, now));
 
   for (const uid of Object.keys(users)) {
     const rules = getAutomationRulesForUid(uid);

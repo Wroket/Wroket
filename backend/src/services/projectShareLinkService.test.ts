@@ -23,7 +23,7 @@ describe("projectShareLinkService", () => {
     const link = createProjectShareLink("owner-1", "owner@test.fr", project.id, { expiryDays: 7 });
     expect(link.token).toBeTruthy();
 
-    const view = getSharedProjectView(link.token);
+    const view = await getSharedProjectView(link.token);
     expect(view.projectName).toBe("Client Alpha");
     expect(view.tasks).toHaveLength(1);
     expect(view.tasks[0].title).toBe("Task visible");
@@ -35,7 +35,7 @@ describe("projectShareLinkService", () => {
     const project = createProject("owner-2", "o2@test.fr", { name: "Revoke test" });
     const link = createProjectShareLink("owner-2", "o2@test.fr", project.id);
     revokeProjectShareLink("owner-2", "o2@test.fr", project.id, link.id);
-    expect(() => getSharedProjectView(link.token)).toThrow();
+    await expect(getSharedProjectView(link.token)).rejects.toThrow();
   });
 
   test("link stores and exposes selected tabs only", async () => {
@@ -47,7 +47,7 @@ describe("projectShareLinkService", () => {
     });
     expect(link.allowedTabs).toEqual(["kanban", "gantt"]);
 
-    const view = getSharedProjectView(link.token);
+    const view = await getSharedProjectView(link.token);
     expect(view.allowedTabs).toEqual(["kanban", "gantt"]);
   });
 
@@ -59,7 +59,7 @@ describe("projectShareLinkService", () => {
     delete stored.allowedTabs;
     reloadShareLinksFromStore();
 
-    const view = getSharedProjectView(link.token);
+    const view = await getSharedProjectView(link.token);
     expect(view.allowedTabs).toEqual(["pilotage", "kanban", "gantt"]);
   });
 });

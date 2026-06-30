@@ -155,7 +155,7 @@ function computeSchedulingWindow(
 
 /* ── Slot finder ── */
 
-export function findAvailableSlots(
+export async function findAvailableSlots(
   userId: string,
   durationMinutes: number,
   workingHours: WorkingHours,
@@ -163,10 +163,10 @@ export function findAvailableSlots(
   maxResults: number = 3,
   startFrom?: Date,
   schedulingCtx?: SchedulingContext,
-): SlotProposal[] {
+): Promise<SlotProposal[]> {
   const now = startFrom ?? new Date();
   const tz = workingHours.timezone;
-  const allTodos = listTodos(userId);
+  const allTodos = await listTodos(userId);
 
   const { windowStart, deadlineCap } = computeSchedulingWindow(now, durationMinutes, schedulingCtx);
   const effectiveStart = windowStart > now ? windowStart : now;

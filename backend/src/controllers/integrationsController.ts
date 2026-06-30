@@ -61,6 +61,7 @@ import {
 import { findProjectByExternalRef, getProjectById } from "../services/projectService";
 import { consumeOAuthState, sanitizeOAuthReturnTo } from "../utils/oauthState";
 import { findUserByUid, getEntitlementsForUid } from "../services/authService";
+import { getEffectiveEntitlementsForUid } from "../services/teamService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 
 function assertIntegrationsEntitlement(uid: string): void {
@@ -107,7 +108,8 @@ export async function notionCallback(req: Request, res: Response) {
   }
   const { uid, returnTo } = statePayload;
 
-  if (!getEntitlementsForUid(uid).integrations) {
+  const userEmail = findUserByUid(uid)?.email ?? "";
+  if (!getEffectiveEntitlementsForUid(uid, userEmail).integrations) {
     res.redirect(`${frontendUrl}/settings?tab=integrations&error=integrations_plan_required`);
     return;
   }
@@ -172,7 +174,7 @@ export async function previewNotionSync(req: AuthenticatedRequest, res: Response
   const importMode = parseImportMode(req.body?.importMode);
 
   const { snapshot, mappingReport } = await buildNotionDatabaseSnapshot(conn, databaseId, projectName);
-  const diff = computeSyncDiff(req.user!.uid, req.user!.email, snapshot, {
+  const diff = await computeSyncDiff(req.user!.uid, req.user!.email, snapshot, {
     teamId,
     targetProjectId,
     importMode,
@@ -412,7 +414,8 @@ export async function mondayCallback(req: Request, res: Response) {
   }
   const { uid, returnTo } = statePayload;
 
-  if (!getEntitlementsForUid(uid).integrations) {
+  const userEmail = findUserByUid(uid)?.email ?? "";
+  if (!getEffectiveEntitlementsForUid(uid, userEmail).integrations) {
     res.redirect(`${frontendUrl}/settings?tab=integrations&error=integrations_plan_required`);
     return;
   }
@@ -551,7 +554,7 @@ export async function previewMondaySync(req: AuthenticatedRequest, res: Response
   const importMode = parseImportMode(req.body?.importMode);
 
   const { snapshot, mappingReport } = await buildMondayBoardSnapshot(conn, boardId, projectName);
-  const diff = computeSyncDiff(req.user!.uid, req.user!.email, snapshot, {
+  const diff = await computeSyncDiff(req.user!.uid, req.user!.email, snapshot, {
     teamId,
     targetProjectId,
     importMode,

@@ -43,9 +43,9 @@ function taskCountByUidMap(): Map<string, number> {
 }
 
 /** Per-user todos for admin completion rates. */
-export function listTodosForAdminUser(uid: string): Array<{ status: string }> {
+export async function listTodosForAdminUser(uid: string): Promise<Array<{ status: string }>> {
   if (Object.keys(getInMemoryTodoIdsByOwner()).length > 0) {
-    return listAllTodos(uid);
+    return await listAllTodos(uid);
   }
   const userTodos = ((getStore().todos ?? {}) as Record<string, Record<string, { status: string }>>)[uid] ?? {};
   return Object.values(userTodos);

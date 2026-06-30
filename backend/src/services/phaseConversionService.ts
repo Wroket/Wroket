@@ -86,7 +86,7 @@ export async function convertPhaseToSubproject(
   const phase = project.phases.find((p) => p.id === phaseId);
   if (!phase) throw new NotFoundError("Phase introuvable");
 
-  const allProjectTodos = listProjectTodos(projectId);
+  const allProjectTodos = await listProjectTodos(projectId);
   const phaseTodosAll = allProjectTodos.filter((t) => t.phaseId === phaseId);
   const byId = new Map<string, Todo>();
   for (const t of allProjectTodos) byId.set(t.id, t);
@@ -226,7 +226,7 @@ export async function convertSubprojectToPhase(
     fallbackPhaseId = phaseMap.get(sortedSubPhases[0]!.id)!;
   }
 
-  const todos = listProjectTodos(subProjectId);
+  const todos = await listProjectTodos(subProjectId);
   const patches: TodoPhaseConversionPatch[] = todos.map((t) => {
     const nextPhase = t.phaseId ? phaseMap.get(t.phaseId) ?? fallbackPhaseId : fallbackPhaseId;
     return {

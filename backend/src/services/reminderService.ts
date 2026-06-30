@@ -76,7 +76,7 @@ function isEffectiveDueApproaching(todo: Todo, now: Date, in24h: Date): boolean 
  * When both exist the earlier commitment drives the trigger (consistent with
  * frontend effective-due helpers).
  */
-function checkDeadlines(): void {
+async function checkDeadlines(): Promise<void> {
   const store = getStore();
   const todoStore = store.todos ?? {};
   const now = new Date();
@@ -91,7 +91,7 @@ function checkDeadlines(): void {
         .map((n) => `${n.type}:${n.data!.todoId}`),
     );
 
-    for (const todo of listAllTodos(userId)) {
+    for (const todo of await listAllTodos(userId)) {
       if (todo.status !== "active") continue;
       // Skip tasks with no commitment at all.
       if (!todo.deadline && !todo.scheduledSlot?.start) continue;
@@ -117,8 +117,8 @@ function checkDeadlines(): void {
 let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
 function runHourlyJobs(): void {
-  checkDeadlines();
-  try { runAutomationChecks(); } catch (err) { console.warn("[reminders] automation check failed:", err); }
+  void checkDeadlines().catch((err) => console.warn("[reminders] deadline check failed:", err));
+  try { void runAutomationChecks().catch((err) => console.warn("[reminders] automation check failed:", err)); } catch (err) { console.warn("[reminders] automation check failed:", err); }
   try { flushHourlyDigests(); } catch (err) { console.warn("[reminders] hourly digest flush failed:", err); }
   try { flushDailyDigests(new Date()); } catch (err) { console.warn("[reminders] daily digest flush failed:", err); }
 }

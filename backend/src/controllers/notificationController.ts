@@ -20,11 +20,11 @@ function replaceTodoTitleInMessage(message: string, prev: string, cur: string): 
   return m;
 }
 
-function enrichNotificationsForDisplay(userId: string, list: Notification[]): Notification[] {
+async function enrichNotificationsForDisplay(userId: string, list: Notification[]): Promise<Notification[]> {
   const todoIds = [...new Set(list.map((n) => n.data?.todoId).filter((x): x is string => Boolean(x)))];
   const titleById = new Map<string, string>();
   for (const tid of todoIds) {
-    const found = findTodoForUser(userId, tid);
+    const found = await findTodoForUser(userId, tid);
     if (found) titleById.set(tid, found.todo.title.trim());
   }
   return list.map((n) => {
@@ -45,7 +45,7 @@ export async function list(req: AuthenticatedRequest, res: Response) {
   const uid = req.user!.uid;
   const userEmail = req.user!.email;
   const raw = listNotificationsForDisplay(uid);
-  let notifications = enrichNotificationsForDisplay(uid, raw);
+  let notifications = await enrichNotificationsForDisplay(uid, raw);
 
   // For note_mention notifications, flag those whose note is no longer accessible
   if (userEmail) {

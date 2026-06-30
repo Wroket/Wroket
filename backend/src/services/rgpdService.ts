@@ -36,7 +36,7 @@ export interface ExportUserDataOptions {
   decryptedTaskContent?: boolean;
 }
 
-export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserDataExport {
+export async function exportUserData(uid: string, opts?: ExportUserDataOptions): Promise<UserDataExport> {
   const store = getStore();
 
   // User record
@@ -47,7 +47,7 @@ export function exportUserData(uid: string, opts?: ExportUserDataOptions): UserD
   // Todos — self-service: normalized in-memory todos; admin: raw shard rows with legacy encV1 removed
   let todos: unknown[];
   if (opts?.decryptedTaskContent) {
-    todos = listAllTodos(uid) as unknown[];
+    todos = (await listAllTodos(uid)) as unknown[];
   } else {
     const todoStore = (store.todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
     const userTodos = todoStore[uid] ?? {};

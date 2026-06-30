@@ -410,6 +410,8 @@ export function syncNotes(
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+  let newNotesAdded = 0;
+
   for (const item of incoming) {
     if (!item.id || !UUID_RE.test(item.id)) continue;
     const existing = map.get(item.id);
@@ -427,6 +429,15 @@ export function syncNotes(
       if (getUserArchivedNotes(userId).has(item.id)) {
         continue;
       }
+      if (shouldApplyFreeTierVolumeQuotas(userId)) {
+        const projected = countPersonalNotesForQuota(userId) + newNotesAdded;
+        if (projected >= FREE_TIER_MAX_PERSONAL_NOTES) {
+          throw new PaymentRequiredError(
+            `Le palier gratuit est limité à ${FREE_TIER_MAX_PERSONAL_NOTES} notes personnelles. Passez à un palier payant pour lever cette limite.`,
+            FREE_QUOTA_CODE_NOTES,
+          );
+        }
+      }
       const folderTrim = item.folder?.trim() || undefined;
       const note: Note = {
         id: item.id,
@@ -439,6 +450,7 @@ export function syncNotes(
         updatedAt: item.updatedAt || now,
       };
       map.set(note.id, note);
+      newNotesAdded += 1;
     }
   }
 

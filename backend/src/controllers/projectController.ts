@@ -202,7 +202,7 @@ export async function getTodos(req: AuthenticatedRequest, res: Response) {
     throw new ForbiddenError("Accès refusé");
   }
 
-  const allProjectTodos = listProjectTodos(project.id);
+  const allProjectTodos = await listProjectTodos(project.id);
   const directTodos = allProjectTodos.filter((t) => !t.parentId);
   const directIds = new Set(directTodos.map((t) => t.id));
   const subtasks = allProjectTodos.filter((t) => t.parentId && directIds.has(t.parentId));
@@ -213,7 +213,7 @@ export async function getAllTodos(req: AuthenticatedRequest, res: Response) {
   const projects = listProjects(req.user!.uid, req.user!.email);
   const result: Record<string, unknown[]> = {};
   for (const project of projects) {
-    const todos = listProjectTodos(project.id).filter((t) => !t.parentId);
+    const todos = (await listProjectTodos(project.id)).filter((t) => !t.parentId);
     if (todos.length > 0) result[project.id] = todos;
   }
   res.status(200).json(result);
@@ -327,7 +327,7 @@ export async function exportProject(req: AuthenticatedRequest, res: Response) {
     throw new ForbiddenError("Accès refusé");
   }
 
-  const allTodos = listProjectTodos(project.id);
+  const allTodos = await listProjectTodos(project.id);
   const slug = project.name.replace(/[^a-z0-9]+/gi, "-").substring(0, 40);
 
   if (format === "json") {
@@ -510,7 +510,7 @@ export async function getSteering(req: AuthenticatedRequest, res: Response) {
   if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
     throw new ForbiddenError("Accès refusé");
   }
-  const todos = listProjectTodos(project.id);
+  const todos = await listProjectTodos(project.id);
   res.status(200).json(computeProjectSteeringSnapshot(project, todos));
 }
 
@@ -521,7 +521,7 @@ export async function exportSteering(req: AuthenticatedRequest, res: Response) {
   if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
     throw new ForbiddenError("Accès refusé");
   }
-  const todos = listProjectTodos(project.id);
+  const todos = await listProjectTodos(project.id);
   const snap = computeProjectSteeringSnapshot(project, todos);
   const slug = project.name.replace(/[^a-z0-9]+/gi, "-").substring(0, 40);
   res.setHeader("Content-Type", "text/csv; charset=utf-8");

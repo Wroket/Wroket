@@ -18,11 +18,11 @@ export interface FreeQuotaSnapshot {
 }
 
 /** Usage headroom for Free-tier users (null when quotas do not apply). */
-export function getFreeQuotaSnapshot(uid: string): FreeQuotaSnapshot | null {
+export async function getFreeQuotaSnapshot(uid: string): Promise<FreeQuotaSnapshot | null> {
   if (!shouldApplyFreeTierVolumeQuotas(uid)) return null;
   return {
     maxActiveTasksPersonal: FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL,
-    activeTasksPersonal: countPersonalActiveTodosForQuota(uid),
+    activeTasksPersonal: await countPersonalActiveTodosForQuota(uid),
     maxProjectsPersonal: FREE_TIER_MAX_PERSONAL_PROJECTS,
     activeProjectsPersonal: countPersonalActiveProjectsForQuota(uid),
     maxNotes: FREE_TIER_MAX_PERSONAL_NOTES,

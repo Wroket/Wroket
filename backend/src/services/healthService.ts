@@ -52,7 +52,9 @@ export async function getReadinessStatus(): Promise<ReadinessStatus> {
   const store = await pingDatastore();
   const persistence = getPersistenceMetrics();
   const todosDrift = getTodosDriftStatus();
-  const driftHealthy = todosDrift.status !== "drift" && todosDrift.status !== "error";
+  const driftHealthy =
+    todosDrift.status !== "drift"
+    && todosDrift.status !== "error";
   const ok = store.ok && persistence.consecutiveFlushFailures === 0 && driftHealthy;
   return {
     status: ok ? "ok" : "degraded",

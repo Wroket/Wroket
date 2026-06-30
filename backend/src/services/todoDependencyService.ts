@@ -53,12 +53,12 @@ export function wouldCreateDependencyCycle(
   return visit(todoId);
 }
 
-export function validateBlockedByTodoIds(
+export async function validateBlockedByTodoIds(
   userId: string,
   todoId: string,
   projectId: string | null,
   blockedByTodoIds: string[],
-): void {
+): Promise<void> {
   if (blockedByTodoIds.length === 0) return;
   if (!projectId) {
     throw new ValidationError("Les dépendances ne sont disponibles que sur les tâches de projet", "DEPENDENCY_PROJECT_REQUIRED");
@@ -72,7 +72,7 @@ export function validateBlockedByTodoIds(
     throw new ValidationError("Une tâche ne peut pas dépendre d'elle-même", "DEPENDENCY_SELF");
   }
 
-  const projectTodos = listProjectTodos(projectId);
+  const projectTodos = await listProjectTodos(projectId);
   const byId = new Map(projectTodos.map((t) => [t.id, t]));
   if (!byId.has(todoId)) {
     throw new NotFoundError("Tâche introuvable");
@@ -97,11 +97,11 @@ export function validateBlockedByTodoIds(
   }
 }
 
-export function getActiveBlockersForTodo(todo: Todo): Array<{ id: string; title: string; status: TodoStatus }> {
+export async function getActiveBlockersForTodo(todo: Todo): Promise<Array<{ id: string; title: string; status: TodoStatus }>> {
   const ids = normalizeBlockedByTodoIds(todo.blockedByTodoIds);
   if (ids.length === 0 || !todo.projectId) return [];
 
-  const byId = new Map(listProjectTodos(todo.projectId).map((t) => [t.id, t]));
+  const byId = new Map((await listProjectTodos(todo.projectId)).map((t) => [t.id, t]));
   const blockers: Array<{ id: string; title: string; status: TodoStatus }> = [];
   for (const id of ids) {
     const blocker = byId.get(id);
@@ -111,8 +111,8 @@ export function getActiveBlockersForTodo(todo: Todo): Array<{ id: string; title:
   return blockers;
 }
 
-export function assertCanCompleteTodo(userId: string, todo: Todo): void {
-  const blockers = getActiveBlockersForTodo(todo);
+export async function assertCanCompleteTodo(userId: string, todo: Todo): Promise<void> {
+  const blockers = await getActiveBlockersForTodo(todo);
   if (blockers.length === 0) return;
 
   throw new UnprocessableEntityError(
@@ -122,17 +122,17 @@ export function assertCanCompleteTodo(userId: string, todo: Todo): void {
   );
 }
 
-export function findTodoBlockersForUser(
+export async function findTodoBlockersForUser(
   userId: string,
   todoId: string,
-): { todo: Todo; blockers: Todo[] } | null {
-  const found = findTodoForUser(userId, todoId);
+): Promise<{ todo: Todo; blockers: Todo[] } | null> {
+  const found = await findTodoForUser(userId, todoId);
   if (!found || !found.todo.projectId) return null;
 
   const ids = normalizeBlockedByTodoIds(found.todo.blockedByTodoIds);
   if (ids.length === 0) return { todo: found.todo, blockers: [] };
 
-  const byId = new Map(listProjectTodos(found.todo.projectId).map((t) => [t.id, t]));
+  const byId = new Map((await listProjectTodos(found.todo.projectId)).map((t) => [t.id, t]));
   const blockers = ids.map((id) => byId.get(id)).filter((t): t is Todo => !!t);
   return { todo: found.todo, blockers };
 }

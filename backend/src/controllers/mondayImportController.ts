@@ -52,7 +52,7 @@ export async function previewMondayImport(req: AuthenticatedRequest, res: Respon
   const importMode = parseImportMode(req.body?.importMode);
 
   const { snapshot, mappingReport } = buildMondayCsvSnapshot(req.file.buffer, projectName);
-  const diff = computeSyncDiff(req.user!.uid, req.user!.email, snapshot, {
+  const diff = await computeSyncDiff(req.user!.uid, req.user!.email, snapshot, {
     teamId,
     targetProjectId,
     importMode,

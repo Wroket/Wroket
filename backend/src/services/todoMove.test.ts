@@ -47,8 +47,8 @@ describe("moveTodo", () => {
           name: "A",
           color: "#000",
           order: 0,
-          startDate: "2026-06-01",
-          endDate: "2026-06-30",
+          startDate: "2027-06-01",
+          endDate: "2027-06-30",
           createdAt: "",
         };
       }
@@ -59,8 +59,8 @@ describe("moveTodo", () => {
           name: "B",
           color: "#111",
           order: 1,
-          startDate: "2026-07-01",
-          endDate: "2026-07-31",
+          startDate: "2027-07-01",
+          endDate: "2027-07-31",
           createdAt: "",
         };
       }
@@ -81,7 +81,7 @@ describe("moveTodo", () => {
       priority: "medium",
       projectId,
       phaseId: phaseA,
-      deadline: "2026-06-20",
+      deadline: "2027-06-20",
     });
 
     await expect(
@@ -106,8 +106,8 @@ describe("moveTodo", () => {
           name: "A",
           color: "#000",
           order: 0,
-          startDate: "2026-06-01",
-          endDate: "2026-06-30",
+          startDate: "2027-06-01",
+          endDate: "2027-06-30",
           createdAt: "",
         };
       }
@@ -118,8 +118,8 @@ describe("moveTodo", () => {
           name: "B",
           color: "#111",
           order: 1,
-          startDate: "2026-07-01",
-          endDate: "2026-07-31",
+          startDate: "2027-07-01",
+          endDate: "2027-07-31",
           createdAt: "",
         };
       }
@@ -140,7 +140,7 @@ describe("moveTodo", () => {
       priority: "medium",
       projectId,
       phaseId: phaseA,
-      deadline: "2026-06-20",
+      deadline: "2027-06-20",
     });
 
     const moved = await moveTodo(userId, "u2@test.com", todo.id, {
@@ -149,7 +149,7 @@ describe("moveTodo", () => {
     });
 
     expect(moved.phaseId).toBe(phaseB);
-    expect(moved.deadline).toBe("2026-07-01");
+    expect(moved.deadline).toBe("2027-07-01");
   });
 
   it("returns 422 TASK_PHASE_SLOT_MISMATCH when slot outside target phase", async () => {
@@ -166,8 +166,8 @@ describe("moveTodo", () => {
           name: "A",
           color: "#000",
           order: 0,
-          startDate: "2026-06-01",
-          endDate: "2026-06-30",
+          startDate: "2027-06-01",
+          endDate: "2027-06-30",
           createdAt: "",
         };
       }
@@ -178,8 +178,8 @@ describe("moveTodo", () => {
           name: "B",
           color: "#111",
           order: 1,
-          startDate: "2026-08-01",
-          endDate: "2026-08-31",
+          startDate: "2027-08-01",
+          endDate: "2027-08-31",
           createdAt: "",
         };
       }
@@ -200,10 +200,10 @@ describe("moveTodo", () => {
       priority: "medium",
       projectId,
       phaseId: phaseA,
-      deadline: "2026-06-15",
+      deadline: "2027-06-15",
       scheduledSlot: {
-        start: "2026-06-15T10:00:00.000Z",
-        end: "2026-06-15T11:00:00.000Z",
+        start: "2027-06-15T10:00:00.000Z",
+        end: "2027-06-15T11:00:00.000Z",
         calendarEventId: null,
       },
     });
@@ -215,7 +215,7 @@ describe("moveTodo", () => {
     const moved = await moveTodo(userId, "u3@test.com", todo.id, {
       phaseId: phaseB,
       strategy: "clearScheduledSlot",
-      deadline: "2026-08-15",
+      deadline: "2027-08-15",
     });
 
     expect(moved.phaseId).toBe(phaseB);

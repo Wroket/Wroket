@@ -5,8 +5,9 @@ import {
 import {
   getGoogleAccounts,
   getMicrosoftAccounts,
-  getEntitlementsForUid,
+  findUserByUid,
 } from "./authService";
+import { getEffectiveEntitlementsForUid } from "./teamService";
 import { listEventsForAccount } from "./googleCalendarService";
 import { listMicrosoftEventsForAccount } from "./microsoftCalendarService";
 import { listAssignedToMe, listTodos, type Todo } from "./todoService";
@@ -26,12 +27,14 @@ export async function findSlotConflicts(
   todoId: string,
   start: Date,
   end: Date,
+  userEmail?: string,
 ): Promise<SlotConflictInfo[]> {
   const conflicts: SlotConflictInfo[] = [];
-  const extCal = getEntitlementsForUid(uid).integrations;
+  const email = userEmail ?? findUserByUid(uid)?.email ?? "";
+  const extCal = getEffectiveEntitlementsForUid(uid, email).integrations;
 
-  const ownedTodos = listTodos(uid);
-  const assignedTodos = listAssignedToMe(uid);
+  const ownedTodos = await listTodos(uid);
+  const assignedTodos = await listAssignedToMe(uid);
   const wroketExternalIds = collectWroketCalendarEventIds([...ownedTodos, ...assignedTodos]);
 
   const checkTodo = (t: Todo) => {
@@ -83,7 +86,9 @@ export async function findSlotConflicts(
     for (const account of msAccounts) {
       for (const cal of account.calendars) {
         if (!cal.enabled || msFetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
-        msFetches.push(listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax));
+        msFetches.push(
+          listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax).catch(() => []),
+        );
       }
     }
     try {
