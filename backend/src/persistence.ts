@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+import { stripUndefinedDeep } from "./utils/firestoreSanitize";
+
 type Firestore = import("@google-cloud/firestore").Firestore;
 
 const USE_LOCAL = process.env.USE_LOCAL_STORE === "true";
@@ -365,11 +367,15 @@ async function saveToFirestore(): Promise<void> {
       continue;
     }
 
+    // Firestore rejects `undefined` anywhere in a document; without stripping, the
+    // watchdog retries the same invalid payload forever (incident 2026-06-30:
+    // store/notes `tags` and store/projects `phases[].externalRef`).
+    const sanitizedPayload = stripUndefinedDeep(op.payload) as FirebaseFirestore.DocumentData;
     let saved = false;
     for (let attempt = 1; attempt <= FIRESTORE_SAVE_RETRY_ATTEMPTS; attempt++) {
       try {
         const batch = db.batch();
-        batch.set(op.ref, op.payload as FirebaseFirestore.DocumentData);
+        batch.set(op.ref, sanitizedPayload);
         await batch.commit();
         if (op.domain) dirtyDomains.delete(op.domain);
         if (op.shardIndex !== undefined) dirtyTodoShards.delete(op.shardIndex);
@@ -474,7 +480,9 @@ export async function initStore(): Promise<void> {
   } else {
     try {
       const { Firestore: FirestoreClass } = await import("@google-cloud/firestore");
-      db = new FirestoreClass({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+      // ignoreUndefinedProperties: defense-in-depth so a single undefined field never
+      // blocks the whole store flush (incident 2026-06-30: store/notes + store/projects).
+      db = new FirestoreClass({ projectId: process.env.GOOGLE_CLOUD_PROJECT, ignoreUndefinedProperties: true });
       cachedStore = await loadFromFirestore();
       console.log("[persistence] Loaded from Firestore");
     } catch (err) {
