@@ -54,7 +54,7 @@ async function sendOutboundMail(
 ): Promise<nodemailer.SentMessageInfo> {
   const t = getTransporter();
   try {
-    const info = await sendOutboundMail(options);
+    const info = await t.sendMail(options);
     if (isSmtpConfiguredForOutbound()) {
       const { recordEmailDeliverySuccess } = await import("./emailDeliveryMonitor");
       recordEmailDeliverySuccess();
