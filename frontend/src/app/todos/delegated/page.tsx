@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
+import { useToast } from "@/components/Toast";
 import {
   getTodos,
   updateTodo,
@@ -15,10 +16,18 @@ import {
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useLocale } from "@/lib/LocaleContext";
+import {
+  affectedIdsForDelete,
+  applyOptimisticDeleteToList,
+  restoreTodosInList,
+  runOptimisticTaskDelete,
+  snapshotAffectedTodos,
+} from "@/lib/optimisticTaskDelete";
 import { useUserLookup } from "@/lib/userUtils";
 
 export default function DelegatedPage() {
   const { t } = useLocale();
+  const { toast } = useToast();
   const { user } = useAuth();
   const { resolveUser, displayName } = useUserLookup();
   const [allTodos, setAllTodos] = useState<Todo[]>([]);
@@ -76,31 +85,45 @@ export default function DelegatedPage() {
 
   const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
     setConfirmDelete(null);
-    try {
-      if (todo.status === "deleted") {
+    if (todo.status === "deleted") {
+      try {
         const restored = await updateTodo(todo.id, { status: "active" });
         setAllTodos((prev) => prev.map((t) => (t.id === restored.id ? restored : t)));
-      } else {
-        const subs = getSubtasks(todo.id);
+      } catch {
+        toast.error(t("toast.deleteError"));
+      }
+      return;
+    }
+    const subs = getSubtasks(todo.id);
+    const ids = affectedIdsForDelete(todo, subs, mode);
+    let snap: Todo[] = [];
+    let rollback = () => {};
+    await runOptimisticTaskDelete({
+      applyOptimistic: () => {
+        setAllTodos((prev) => {
+          snap = snapshotAffectedTodos(prev, ids);
+          return applyOptimisticDeleteToList(prev, todo, subs, mode);
+        });
+        rollback = () => setAllTodos((prev) => restoreTodosInList(prev, snap));
+      },
+      rollback: () => rollback(),
+      deleteOnServer: async () => {
         if (subs.length > 0) {
           if (mode === "promote") {
             const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-            setAllTodos((prev) => prev.map((t) => {
-              const p = promoted.find((u) => u.id === t.id);
-              return p ?? t;
-            }));
+            setAllTodos((prev) => prev.map((t) => promoted.find((u) => u.id === t.id) ?? t));
           } else {
             const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
-            setAllTodos((prev) => prev.map((t) => {
-              const d = deleted.find((u) => u.id === t.id);
-              return d ?? t;
-            }));
+            setAllTodos((prev) => prev.map((t) => deleted.find((u) => u.id === t.id) ?? t));
           }
         }
         const updated = await deleteTodo(todo.id);
         setAllTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      }
-    } catch { /* noop */ }
+      },
+      toast,
+      inProgressMessage: t("toast.deleteInProgress"),
+      errorMessage: t("toast.deleteError"),
+    });
   };
 
   const statusBadge = (status: TodoStatus) => {

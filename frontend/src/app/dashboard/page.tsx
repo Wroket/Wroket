@@ -13,6 +13,13 @@ import TaskImportModal from "@/components/TaskImportModal";
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
+  affectedIdsForDelete,
+  applyOptimisticDeleteToList,
+  restoreTodosInList,
+  runOptimisticTaskDelete,
+  snapshotAffectedTodos,
+} from "@/lib/optimisticTaskDelete";
+import {
   getTodos,
   getArchivedTodos,
   getAssignedTodos,
@@ -233,22 +240,44 @@ export default function DashboardPage() {
       const todo = confirmDeleteTask;
       if (!todo) return;
       setConfirmDeleteTask(null);
-      try {
-        const subs = getDashboardSubtasks(todo.id);
-        if (subs.length > 0) {
-          if (mode === "promote") {
-            const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-            promoted.forEach((u) => replaceTodoInLists(u));
-          } else {
-            const deletedSubs = await Promise.all(subs.map((s) => deleteTodo(s.id)));
-            deletedSubs.forEach((u) => replaceTodoInLists(u));
+      const subs = getDashboardSubtasks(todo.id);
+      const ids = affectedIdsForDelete(todo, subs, mode);
+      let snapMy: Todo[] = [];
+      let snapAssigned: Todo[] = [];
+      let rollback = () => {};
+      await runOptimisticTaskDelete({
+        applyOptimistic: () => {
+          setMyTodos((prev) => {
+            snapMy = snapshotAffectedTodos(prev, ids);
+            return applyOptimisticDeleteToList(prev, todo, subs, mode);
+          });
+          setAssignedTodos((prev) => {
+            snapAssigned = snapshotAffectedTodos(prev, ids);
+            return applyOptimisticDeleteToList(prev, todo, subs, mode);
+          });
+          rollback = () => {
+            setMyTodos((prev) => restoreTodosInList(prev, snapMy));
+            setAssignedTodos((prev) => restoreTodosInList(prev, snapAssigned));
+          };
+        },
+        rollback: () => rollback(),
+        deleteOnServer: async () => {
+          if (subs.length > 0) {
+            if (mode === "promote") {
+              const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+              promoted.forEach((u) => replaceTodoInLists(u));
+            } else {
+              const deletedSubs = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+              deletedSubs.forEach((u) => replaceTodoInLists(u));
+            }
           }
-        }
-        const updated = await deleteTodo(todo.id);
-        replaceTodoInLists(updated);
-      } catch {
-        toast.error(t("toast.deleteError"));
-      }
+          const updated = await deleteTodo(todo.id);
+          replaceTodoInLists(updated);
+        },
+        toast,
+        inProgressMessage: t("toast.deleteInProgress"),
+        errorMessage: t("toast.deleteError"),
+      });
     },
     [confirmDeleteTask, getDashboardSubtasks, replaceTodoInLists, toast, t],
   );

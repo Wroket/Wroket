@@ -10,6 +10,13 @@ import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
+  affectedIdsForDelete,
+  applyOptimisticDeleteToList,
+  restoreTodosInList,
+  runOptimisticTaskDelete,
+  snapshotAffectedTodos,
+} from "@/lib/optimisticTaskDelete";
+import {
   getTeams,
   getTeamDashboard,
   getTeamReporting,
@@ -253,22 +260,44 @@ export default function TeamDashboardPage() {
       if (!row || !data) return;
       const todo = row.todo;
       setTeamDeleteDialog(null);
-      try {
-        const subs = data.todos.filter((td) => td.parentId === todo.id);
-        if (subs.length > 0) {
-          if (mode === "promote") {
-            await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-          } else {
-            await Promise.all(subs.map((s) => deleteTodo(s.id)));
+      const subs = data.todos.filter((td) => td.parentId === todo.id);
+      const ids = affectedIdsForDelete(todo, subs, mode);
+      let snap: Todo[] = [];
+      let rollback = () => {};
+      await runOptimisticTaskDelete({
+        applyOptimistic: () => {
+          setData((prev) => {
+            if (!prev) return prev;
+            snap = snapshotAffectedTodos(prev.todos, ids);
+            return {
+              ...prev,
+              todos: applyOptimisticDeleteToList(prev.todos, todo, subs, mode),
+            };
+          });
+          rollback = () => {
+            setData((prev) => (prev ? { ...prev, todos: restoreTodosInList(prev.todos, snap) } : prev));
+          };
+        },
+        rollback: () => rollback(),
+        deleteOnServer: async () => {
+          if (subs.length > 0) {
+            if (mode === "promote") {
+              const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+              promoted.forEach((u) => replaceTodoInData(u));
+            } else {
+              const deleted = await Promise.all(subs.map((s) => deleteTodo(s.id)));
+              deleted.forEach((u) => replaceTodoInData(u));
+            }
           }
-        }
-        await deleteTodo(todo.id);
-        if (selectedTeamId) await loadDashboard(selectedTeamId);
-      } catch {
-        toast.error(t("toast.deleteError"));
-      }
+          const updated = await deleteTodo(todo.id);
+          replaceTodoInData(updated);
+        },
+        toast,
+        inProgressMessage: t("toast.deleteInProgress"),
+        errorMessage: t("toast.deleteError"),
+      });
     },
-    [teamDeleteDialog, data, selectedTeamId, loadDashboard, toast, t],
+    [teamDeleteDialog, data, replaceTodoInData, toast, t],
   );
 
   const formatDate = (iso: string) =>

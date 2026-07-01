@@ -18,6 +18,13 @@ import TaskIconToolbar from "@/components/TaskIconToolbar";
 import { useToast } from "@/components/Toast";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import { newClientEntityId } from "@/lib/newClientId";
+import {
+  affectedIdsForDelete,
+  applyOptimisticDeleteToList,
+  restoreTodosInList,
+  runOptimisticTaskDelete,
+  snapshotAffectedTodos,
+} from "@/lib/optimisticTaskDelete";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
 import TaskTemplatePicker, { type TemplateApplyPayload } from "@/components/TaskTemplatePicker";
@@ -1031,15 +1038,30 @@ export default function TodosPage() {
     [subtasksByParent],
   );
 
-  const performDeleteTask = useCallback(
+  const applyOptimisticDeleteForTask = useCallback(
+    (todo: Todo, mode: "promote" | "deleteAll"): (() => void) => {
+      const subs = getSubtasks(todo.id);
+      const ids = affectedIdsForDelete(todo, subs, mode);
+      let snapMy: Todo[] = [];
+      let snapAssigned: Todo[] = [];
+      setMyTodos((prev) => {
+        snapMy = snapshotAffectedTodos(prev, ids);
+        return applyOptimisticDeleteToList(prev, todo, subs, mode);
+      });
+      setAssignedTodos((prev) => {
+        snapAssigned = snapshotAffectedTodos(prev, ids);
+        return applyOptimisticDeleteToList(prev, todo, subs, mode);
+      });
+      return () => {
+        setMyTodos((prev) => restoreTodosInList(prev, snapMy));
+        setAssignedTodos((prev) => restoreTodosInList(prev, snapAssigned));
+      };
+    },
+    [getSubtasks],
+  );
+
+  const deleteTaskOnServer = useCallback(
     async (todo: Todo, mode: "promote" | "deleteAll") => {
-      const previousStatus = todo.status;
-      if (todo.status === "deleted") {
-        const restored = await updateTodo(todo.id, { status: "active" });
-        replaceTodoInLists(restored);
-        setLastAction({ todoId: todo.id, previousStatus });
-        return;
-      }
       const subs = getSubtasks(todo.id);
       if (subs.length > 0) {
         if (mode === "promote") {
@@ -1052,18 +1074,37 @@ export default function TodosPage() {
       }
       const updated = await deleteTodo(todo.id);
       replaceTodoInLists(updated);
-      setLastAction({ todoId: todo.id, previousStatus });
+      setLastAction({ todoId: todo.id, previousStatus: todo.status });
     },
-    [getSubtasks, replaceTodoInLists, mergeTodosIntoLists],
+    [getSubtasks, mergeTodosIntoLists, replaceTodoInLists],
+  );
+
+  const performDeleteTask = useCallback(
+    async (todo: Todo, mode: "promote" | "deleteAll") => {
+      if (todo.status === "deleted") {
+        const restored = await updateTodo(todo.id, { status: "active" });
+        replaceTodoInLists(restored);
+        setLastAction({ todoId: todo.id, previousStatus: "deleted" });
+        return;
+      }
+      let rollback = () => {};
+      await runOptimisticTaskDelete({
+        applyOptimistic: () => {
+          rollback = applyOptimisticDeleteForTask(todo, mode);
+        },
+        rollback: () => rollback(),
+        deleteOnServer: () => deleteTaskOnServer(todo, mode),
+        toast,
+        inProgressMessage: t("toast.deleteInProgress"),
+        errorMessage: t("toast.deleteError"),
+      });
+    },
+    [applyOptimisticDeleteForTask, deleteTaskOnServer, replaceTodoInLists, toast, t],
   );
 
   const executeDelete = async (todo: Todo, mode: "promote" | "deleteAll") => {
     setConfirmDelete(null);
-    try {
-      await performDeleteTask(todo, mode);
-    } catch {
-      toast.error(t("toast.deleteError"));
-    }
+    await performDeleteTask(todo, mode);
   };
 
   const requestDelete = (todo: Todo) => {
@@ -1133,18 +1174,29 @@ export default function TodosPage() {
     const items = c.todos;
     const subtasksTotal = c.subtaskCount;
     void (async () => {
-      try {
-        for (const todo of items) {
-          await performDeleteTask(todo, "deleteAll");
-        }
-        if (subtasksTotal > 0) {
-          toast.info(t("bulk.deleteInfoSubtasks").replace("{{count}}", String(subtasksTotal)));
-        }
-      } catch {
-        toast.error(t("toast.deleteError"));
-      } finally {
-        bumpRefresh();
+      let rollback = () => {};
+      const ok = await runOptimisticTaskDelete({
+        applyOptimistic: () => {
+          const rollbacks: Array<() => void> = [];
+          for (const todo of items) {
+            rollbacks.push(applyOptimisticDeleteForTask(todo, "deleteAll"));
+          }
+          rollback = () => rollbacks.forEach((fn) => fn());
+        },
+        rollback: () => rollback(),
+        deleteOnServer: async () => {
+          for (const todo of items) {
+            await deleteTaskOnServer(todo, "deleteAll");
+          }
+        },
+        toast,
+        inProgressMessage: t("toast.deleteInProgress"),
+        errorMessage: t("toast.deleteError"),
+      });
+      if (ok && subtasksTotal > 0) {
+        toast.info(t("bulk.deleteInfoSubtasks").replace("{{count}}", String(subtasksTotal)));
       }
+      bumpRefresh();
     })();
   };
 

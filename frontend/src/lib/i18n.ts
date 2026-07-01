@@ -3212,6 +3212,7 @@ const translations = {
   "toast.taskUpdated": { fr: "Tâche mise à jour", en: "Task updated" },
   "toast.updateError": { fr: "Erreur lors de la mise à jour", en: "Update failed" },
   "toast.notSignedIn": { fr: "Session requise pour cette action.", en: "You must be signed in." },
+  "toast.deleteInProgress": { fr: "Suppression en cours…", en: "Deleting…" },
   "toast.deleteError": { fr: "Erreur lors de la suppression", en: "Delete failed" },
   "toast.declineError": { fr: "Erreur lors du refus", en: "Decline failed" },
   "toast.acceptError": { fr: "Erreur lors de l'acceptation", en: "Accept failed" },

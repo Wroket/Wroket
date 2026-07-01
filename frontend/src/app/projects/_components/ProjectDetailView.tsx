@@ -27,6 +27,13 @@ import TaskEditModal from "@/components/TaskEditModal";
 import TaskBlockedModal, { type TaskBlockerInfo } from "@/components/TaskBlockedModal";
 import { useToast } from "@/components/Toast";
 import {
+  affectedIdsForDelete,
+  applyOptimisticDeleteToList,
+  restoreTodosInList,
+  runOptimisticTaskDelete,
+  snapshotAffectedTodos,
+} from "@/lib/optimisticTaskDelete";
+import {
   updateProject,
   getProjectTodos,
   createTodo,
@@ -1099,20 +1106,40 @@ export default function ProjectDetailView({
     if (!taskToDelete) return;
     const todo = taskToDelete;
     setTaskToDelete(null);
-    try {
-      const subs = getSubtasks(todo.id);
-      if (subs.length > 0) {
-        if (mode === "promote") {
-          await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-        } else {
-          await Promise.all(subs.map((s) => apiDeleteTodo(s.id)));
+    const subs = getSubtasks(todo.id);
+    const ids = affectedIdsForDelete(todo, subs, mode);
+    let snap: Todo[] = [];
+    let rollback = () => {};
+    await runOptimisticTaskDelete({
+      applyOptimistic: () => {
+        setProjectTodos((prev) => {
+          snap = snapshotAffectedTodos(prev, ids);
+          return applyOptimisticDeleteToList(prev, todo, subs, mode);
+        });
+        rollback = () => setProjectTodos((prev) => restoreTodosInList(prev, snap));
+      },
+      rollback: () => rollback(),
+      deleteOnServer: async () => {
+        if (subs.length > 0) {
+          if (mode === "promote") {
+            const promoted = await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+            setProjectTodos((prev) =>
+              prev.map((td) => promoted.find((u) => u.id === td.id) ?? td),
+            );
+          } else {
+            const deleted = await Promise.all(subs.map((s) => apiDeleteTodo(s.id)));
+            setProjectTodos((prev) =>
+              prev.map((td) => deleted.find((u) => u.id === td.id) ?? td),
+            );
+          }
         }
-      }
-      await apiDeleteTodo(todo.id);
-      await refreshProject(selectedProject.id);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
-    }
+        const updated = await apiDeleteTodo(todo.id);
+        setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
+      },
+      toast,
+      inProgressMessage: t("toast.deleteInProgress"),
+      errorMessage: t("toast.deleteError"),
+    });
   };
 
   const handlePromoteSubtask = async (sub: Todo) => {

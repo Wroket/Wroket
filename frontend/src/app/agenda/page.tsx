@@ -10,6 +10,10 @@ import TaskEditModal from "@/components/TaskEditModal";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useToast } from "@/components/Toast";
+import {
+  affectedIdsForDelete,
+  runOptimisticTaskDelete,
+} from "@/lib/optimisticTaskDelete";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import {
   getCalendarEvents,
@@ -748,24 +752,56 @@ export default function AgendaPage() {
       if (!row) return;
       const todo = row.todo;
       setDeleteTaskDialog(null);
-      try {
-        const [owned, assigned] = await Promise.all([getTodos(), getAssignedTodos()]);
-        const all = [...owned, ...assigned];
-        const subs = all.filter((td) => td.parentId === todo.id);
-        if (subs.length > 0) {
-          if (mode === "promote") {
-            await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
-          } else {
-            await Promise.all(subs.map((s) => deleteTodo(s.id)));
+      if (editingTodo?.id === todo.id) setEditingTodo(null);
+
+      const subs = [...agendaTodoById.values()].filter((td) => td.parentId === todo.id);
+      const ids = affectedIdsForDelete(todo, subs, mode);
+
+      let snapEvents: typeof wroketEvents = [];
+      let snapTodoMap = new Map<string, Todo>();
+      let rollback = () => {};
+
+      await runOptimisticTaskDelete({
+        applyOptimistic: () => {
+          setWroketEvents((prev) => {
+            snapEvents = prev;
+            return prev.filter((e) => e.source !== "wroket" || !ids.has(e.id));
+          });
+          setAgendaTodoById((prev) => {
+            snapTodoMap = new Map(prev);
+            const next = new Map(prev);
+            for (const id of ids) next.delete(id);
+            if (mode === "promote") {
+              for (const sub of subs) {
+                const cur = prev.get(sub.id);
+                if (cur) next.set(sub.id, { ...cur, parentId: null });
+              }
+            }
+            return next;
+          });
+          rollback = () => {
+            setWroketEvents(snapEvents);
+            setAgendaTodoById(snapTodoMap);
+          };
+        },
+        rollback: () => rollback(),
+        deleteOnServer: async () => {
+          if (subs.length > 0) {
+            if (mode === "promote") {
+              await Promise.all(subs.map((s) => updateTodo(s.id, { parentId: null })));
+            } else {
+              await Promise.all(subs.map((s) => deleteTodo(s.id)));
+            }
           }
-        }
-        await deleteTodo(todo.id);
-        await refreshCalendarForRange();
-      } catch {
-        toast.error(t("toast.deleteError"));
-      }
+          await deleteTodo(todo.id);
+          void refreshCalendarForRange();
+        },
+        toast,
+        inProgressMessage: t("toast.deleteInProgress"),
+        errorMessage: t("toast.deleteError"),
+      });
     },
-    [deleteTaskDialog, refreshCalendarForRange, toast, t],
+    [deleteTaskDialog, editingTodo?.id, agendaTodoById, refreshCalendarForRange, toast, t],
   );
 
   const handleEditAssignLookup = (email: string) => {
