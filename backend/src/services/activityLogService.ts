@@ -33,6 +33,47 @@ const MAX_ENTRIES = 10_000;
 const COLLECTION = process.env.ACTIVITY_LOG_COLLECTION?.trim() || "activity_log_v2";
 const USE_LOCAL = process.env.USE_LOCAL_STORE === "true";
 
+/**
+ * Anti-spam: collapse repeated identical `update` entries (same user + entity +
+ * changed fields) within this window so autosave (e.g. note content every ~1s)
+ * produces at most one audit row per window instead of dozens. Also cuts
+ * Firestore writes. `ACTIVITY_LOG_THROTTLE_MS=0` disables it. In-memory per
+ * instance (Cloud Run max 2 → at worst 2 rows/window). create/delete/etc. are
+ * never throttled.
+ */
+const THROTTLE_MS = (() => {
+  const raw = process.env.ACTIVITY_LOG_THROTTLE_MS;
+  if (raw === undefined) return 60_000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 60_000;
+})();
+const THROTTLED_ACTIONS = new Set(["update"]);
+const lastLoggedAt = new Map<string, number>();
+
+function isThrottled(
+  userId: string,
+  action: string,
+  entityType: string,
+  entityId: string,
+  details?: Record<string, unknown>,
+): boolean {
+  if (THROTTLE_MS <= 0 || !THROTTLED_ACTIONS.has(action)) return false;
+  const fields = Array.isArray(details?.fields)
+    ? [...(details!.fields as unknown[])].map(String).sort().join(",")
+    : "";
+  const key = `${userId}|${action}|${entityType}|${entityId}|${fields}`;
+  const now = Date.now();
+  const last = lastLoggedAt.get(key);
+  if (last !== undefined && now - last < THROTTLE_MS) return true;
+  lastLoggedAt.set(key, now);
+  if (lastLoggedAt.size > 2000) {
+    for (const [k, ts] of lastLoggedAt) {
+      if (now - ts > THROTTLE_MS) lastLoggedAt.delete(k);
+    }
+  }
+  return false;
+}
+
 const activityLog: ActivityLogEntry[] = [];
 
 let db: Firestore | null = null;
@@ -90,6 +131,7 @@ export function logActivity(
   entityId: string,
   details?: Record<string, unknown>,
 ): void {
+  if (isThrottled(userId, action, entityType, entityId, details)) return;
   const entry: ActivityLogEntry = {
     id: crypto.randomUUID(),
     userId,
