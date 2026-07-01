@@ -31,6 +31,11 @@ import {
   setTotpEmailFallback as setTotpEmailFallbackService,
   requestDisableEmail2faOtp as requestDisableEmail2faOtpService,
   disableEmailOtp2fa as disableEmailOtp2faService,
+  listSessionsForUser,
+  revokeSession as revokeSessionService,
+  revokeOtherSessions as revokeOtherSessionsService,
+  getSessionTokenFromCookies,
+  type SessionCreateMeta,
 } from "../services/authService";
 import { isAdmin as emailIsInAdminAllowlist } from "../services/adminService";
 import { getFreeQuotaSnapshot } from "../services/quotaUsageService";
@@ -99,6 +104,11 @@ function baseCookieOpts(): { httpOnly: boolean; sameSite: "lax"; secure: boolean
 
 function clearCookieOpts(): { path: string; domain?: string } {
   return { path: "/", ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}) };
+}
+
+function sessionMetaFromReq(req: Request): SessionCreateMeta | undefined {
+  const ua = req.headers["user-agent"];
+  return typeof ua === "string" && ua.trim() ? { userAgent: ua } : undefined;
 }
 
 const MAX_INVITE_LOG = 10_000;
@@ -242,7 +252,7 @@ export async function googleSsoCallback(req: Request, res: Response) {
       firstName: userInfo.given_name ?? "",
       lastName: userInfo.family_name ?? "",
       timezone,
-    });
+    }, sessionMetaFromReq(req));
 
     await flushNow();
 
@@ -328,7 +338,7 @@ export async function microsoftSsoCallback(req: Request, res: Response) {
       firstName: userInfo.firstName,
       lastName: userInfo.lastName,
       timezone,
-    });
+    }, sessionMetaFromReq(req));
 
     await flushNow();
 
@@ -358,7 +368,12 @@ export async function login(req: Request, res: Response) {
     throw new ValidationError("Email et mot de passe requis");
   }
 
-  const result = loginService({ email, password, timezone: typeof timezone === "string" ? timezone : undefined });
+  const result = loginService({
+    email,
+    password,
+    timezone: typeof timezone === "string" ? timezone : undefined,
+    userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
+  });
 
   await flushNow();
 
@@ -465,7 +480,7 @@ export async function verifyTwoFactor(req: Request, res: Response) {
     throw new ValidationError("Jeton et code requis");
   }
 
-  const result = verifyTwoFactorLoginService(pendingToken, code);
+  const result = verifyTwoFactorLoginService(pendingToken, code, sessionMetaFromReq(req));
   await flushNow();
 
   res.cookie(COOKIE_NAME, result.sessionToken, {
@@ -721,10 +736,35 @@ export async function changePassword(req: Request, res: Response) {
   if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
     throw new ValidationError("Mot de passe actuel et nouveau requis");
   }
-  const cookies = parseCookies(req.headers.cookie);
-  const sessionToken = cookies.auth_token;
-  changePasswordService(user.uid, currentPassword, newPassword, sessionToken);
+  const sessionToken = getSessionTokenFromCookies(req.headers.cookie);
+  changePasswordService(user.uid, currentPassword, newPassword, sessionToken ?? undefined);
   res.status(200).json({ message: "Mot de passe modifié" });
+}
+
+export async function listMySessions(req: AuthenticatedRequest, res: Response) {
+  const token = getSessionTokenFromCookies(req.headers.cookie);
+  const sessions = listSessionsForUser(req.user!.uid, token);
+  res.status(200).json({ sessions });
+}
+
+export async function revokeMySession(req: AuthenticatedRequest, res: Response) {
+  const sessionId = req.params.sessionId as string;
+  if (!sessionId?.trim()) throw new ValidationError("Identifiant de session requis");
+  const token = getSessionTokenFromCookies(req.headers.cookie);
+  revokeSessionService(req.user!.uid, sessionId.trim(), token);
+  await flushNow();
+  res.status(200).json({ ok: true });
+}
+
+export async function revokeMyOtherSessions(req: AuthenticatedRequest, res: Response) {
+  const scope = typeof req.query.scope === "string" ? req.query.scope : "";
+  if (scope !== "others") {
+    throw new ValidationError("Utilisez ?scope=others pour déconnecter les autres appareils");
+  }
+  const token = getSessionTokenFromCookies(req.headers.cookie);
+  const removed = revokeOtherSessionsService(req.user!.uid, token);
+  await flushNow();
+  res.status(200).json({ ok: true, removed });
 }
 
 export async function myExport(req: Request, res: Response) {

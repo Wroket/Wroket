@@ -42,6 +42,9 @@ export {
   updateProfile,
   logout,
   changePassword,
+  getMySessions,
+  revokeMySession,
+  revokeOtherSessions,
   getMyExport,
   deleteMyAccount,
   getMyActivity,
@@ -49,7 +52,7 @@ export {
   lookupUser,
   lookupUserByUid,
 } from "./auth";
-export type { SearchResult, LoginOutcome, TwoFactorMethod } from "./auth";
+export type { SearchResult, LoginOutcome, TwoFactorMethod, UserSessionInfo } from "./auth";
 
 export {
   getTodos,

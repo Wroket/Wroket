@@ -402,6 +402,47 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 }
 
+export interface UserSessionInfo {
+  id: string;
+  deviceLabel: string;
+  userAgent?: string;
+  createdAt: number;
+  expiresAt: number;
+  current: boolean;
+}
+
+export async function getMySessions(): Promise<UserSessionInfo[]> {
+  const res = await fetch(`${API_BASE_URL}/auth/sessions`, { credentials: "include" });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de charger les sessions"));
+  }
+  const data = (await res.json()) as { sessions: UserSessionInfo[] };
+  return data.sessions;
+}
+
+export async function revokeMySession(sessionId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de révoquer la session"));
+  }
+}
+
+export async function revokeOtherSessions(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/sessions?scope=others`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de déconnecter les autres appareils"));
+  }
+}
+
 export async function getMyExport(): Promise<Record<string, unknown>> {
   const res = await fetch(`${API_BASE_URL}/auth/my-export`, { credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger l'export");

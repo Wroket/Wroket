@@ -31,6 +31,10 @@ import {
   putTotpEmailFallback,
   requestEmail2faDisableOtp,
   disableEmailOtp2fa,
+  getMySessions,
+  revokeMySession,
+  revokeOtherSessions,
+  type UserSessionInfo,
   type WorkingHours,
   type WebhookConfig,
   type WebhookEvent,
@@ -307,6 +311,195 @@ function ProfileSection() {
         </button>
         {saved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.saved")}</span>}
       </div>
+    </div>
+  );
+}
+
+function ConnectedDevicesSection() {
+  const { t, locale } = useLocale();
+  const { toast } = useToast();
+  const [sessions, setSessions] = useState<UserSessionInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [revokeOthersOpen, setRevokeOthersOpen] = useState(false);
+  const [revokingOthers, setRevokingOthers] = useState(false);
+
+  const dateLoc = locale === "en" ? "en-US" : "fr-FR";
+  const formatTs = (ms: number) =>
+    new Date(ms).toLocaleString(dateLoc, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const loadSessions = useCallback(async () => {
+    setError(null);
+    try {
+      const list = await getMySessions();
+      setSessions(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  const handleRevoke = async (sessionId: string) => {
+    setBusyId(sessionId);
+    setError(null);
+    try {
+      await revokeMySession(sessionId);
+      await loadSessions();
+      toast.success(t("settings.sessions.revokeSuccess"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRevokeOthers = async () => {
+    setRevokingOthers(true);
+    setError(null);
+    try {
+      await revokeOtherSessions();
+      setRevokeOthersOpen(false);
+      await loadSessions();
+      toast.success(t("settings.sessions.revokeOthersSuccess"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("login.error"));
+    } finally {
+      setRevokingOthers(false);
+    }
+  };
+
+  const otherCount = sessions.filter((s) => !s.current).length;
+
+  return (
+    <div className="pt-6 border-t border-zinc-200 dark:border-slate-700 space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("settings.sessions.title")}</h3>
+        <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("settings.sessions.desc")}</p>
+      </div>
+
+      {loading && <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.securityLoading")}</p>}
+
+      {error && (
+        <p
+          role="alert"
+          className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md px-3 py-2"
+        >
+          {error}
+        </p>
+      )}
+
+      {!loading && !error && sessions.length === 0 && (
+        <p className="text-sm text-zinc-500 dark:text-slate-400">{t("settings.sessions.empty")}</p>
+      )}
+
+      {!loading && sessions.length > 0 && (
+        <>
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-slate-700">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-zinc-50 dark:bg-slate-800/80 text-zinc-600 dark:text-slate-400">
+                <tr>
+                  <th className="px-3 py-2 font-medium">{t("settings.sessions.device")}</th>
+                  <th className="px-3 py-2 font-medium">{t("settings.sessions.connectedAt")}</th>
+                  <th className="px-3 py-2 font-medium">{t("settings.sessions.expiresAt")}</th>
+                  <th className="px-3 py-2 font-medium w-36" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-slate-700">
+                {sessions.map((s) => (
+                  <tr key={s.id} className="text-zinc-800 dark:text-slate-200">
+                    <td className="px-3 py-2.5">
+                      <span className="font-medium">{s.deviceLabel || t("settings.sessions.unknownDevice")}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-zinc-600 dark:text-slate-400 whitespace-nowrap">{formatTs(s.createdAt)}</td>
+                    <td className="px-3 py-2.5 text-zinc-600 dark:text-slate-400 whitespace-nowrap">{formatTs(s.expiresAt)}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      {s.current ? (
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                          {t("settings.sessions.currentDevice")}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyId === s.id}
+                          onClick={() => void handleRevoke(s.id)}
+                          className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50"
+                        >
+                          {busyId === s.id ? "…" : t("settings.sessions.revoke")}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {otherCount > 0 && (
+            <button
+              type="button"
+              disabled={revokingOthers}
+              onClick={() => setRevokeOthersOpen(true)}
+              className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60 transition-colors"
+            >
+              {t("settings.sessions.revokeOthers")}
+            </button>
+          )}
+        </>
+      )}
+
+      {revokeOthersOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-default border-0 p-0"
+            aria-label={t("a11y.close")}
+            onClick={() => !revokingOthers && setRevokeOthersOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sessions-revoke-others-title"
+            className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-zinc-200 dark:border-slate-700 max-w-md w-full p-6"
+          >
+            <h2 id="sessions-revoke-others-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
+              {t("settings.sessions.revokeOthersConfirmTitle")}
+            </h2>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400">
+              {t("settings.sessions.revokeOthersConfirmBody")}
+            </p>
+            <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button
+                type="button"
+                disabled={revokingOthers}
+                onClick={() => setRevokeOthersOpen(false)}
+                className="rounded-lg border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-60"
+              >
+                {t("settings.sessions.cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={revokingOthers}
+                onClick={() => void handleRevokeOthers()}
+                className="rounded-lg bg-red-600 dark:bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:hover:bg-red-400 disabled:opacity-60"
+              >
+                {revokingOthers ? "…" : t("settings.sessions.revokeOthersConfirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -851,6 +1044,8 @@ function SecuritySection() {
           </div>
         </div>
       )}
+
+      <ConnectedDevicesSection />
     </div>
   );
 }

@@ -34,6 +34,9 @@ import {
   putTotpEmailFallback,
   email2faDisableRequest,
   email2faDisable,
+  listMySessions,
+  revokeMySession,
+  revokeMyOtherSessions,
 } from "../controllers/authController";
 import { globalSearch } from "../controllers/searchController";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -103,6 +106,9 @@ authRoutes.get("/microsoft/url", authLimiter, microsoftSsoUrl);
 authRoutes.get("/microsoft/callback", authLimiter, microsoftSsoCallback);
 authRoutes.post("/share-invite", requireAuth, authLimiter, shareInvite);
 authRoutes.get("/me", requireAuth, getMe);
+authRoutes.get("/sessions", requireAuth, listMySessions);
+authRoutes.delete("/sessions", requireAuth, revokeMyOtherSessions);
+authRoutes.delete("/sessions/:sessionId", requireAuth, revokeMySession);
 authRoutes.post("/2fa/setup", requireAuth, twoFaManageLimiter, totpSetup);
 authRoutes.post("/2fa/enable", requireAuth, twoFaManageLimiter, totpEnable);
 authRoutes.post("/2fa/disable", requireAuth, twoFaManageLimiter, totpDisable);

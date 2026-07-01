@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave, flushNow } from "../persistence";
+import { deviceLabelFromUserAgent, truncateUserAgent } from "../utils/sessionDevice";
 import {
   buildKeyUri,
   createPendingTwoFactorToken,
@@ -514,10 +515,29 @@ interface StoredUser {
 }
 
 interface StoredSession {
+  /** Public id for listing / revocation (legacy sessions get one at hydrate). */
+  id: string;
   uid: string;
   expiresAt: number;
   createdAt: number;
+  userAgent?: string;
+  deviceLabel?: string;
 }
+
+export interface SessionCreateMeta {
+  userAgent?: string;
+}
+
+export interface UserSessionInfo {
+  id: string;
+  deviceLabel: string;
+  userAgent?: string;
+  createdAt: number;
+  expiresAt: number;
+  current: boolean;
+}
+
+const MAX_SESSIONS_PER_USER = 10;
 
 const usersByUid = new Map<string, StoredUser>();
 const sessionsByToken = new Map<string, StoredSession>();
@@ -550,12 +570,18 @@ function persistSessions(): void {
 
   if (store.sessions) {
     const now = Date.now();
+    let migrated = false;
     for (const [token, session] of Object.entries(store.sessions)) {
       const s = session as StoredSession;
       if (now <= s.expiresAt) {
+        if (!s.id) {
+          s.id = crypto.randomUUID();
+          migrated = true;
+        }
         sessionsByToken.set(token, s);
       }
     }
+    if (migrated) persistSessions();
     console.log("[auth] %d session(s) chargée(s) depuis le fichier local", sessionsByToken.size);
   }
 })();
@@ -747,16 +773,36 @@ function createPendingTokenForUser(user: StoredUser): string {
   return createPendingTwoFactorToken(user.uid, "totp");
 }
 
-function issueSessionToken(uid: string): LoginSuccess {
+function pruneOldestSessionsForUser(uid: string): void {
+  const entries: Array<{ token: string; session: StoredSession }> = [];
+  for (const [token, session] of sessionsByToken) {
+    if (session.uid === uid) entries.push({ token, session });
+  }
+  if (entries.length < MAX_SESSIONS_PER_USER) return;
+  entries.sort((a, b) => a.session.createdAt - b.session.createdAt);
+  const excess = entries.length - MAX_SESSIONS_PER_USER + 1;
+  for (let i = 0; i < excess; i++) {
+    sessionsByToken.delete(entries[i].token);
+  }
+}
+
+function issueSessionToken(uid: string, meta?: SessionCreateMeta): LoginSuccess {
   const user = usersByUid.get(uid);
   if (!user) throw new NotFoundError("Utilisateur introuvable");
-  for (const [tok, sess] of sessionsByToken) {
-    if (sess.uid === uid) sessionsByToken.delete(tok);
-  }
+  pruneOldestSessionsForUser(uid);
   const sessionToken = crypto.randomBytes(32).toString("hex");
   const now = Date.now();
   const expiresAt = now + SESSION_TTL_MS;
-  sessionsByToken.set(sessionToken, { uid, expiresAt, createdAt: now });
+  const userAgent = truncateUserAgent(meta?.userAgent);
+  const deviceLabel = deviceLabelFromUserAgent(userAgent);
+  sessionsByToken.set(sessionToken, {
+    id: crypto.randomUUID(),
+    uid,
+    expiresAt,
+    createdAt: now,
+    userAgent,
+    deviceLabel,
+  });
   persistSessions();
   void flushNow();
   return { ...toAuthUser(user), sessionToken };
@@ -945,6 +991,7 @@ export interface LoginInput {
   email: string;
   password: string;
   timezone?: string;
+  userAgent?: string;
 }
 
 export function login(input: LoginInput): LoginResult {
@@ -996,7 +1043,7 @@ export function login(input: LoginInput): LoginResult {
     };
   }
 
-  return issueSessionToken(uid);
+  return issueSessionToken(uid, { userAgent: input.userAgent });
 }
 
 function extractSessionToken(cookies: string | undefined): string | null {
@@ -1338,7 +1385,10 @@ export function patchStripeBillingForUid(
  * Logs in (or registers) a user via Google SSO.
  * The email is auto-verified since Google has already validated it.
  */
-export function loginWithGoogle(profile: { email: string; firstName: string; lastName: string; timezone?: string }): LoginResult {
+export function loginWithGoogle(
+  profile: { email: string; firstName: string; lastName: string; timezone?: string },
+  meta?: SessionCreateMeta,
+): LoginResult {
   const email = normalizeEmail(profile.email);
   const uid = uidFromEmail(email);
   let user = usersByUid.get(uid);
@@ -1391,16 +1441,23 @@ export function loginWithGoogle(profile: { email: string; firstName: string; las
     };
   }
 
-  return issueSessionToken(uid);
+  return issueSessionToken(uid, meta);
 }
 
 /** Same as Google SSO — Microsoft / Entra ID has already validated email. */
-export function loginWithMicrosoft(profile: { email: string; firstName: string; lastName: string; timezone?: string }): LoginResult {
-  return loginWithGoogle(profile);
+export function loginWithMicrosoft(
+  profile: { email: string; firstName: string; lastName: string; timezone?: string },
+  meta?: SessionCreateMeta,
+): LoginResult {
+  return loginWithGoogle(profile, meta);
 }
 
 /** After password or Google pre-auth, validate TOTP and/or email OTP and open session */
-export function verifyTwoFactorLogin(pendingToken: string, code: string): LoginSuccess {
+export function verifyTwoFactorLogin(
+  pendingToken: string,
+  code: string,
+  meta?: SessionCreateMeta,
+): LoginSuccess {
   const row = getPendingRow(pendingToken);
   if (!row) {
     throw new AppError(401, "Session 2FA expirée ou invalide. Reconnectez-vous.");
@@ -1424,7 +1481,7 @@ export function verifyTwoFactorLogin(pendingToken: string, code: string): LoginS
     throw new AppError(401, "Code d'authentification invalide");
   }
   deletePendingToken(pendingToken);
-  return issueSessionToken(row.uid);
+  return issueSessionToken(row.uid, meta);
 }
 
 export function beginTotpSetup(uid: string): { otpauthUrl: string; secret: string } {
@@ -1669,6 +1726,70 @@ export function logout(cookies: string | undefined): void {
     persistSessions();
     void flushNow();
   }
+}
+
+/** Cookie session token for the current request (used by session revocation APIs). */
+export function getSessionTokenFromCookies(cookies: string | undefined): string | null {
+  return extractSessionToken(cookies);
+}
+
+/**
+ * Lists active sessions for a user. `currentToken` marks the caller's session.
+ */
+export function listSessionsForUser(uid: string, currentToken?: string | null): UserSessionInfo[] {
+  const now = Date.now();
+  const out: UserSessionInfo[] = [];
+  for (const [token, session] of sessionsByToken) {
+    if (session.uid !== uid || now > session.expiresAt) continue;
+    out.push({
+      id: session.id,
+      deviceLabel: session.deviceLabel ?? deviceLabelFromUserAgent(session.userAgent),
+      userAgent: session.userAgent,
+      createdAt: session.createdAt,
+      expiresAt: session.expiresAt,
+      current: !!currentToken && token === currentToken,
+    });
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+function findSessionTokenById(uid: string, sessionId: string): string | null {
+  for (const [token, session] of sessionsByToken) {
+    if (session.uid === uid && session.id === sessionId) return token;
+  }
+  return null;
+}
+
+/** Revokes one session by public id. Cannot revoke the current session. */
+export function revokeSession(uid: string, sessionId: string, currentToken?: string | null): void {
+  const token = findSessionTokenById(uid, sessionId);
+  if (!token) throw new NotFoundError("Session introuvable");
+  if (currentToken && token === currentToken) {
+    throw new AppError(400, "Impossible de révoquer la session en cours", "SESSION_REVOKE_CURRENT");
+  }
+  sessionsByToken.delete(token);
+  persistSessions();
+  void flushNow();
+}
+
+/** Revokes all sessions for the user except the current one. */
+export function revokeOtherSessions(uid: string, currentToken: string | null | undefined): number {
+  if (!currentToken) {
+    throw new AppError(400, "Session courante requise", "SESSION_CURRENT_REQUIRED");
+  }
+  let removed = 0;
+  for (const [token, session] of sessionsByToken) {
+    if (session.uid === uid && token !== currentToken) {
+      sessionsByToken.delete(token);
+      removed++;
+    }
+  }
+  if (removed > 0) {
+    persistSessions();
+    void flushNow();
+  }
+  return removed;
 }
 
 // ── Google Accounts (multi-account) ──
