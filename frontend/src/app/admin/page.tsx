@@ -1065,7 +1065,7 @@ export default function AdminPage() {
                   id="activity-filter-entity"
                   value={activityEntityType}
                   onChange={(e) => setActivityEntityType(e.target.value)}
-                  placeholder="todo, project, user…"
+                  placeholder="todo, note, project, database…"
                   className="rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm px-2 py-1.5 w-36"
                 />
               </div>
@@ -1130,7 +1130,12 @@ export default function AdminPage() {
                       }`}>{a.action}</span>
                     </td>
                     <td className="px-4 py-3 text-zinc-700 dark:text-slate-300 text-xs">
-                      {a.entityType} <span className="text-zinc-400 dark:text-slate-500">{a.details && (a.details as Record<string, unknown>).title ? `— ${(a.details as Record<string, unknown>).title}` : ""}</span>
+                      {a.entityType} <span className="text-zinc-400 dark:text-slate-500">{(() => {
+                        const d = (a.details ?? {}) as Record<string, unknown>;
+                        const label = (d.title ?? d.name) as string | undefined;
+                        const fields = Array.isArray(d.fields) ? (d.fields as string[]) : [];
+                        return `${label ? `— ${label}` : ""}${fields.length ? ` [${fields.join(", ")}]` : ""}`;
+                      })()}</span>
                     </td>
                   </tr>
                 ))}

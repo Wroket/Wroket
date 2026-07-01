@@ -27,6 +27,7 @@ import {
   removePersistedNoteFolderIfPresent,
 } from "../services/noteFolderService";
 import { ValidationError } from "../utils/errors";
+import { logActivity } from "../services/activityLogService";
 
 const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
 function csvSafe(value: string): string {
@@ -85,6 +86,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
   }
   const input = body as CreateNoteInput;
   const note = createNote(req.user!.uid, input);
+  logActivity(req.user!.uid, req.user!.email ?? "", "create", "note", note.id, { title: note.title });
   res.status(201).json(note);
 }
 
@@ -153,12 +155,17 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     }
   }
 
+  logActivity(uid, req.user!.email ?? "", "update", "note", note.id, { title: note.title, fields: Object.keys(body) });
   res.status(200).json(note);
 }
 
 export async function remove(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
-  deleteNote(req.user!.uid, id);
+  const uid = req.user!.uid;
+  let title: string | undefined;
+  try { title = getNote(uid, id).title; } catch { /* note already gone: log without title */ }
+  deleteNote(uid, id);
+  logActivity(uid, req.user!.email ?? "", "delete", "note", id, title ? { title } : undefined);
   res.status(200).json({ ok: true });
 }
 
@@ -169,12 +176,14 @@ export async function listArchived(req: AuthenticatedRequest, res: Response) {
 export async function restoreArchived(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const note = restoreArchivedNote(req.user!.uid, id);
+  logActivity(req.user!.uid, req.user!.email ?? "", "restore", "note", note.id, { title: note.title });
   res.status(200).json(note);
 }
 
 export async function purgeArchived(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   permanentlyDeleteArchivedNote(req.user!.uid, id);
+  logActivity(req.user!.uid, req.user!.email ?? "", "purge", "note", id);
   res.status(200).json({ ok: true });
 }
 

@@ -323,7 +323,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   }
 
   try {
-    logActivity(req.user!.uid, req.user!.email ?? "", "update", "todo", todo.id, { todoId: todo.id, title: todo.title });
+    logActivity(req.user!.uid, req.user!.email ?? "", "update", "todo", todo.id, { todoId: todo.id, title: todo.title, fields: Object.keys(req.body ?? {}) });
   } catch (err) {
     console.warn("[todo.update] activity log failed:", err);
   }
