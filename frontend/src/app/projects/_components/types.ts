@@ -23,6 +23,10 @@ export interface ProjectTemplate {
   label: { fr: string; en: string };
   description: { fr: string; en: string };
   phases: TemplatePhase[];
+  /** Conçu pour le palier Free (volume ≤ 25 todos sur projet personnel). */
+  freeTier?: boolean;
+  /** Palier minimum si non freeTier (défaut first = Pro). */
+  minBillingPlan?: "first" | "small" | "large";
 }
 
 /** Legacy alias for code that still uses TEMPLATE_PHASES (name-only). */
@@ -37,7 +41,60 @@ export const TEMPLATE_PHASES: { name: { fr: string; en: string } }[] = [
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
+    id: "quick-start",
+    label: { fr: "Démarrage rapide", en: "Quick start" },
+    description: {
+      fr: "Structure minimale pour lancer un projet : 2 phases, tâches essentielles.",
+      en: "Minimal structure to kick off a project: 2 phases, essential tasks.",
+    },
+    freeTier: true,
+    phases: [
+      {
+        name: { fr: "Lancement", en: "Kickoff" },
+        tasks: [
+          { title: { fr: "Définir l'objectif", en: "Define the goal" }, subtasks: [{ title: { fr: "Périmètre initial", en: "Initial scope" } }] },
+          { title: { fr: "Identifier les parties prenantes", en: "Identify stakeholders" }, subtasks: [{ title: { fr: "Liste des contacts clés", en: "Key contacts list" } }] },
+        ],
+      },
+      {
+        name: { fr: "Premières actions", en: "First actions" },
+        tasks: [
+          { title: { fr: "Planifier la semaine 1", en: "Plan week 1" }, subtasks: [{ title: { fr: "Prioriser les tâches", en: "Prioritise tasks" } }] },
+          { title: { fr: "Valider le plan", en: "Validate the plan" }, subtasks: [{ title: { fr: "Point de validation", en: "Validation checkpoint" } }] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "agile-sprint-lite",
+    label: { fr: "Sprint Agile (léger)", en: "Agile Sprint (lite)" },
+    description: {
+      fr: "Version allégée : planification du sprint et rétrospective (palier Free).",
+      en: "Lightweight version: sprint planning and retrospective (Free tier).",
+    },
+    freeTier: true,
+    phases: [
+      {
+        name: { fr: "Planification du Sprint", en: "Sprint Planning" },
+        tasks: [
+          { title: { fr: "Affiner le backlog", en: "Refine backlog" }, subtasks: [{ title: { fr: "Reprioriser les stories", en: "Reprioritise stories" } }, { title: { fr: "Estimer les points", en: "Estimate points" } }] },
+          { title: { fr: "Définir l'objectif du sprint", en: "Define sprint goal" }, subtasks: [{ title: { fr: "Choisir les stories", en: "Select stories" } }, { title: { fr: "Valider la capacité", en: "Validate capacity" } }] },
+          { title: { fr: "Créer le sprint backlog", en: "Create sprint backlog" }, subtasks: [{ title: { fr: "Découper en tâches", en: "Break into tasks" } }, { title: { fr: "Assigner", en: "Assign" } }] },
+        ],
+      },
+      {
+        name: { fr: "Rétrospective", en: "Retrospective" },
+        tasks: [
+          { title: { fr: "Ce qui a bien marché", en: "What went well" }, subtasks: [{ title: { fr: "Points positifs", en: "Positives" } }, { title: { fr: "Succès techniques", en: "Technical wins" } }] },
+          { title: { fr: "Points à améliorer", en: "Improvement areas" }, subtasks: [{ title: { fr: "Obstacles", en: "Obstacles" } }, { title: { fr: "Processus", en: "Process issues" } }] },
+          { title: { fr: "Actions correctives", en: "Action items" }, subtasks: [{ title: { fr: "Actions prioritaires", en: "Priority actions" } }, { title: { fr: "Responsables", en: "Owners" } }] },
+        ],
+      },
+    ],
+  },
+  {
     id: "basic",
+    minBillingPlan: "first",
     label: { fr: "Basique", en: "Basic" },
     description: {
       fr: "Phases classiques d'un projet avec structure générique: 3 tâches et 2 sous-tâches par tâche.",
@@ -96,6 +153,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "software",
+    minBillingPlan: "first",
     label: { fr: "Projet logiciel", en: "Software project" },
     description: { fr: "Phases classiques : cadrage, conception, dev, QA, déploiement, clôture — avec tâches et sous-tâches exemple.", en: "Classic phases: scoping, design, dev, QA, deployment, closure — with sample tasks and subtasks." },
     phases: [
@@ -151,6 +209,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "product-launch",
+    minBillingPlan: "first",
     label: { fr: "Lancement produit", en: "Product launch" },
     description: { fr: "De la stratégie au go-live : recherche, positionnement, marketing, lancement et suivi.", en: "From strategy to go-live: research, positioning, marketing, launch and monitoring." },
     phases: [
@@ -190,6 +249,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "website-redesign",
+    minBillingPlan: "first",
     label: { fr: "Refonte de site web", en: "Website redesign" },
     description: { fr: "Audit, conception, développement et mise en ligne d'un nouveau site.", en: "Audit, design, development and go-live for a new website." },
     phases: [
@@ -229,6 +289,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "client-onboarding",
+    minBillingPlan: "first",
     label: { fr: "Onboarding client", en: "Client onboarding" },
     description: { fr: "Accueil, intégration et fidélisation d'un nouveau client.", en: "Welcome, integration and retention of a new client." },
     phases: [
@@ -268,6 +329,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "recruitment",
+    minBillingPlan: "first",
     label: { fr: "Recrutement", en: "Recruitment" },
     description: { fr: "Processus de recrutement de la définition du poste à l'intégration du candidat.", en: "Recruitment process from job definition to candidate integration." },
     phases: [
@@ -307,6 +369,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "agile-sprint",
+    minBillingPlan: "first",
     label: { fr: "Sprint Agile (2 semaines)", en: "Agile Sprint (2 weeks)" },
     description: { fr: "Cadre Scrum léger : planification, exécution, revue et rétrospective.", en: "Lightweight Scrum: planning, execution, review and retrospective." },
     phases: [
@@ -359,6 +422,44 @@ export function getHealthConfig(t: (key: TranslationKey) => string): Record<Proj
     "at-risk": { label: t("projects.healthAtRisk"), color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/30", ring: "bg-amber-500" },
     "on-track": { label: t("projects.healthOnTrack"), color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", ring: "bg-blue-500" },
     empty: { label: "", color: "", bg: "", ring: "" },
+  };
+}
+
+/** Count phases, parent tasks and total todos (incl. subtasks) for a project template. */
+export function getProjectTemplateStats(template: ProjectTemplate): {
+  phases: number;
+  parentTasks: number;
+  totalTodos: number;
+} {
+  let parentTasks = 0;
+  let totalTodos = 0;
+  for (const phase of template.phases) {
+    parentTasks += phase.tasks.length;
+    for (const task of phase.tasks) {
+      totalTodos += 1 + task.subtasks.length;
+    }
+  }
+  return { phases: template.phases.length, parentTasks, totalTodos };
+}
+
+/** Build API payload for POST /projects/:id/seed-template from a localized template. */
+export function buildSeedTemplatePayload(
+  template: ProjectTemplate,
+  lang: "fr" | "en",
+): {
+  phases: Array<{
+    name: string;
+    tasks: Array<{ title: string; subtasks: Array<{ title: string }> }>;
+  }>;
+} {
+  return {
+    phases: template.phases.map((phaseDef) => ({
+      name: phaseDef.name[lang],
+      tasks: phaseDef.tasks.map((taskDef) => ({
+        title: taskDef.title[lang],
+        subtasks: taskDef.subtasks.map((sub) => ({ title: sub.title[lang] })),
+      })),
+    })),
   };
 }
 

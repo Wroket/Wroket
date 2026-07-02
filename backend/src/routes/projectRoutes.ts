@@ -21,6 +21,7 @@ import {
   convertSubprojectToPhase,
   exportProject,
   importProjectTasks,
+  seedTemplate,
   getSteering,
   exportSteering,
 } from "../controllers/projectController";
@@ -71,6 +72,7 @@ router.put("/:id/custom-field-defs/:fieldId", requireAuth, patchCustomFieldDef);
 router.delete("/:id/custom-field-defs/:fieldId", requireAuth, removeCustomFieldDef);
 router.get("/:id/notes", requireAuth, getProjectNotes);
 router.post("/:id/import", requireAuth, upload.single("file"), importProjectTasks);
+router.post("/:id/seed-template", requireAuth, seedTemplate);
 router.get("/:id", requireAuth, get);
 router.put("/:id", requireAuth, update);
 router.delete("/:id", requireAuth, remove);

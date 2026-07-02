@@ -178,6 +178,7 @@ export {
   createProjectCustomFieldDef,
   deleteProjectCustomFieldDef,
   getProjectNotesApi,
+  seedProjectTemplate,
 } from "./projects";
 export type {
   ProjectStatus,
@@ -197,6 +198,8 @@ export type {
   ImportParsedTask,
   ImportError,
   ImportPreview,
+  SeedTemplatePayload,
+  SeedTemplateResult,
 } from "./projects";
 
 export type { SlotConflict, BookSlotResult } from "./calendar";

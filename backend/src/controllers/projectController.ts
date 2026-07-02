@@ -48,6 +48,7 @@ import { getTeam } from "../services/teamService";
 import { NotFoundError, ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 import { cascadeProjectNoteFoldersOnDelete, cascadeProjectNoteFoldersOnArchive, cascadeProjectNoteFoldersOnRestore } from "../services/projectNoteFolderCascade";
+import { seedProjectTemplate } from "../services/projectTemplateSeedService";
 
 export async function list(req: AuthenticatedRequest, res: Response) {
   const projects = listProjects(req.user!.uid, req.user!.email ?? "");
@@ -527,4 +528,43 @@ export async function exportSteering(req: AuthenticatedRequest, res: Response) {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename=wroket-steering-${slug}.csv`);
   res.send(steeringSnapshotToCsv(project.name, snap));
+}
+
+/** POST /projects/:id/seed-template — batch-create phases and tasks from a template payload. */
+export async function seedTemplate(req: AuthenticatedRequest, res: Response) {
+  const projectId = req.params.id as string;
+  const project = getProjectById(projectId);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canEditProjectContent(req.user!.uid, req.user!.email ?? "", project)) {
+    throw new ForbiddenError("Accès réservé (super-user minimum)");
+  }
+
+  const { phases } = req.body as { phases?: unknown };
+  if (!phases) throw new ValidationError("phases requis");
+
+  const result = await seedProjectTemplate(
+    req.user!.uid,
+    req.user!.email ?? "",
+    projectId,
+    phases,
+  );
+
+  try {
+    logActivity(req.user!.uid, req.user!.email ?? "", "project_template_seeded", "project", projectId, {
+      projectId,
+      phasesCreated: result.phasesCreated,
+      phasesTotal: result.phasesTotal,
+      todosCreated: result.todosCreated,
+      todosTotal: result.todosTotal,
+      errorCount: result.errors.length,
+    });
+  } catch (err) {
+    console.warn("[project.seedTemplate] activity log failed:", err);
+  }
+
+  const refreshed = getProjectById(projectId);
+  res.status(result.errors.length > 0 ? 207 : 200).json({
+    ...result,
+    project: refreshed,
+  });
 }

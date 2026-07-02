@@ -31,14 +31,14 @@ import {
   createProject,
   updateProject,
   reorderProjects,
-  getProject as fetchProject,
+  seedProjectTemplate,
 } from "@/lib/api";
 
 import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";
-import { formatMins, getHealthConfig, PROJECT_TEMPLATES } from "./types";
+import { formatMins, getHealthConfig, PROJECT_TEMPLATES, getProjectTemplateStats, buildSeedTemplatePayload } from "./types";
 import type { Project, Team, Todo, TranslationKey, ProjectHealth } from "./types";
 import type { AuthMeResponse } from "@/lib/api";
-import { personalProjectsCreateBlocked } from "@/lib/freeQuota";
+import { personalProjectsCreateBlocked, getFreeQuotas, fillQuotaTemplate, getProjectTemplateAvailability, firstSelectableTemplateId, FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL } from "@/lib/freeQuota";
 import { getImportSourceBadge } from "@/lib/importSourceBadge";
 
 type ProjectUndoAction =
@@ -79,8 +79,9 @@ export default function ProjectListView({
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createTeamId, setCreateTeamId] = useState<string | null>(null);
-  const [templateId, setTemplateId] = useState<string>("basic");
+  const [templateId, setTemplateId] = useState<string>("quick-start");
   const [creating, setCreating] = useState(false);
+  const [seedApplying, setSeedApplying] = useState(false);
 
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
@@ -103,10 +104,56 @@ export default function ProjectListView({
     return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
   }, [lastAction]);
 
+  const prevCreateTeamIdRef = useRef<string | null>(createTeamId);
+
+  useEffect(() => {
+    if (prevCreateTeamIdRef.current === createTeamId) return;
+    prevCreateTeamIdRef.current = createTeamId;
+
+    setTemplateId((current) => {
+      if (current === "none") return current;
+      const tpl = PROJECT_TEMPLATES.find((tplItem) => tplItem.id === current);
+      if (!tpl) return current;
+      if (getProjectTemplateAvailability(tpl, user, createTeamId).selectable) return current;
+      const fallback = firstSelectableTemplateId(PROJECT_TEMPLATES, user, createTeamId);
+      if (fallback !== current) toast.info(t("projects.templateResetLocked"));
+      return fallback ?? "none";
+    });
+  }, [createTeamId, user, t, toast]);
+
   const projectSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  const lang = locale === "fr" ? "fr" : "en";
+
+  const planMarketingKey = (plan: "first" | "small" | "large"): TranslationKey =>
+    `settings.plan.${plan}.marketing` as TranslationKey;
+
+  const templateTooltip = useCallback(
+    (tpl: (typeof PROJECT_TEMPLATES)[number], availability: ReturnType<typeof getProjectTemplateAvailability>) => {
+      if (availability.selectable) return undefined;
+      const planLabel = t(planMarketingKey(availability.requiredPlan));
+      if (availability.lockReason === "headroom") {
+        const q = getFreeQuotas(user);
+        return fillQuotaTemplate(t("projects.templateLockedHeadroom"), {
+          current: q?.activeTasksPersonal ?? 0,
+          max: q?.maxActiveTasksPersonal ?? FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL,
+          plan: planLabel,
+        });
+      }
+      return fillQuotaTemplate(t("projects.templateLockedPlan"), { plan: planLabel });
+    },
+    [user, t],
+  );
+
+  const selectedTemplateAvailability = useMemo(() => {
+    if (templateId === "none") return null;
+    const tpl = PROJECT_TEMPLATES.find((item) => item.id === templateId);
+    if (!tpl) return null;
+    return getProjectTemplateAvailability(tpl, user, createTeamId);
+  }, [templateId, user, createTeamId]);
 
   const isDescendant = useCallback((parentId: string, childId: string): boolean => {
     const children = projects.filter((p) => p.parentProjectId === parentId);
@@ -271,6 +318,7 @@ export default function ProjectListView({
   });
 
   const closeCreateModal = useCallback(() => {
+    if (creating || seedApplying) return;
     if (createName.trim() || createDesc.trim()) {
       if (!window.confirm(t("projects.discardChanges"))) return;
     }
@@ -278,68 +326,60 @@ export default function ProjectListView({
     setCreateName("");
     setCreateDesc("");
     setCreateTeamId(null);
-    setTemplateId("basic");
-  }, [createName, createDesc, t]);
+    setTemplateId("quick-start");
+  }, [createName, createDesc, creating, seedApplying, t]);
 
   const resetCreateForm = useCallback(() => {
     setCreateName("");
     setCreateDesc("");
     setCreateTeamId(null);
-    setTemplateId("basic");
+    setTemplateId("quick-start");
   }, []);
 
   const handleCreate = async () => {
-    if (!createName.trim() || creating) return;
+    if (!createName.trim() || creating || seedApplying) return;
     if (!createTeamId && personalProjectsCreateBlocked(user)) {
       toast.error(t("quota.free.projectLimitHint"));
       return;
     }
+
+    const template = templateId !== "none" ? PROJECT_TEMPLATES.find((tpl) => tpl.id === templateId) : null;
+    if (template && !getProjectTemplateAvailability(template, user, createTeamId).selectable) return;
+
     setCreating(true);
     try {
       const created = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
       setProjects((prev) => [created, ...prev]);
-      setShowCreate(false);
-      resetCreateForm();
-      setCreating(false);
-      void refresh();
 
-      const template = templateId !== "none" ? PROJECT_TEMPLATES.find((tpl) => tpl.id === templateId) : null;
-      if (!template) return;
-
-      const lang = locale === "fr" ? "fr" : "en";
-      const { createPhase, createTodo } = await import("@/lib/api");
-      for (const phaseDef of template.phases) {
-        const phase = await createPhase(created.id, { name: phaseDef.name[lang], startDate: null, endDate: null });
-        for (const [taskIndex, taskDef] of phaseDef.tasks.entries()) {
-          const parentTodo = await createTodo({
-            title: taskDef.title[lang],
-            priority: "medium",
-            projectId: created.id,
-            phaseId: phase.id,
-            sortOrder: (taskIndex + 1) * 100,
-          });
-          for (const [subIndex, subDef] of taskDef.subtasks.entries()) {
-            await createTodo({
-              title: subDef.title[lang],
-              priority: "medium",
-              projectId: created.id,
-              phaseId: phase.id,
-              parentId: parentTodo.id,
-              sortOrder: (taskIndex + 1) * 100 + (subIndex + 1),
-            });
+      if (template) {
+        setSeedApplying(true);
+        try {
+          const result = await seedProjectTemplate(created.id, buildSeedTemplatePayload(template, lang));
+          setProjects((prev) => prev.map((p) => (p.id === result.project.id ? result.project : p)));
+          if (result.errors.length > 0) {
+            toast.error(
+              fillQuotaTemplate(t("projects.templatePartial"), {
+                phases: result.phasesCreated,
+                total: result.phasesTotal,
+              }),
+            );
+          } else {
+            toast.success(t("projects.templateApplied"));
           }
+        } finally {
+          setSeedApplying(false);
         }
       }
-      try {
-        const refreshed = await fetchProject(created.id);
-        setProjects((prev) => prev.map((p) => (p.id === refreshed.id ? refreshed : p)));
-      } catch {
-        // Keep optimistic project card when refresh fails.
-      }
+
+      setShowCreate(false);
+      resetCreateForm();
+      void refresh();
+      void loadProjects();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {
       setCreating(false);
+      setSeedApplying(false);
     }
   };
 
@@ -748,25 +788,92 @@ export default function ProjectListView({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.useTemplate")}</label>
-                  <select
-                    value={templateId}
-                    onChange={(e) => setTemplateId(e.target.value)}
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
+                  <div
+                    role="radiogroup"
+                    aria-label={t("projects.useTemplate")}
+                    className="max-h-48 overflow-y-auto space-y-1.5 rounded border border-zinc-200 dark:border-slate-700 p-2"
                   >
-                    <option value="none">{t("projects.templateNone")}</option>
-                    {PROJECT_TEMPLATES.map((tpl) => (
-                      <option key={tpl.id} value={tpl.id}>
-                        {tpl.label[locale === "fr" ? "fr" : "en"]}
-                      </option>
-                    ))}
-                  </select>
-                  {templateId !== "none" && (() => {
-                    const tpl = PROJECT_TEMPLATES.find((t) => t.id === templateId);
+                    <label
+                      className={`flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm transition-colors ${
+                        templateId === "none"
+                          ? "bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-300 dark:ring-slate-600"
+                          : "hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="project-template"
+                        value="none"
+                        checked={templateId === "none"}
+                        onChange={() => setTemplateId("none")}
+                        className="mt-0.5"
+                      />
+                      <span className="text-zinc-800 dark:text-slate-100">{t("projects.templateNone")}</span>
+                    </label>
+                    {PROJECT_TEMPLATES.map((tpl) => {
+                      const availability = getProjectTemplateAvailability(tpl, user, createTeamId);
+                      const locked = !availability.selectable;
+                      const tooltip = templateTooltip(tpl, availability);
+                      const selected = templateId === tpl.id;
+                      return (
+                        <label
+                          key={tpl.id}
+                          title={tooltip}
+                          className={`flex items-start gap-2 rounded px-2 py-1.5 text-sm transition-colors ${
+                            locked
+                              ? "cursor-not-allowed opacity-50"
+                              : selected
+                                ? "cursor-pointer bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-300 dark:ring-slate-600"
+                                : "cursor-pointer hover:bg-zinc-50 dark:hover:bg-slate-800/60"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="project-template"
+                            value={tpl.id}
+                            checked={selected}
+                            disabled={locked}
+                            onChange={() => setTemplateId(tpl.id)}
+                            className="mt-0.5"
+                            aria-describedby={locked && selected ? "template-lock-hint" : undefined}
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-medium text-zinc-800 dark:text-slate-100">{tpl.label[lang]}</span>
+                            <span className="block text-[11px] text-zinc-400 dark:text-slate-500 leading-snug">{tpl.description[lang]}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {selectedTemplateAvailability && !selectedTemplateAvailability.selectable && (() => {
+                    const tpl = PROJECT_TEMPLATES.find((item) => item.id === templateId);
                     if (!tpl) return null;
-                    const lang = locale === "fr" ? "fr" : "en";
-                    return <p className="text-[11px] text-zinc-400 dark:text-slate-500 mt-1 leading-snug">{tpl.description[lang]}</p>;
+                    return (
+                      <p id="template-lock-hint" className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                        {templateTooltip(tpl, selectedTemplateAvailability)}
+                      </p>
+                    );
+                  })()}
+                  {templateId !== "none" && selectedTemplateAvailability?.selectable && (() => {
+                    const tpl = PROJECT_TEMPLATES.find((item) => item.id === templateId);
+                    if (!tpl) return null;
+                    const stats = getProjectTemplateStats(tpl);
+                    return (
+                      <p className="mt-1.5 text-[11px] font-medium text-zinc-500 dark:text-slate-400">
+                        {fillQuotaTemplate(t("projects.templatePreview"), {
+                          phases: stats.phases,
+                          tasks: stats.parentTasks,
+                          todos: stats.totalTodos,
+                        })}
+                      </p>
+                    );
                   })()}
                 </div>
+                {(creating || seedApplying) && templateId !== "none" && (
+                  <div className="rounded border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
+                    {t("projects.templateApplying")}
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button
@@ -780,7 +887,9 @@ export default function ProjectListView({
                 >
                   {t("projects.cancel")}
                 </button>
-                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating || (!createTeamId && personalProjectsCreateBlocked(user))} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("projects.save")}</button>
+                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating || seedApplying || (!createTeamId && personalProjectsCreateBlocked(user))} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">
+                  {seedApplying ? t("projects.templateApplying") : creating ? t("edit.saving") : t("projects.save")}
+                </button>
               </div>
             </div>
           </div>

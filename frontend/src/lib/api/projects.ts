@@ -136,6 +136,49 @@ export async function createProject(payload: CreateProjectPayload): Promise<Proj
   return result;
 }
 
+export interface SeedTemplatePhasePayload {
+  name: string;
+  tasks: Array<{ title: string; subtasks: Array<{ title: string }> }>;
+}
+
+export interface SeedTemplatePayload {
+  phases: SeedTemplatePhasePayload[];
+}
+
+export interface SeedTemplateResult {
+  phasesCreated: number;
+  phasesTotal: number;
+  todosCreated: number;
+  todosTotal: number;
+  errors: Array<{
+    phaseIndex: number;
+    taskIndex?: number;
+    subtaskIndex?: number;
+    message: string;
+  }>;
+  project: Project;
+}
+
+/** Batch-create phases and tasks from a localized template payload (1 HTTP round-trip). */
+export async function seedProjectTemplate(
+  projectId: string,
+  payload: SeedTemplatePayload,
+): Promise<SeedTemplateResult> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/seed-template`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  const body = await parseJsonOrThrow(res);
+  if (!res.ok && res.status !== 207) {
+    throw new Error(extractApiMessage(body, "Erreur lors de l'application du template"));
+  }
+  broadcastResourceChange("projects");
+  broadcastResourceChange("todos");
+  return body as SeedTemplateResult;
+}
+
 export async function updateProject(id: string, payload: UpdateProjectPayload): Promise<Project> {
   const res = await fetch(`${API_BASE_URL}/projects/${id}`, {
     method: "PUT",

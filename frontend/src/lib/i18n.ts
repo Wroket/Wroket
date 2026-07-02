@@ -1625,6 +1625,32 @@ const translations = {
   "projects.tagPlaceholder": { fr: "Nouveau tag…", en: "New tag…" },
   "projects.useTemplate": { fr: "Template de projet", en: "Project template" },
   "projects.templateNone": { fr: "Aucun template (projet vide)", en: "No template (empty project)" },
+  "projects.templatePreview": {
+    fr: "{phases} phases · {tasks} tâches · {todos} éléments au total",
+    en: "{phases} phases · {tasks} tasks · {todos} items total",
+  },
+  "projects.templateApplying": { fr: "Application du template…", en: "Applying template…" },
+  "projects.templateApplied": { fr: "Template appliqué au projet.", en: "Template applied to project." },
+  "projects.templatePartial": {
+    fr: "Template partiellement appliqué : {phases}/{total} phases créées.",
+    en: "Template partially applied: {phases}/{total} phases created.",
+  },
+  "projects.templateQuotaBlock": {
+    fr: "Ce template nécessite {needed} tâches ; votre palier gratuit autorise {max} tâches actives au total ({current} déjà utilisées).",
+    en: "This template needs {needed} tasks; your free tier allows {max} active tasks total ({current} already used).",
+  },
+  "projects.templateLockedPlan": {
+    fr: "Disponible avec le palier {plan}",
+    en: "Available on the {plan} plan",
+  },
+  "projects.templateLockedHeadroom": {
+    fr: "Quota Free atteint ({current}/{max} tâches) — passez à {plan} ou libérez des tâches",
+    en: "Free quota reached ({current}/{max} tasks) — upgrade to {plan} or free up tasks",
+  },
+  "projects.templateResetLocked": {
+    fr: "Ce template n'est pas disponible pour un projet personnel — sélection mise à jour.",
+    en: "This template isn't available for a personal project — selection updated.",
+  },
   "projects.templateStandard": { fr: "Phases classiques (Cadrage, Conception, Développement, Tests, Déploiement, Clôture)", en: "Standard phases (Scoping, Design, Development, Testing, Deployment, Closure)" },
   "projects.linkTask": { fr: "Lier une tâche", en: "Link a task" },
   "projects.unlinkTask": { fr: "Détacher la tâche", en: "Unlink task" },
