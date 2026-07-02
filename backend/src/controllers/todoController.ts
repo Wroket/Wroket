@@ -39,6 +39,7 @@ import { createNotification } from "../services/notificationService";
 import { isActiveCollaborator } from "../services/teamService";
 import { getAttachmentCounts } from "../services/attachmentService";
 import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
+import { syncTodoRecurrenceToExternalCalendar } from "../services/calendarRecurrenceSync";
 import { getProjectById, listProjects } from "../services/projectService";
 import { ForbiddenError, ValidationError } from "../utils/errors";
 import { logActivity, getTaskActivity } from "../services/activityLogService";
@@ -185,6 +186,17 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   const prevFound = await findTodoForUser(req.user!.uid, id);
   const previousTodo = prevFound?.todo ? { ...prevFound.todo } : null;
   let todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, input);
+
+  if (input.recurrence !== undefined) {
+    syncTodoRecurrenceToExternalCalendar(
+      req.user!.uid,
+      req.user!.email ?? "",
+      todo,
+      previousTodo,
+    ).catch((err) => {
+      console.warn("[todo.update] recurrence calendar sync failed:", err);
+    });
+  }
 
   if (
     input.status &&

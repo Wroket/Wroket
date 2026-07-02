@@ -40,6 +40,8 @@ export interface GoogleCalendarEvent {
   end: string;   // ISO
   allDay: boolean;
   source: "google";
+  /** Parent series id when this row is an expanded recurrence instance. */
+  recurringEventId?: string;
 }
 
 /**
@@ -269,6 +271,7 @@ async function fetchEvents(
     const data = await res.json() as {
       items?: Array<{
         id: string;
+        recurringEventId?: string;
         summary?: string;
         start?: { dateTime?: string; date?: string };
         end?: { dateTime?: string; date?: string };
@@ -281,6 +284,7 @@ async function fetchEvents(
       end: item.end?.dateTime ?? item.end?.date ?? "",
       allDay: !item.start?.dateTime,
       source: "google" as const,
+      ...(item.recurringEventId ? { recurringEventId: item.recurringEventId } : {}),
     }));
   } catch {
     return [];
@@ -318,6 +322,7 @@ export async function createGoogleCalendarEvent(
   timezone?: string,
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
   target?: { accountId?: string; calendarId?: string },
+  recurrence?: string[] | null,
 ): Promise<string | null> {
   const preferred = target?.accountId && target?.calendarId
     ? { accountId: target.accountId, calendarId: target.calendarId }
@@ -354,6 +359,9 @@ export async function createGoogleCalendarEvent(
           description,
           start: { dateTime: startLocal, timeZone: tz },
           end: { dateTime: endLocal, timeZone: tz },
+          ...(recurrence !== undefined
+            ? { recurrence: recurrence === null ? [] : recurrence }
+            : {}),
         }),
       },
     );
@@ -479,6 +487,7 @@ export async function patchGoogleCalendarEvent(
   accountId?: string,
   attendees?: string[],
   options?: { preserveConference?: boolean },
+  recurrence?: string[] | null,
 ): Promise<boolean> {
   let accessToken: string | null = null;
   if (accountId) {
@@ -507,6 +516,9 @@ export async function patchGoogleCalendarEvent(
       start: { dateTime: startLocal, timeZone: tz },
       end: { dateTime: endLocal, timeZone: tz },
     };
+    if (recurrence !== undefined) {
+      body.recurrence = recurrence === null ? [] : recurrence;
+    }
     if (attendees) body.attendees = attendees.map((email) => ({ email }));
     const res = await fetch(url.toString(), {
       method: "PATCH",

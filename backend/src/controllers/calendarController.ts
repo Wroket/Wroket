@@ -76,6 +76,7 @@ import {
   mapMicrosoftTeamsMeetCreateError,
 } from "../services/microsoftCalendarService";
 import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
+import { syncTodoRecurrenceToExternalCalendar } from "../services/calendarRecurrenceSync";
 import { createOAuthState, consumeOAuthState } from "../utils/oauthState";
 import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 
@@ -488,6 +489,12 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     throw err;
   }
 
+  if (updated.recurrence) {
+    syncTodoRecurrenceToExternalCalendar(uid, email, updated, undefined, tz).catch((err) => {
+      console.warn("[calendar.bookSlot] recurrence sync failed:", err);
+    });
+  }
+
   try {
     logActivity(uid, req.user!.email ?? "", "slot_booked", "todo", todoId, {
       todoId,
@@ -813,7 +820,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       meetingProvider: t.scheduledSlot.meetingProvider ?? null,
     });
 
-    if (t.recurrence) {
+    if (t.recurrence && !t.scheduledSlot?.calendarEventId) {
       const { skipDays, workDays } = getOwnerPrefs(t.userId);
       pushRecurrences(wroketEvents, t, startDate, endDateParsed, skipDays, workDays);
     }
@@ -833,7 +840,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       meetingProvider: t.scheduledSlot.meetingProvider ?? null,
     });
 
-    if (t.recurrence) {
+    if (t.recurrence && !t.scheduledSlot?.calendarEventId) {
       const { skipDays, workDays } = getOwnerPrefs(t.userId);
       pushRecurrences(wroketEvents, t, startDate, endDateParsed, skipDays, workDays);
     }
@@ -841,7 +848,18 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
 
   const accounts = getGoogleAccounts(uid);
 
-  type GEvent = { id: string; summary: string; start: string; end: string; allDay: boolean; source: "google"; calendarId?: string; calendarColor?: string; accountEmail?: string };
+  type GEvent = {
+    id: string;
+    summary: string;
+    start: string;
+    end: string;
+    allDay: boolean;
+    source: "google";
+    recurringEventId?: string;
+    calendarId?: string;
+    calendarColor?: string;
+    accountEmail?: string;
+  };
   let allGoogleEvents: GEvent[] = [];
 
   const MAX_CALENDAR_FETCHES = 20;
@@ -879,7 +897,11 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   for (const t of assignedTodos) {
     if (t.scheduledSlot?.calendarEventId) wroketGoogleIds.add(t.scheduledSlot.calendarEventId);
   }
-  const filteredGoogleEvents = allGoogleEvents.filter((e) => !wroketGoogleIds.has(e.id));
+  const filteredGoogleEvents = allGoogleEvents.filter((e) => {
+    if (wroketGoogleIds.has(e.id)) return false;
+    if (e.recurringEventId && wroketGoogleIds.has(e.recurringEventId)) return false;
+    return true;
+  });
 
   type MEvent = { id: string; summary: string; start: string; end: string; allDay: boolean; source: "microsoft"; calendarId?: string; calendarColor?: string; accountEmail?: string };
   let allMicrosoftEvents: MEvent[] = [];
@@ -1530,6 +1552,14 @@ async function pushScheduledSlotToCalendar(
         bookingProvider,
       },
     });
+    const reloaded = await findTodoForUser(uid, todo.id);
+    if (reloaded?.todo.recurrence) {
+      syncTodoRecurrenceToExternalCalendar(uid, email, reloaded.todo, undefined, options.tz).catch(
+        (err) => {
+          console.warn("[in-app-sync] recurrence sync failed:", err);
+        },
+      );
+    }
     return { outcome: "synced", calendarEventId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur";

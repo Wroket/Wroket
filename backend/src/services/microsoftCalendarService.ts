@@ -3,6 +3,7 @@ import {
   updateMicrosoftAccountTokens,
   type GoogleCalendarTokens,
 } from "./authService";
+import type { MicrosoftGraphRecurrence } from "../utils/calendarRecurrence";
 
 const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID ?? "";
 const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET ?? "";
@@ -360,6 +361,7 @@ export async function createMicrosoftCalendarEvent(
   start: string,
   end: string,
   description: string = WROKET_OUTLOOK_BOOKING_NOTE,
+  recurrence?: MicrosoftGraphRecurrence | null,
 ): Promise<string | null> {
   const accessToken = await getValidAccessTokenForMicrosoftAccount(uid, accountId);
   if (!accessToken) return null;
@@ -379,6 +381,7 @@ export async function createMicrosoftCalendarEvent(
         body: { contentType: "text", content: description },
         start: startBody,
         end: endBody,
+        ...(recurrence !== undefined ? { recurrence: recurrence ?? null } : {}),
       }),
     });
     if (!res.ok) {
@@ -404,6 +407,7 @@ export async function patchMicrosoftCalendarEvent(
   description: string = WROKET_OUTLOOK_BOOKING_NOTE,
   attendees?: string[],
   options?: MicrosoftCalendarPatchOptions,
+  recurrence?: MicrosoftGraphRecurrence | null,
 ): Promise<boolean> {
   const accessToken = await getValidAccessTokenForMicrosoftAccount(uid, accountId);
   if (!accessToken) return false;
@@ -425,6 +429,9 @@ export async function patchMicrosoftCalendarEvent(
     }
     if (attendees !== undefined) {
       body.attendees = buildMicrosoftTeamsAttendees(attendees);
+    }
+    if (recurrence !== undefined) {
+      body.recurrence = recurrence;
     }
     const res = await fetch(`https://graph.microsoft.com/v1.0/me/events/${evSeg}`, {
       method: "PATCH",
