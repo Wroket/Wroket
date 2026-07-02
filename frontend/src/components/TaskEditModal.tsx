@@ -970,12 +970,16 @@ export default function TaskEditModal({
                 </div>
                 <div>
                   <label className={`block text-[10px] mb-0.5 ${form.recurrence.frequency === "daily" ? "text-zinc-300 dark:text-slate-600" : "text-zinc-500 dark:text-slate-400"}`}>
-                    {t("edit.recurrenceInterval")}
+                    {form.recurrence.frequency === "weekly"
+                      ? t("edit.recurrenceIntervalWeeks")
+                      : form.recurrence.frequency === "monthly"
+                        ? t("edit.recurrenceIntervalMonths")
+                        : t("edit.recurrenceIntervalDays")}
                   </label>
                   <input
                     type="number"
                     min={1}
-                    max={365}
+                    max={form.recurrence.frequency === "weekly" ? 52 : form.recurrence.frequency === "monthly" ? 12 : 365}
                     disabled={form.recurrence.frequency === "daily" || !isTaskOwner || freeTierContentLocks}
                     value={form.recurrence.interval}
                     onChange={(e) =>

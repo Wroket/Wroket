@@ -76,9 +76,11 @@ app.post("/billing/stripe-webhook", express.raw({ type: "application/json" }), p
 
 app.use(express.json({ limit: "128kb" }));
 
+// 300/min per client IP: active SPA usage (autosave + list refetch + counts) peaks well
+// above 100/min for a single legitimate user; 429 storms were observed at 100.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Trop de requêtes, réessayez dans une minute" },

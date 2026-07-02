@@ -820,7 +820,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       meetingProvider: t.scheduledSlot.meetingProvider ?? null,
     });
 
-    if (t.recurrence && !t.scheduledSlot?.calendarEventId) {
+    if (t.recurrence) {
       const { skipDays, workDays } = getOwnerPrefs(t.userId);
       pushRecurrences(wroketEvents, t, startDate, endDateParsed, skipDays, workDays);
     }
@@ -840,7 +840,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
       meetingProvider: t.scheduledSlot.meetingProvider ?? null,
     });
 
-    if (t.recurrence && !t.scheduledSlot?.calendarEventId) {
+    if (t.recurrence) {
       const { skipDays, workDays } = getOwnerPrefs(t.userId);
       pushRecurrences(wroketEvents, t, startDate, endDateParsed, skipDays, workDays);
     }
@@ -903,7 +903,7 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
     return true;
   });
 
-  type MEvent = { id: string; summary: string; start: string; end: string; allDay: boolean; source: "microsoft"; calendarId?: string; calendarColor?: string; accountEmail?: string };
+  type MEvent = { id: string; summary: string; start: string; end: string; allDay: boolean; source: "microsoft"; seriesMasterId?: string; calendarId?: string; calendarColor?: string; accountEmail?: string };
   let allMicrosoftEvents: MEvent[] = [];
 
   const msAcc = getMicrosoftAccounts(uid);
@@ -945,7 +945,11 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
     allMicrosoftEvents = msResults.flat();
   }
 
-  const filteredMicrosoftEvents = allMicrosoftEvents.filter((e) => !wroketGoogleIds.has(e.id));
+  const filteredMicrosoftEvents = allMicrosoftEvents.filter((e) => {
+    if (wroketGoogleIds.has(e.id)) return false;
+    if (e.seriesMasterId && wroketGoogleIds.has(e.seriesMasterId)) return false;
+    return true;
+  });
 
   res.status(200).json({
     wroketEvents,

@@ -673,6 +673,9 @@ const translations = {
   "edit.recurrenceWeekly": { fr: "Hebdomadaire", en: "Weekly" },
   "edit.recurrenceMonthly": { fr: "Mensuel", en: "Monthly" },
   "edit.recurrenceInterval": { fr: "Tous les", en: "Every" },
+  "edit.recurrenceIntervalDays": { fr: "Tous les X jours", en: "Every X days" },
+  "edit.recurrenceIntervalWeeks": { fr: "Toutes les X semaines", en: "Every X weeks" },
+  "edit.recurrenceIntervalMonths": { fr: "Tous les X mois", en: "Every X months" },
   "edit.recurrenceEnd": { fr: "Date de fin", en: "End date" },
   "edit.recurrenceEnabled": { fr: "Tâche récurrente", en: "Recurring task" },
   "edit.recurrenceNeedsDeadline": {

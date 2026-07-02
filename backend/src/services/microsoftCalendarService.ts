@@ -258,6 +258,7 @@ export async function listMicrosoftEventsForAccount(
     const data = (await res.json()) as {
       value?: Array<{
         id: string;
+        seriesMasterId?: string;
         subject?: string;
         isAllDay?: boolean;
         start?: { dateTime?: string; timeZone?: string };
@@ -289,6 +290,7 @@ export async function listMicrosoftEventsForAccount(
         end: endStr,
         allDay,
         source: "microsoft" as const,
+        ...(item.seriesMasterId ? { seriesMasterId: item.seriesMasterId } : {}),
       };
     });
   } catch {
