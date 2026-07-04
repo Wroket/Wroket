@@ -214,6 +214,7 @@ export default function TaskTemplatePicker({ onApply }: Props) {
                     <button
                       type="button"
                       onClick={() => applySystem(tpl)}
+                      title={tpl.description ? `${tpl.name} — ${tpl.description}` : tpl.name}
                       className="w-full text-left rounded-md px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors group"
                     >
                       <div className="flex items-start gap-2.5">
@@ -260,6 +261,7 @@ export default function TaskTemplatePicker({ onApply }: Props) {
                         <button
                           type="button"
                           onClick={() => applyCustom(tpl)}
+                          title={tpl.description ? `${tpl.name} — ${tpl.description}` : tpl.name}
                           className="flex-1 min-w-0 text-left rounded-md px-3 py-2 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
                         >
                           <div className="flex items-center gap-2">

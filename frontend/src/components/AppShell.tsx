@@ -27,6 +27,7 @@ import FeedbackModal from "@/components/FeedbackModal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
 import FreeQuotaBanner from "@/components/FreeQuotaBanner";
+import FreeQuotaHeadroom from "@/components/FreeQuotaHeadroom";
 import { notificationOpenHref } from "@/lib/notificationDeepLink";
 import { PUSH_NOTIFICATION_ICON } from "@/lib/pushBranding";
 import { hasLocalWebPushSubscription } from "@/lib/webPushLocal";
@@ -246,11 +247,13 @@ export default function AppShell({ children }: AppShellProps) {
   const [teamsOpen, setTeamsOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [inviteActionBusyId, setInviteActionBusyId] = useState<string | null>(null);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const helpMenuRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifTimeTick, setNotifTimeTick] = useState(0);
+  const [localPushActive, setLocalPushActive] = useState<boolean | null>(null);
   const prevUnreadCountRef = useRef(0);
   const browserNotifPermRef = useRef<NotificationPermission | null>(null);
   const panelNotifications = useMemo(
@@ -364,6 +367,20 @@ export default function AppShell({ children }: AppShellProps) {
     const id = window.setInterval(() => setNotifTimeTick((x) => x + 1), 30_000);
     return () => window.clearInterval(id);
   }, [notifOpen]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    let cancelled = false;
+    void hasLocalWebPushSubscription().then((active) => {
+      if (!cancelled) setLocalPushActive(active);
+    });
+    return () => { cancelled = true; };
+  }, [notifOpen]);
+
+  const showEnablePushLink =
+    typeof Notification !== "undefined" &&
+    (Notification.permission === "default" ||
+      (Notification.permission === "granted" && localPushActive === false));
 
   useEffect(() => {
     if (!helpMenuOpen) return;
@@ -677,6 +694,7 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
+            {me ? <FreeQuotaHeadroom /> : null}
             <Link href="/settings" className="flex items-center gap-2 rounded px-1.5 sm:px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
               <div className="w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">
@@ -692,7 +710,7 @@ export default function AppShell({ children }: AppShellProps) {
               <button
                 onClick={openNotifPanel}
                 className="relative rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-                aria-label={t("notif.title")}
+                aria-label={unreadCount > 0 ? `${t("notif.title")} (${unreadCount})` : t("notif.title")}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -708,11 +726,12 @@ export default function AppShell({ children }: AppShellProps) {
                   <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-slate-800">
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("notif.title")}</h3>
                     <div className="flex items-center gap-2">
-                      {typeof Notification !== "undefined" && Notification.permission === "default" && (
+                      {showEnablePushLink && (
                         <Link
                           href="/settings?tab=integrations"
                           className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
                           title={t("notif.enableSystemPushTitle")}
+                          onClick={() => setNotifOpen(false)}
                         >
                           {t("notif.enableSystemPush")}
                         </Link>
@@ -776,33 +795,41 @@ export default function AppShell({ children }: AppShellProps) {
                                   );
                                 })()}
                               </div>
-                              {notif.type === "team_invite" && notif.data?.inviterEmail && (
+                              {notif.type === "team_invite" && !notif.read && notif.data?.inviterEmail && (
                                 <div className="flex flex-wrap gap-2 pt-0.5">
                                   <button
                                     type="button"
+                                    disabled={inviteActionBusyId === notif.id}
                                     onClick={async (e) => {
                                       e.stopPropagation();
+                                      if (inviteActionBusyId) return;
+                                      setInviteActionBusyId(notif.id);
                                       try {
                                         await acceptCollaboration(notif.data!.inviterEmail);
                                         await handleMarkRead(notif.id);
                                         window.dispatchEvent(new Event("collaborators-updated"));
                                       } catch { toast.error(t("toast.acceptError")); }
+                                      finally { setInviteActionBusyId(null); }
                                     }}
-                                    className="rounded px-2.5 py-1 text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                                    className="rounded px-2.5 py-1 text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:pointer-events-none"
                                   >
                                     {t("notif.accept")}
                                   </button>
                                   <button
                                     type="button"
+                                    disabled={inviteActionBusyId === notif.id}
                                     onClick={async (e) => {
                                       e.stopPropagation();
+                                      if (inviteActionBusyId) return;
+                                      setInviteActionBusyId(notif.id);
                                       try {
                                         await declineCollaboration(notif.data!.inviterEmail);
                                         await handleMarkRead(notif.id);
                                         window.dispatchEvent(new Event("collaborators-updated"));
                                       } catch { toast.error(t("toast.declineError")); }
+                                      finally { setInviteActionBusyId(null); }
                                     }}
-                                    className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                                    className="rounded px-2.5 py-1 text-[11px] font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-60 disabled:pointer-events-none"
                                   >
                                     {t("notif.decline")}
                                   </button>

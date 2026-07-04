@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useLocale } from "@/lib/LocaleContext";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export interface DeleteTaskDialogProps {
   open: boolean;
@@ -23,40 +23,7 @@ export default function DeleteTaskDialog({
   onDeleteAll,
 }: DeleteTaskDialogProps) {
   const { t } = useLocale();
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    cancelRef.current?.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onCancel();
-        return;
-      }
-      if (e.key !== "Tab") return;
-
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button, [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusable?.length) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onCancel]);
+  const trapRef = useFocusTrap(open, onCancel);
 
   if (!open) return null;
 
@@ -66,7 +33,7 @@ export default function DeleteTaskDialog({
     <div className="fixed inset-0 z-[9998] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
       <div
-        ref={dialogRef}
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-task-dialog-title"
@@ -85,7 +52,6 @@ export default function DeleteTaskDialog({
         </p>
         <div className={`mt-6 grid gap-3 ${hasSubtasks ? "grid-cols-3" : "grid-cols-2"}`}>
           <button
-            ref={cancelRef}
             type="button"
             onClick={onCancel}
             className="px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
@@ -9,8 +9,6 @@ import {
   getProjects,
   getTeams,
   getAllProjectTodos,
-  getProjectTodos,
-  getProject as fetchProject,
   Project,
   Team,
   Todo,
@@ -19,7 +17,6 @@ import { useLocale } from "@/lib/LocaleContext";
 import { useResourceSync } from "@/lib/useResourceSync";
 import { useTodoListSync } from "@/lib/useTodoListSync";
 
-import ProjectDetailView from "./_components/ProjectDetailView";
 import ProjectListView from "./_components/ProjectListView";
 
 export default function ProjectsPage() {
@@ -32,11 +29,6 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [projectTodos, setProjectTodos] = useState<Todo[]>([]);
-  const [loadingTodos, setLoadingTodos] = useState(false);
-
   const [allProjectTodos, setAllProjectTodos] = useState<Todo[]>([]);
 
   const refreshAllTodos = useCallback(() => {
@@ -68,51 +60,24 @@ export default function ProjectsPage() {
     refreshAllTodos();
   }, [loadProjects, refreshAllTodos]);
 
-  const selectProject = useCallback((project: Project | null) => {
-    setSelectedProject(project);
-    const params = new URLSearchParams(searchParams.toString());
-    if (project) {
-      params.set("project", project.id);
-    } else {
-      params.delete("project");
-      refreshAllTodos();
-      loadProjects();
-    }
-    router.replace(`/projects?${params.toString()}`, { scroll: false });
-  }, [searchParams, router, refreshAllTodos, loadProjects]);
+  const handleSelectProject = useCallback((project: Project) => {
+    router.push(`/projects/${encodeURIComponent(project.id)}`);
+  }, [router]);
 
-  // Refresh project list when another tab mutates projects; refresh aggregated todos when todos change elsewhere.
   useResourceSync("projects", loadProjects, { pollIntervalMs: 120_000 });
   useTodoListSync(refreshAllTodos, { pollIntervalMs: 120_000 });
 
   useEffect(() => {
-    loadProjects().then((loadedProjects) => {
-      const projectId = searchParams.get("project");
-      if (projectId && !selectedProject) {
-        const found = loadedProjects.find((p: Project) => p.id === projectId);
-        if (found) handleSelectProject(found);
-      }
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const legacyProjectId = searchParams.get("project");
+    if (legacyProjectId) {
+      router.replace(`/projects/${encodeURIComponent(legacyProjectId)}`);
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
+    void loadProjects();
     refreshAllTodos();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSelectProject = async (project: Project) => {
-    selectProject(project);
-    setLoadingTodos(true);
-    try {
-      const [freshProj, todos] = await Promise.all([fetchProject(project.id), getProjectTodos(project.id)]);
-      setSelectedProject(freshProj);
-      setProjectTodos(todos);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("toast.loadError"));
-      setProjectTodos([]);
-    } finally {
-      setLoadingTodos(false);
-    }
-  };
+  }, [loadProjects, refreshAllTodos]);
 
   if (loading) {
     return (
@@ -121,26 +86,6 @@ export default function ProjectsPage() {
           <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
         </div>
       </AppShell>
-    );
-  }
-
-  if (selectedProject) {
-    return (
-      <ProjectDetailView
-        selectedProject={selectedProject}
-        setSelectedProject={selectProject}
-        projects={projects}
-        setProjects={setProjects}
-        projectTodos={projectTodos}
-        setProjectTodos={setProjectTodos}
-        loadingTodos={loadingTodos}
-        user={user}
-        t={t}
-        locale={locale}
-        loadProjects={loadProjects}
-        teams={teams}
-        onTaskImportSuccess={handleTaskImportSuccess}
-      />
     );
   }
 

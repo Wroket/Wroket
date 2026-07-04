@@ -1378,8 +1378,20 @@ export async function batchReorder(userId: string, todoIds: string[]): Promise<n
   return updated;
 }
 
+/** Strips accidental JS `undefined` string coercion prepended to user input. */
+function normalizeTodoTitle(raw: unknown): string {
+  const base = typeof raw === "string" ? raw.trim() : "";
+  if (base.startsWith("undefined") && base.length > 9) {
+    return base.slice(9).trimStart();
+  }
+  return base;
+}
+
 export async function createTodo(userId: string, userEmail: string, input: CreateTodoInput): Promise<Todo> {
-  const clientId = input.id && UUID_RE.test(input.id) ? input.id : undefined;
+  const normalizedTitle = normalizeTodoTitle(input.title);
+  const inputWithTitle = { ...input, title: normalizedTitle };
+
+  const clientId = inputWithTitle.id && UUID_RE.test(inputWithTitle.id) ? inputWithTitle.id : undefined;
   if (clientId) {
     const existing = getUserTodos(userId).get(clientId);
     if (existing) {
@@ -1388,13 +1400,13 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     }
   }
 
-  if (!input.title || input.title.trim().length === 0) {
+  if (!inputWithTitle.title || inputWithTitle.title.length === 0) {
     throw new ValidationError("Le titre est requis");
   }
-  if (input.title.trim().length > 500) {
+  if (inputWithTitle.title.length > 500) {
     throw new ValidationError("Le titre ne doit pas dépasser 500 caractères");
   }
-  if (!VALID_PRIORITIES.includes(input.priority)) {
+  if (!VALID_PRIORITIES.includes(inputWithTitle.priority)) {
     throw new ValidationError("Priorité invalide (low, medium, high)");
   }
   if (input.effort && !VALID_EFFORTS.includes(input.effort)) {
@@ -1522,7 +1534,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     phaseId: resolvedPhaseId,
     assignedTo: input.assignedTo ?? null,
     assignmentStatus,
-    title: input.title.trim(),
+    title: inputWithTitle.title,
     priority: input.priority,
     effort: input.effort ?? "medium",
     estimatedMinutes: input.estimatedMinutes ?? null,
@@ -1626,9 +1638,10 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   }
 
   if (input.title !== undefined) {
-    if (input.title.trim().length === 0) throw new ValidationError("Le titre est requis");
-    if (input.title.trim().length > 500) throw new ValidationError("Le titre ne doit pas dépasser 500 caractères");
-    todo.title = input.title.trim();
+    const nextTitle = normalizeTodoTitle(input.title);
+    if (nextTitle.length === 0) throw new ValidationError("Le titre est requis");
+    if (nextTitle.length > 500) throw new ValidationError("Le titre ne doit pas dépasser 500 caractères");
+    todo.title = nextTitle;
   }
   if (input.priority !== undefined) {
     if (!VALID_PRIORITIES.includes(input.priority)) {

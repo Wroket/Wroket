@@ -681,7 +681,7 @@ function TeamsPageContent() {
                           {team.name[0]}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100 truncate">{team.name}</p>
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-slate-100 truncate" title={team.name}>{team.name}</p>
                           <p className="text-[10px] text-zinc-400 dark:text-slate-500">
                             {totalMembers} {totalMembers > 1 ? t("teams.membersCount") : t("teams.memberCount")}
                           </p>

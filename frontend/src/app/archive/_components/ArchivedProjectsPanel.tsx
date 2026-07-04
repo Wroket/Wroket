@@ -323,7 +323,7 @@ export default function ArchivedProjectsPanel() {
             >
               <div className="flex items-start justify-between gap-2">
                 <Link
-                  href={`/projects?project=${encodeURIComponent(project.id)}`}
+                  href={`/projects/${encodeURIComponent(project.id)}`}
                   className="font-semibold text-zinc-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 flex-1 min-w-0"
                 >
                   {project.name}

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function useFocusTrap(active: boolean) {
+export function useFocusTrap(active: boolean, onEscape?: () => void) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -16,6 +16,11 @@ export function useFocusTrap(active: boolean) {
     (autoFocusEl ?? firstFocusable)?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && onEscape) {
+        e.preventDefault();
+        onEscape();
+        return;
+      }
       if (e.key !== "Tab") return;
 
       const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE));
@@ -39,7 +44,7 @@ export function useFocusTrap(active: boolean) {
       document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
-  }, [active]);
+  }, [active, onEscape]);
 
   return containerRef;
 }

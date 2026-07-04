@@ -10,6 +10,7 @@ import {
   type ActivityLogEntry,
 } from "./core";
 import { broadcastTodosMutated } from "../todoSyncBroadcast";
+import { normalizeTodoTitleInput } from "@/lib/todoDisplay";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
@@ -157,11 +158,15 @@ export async function getArchivedTodos(): Promise<Todo[]> {
 }
 
 export async function createTodo(payload: CreateTodoPayload): Promise<Todo> {
+  const title = normalizeTodoTitleInput(payload.title);
+  if (!title) {
+    throw new Error("Le titre est requis");
+  }
   const res = await fetch(`${API_BASE_URL}/todos`, {
     ...apiFetchDefaults,
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, title }),
   });
   if (!res.ok) {
     const body = await parseJsonOrThrow(res);

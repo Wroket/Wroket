@@ -40,14 +40,22 @@ import {
   type SlotConflict,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
-import { personalTaskCreateBlocked } from "@/lib/freeQuota";
+import { personalTaskCreateBlocked, fillQuotaTemplate } from "@/lib/freeQuota";
 import { newClientEntityId } from "@/lib/newClientId";
 import { useUserLookup } from "@/lib/userUtils";
 import { useResourceSync, broadcastResourceChange } from "@/lib/useResourceSync";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { broadcastTodosMutated } from "@/lib/todoSyncBroadcast";
 import { getPhaseSlotDateBounds, isSlotWithinPhaseLocalDays } from "@/lib/phaseSlotBounds";
-import { findAgendaDayElement, snappedStartEndFromPointerLocal } from "./_utils/agendaSlotPointer";
+import { displayTodoTitle } from "@/lib/todoDisplay";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+import {
+  agendaDragDropSlot,
+  agendaDragGhostFromPointer,
+  agendaDragPointerMove,
+  type AgendaDragGhost,
+  type AgendaDragSession,
+} from "./_utils/agendaDrag";
 import {
   HOUR_HEIGHT,
   DAY_START_HOUR,
@@ -154,15 +162,10 @@ export default function AgendaPage() {
     end: string;
     conflicts: SlotConflict[];
   } | null>(null);
+  const dragConflictTrapRef = useFocusTrap(!!dragConflict, () => setDragConflict(null));
 
-  const dragSessionRef = useRef<{
-    todoId: string;
-    startX: number;
-    startY: number;
-    origStartMs: number;
-    origEndMs: number;
-    dragging: boolean;
-  } | null>(null);
+  const dragSessionRef = useRef<AgendaDragSession | null>(null);
+  const [dragGhost, setDragGhost] = useState<AgendaDragGhost | null>(null);
   const suppressNextWroketClickRef = useRef(false);
 
   const refreshAgendaTodos = useCallback(async () => {
@@ -176,6 +179,15 @@ export default function AgendaPage() {
       /* ignore */
     }
   }, []);
+
+  const unscheduledTodos = useMemo(
+    () =>
+      [...agendaTodoById.values()]
+        .filter((todo) => todo.status === "active" && !todo.scheduledSlot && !todo.parentId)
+        .sort((a, b) => displayTodoTitle(a.title, "").localeCompare(displayTodoTitle(b.title, "")))
+        .slice(0, 30),
+    [agendaTodoById],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -578,23 +590,12 @@ export default function AgendaPage() {
     [refreshCalendarForRange, refresh, toast, t],
   );
 
-  const beginWroketDrag = useCallback(
-    (ev: CalendarEvent, e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return;
-      if (ev.source !== "wroket" || ev.allDay) return;
-      if (bookingMoveId) return;
-      const el = e.currentTarget;
-      const realId = ev.id.includes("_rec_") ? ev.id.split("_rec_")[0]! : ev.id;
-      dragSessionRef.current = {
-        todoId: realId,
-        startX: e.clientX,
-        startY: e.clientY,
-        origStartMs: new Date(ev.start).getTime(),
-        origEndMs: new Date(ev.end).getTime(),
-        dragging: false,
-      };
+  const armAgendaDrag = useCallback(
+    (session: Omit<AgendaDragSession, "dragging">, e: React.PointerEvent) => {
+      if (e.button !== 0 || bookingMoveId) return;
+      dragSessionRef.current = { ...session, dragging: false };
       try {
-        el.setPointerCapture(e.pointerId);
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       } catch {
         /* ignore */
       }
@@ -602,37 +603,35 @@ export default function AgendaPage() {
     [bookingMoveId],
   );
 
-  const moveWroketDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const s = dragSessionRef.current;
-    if (!s) return;
-    const dx = e.clientX - s.startX;
-    const dy = e.clientY - s.startY;
-    if (!s.dragging && dx * dx + dy * dy > 64) s.dragging = true;
-  }, []);
-
-  const endWroketDrag = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const el = e.currentTarget;
-      try {
-        if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
       const s = dragSessionRef.current;
+      if (!s || s.pointerId !== e.pointerId) return;
+      if (agendaDragPointerMove(s, e.clientX, e.clientY)) {
+        document.body.style.cursor = "grabbing";
+        setDragGhost(agendaDragGhostFromPointer(e.clientX, e.clientY, s.durationMs, s.label));
+      }
+    };
+
+    const onPointerEnd = (e: PointerEvent) => {
+      const s = dragSessionRef.current;
+      if (!s || s.pointerId !== e.pointerId) return;
+      document.body.style.cursor = "";
       dragSessionRef.current = null;
-      if (!s?.dragging) return;
-      e.preventDefault();
-      e.stopPropagation();
+      setDragGhost(null);
+      if (!s.dragging) return;
       suppressNextWroketClickRef.current = true;
-      const dayEl = findAgendaDayElement(e.clientX, e.clientY);
-      const ymd = dayEl?.dataset.agendaDay;
-      if (!dayEl || !ymd) {
+
+      const drop = agendaDragDropSlot(e.clientX, e.clientY, s.durationMs);
+      if (!drop) {
         toast.error(t("agenda.dropOutsideGrid"));
         return;
       }
-      const durationMs = s.origEndMs - s.origStartMs;
-      const { start, end } = snappedStartEndFromPointerLocal(dayEl, e.clientY, durationMs, ymd);
+      const { start, end } = drop;
       if (
+        s.kind === "reschedule" &&
+        s.origStartMs != null &&
+        s.origEndMs != null &&
         Math.abs(new Date(start).getTime() - s.origStartMs) < 30_000 &&
         Math.abs(new Date(end).getTime() - s.origEndMs) < 30_000
       ) {
@@ -645,8 +644,58 @@ export default function AgendaPage() {
         return;
       }
       void commitSlotMove(s.todoId, start, end, false);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+      document.body.style.cursor = "";
+    };
+  }, [agendaTodoById, projects, commitSlotMove, toast, t]);
+
+  const beginWroketDrag = useCallback(
+    (ev: CalendarEvent, e: React.PointerEvent<HTMLDivElement>) => {
+      if (ev.source !== "wroket" || ev.allDay || ev.recurring) return;
+      const realId = ev.id.includes("_rec_") ? ev.id.split("_rec_")[0]! : ev.id;
+      armAgendaDrag(
+        {
+          kind: "reschedule",
+          todoId: realId,
+          label: ev.summary,
+          durationMs: new Date(ev.end).getTime() - new Date(ev.start).getTime(),
+          startX: e.clientX,
+          startY: e.clientY,
+          pointerId: e.pointerId,
+          origStartMs: new Date(ev.start).getTime(),
+          origEndMs: new Date(ev.end).getTime(),
+        },
+        e,
+      );
     },
-    [agendaTodoById, projects, commitSlotMove, toast, t],
+    [armAgendaDrag],
+  );
+
+  const beginUnscheduledBookDrag = useCallback(
+    (todo: Todo, e: React.PointerEvent<HTMLButtonElement>) => {
+      const mins = todo.estimatedMinutes ?? getEffortDuration(todo.effort);
+      armAgendaDrag(
+        {
+          kind: "book",
+          todoId: todo.id,
+          label: displayTodoTitle(todo.title, t("todos.untitled")),
+          durationMs: mins * 60_000,
+          startX: e.clientX,
+          startY: e.clientY,
+          pointerId: e.pointerId,
+        },
+        e,
+      );
+    },
+    [armAgendaDrag, getEffortDuration, t],
   );
 
   const handleBannerSync = useCallback(async () => {
@@ -876,6 +925,7 @@ export default function AgendaPage() {
                   key={mode}
                   type="button"
                   onClick={() => setViewMode(mode)}
+                  aria-pressed={viewMode === mode}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                     viewMode === mode
                       ? "bg-slate-700 dark:bg-slate-600 text-white"
@@ -1013,8 +1063,55 @@ export default function AgendaPage() {
           </div>
         )}
 
+        {!loading && viewMode !== "month" && unscheduledTodos.length > 0 && (
+          <div className="lg:hidden mb-2 overflow-x-auto">
+            <div className="flex gap-2 pb-1 min-w-min px-0.5">
+              <span className="text-[10px] font-semibold text-zinc-500 dark:text-slate-400 self-center shrink-0">
+                {t("agenda.unscheduledTitle")}
+              </span>
+              {unscheduledTodos.slice(0, 12).map((todo) => (
+                <button
+                  key={todo.id}
+                  type="button"
+                  onPointerDown={(e) => beginUnscheduledBookDrag(todo, e)}
+                  className="shrink-0 max-w-[10rem] truncate rounded-full border border-zinc-200 dark:border-slate-600 px-3 py-1 text-xs font-medium text-zinc-800 dark:text-slate-200 cursor-grab active:cursor-grabbing touch-none"
+                  title={displayTodoTitle(todo.title, t("todos.untitled"))}
+                >
+                  {displayTodoTitle(todo.title, t("todos.untitled"))}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Calendar grid — Day / Week */}
         {!loading && viewMode !== "month" && (
+          <div className="flex flex-1 min-h-0 gap-3">
+            {unscheduledTodos.length > 0 && (
+              <aside
+                className="hidden lg:flex w-52 xl:w-60 shrink-0 flex-col rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden"
+                aria-label={t("agenda.unscheduledTitle")}
+              >
+                <div className="px-3 py-2.5 border-b border-zinc-100 dark:border-slate-800">
+                  <h2 className="text-xs font-semibold text-zinc-800 dark:text-slate-200">{t("agenda.unscheduledTitle")}</h2>
+                  <p className="text-[10px] text-zinc-500 dark:text-slate-400 mt-0.5">{t("agenda.unscheduledHint")}</p>
+                </div>
+                <ul className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                  {unscheduledTodos.map((todo) => (
+                    <li key={todo.id}>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => beginUnscheduledBookDrag(todo, e)}
+                        title={displayTodoTitle(todo.title, t("todos.untitled"))}
+                        className="w-full text-left rounded-md border border-zinc-200 dark:border-slate-700 px-2.5 py-2 text-xs font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 cursor-grab active:cursor-grabbing touch-none"
+                      >
+                        <span className="line-clamp-2">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            )}
           <div className="flex-1 overflow-hidden rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <div className="flex flex-col h-full">
               {/* Day headers (sticky) */}
@@ -1131,10 +1228,11 @@ export default function AgendaPage() {
                   {visibleDays.map((day, dayIdx) => {
                     const isToday = isSameDay(day, today);
                     const dayEvents = eventsForDay(day, false);
+                    const dayYmd = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
                     return (
                       <div
                         key={dayIdx}
-                        data-agenda-day={`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`}
+                        data-agenda-day={dayYmd}
                         className={`flex-1 min-w-[100px] relative border-r border-zinc-100 dark:border-slate-800 last:border-r-0 ${
                           isToday ? "bg-blue-50/30 dark:bg-blue-950/20" : ""
                         }`}
@@ -1148,6 +1246,18 @@ export default function AgendaPage() {
                             style={{ top: (h - DAY_START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT - 1, height: 1 }}
                           />
                         ))}
+
+                        {dragGhost && dragGhost.ymd === dayYmd && (
+                          <div
+                            className="absolute left-1 right-1 rounded border-2 border-dashed border-emerald-500 bg-emerald-400/25 dark:bg-emerald-500/20 z-40 pointer-events-none px-1.5 py-0.5"
+                            style={{ top: dragGhost.top, height: dragGhost.height, minHeight: 14 }}
+                            aria-hidden
+                          >
+                            <span className="text-[10px] font-semibold text-emerald-900 dark:text-emerald-100 truncate block">
+                              {dragGhost.label}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Events */}
                         {dayEvents.map((ev) => {
@@ -1180,13 +1290,16 @@ export default function AgendaPage() {
                               }}
                               title={
                                 isWroket && qc
-                                  ? `${ev.summary} — ${qc.icon} ${qc.label}\n${t("agenda.bookedFromWroket")}`
+                                  ? `${ev.summary} — ${qc.icon} ${qc.label}\n${t("agenda.bookedFromWroket")}\n${t("agenda.dragSlotHint")}`
                                   : externalTitle
                               }
+                              role={wroketDragEnabled ? "button" : undefined}
+                              aria-label={
+                                wroketDragEnabled
+                                  ? fillQuotaTemplate(t("agenda.dragSlotLabel"), { title: ev.summary })
+                                  : undefined
+                              }
                               onPointerDown={wroketDragEnabled ? (e) => beginWroketDrag(ev, e) : undefined}
-                              onPointerMove={wroketDragEnabled ? moveWroketDrag : undefined}
-                              onPointerUp={wroketDragEnabled ? endWroketDrag : undefined}
-                              onPointerCancel={wroketDragEnabled ? endWroketDrag : undefined}
                               onClick={
                                 isWroket
                                   ? (e) => {
@@ -1248,6 +1361,7 @@ export default function AgendaPage() {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         )}
 
@@ -1503,11 +1617,17 @@ export default function AgendaPage() {
         {dragConflict && (
           <div
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="agenda-drag-conflict-title"
+            role="presentation"
+            onClick={() => setDragConflict(null)}
           >
-            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+            <div
+              ref={dragConflictTrapRef}
+              className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="agenda-drag-conflict-title"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 id="agenda-drag-conflict-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
                 {t("schedule.conflictTitle")}
               </h2>

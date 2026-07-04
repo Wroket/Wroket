@@ -56,7 +56,7 @@ import {
 } from "@/lib/api";
 import { clearTaskMeet, createTaskMeet, getTaskSlots, updateTaskMeet } from "@/lib/api/calendar";
 import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
-import { displayTodoTitle } from "@/lib/todoDisplay";
+import { displayTodoTitle, normalizeTodoTitleInput } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { getEffectiveDueDay, hasNoEffectiveDue } from "@/lib/effectiveDue";
@@ -526,7 +526,7 @@ export default function TodosPage() {
     if (createInFlightRef.current) return;
     setFormError(null);
 
-    const trimmedTitle = title.trim();
+    const trimmedTitle = normalizeTodoTitleInput(title);
     if (!trimmedTitle) {
       setFormError(t("todos.titleRequired"));
       return;
@@ -1265,7 +1265,7 @@ export default function TodosPage() {
                 type="text"
                 placeholder={t("todos.addPlaceholder")}
                 required
-                value={title}
+                value={title ?? ""}
                 onChange={(e) => setTitle(e.target.value)}
                 className="flex-1 min-w-0 rounded border border-zinc-300 dark:border-slate-600 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[38px] sm:h-[42px]"
               />
