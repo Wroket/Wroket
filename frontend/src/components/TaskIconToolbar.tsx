@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import CommentHoverIcon from "@/components/CommentHoverIcon";
 import SlotPicker from "@/components/SlotPicker";
@@ -101,6 +101,84 @@ export default function TaskIconToolbar({
       ? "grid grid-cols-4 gap-x-1 gap-y-1 w-[6.75rem] shrink-0 justify-items-center content-start"
       : "flex items-center gap-1 shrink-0";
 
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const useMobileOverflow = variant === "default";
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [moreOpen]);
+
+  const closeMore = () => setMoreOpen(false);
+
+  const secondaryActions = (
+    <>
+      <CommentHoverIcon
+        todoId={todo.id}
+        commentCount={commentCount}
+        onClick={() => { closeMore(); onEdit(todo); }}
+        buttonClass={commentBtnClass}
+        iconSize="w-3 h-3"
+      />
+      <button
+        type="button"
+        onClick={wrap(() => { closeMore(); onEdit(todo); })}
+        title={t("a11y.taskAttachments")}
+        aria-label={t("a11y.taskAttachments")}
+        className={attachBtnClass}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+      </button>
+      {onCreateNote && (
+        <button
+          type="button"
+          onClick={wrap(() => { closeMore(); onCreateNote(todo); })}
+          title={hasLinkedNote ? t("notes.openLinkedNote") : t("notes.createFromTask")}
+          className={noteBtnClass}
+        >
+          <svg className="w-3 h-3" fill={hasLinkedNote ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </button>
+      )}
+      {onMeet && (
+        <button
+          type="button"
+          onClick={wrap(() => { closeMore(); onMeet(todo); })}
+          title={todo.scheduledSlot?.meetingUrl ? t("meet.editMeet") : t("meet.createMeet")}
+          disabled={meetLoading}
+          className={`${meetBtnClass} ${meetLoading ? "opacity-90 cursor-wait" : ""}`}
+        >
+          {meetLoading ? (
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20 10 10 0 000-20v4z" /></svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.862v6.276a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          )}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={wrap(() => { closeMore(); onDelete(todo); })}
+        aria-label={t("a11y.deleteTask")}
+        title={t("a11y.deleteTask")}
+        className={toolbarNeutralButton}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </>
+  );
+
   return (
     <div
       className={`${layoutCls} ${className}`}
@@ -178,62 +256,31 @@ export default function TaskIconToolbar({
           </svg>
         </button>
       )}
-      <CommentHoverIcon
-        todoId={todo.id}
-        commentCount={commentCount}
-        onClick={() => onEdit(todo)}
-        buttonClass={commentBtnClass}
-        iconSize="w-3 h-3"
-      />
-      <button
-        type="button"
-        onClick={wrap(() => onEdit(todo))}
-        title={t("a11y.taskAttachments")}
-        aria-label={t("a11y.taskAttachments")}
-        className={attachBtnClass}
-      >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-        </svg>
-      </button>
-      {onCreateNote && (
-        <button
-          type="button"
-          onClick={wrap(() => onCreateNote(todo))}
-          title={hasLinkedNote ? t("notes.openLinkedNote") : t("notes.createFromTask")}
-          className={noteBtnClass}
-        >
-          <svg className="w-3 h-3" fill={hasLinkedNote ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        </button>
-      )}
-      {onMeet && (
-        <button
-          type="button"
-          onClick={wrap(() => onMeet(todo))}
-          title={todo.scheduledSlot?.meetingUrl ? t("meet.editMeet") : t("meet.createMeet")}
-          disabled={meetLoading}
-          className={`${meetBtnClass} ${meetLoading ? "opacity-90 cursor-wait" : ""}`}
-        >
-          {meetLoading ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a10 10 0 100 20 10 10 0 000-20v4z" /></svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.862v6.276a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+      <div className={useMobileOverflow ? "hidden sm:contents" : "contents"}>
+        {secondaryActions}
+      </div>
+      {useMobileOverflow && (
+        <div className="relative sm:hidden" ref={moreRef}>
+          <button
+            type="button"
+            onClick={wrap(() => setMoreOpen((o) => !o))}
+            aria-label={t("a11y.moreActions")}
+            title={t("a11y.moreActions")}
+            className={toolbarNeutralButton}
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+          {moreOpen && (
+            <div className="absolute right-0 top-full mt-1 z-50 flex items-center gap-1 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+              {secondaryActions}
+            </div>
           )}
-        </button>
+        </div>
       )}
-      <button
-        type="button"
-        onClick={wrap(() => onDelete(todo))}
-        aria-label={t("a11y.deleteTask")}
-        title={t("a11y.deleteTask")}
-        className={toolbarNeutralButton}
-      >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-      </button>
     </div>
   );
 }

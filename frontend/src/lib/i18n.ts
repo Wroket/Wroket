@@ -1889,6 +1889,19 @@ const translations = {
   "agenda.taskCreated": { fr: "Tâche créée", en: "Task created" },
   "agenda.slotMoved": { fr: "Créneau mis à jour", en: "Slot updated" },
   "agenda.dropOutsideGrid": { fr: "Relâchez le créneau sur la grille horaire", en: "Drop the slot on the time grid" },
+  "agenda.unscheduledTitle": { fr: "Sans créneau", en: "Unscheduled" },
+  "agenda.unscheduledHint": {
+    fr: "Glissez une tâche sur la grille pour réserver un créneau",
+    en: "Drag a task onto the grid to book a slot",
+  },
+  "agenda.dragSlotHint": {
+    fr: "Glisser-déposer pour déplacer le créneau",
+    en: "Drag to move this slot",
+  },
+  "agenda.dragSlotLabel": {
+    fr: "Déplacer le créneau : {title}",
+    en: "Move slot: {title}",
+  },
   "agenda.slotOutsidePhase": {
     fr: "Ce créneau dépasse les dates de la phase du projet.",
     en: "This slot falls outside the project phase dates.",
@@ -2294,6 +2307,22 @@ const translations = {
     en: "{used}/{max} personal notes",
   },
   "quota.free.upgradeLink": { fr: "Voir les offres et passer au palier supérieur", en: "View plans and upgrade" },
+  "quota.free.headroomTitle": {
+    fr: "Utilisation du palier gratuit — voir les offres",
+    en: "Free plan usage — view plans",
+  },
+  "quota.free.headroomTasks": {
+    fr: "{used}/{max} tâches",
+    en: "{used}/{max} tasks",
+  },
+  "quota.free.headroomProjects": {
+    fr: "{used}/{max} projets",
+    en: "{used}/{max} projects",
+  },
+  "quota.free.headroomNotes": {
+    fr: "{used}/{max} notes",
+    en: "{used}/{max} notes",
+  },
   "quota.free.taskLimitHint": {
     fr: "Limite de tâches actives atteinte pour le palier gratuit. Choisissez un projet d’équipe ou passez à une offre payante.",
     en: "Active task limit reached on the free plan. Pick a team project or upgrade.",
@@ -2998,6 +3027,7 @@ const translations = {
   "a11y.openMenu": { fr: "Ouvrir le menu", en: "Open menu" },
   "a11y.closeMenu": { fr: "Fermer le menu", en: "Close menu" },
   "a11y.complete": { fr: "Accomplir", en: "Complete" },
+  "a11y.moreActions": { fr: "Plus d'actions", en: "More actions" },
   "a11y.edit": { fr: "Modifier", en: "Edit" },
   "a11y.taskAttachments": { fr: "Pièces jointes (ouvrir l'édition)", en: "Attachments (open editor)" },
   "a11y.delete": { fr: "Supprimer", en: "Delete" },

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useLocale } from "@/lib/LocaleContext";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -43,40 +43,7 @@ export default function ConfirmDialog({
   const { t } = useLocale();
   const resolvedConfirmLabel = confirmLabel ?? t("confirm");
   const resolvedCancelLabel = cancelLabel ?? t("cancel");
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const cancelBtnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    cancelBtnRef.current?.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onCancel();
-        return;
-      }
-      if (e.key !== "Tab") return;
-
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button, [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusable?.length) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onCancel]);
+  const trapRef = useFocusTrap(open, onCancel);
 
   if (!open) return null;
 
@@ -94,7 +61,7 @@ export default function ConfirmDialog({
     <div className="fixed inset-0 z-[9998] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
       <div
-        ref={dialogRef}
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
@@ -121,13 +88,13 @@ export default function ConfirmDialog({
                 {secondaryLabel}
               </button>
             ) : null}
-            <button ref={cancelBtnRef} type="button" onClick={onCancel} className={`inline-flex w-full items-center justify-center ${cancelBtnClass}`}>
+            <button type="button" onClick={onCancel} className={`inline-flex w-full items-center justify-center ${cancelBtnClass}`}>
               {resolvedCancelLabel}
             </button>
           </div>
         ) : (
           <div className="mt-6 flex flex-wrap justify-end gap-3">
-            <button ref={cancelBtnRef} type="button" onClick={onCancel} className={cancelBtnClass}>
+            <button type="button" onClick={onCancel} className={cancelBtnClass}>
               {resolvedCancelLabel}
             </button>
             {secondaryLabel && onSecondary ? (
