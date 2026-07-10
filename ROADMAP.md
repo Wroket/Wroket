@@ -83,6 +83,13 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ### Next (6-12 semaines)
 
+- [x] **Workspace admin hors siège (Small/Large)** — Rôle `workspace-admin` distinct du rôle équipe `admin` existant :
+  - Gestion roster (inviter/retirer membres, rôles), collaborateurs externes, billing équipe (portail Stripe délégué), visibilité plan/sièges/entitlements
+  - **Aucun accès** Tâches / Projets / Agenda / Notes (enforcement API, pas UI seule)
+  - **Non compté** dans `seatCount` / quantité Stripe (cap ex. 2 workspace-admins / équipe)
+  - Spec : `docs/workspace-admin.md` + endpoints `GET/POST/DELETE /teams/:teamId/workspace-admins`
+  - Phasage : P1 RBAC+guards → P2 console UI → P3 Stripe équipe → P4 toggles features
+  - Prérequis : équipe `billingPlan` ∈ { small, large } ; Checkout équipe optionnel pour P3 si subscription déjà active
 - **Slack+ (MVP lots 1-2)** : Webhook+ PMO (events, delivery health) puis connexion Slack OAuth native (workspace/channel)
 - **IA agentique (phase 1)** : Wroket connectable aux agents (action surface PMO, sécurité, audit, go/no-go 6-8 semaines)
 - **PMO ciblé** : liens partageables lecture seule + portfolio équipe selon traction terrain

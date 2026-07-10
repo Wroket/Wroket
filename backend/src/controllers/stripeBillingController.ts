@@ -9,7 +9,14 @@ import {
 } from "../services/authService";
 import { normalizeBillingPlan } from "../services/entitlementsService";
 import { createBillingPortalSessionUrl } from "../services/stripePortalSessionService";
-import { patchTeamBilling, findTeamByStripeSubscriptionId } from "../services/teamService";
+import {
+  patchTeamBilling,
+  findTeamByStripeSubscriptionId,
+  getTeam,
+  canManageTeamWorkspace,
+} from "../services/teamService";
+import { logActivity } from "../services/activityLogService";
+import { ForbiddenError, NotFoundError } from "../utils/errors";
 
 function applyPlanFromStripeMetadata(uid: string | undefined, planRaw: string | undefined): void {
   if (!uid) return;
@@ -200,5 +207,64 @@ export async function postCreateBillingPortalSession(req: AuthenticatedRequest, 
     });
     return;
   }
+  res.status(200).json({ url: result.url });
+}
+
+/**
+ * Stripe Customer Portal scoped to a team's subscription (workspace-admin or seat admin).
+ */
+export async function postCreateTeamBillingPortalSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const uid = req.user!.uid;
+  const email = req.user!.email;
+  const body = req.body as { teamId?: string };
+  const teamId = typeof body.teamId === "string" ? body.teamId.trim() : "";
+  if (!teamId) {
+    res.status(400).json({ message: "teamId requis" });
+    return;
+  }
+
+  const team = getTeam(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeamWorkspace(team, uid, email)) {
+    throw new ForbiddenError("Non autorisé à gérer la facturation de cette équipe", "WORKSPACE_ADMIN_FORBIDDEN");
+  }
+  if (!team.stripeSubscriptionId?.trim()) {
+    res.status(404).json({
+      message: "Aucun abonnement Stripe lié à cette équipe.",
+    });
+    return;
+  }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!secretKey) {
+    res.status(503).json({ message: "Stripe n'est pas configuré (STRIPE_SECRET_KEY)." });
+    return;
+  }
+
+  const stripe = new Stripe(secretKey, { apiVersion: "2025-02-24.acacia", typescript: true });
+  const sub = await stripe.subscriptions.retrieve(team.stripeSubscriptionId);
+  const rawCustomer = sub.customer;
+  const customerId =
+    typeof rawCustomer === "string"
+      ? rawCustomer
+      : rawCustomer && typeof rawCustomer === "object" && "id" in rawCustomer
+        ? (rawCustomer as Stripe.Customer).id
+        : undefined;
+
+  if (!customerId) {
+    res.status(502).json({ message: "Abonnement Stripe sans client associé." });
+    return;
+  }
+
+  const result = await createBillingPortalSessionUrl(customerId, req.body);
+  if ("error" in result) {
+    res.status(result.status).json({
+      message: result.error,
+      ...(result.detail ? { detail: result.detail } : {}),
+    });
+    return;
+  }
+
+  logActivity(uid, email, "team_billing_portal_opened", "team", teamId, { teamId, teamName: team.name });
   res.status(200).json({ url: result.url });
 }

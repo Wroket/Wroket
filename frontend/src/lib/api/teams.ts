@@ -25,6 +25,16 @@ export interface TeamCollaborator {
   status: "pending" | "active";
 }
 
+export interface WorkspaceAdmin {
+  email: string;
+  addedAt: string;
+  addedByUid?: string;
+}
+
+export interface TeamFeatureFlags {
+  integrationsEnabled?: boolean;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -37,6 +47,8 @@ export interface Team {
   seatCount?: number;
   /** Collaborateurs externes (plan propre, non comptés dans les sièges). */
   collaborators?: TeamCollaborator[];
+  workspaceAdmins?: WorkspaceAdmin[];
+  featureFlags?: TeamFeatureFlags;
 }
 
 export interface ReceivedInvitation {
@@ -196,6 +208,9 @@ export async function updateMemberRoleApi(teamId: string, email: string, role: T
 
 export interface TeamDashboardData {
   team: Team;
+  workspaceAdminMode?: boolean;
+  usedSeats?: number;
+  featureFlags?: TeamFeatureFlags;
   stats: {
     totalTasks: number;
     byMember: Record<string, { total: number; overdue: number }>;
@@ -355,6 +370,93 @@ export async function removeTeamCollaboratorApi(teamId: string, email: string): 
   );
   if (!res.ok) throw new Error("Impossible de supprimer le collaborateur");
   broadcastResourceChange("teams");
+}
+
+// ── Workspace admins (hors siège) ──
+
+export async function getWorkspaceAdmins(teamId: string): Promise<WorkspaceAdmin[]> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/workspace-admins`, { credentials: "include" });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible de charger les administrateurs workspace"));
+  }
+  const data = (await res.json()) as { workspaceAdmins?: WorkspaceAdmin[] };
+  return Array.isArray(data.workspaceAdmins) ? data.workspaceAdmins : [];
+}
+
+export async function addWorkspaceAdminApi(teamId: string, email: string): Promise<Team> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/workspace-admins`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const result = (await res.json()) as Team;
+  broadcastResourceChange("teams");
+  return result;
+}
+
+export async function removeWorkspaceAdminApi(teamId: string, email: string): Promise<Team> {
+  const res = await fetch(
+    `${API_BASE_URL}/teams/${teamId}/workspace-admins/${encodeURIComponent(email)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const result = (await res.json()) as Team;
+  broadcastResourceChange("teams");
+  return result;
+}
+
+export async function getTeamFeatures(teamId: string): Promise<TeamFeatureFlags> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/features`, { credentials: "include" });
+  if (!res.ok) throw new Error("Impossible de charger les options équipe");
+  const body = (await res.json()) as { featureFlags?: TeamFeatureFlags };
+  return body.featureFlags ?? {};
+}
+
+export async function patchTeamFeaturesApi(
+  teamId: string,
+  patch: Partial<TeamFeatureFlags>,
+): Promise<TeamFeatureFlags> {
+  const res = await fetch(`${API_BASE_URL}/teams/${teamId}/features`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Erreur"));
+  }
+  const body = (await res.json()) as { featureFlags?: TeamFeatureFlags };
+  broadcastResourceChange("teams");
+  return body.featureFlags ?? {};
+}
+
+export async function createTeamBillingPortalSession(
+  teamId: string,
+  returnUrl?: string,
+): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/billing/team-portal-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ teamId, ...(returnUrl ? { returnUrl } : {}) }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(body, "Impossible d'ouvrir le portail de facturation"));
+  }
+  const data = (await res.json()) as { url?: string };
+  if (!data.url) throw new Error("URL portail manquante");
+  return data.url;
 }
 
 // ── Notifications ──

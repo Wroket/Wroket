@@ -229,12 +229,23 @@ function panelNotifHref(notif: AppNotification): string | null {
   return notificationOpenHref(notif);
 }
 
+function isPathAllowedForWorkspaceAdmin(pathname: string): boolean {
+  return (
+    pathname.startsWith("/teams") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/notifications") ||
+    pathname.startsWith("/docs")
+  );
+}
+
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLocale();
   const { toast } = useToast();
   const { user: me, loading, refresh } = useAuth();
+  const wsAdminOnly = me?.isWorkspaceAdminOnly === true;
+  const wsDefaultTeamId = me?.workspaceAdminTeamIds?.[0];
   const [darkMode, setDarkMode] = useState(false);
 
   const { showTutorial, openTutorial, closeTutorial } = useTutorial();
@@ -285,6 +296,13 @@ export default function AppShell({ children }: AppShellProps) {
     if (pathname.startsWith("/archive")) setArchiveOpen(true);
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (loading || !wsAdminOnly) return;
+    if (isPathAllowedForWorkspaceAdmin(pathname)) return;
+    const q = wsDefaultTeamId ? `?team=${encodeURIComponent(wsDefaultTeamId)}` : "";
+    router.replace(`/teams/dashboard${q}`);
+  }, [loading, wsAdminOnly, pathname, router, wsDefaultTeamId]);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -930,10 +948,12 @@ export default function AppShell({ children }: AppShellProps) {
           className={`absolute left-0 bottom-0 top-[var(--app-mobile-header)] w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 flex flex-col min-h-0 overflow-hidden transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
         >
           <div className="flex-1 min-h-0 overflow-y-auto py-3 px-3 flex flex-col gap-1">
-          {NAV_ITEMS.slice(0, 1).map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
-          ))}
-          <div>
+            {!wsAdminOnly && NAV_ITEMS.slice(0, 1).map((item) => (
+              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
+            ))}
+            {!wsAdminOnly && (
+            <>
+            <div>
             <button
               type="button"
               onClick={() => setTasksOpen((v) => !v)}
@@ -1007,6 +1027,8 @@ export default function AppShell({ children }: AppShellProps) {
           {NAV_ITEMS.slice(1).map((item) => (
             <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} onClick={closeMobileMenu} />
           ))}
+            </>
+            )}
           <div>
             <button
               type="button"
@@ -1043,6 +1065,7 @@ export default function AppShell({ children }: AppShellProps) {
             )}
           </div>
           <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} onClick={closeMobileMenu} />
+          {!wsAdminOnly && (
           <div>
             <button
               type="button"
@@ -1084,6 +1107,7 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             )}
           </div>
+          )}
           </div>
           <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
             {me && (
@@ -1107,9 +1131,11 @@ export default function AppShell({ children }: AppShellProps) {
         <aside className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:sticky md:top-[4.5rem] md:h-[calc(100vh-4.5rem)] md:min-h-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700">
           <nav aria-label={t("a11y.mainNavigation")} className="flex flex-col flex-1 min-h-0">
             <div className="flex-1 min-h-0 overflow-y-auto py-4 px-3 flex flex-col gap-1">
-            {NAV_ITEMS.slice(0, 1).map((item) => (
+            {!wsAdminOnly && NAV_ITEMS.slice(0, 1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
             ))}
+            {!wsAdminOnly && (
+            <>
             <div>
               <button
                 type="button"
@@ -1182,6 +1208,8 @@ export default function AppShell({ children }: AppShellProps) {
             {NAV_ITEMS.slice(1).map((item) => (
               <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
             ))}
+            </>
+            )}
             <div>
               <button
                 type="button"
@@ -1217,6 +1245,7 @@ export default function AppShell({ children }: AppShellProps) {
               )}
             </div>
             <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} />
+            {!wsAdminOnly && (
             <div>
               <button
                 type="button"
@@ -1257,6 +1286,7 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
+            )}
             </div>
             <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
               {me && (

@@ -39,7 +39,7 @@ import {
 } from "../services/authService";
 import { isAdmin as emailIsInAdminAllowlist } from "../services/adminService";
 import { getFreeQuotaSnapshot } from "../services/quotaUsageService";
-import { getEffectiveEntitlementsForUid } from "../services/teamService";
+import { getEffectiveEntitlementsForUid, getWorkspaceContext } from "../services/teamService";
 import { purgeArchivedTodosPastRetentionForUser } from "../services/todoService";
 import {
   getPendingTwoFactorMethods,
@@ -566,6 +566,14 @@ async function serializeAuthMeResponse(user: AuthUser) {
     notificationDigestHour: user.notificationDigestHour,
     /** Mirrors `ADMIN_EMAILS` on the API — used for /admin nav without duplicating the list in the client. */
     isAdmin: emailIsInAdminAllowlist(user.email),
+    ...(() => {
+      const ws = getWorkspaceContext(user.uid, user.email);
+      return {
+        workspaceAdminTeamIds: ws.managedTeamIds,
+        isWorkspaceAdminOnly: ws.isWorkspaceAdminOnly,
+        hasSeatMembership: ws.hasSeatMembership,
+      };
+    })(),
     ...(snap ? { freeQuotas: snap } : {}),
   };
 }

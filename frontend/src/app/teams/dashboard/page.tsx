@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -23,6 +24,8 @@ import {
   getTeamCollaborators,
   addTeamCollaboratorApi,
   removeTeamCollaboratorApi,
+  createTeamBillingPortalSession,
+  patchTeamFeaturesApi,
   getProjects,
   getCommentCounts,
   updateTodo,
@@ -53,6 +56,7 @@ export default function TeamDashboardPage() {
   const { t } = useLocale();
   const { toast } = useToast();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const meUid = user?.uid ?? null;
   const { resolveUser, displayName: userDisplayName } = useUserLookup();
 
@@ -65,11 +69,17 @@ export default function TeamDashboardPage() {
   const [reportingPeriodDays, setReportingPeriodDays] = useState<TeamReportingPeriodDays>(7);
   const [reporting, setReporting] = useState<TeamReportingResponse | null>(null);
   const [reportingLoading, setReportingLoading] = useState(false);
-  const canTeamReporting = user?.entitlements?.teamReporting === true;
+  const selectedTeam = teams.find((t2) => t2.id === selectedTeamId);
+  const canTeamReporting =
+    user?.isWorkspaceAdminOnly === true
+      ? (data?.team.billingPlan ?? selectedTeam?.billingPlan) === "large"
+      : user?.entitlements?.teamReporting === true;
 
   const [extCollaborators, setExtCollaborators] = useState<TeamCollaborator[]>([]);
   const [newCollabEmail, setNewCollabEmail] = useState("");
   const [collabSubmitting, setCollabSubmitting] = useState(false);
+  const [billingPortalBusy, setBillingPortalBusy] = useState(false);
+  const [featuresBusy, setFeaturesBusy] = useState(false);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [teamDeleteDialog, setTeamDeleteDialog] = useState<{ todo: Todo; subtaskCount: number } | null>(null);
@@ -100,11 +110,13 @@ export default function TeamDashboardPage() {
     getTeams()
       .then((list) => {
         setTeams(list);
-        if (list.length > 0) setSelectedTeamId(list[0].id);
+        const fromUrl = searchParams.get("team");
+        const initial = fromUrl && list.some((t2) => t2.id === fromUrl) ? fromUrl : list[0]?.id ?? null;
+        if (initial) setSelectedTeamId(initial);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [searchParams]);
 
   const requestIdRef = useRef(0);
   const reportingRequestIdRef = useRef(0);
@@ -334,10 +346,12 @@ export default function TeamDashboardPage() {
 
   const canManageCurrentTeam = data
     ? data.team.ownerUid === user?.uid ||
-      data.team.members.some((m) => m.email === user?.email && (m.role === "co-owner" || m.role === "admin"))
+      data.team.members.some((m) => m.email === user?.email && (m.role === "co-owner" || m.role === "admin")) ||
+      user?.isWorkspaceAdminOnly === true
     : false;
 
-  const usedSeats = data ? 1 + data.team.members.length : 0;
+  const workspaceAdminMode = !!(data?.workspaceAdminMode || user?.isWorkspaceAdminOnly);
+  const usedSeats = data?.usedSeats ?? (data ? 1 + data.team.members.length : 0);
   const totalSeats = data?.team.seatCount;
 
   const handleAddExtCollab = async () => {
@@ -368,6 +382,36 @@ export default function TeamDashboardPage() {
     }
   };
 
+  const handleOpenTeamBillingPortal = async () => {
+    if (!selectedTeamId) return;
+    setBillingPortalBusy(true);
+    try {
+      const url = await createTeamBillingPortalSession(
+        selectedTeamId,
+        typeof window !== "undefined" ? `${window.location.origin}/teams/dashboard?team=${selectedTeamId}` : undefined,
+      );
+      window.location.href = url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setBillingPortalBusy(false);
+    }
+  };
+
+  const handleToggleTeamIntegrations = async (enabled: boolean) => {
+    if (!selectedTeamId) return;
+    setFeaturesBusy(true);
+    try {
+      const flags = await patchTeamFeaturesApi(selectedTeamId, { integrationsEnabled: enabled });
+      setData((prev) => (prev ? { ...prev, featureFlags: flags } : prev));
+      toast.success(t("teams.workspaceFeaturesSaved"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setFeaturesBusy(false);
+    }
+  };
+
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -377,12 +421,14 @@ export default function TeamDashboardPage() {
               {t("teamDash.title")}
             </h1>
             <PageHelpButton helpId="teamDashboard" />
+            {!workspaceAdminMode && (
             <Link
               href="/teams/portfolio"
               className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               {t("portfolio.title")}
             </Link>
+            )}
           </div>
           {teams.length > 0 && (
             <select
@@ -410,6 +456,13 @@ export default function TeamDashboardPage() {
           </p>
         ) : (
           <>
+            {workspaceAdminMode && (
+              <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-100">
+                {t("teams.workspaceAdminBanner")}
+              </div>
+            )}
+
+            {!workspaceAdminMode && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4">
                 <p className="text-xs text-zinc-500 dark:text-slate-400 uppercase tracking-wide">{t("teamDash.totalTasks")}</p>
@@ -424,10 +477,11 @@ export default function TeamDashboardPage() {
                 <p className={`text-2xl font-bold mt-1 ${data.stats.dueSoon > 0 ? "text-amber-500" : "text-zinc-900 dark:text-slate-100"}`}>{data.stats.dueSoon}</p>
               </div>
             </div>
+            )}
 
             {/* Sièges */}
             {(data.team.billingPlan === "small" || data.team.billingPlan === "large") && (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 px-4 py-3">
                 <span className="text-emerald-700 dark:text-emerald-400 font-semibold text-sm shrink-0">
                   Plan {data.team.billingPlan === "small" ? "Small teams" : "Large teams"}
                 </span>
@@ -447,9 +501,43 @@ export default function TeamDashboardPage() {
                     )}
                   </>
                 )}
+                {canManageCurrentTeam && (
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenTeamBillingPortal()}
+                    disabled={billingPortalBusy}
+                    className="ml-auto text-sm font-medium text-emerald-800 dark:text-emerald-300 underline disabled:opacity-50"
+                  >
+                    {billingPortalBusy ? "…" : t("teams.openTeamBillingPortal")}
+                  </button>
+                )}
               </div>
             )}
 
+            {workspaceAdminMode && data.featureFlags && (
+              <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3">
+                <h2 className="text-sm font-semibold text-zinc-700 dark:text-slate-200 mb-2">{t("teams.workspaceFeaturesTitle")}</h2>
+                <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={data.featureFlags.integrationsEnabled !== false}
+                    disabled={featuresBusy}
+                    onChange={(e) => void handleToggleTeamIntegrations(e.target.checked)}
+                  />
+                  {t("teams.workspaceFeatureIntegrations")}
+                </label>
+              </div>
+            )}
+
+            {workspaceAdminMode && (
+              <p className="text-sm text-zinc-600 dark:text-slate-300">
+                <Link href="/teams" className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
+                  {t("teams.manageRosterLink")}
+                </Link>
+              </p>
+            )}
+
+            {!workspaceAdminMode && (
             <div>
               <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">
                 {t("teamDash.memberBreakdown")}
@@ -479,6 +567,7 @@ export default function TeamDashboardPage() {
                 </div>
               </div>
             </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between gap-3 mb-3">
@@ -667,6 +756,8 @@ export default function TeamDashboardPage() {
               </div>
             </div>
 
+            {!workspaceAdminMode && (
+            <>
             <div>
               <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-3">
                 {t("teamDash.sharedNotes")}
@@ -753,6 +844,8 @@ export default function TeamDashboardPage() {
                 </div>
               </div>
             </div>
+            </>
+            )}
           </>
         )}
       </div>

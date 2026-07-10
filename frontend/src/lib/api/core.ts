@@ -146,6 +146,11 @@ export interface AuthMeResponse {
   billingCurrentPeriodEnd?: string | null;
   /** Present when `billingPlan` is `free` and not early bird — server-side usage for volume caps. */
   freeQuotas?: FreeQuotaSnapshot | null;
+  /** Teams where this user is workspace-admin (hors siège). */
+  workspaceAdminTeamIds?: string[];
+  /** True when user is workspace-admin only (no billable seat) — restricted shell. */
+  isWorkspaceAdminOnly?: boolean;
+  hasSeatMembership?: boolean;
 }
 
 export interface ActivityLogEntry {

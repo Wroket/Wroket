@@ -21,6 +21,8 @@ import {
   createTeam,
   updateMemberRoleApi,
   removeTeamMemberApi,
+  addWorkspaceAdminApi,
+  removeWorkspaceAdminApi,
   deleteTeamApi,
   getMe,
   Collaborator,
@@ -67,6 +69,7 @@ function TeamsPageContent() {
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [deleteConfirmTeamId, setDeleteConfirmTeamId] = useState<string | null>(null);
+  const [wsAdminEmailByTeam, setWsAdminEmailByTeam] = useState<Record<string, string>>({});
   const [myUid, setMyUid] = useState<string | null>(null);
   const [myEmail, setMyEmail] = useState<string | null>(null);
 
@@ -709,6 +712,10 @@ function TeamsPageContent() {
                         const isCoOwner = myMember?.role === "co-owner";
                         const isAdmin = isOwner || isCoOwner || myMember?.role === "admin";
                         const canDeleteTeam = isOwner || isCoOwner;
+                        const teamPlan = team.billingPlan ?? "free";
+                        const canInviteWorkspaceAdmin =
+                          isAdmin && (teamPlan === "small" || teamPlan === "large");
+                        const workspaceAdmins = team.workspaceAdmins ?? [];
 
                         const ROLE_STYLE: Record<TeamMemberRole, { label: string; cls: string }> = {
                           "co-owner":   { label: t("teams.coOwner"),   cls: "bg-teal-100 text-teal-800 dark:bg-teal-900/35 dark:text-teal-300" },
@@ -788,6 +795,68 @@ function TeamsPageContent() {
                                 </div>
                               );
                             })}
+
+                            {workspaceAdmins.map((wa) => (
+                              <div key={wa.email} className="flex items-center gap-2 rounded bg-violet-50/60 dark:bg-violet-950/20 px-3 py-2 text-sm">
+                                <div className="w-7 h-7 rounded-full bg-violet-200 dark:bg-violet-900/40 flex items-center justify-center text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase">
+                                  {wa.email[0]}
+                                </div>
+                                <span className="flex-1 truncate text-zinc-700 dark:text-slate-300">{wa.email}</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-violet-100 text-violet-800 dark:bg-violet-900/35 dark:text-violet-300">
+                                  {t("teams.workspaceAdmin")}
+                                </span>
+                                {canInviteWorkspaceAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        const updated = await removeWorkspaceAdminApi(team.id, wa.email);
+                                        setTeams((prev) => prev.map((t2) => (t2.id === team.id ? updated : t2)));
+                                      } catch (err) {
+                                        alert(err instanceof Error ? err.message : "Erreur");
+                                      }
+                                    }}
+                                    title={t("teams.removeMember")}
+                                    className="rounded p-1 text-zinc-400 hover:text-red-500"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+
+                            {canInviteWorkspaceAdmin && workspaceAdmins.length < 2 && (
+                              <div className="flex items-center gap-2 pt-2 border-t border-zinc-100 dark:border-slate-800 mt-2">
+                                <ContactEmailSuggestInput
+                                  value={wsAdminEmailByTeam[team.id] ?? ""}
+                                  onChange={(v) => setWsAdminEmailByTeam((prev) => ({ ...prev, [team.id]: v }))}
+                                  placeholder={t("teams.workspaceAdminInvite")}
+                                  className="flex-1 min-w-0"
+                                  inputClassName="w-full rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800 px-3 py-2 text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const email = (wsAdminEmailByTeam[team.id] ?? "").trim();
+                                    if (!email) return;
+                                    try {
+                                      const updated = await addWorkspaceAdminApi(team.id, email);
+                                      setTeams((prev) => prev.map((t2) => (t2.id === team.id ? updated : t2)));
+                                      setWsAdminEmailByTeam((prev) => ({ ...prev, [team.id]: "" }));
+                                    } catch (err) {
+                                      alert(err instanceof Error ? err.message : "Erreur");
+                                    }
+                                  }}
+                                  className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline shrink-0"
+                                >
+                                  {t("teams.invite")}
+                                </button>
+                              </div>
+                            )}
 
                             {/* Delete team (owner or co-owner) */}
                             {canDeleteTeam && (

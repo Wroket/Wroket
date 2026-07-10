@@ -24,6 +24,11 @@ import {
   getTeamCollaborators,
   postAddTeamCollaborator,
   deleteTeamCollaborator,
+  getWorkspaceAdmins,
+  postAddWorkspaceAdmin,
+  deleteWorkspaceAdmin,
+  getTeamFeatures,
+  patchTeamFeaturesHandler,
 } from "../controllers/teamController";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -53,6 +58,11 @@ teamRoutes.delete("/:teamId/members/:email", postRemoveMember);
 teamRoutes.get("/:teamId/ext-collaborators", getTeamCollaborators);
 teamRoutes.post("/:teamId/ext-collaborators", postAddTeamCollaborator);
 teamRoutes.delete("/:teamId/ext-collaborators/:email", deleteTeamCollaborator);
+teamRoutes.get("/:teamId/workspace-admins", getWorkspaceAdmins);
+teamRoutes.post("/:teamId/workspace-admins", postAddWorkspaceAdmin);
+teamRoutes.delete("/:teamId/workspace-admins/:email", deleteWorkspaceAdmin);
+teamRoutes.get("/:teamId/features", getTeamFeatures);
+teamRoutes.patch("/:teamId/features", patchTeamFeaturesHandler);
 teamRoutes.post("/:teamId/transfer", postTransferOwnership);
 teamRoutes.delete("/:teamId", postDeleteTeam);
 

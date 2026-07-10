@@ -1,4 +1,4 @@
-import { ValidationError } from "../utils/errors";
+import { ForbiddenError, ValidationError } from "../utils/errors";
 import { getTeam, getTeamRole } from "./teamService";
 import {
   getProjectById,
@@ -31,6 +31,12 @@ export async function buildTeamPortfolio(teamId: string, uid: string, userEmail:
   if (!team) throw new ValidationError("Équipe introuvable");
   const role = getTeamRole(team, uid, userEmail);
   if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
+  if (role === "workspace-admin") {
+    throw new ForbiddenError(
+      "Le portfolio projet n'est pas accessible aux administrateurs workspace.",
+      "WORKSPACE_ADMIN_PRODUCT_DENIED",
+    );
+  }
 
   const projectIds = listActiveProjectIdsForTeam(teamId);
   const now = new Date();

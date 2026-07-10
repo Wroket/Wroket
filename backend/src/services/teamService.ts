@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { getStore, scheduleSave } from "../persistence";
 import { findUserByUid, getEntitlementsForUid } from "./authService";
 import { assertValidEmailFormat } from "../utils/emailValidation";
-import { ForbiddenError, NotFoundError, PaymentRequiredError, ValidationError } from "../utils/errors";
+import { ForbiddenError, NotFoundError, PaymentRequiredError, ValidationError, ConflictError, UnprocessableEntityError } from "../utils/errors";
 import {
   resolveEffectiveEntitlements,
   normalizeBillingPlan,
@@ -16,7 +16,18 @@ export interface Collaborator {
   status: "active" | "pending";
 }
 
-export type TeamRole = "owner" | "co-owner" | "admin" | "super-user" | "user";
+export type TeamRole = "owner" | "co-owner" | "admin" | "super-user" | "user" | "workspace-admin";
+
+export interface WorkspaceAdmin {
+  email: string;
+  addedAt: string;
+  addedByUid?: string;
+}
+
+export interface TeamFeatureFlags {
+  /** Team-level outbound integrations (when plan allows). Default: true for small/large. */
+  integrationsEnabled?: boolean;
+}
 
 export interface TeamMember {
   email: string;
@@ -46,7 +57,13 @@ export interface Team {
   stripeSubscriptionId?: string;
   /** Collaborateurs externes (plan propre, non comptés dans les sièges). */
   collaborators?: TeamCollaborator[];
+  /** Administrateurs workspace (hors siège, gestion roster/billing sans accès produit). */
+  workspaceAdmins?: WorkspaceAdmin[];
+  /** Toggles features au niveau équipe (P4). */
+  featureFlags?: TeamFeatureFlags;
 }
+
+export const MAX_WORKSPACE_ADMINS = 2;
 
 /** collaborators keyed by owner uid */
 const collaboratorsByUser = new Map<string, Collaborator[]>();
@@ -74,9 +91,13 @@ function persistTeams(): void {
   scheduleSave("teams");
 }
 
-/** Nombre de sièges effectivement occupés (owner inclus). */
-function usedSeats(team: Team): number {
+/** Nombre de sièges effectivement occupés (owner inclus ; workspace-admins exclus). */
+export function countUsedSeats(team: Team): number {
   return 1 + team.members.length;
+}
+
+function usedSeats(team: Team): number {
+  return countUsedSeats(team);
 }
 
 /** Nombre de sièges disponibles. Infinity quand aucun abonnement actif (pas de limite imposée). */
@@ -106,6 +127,7 @@ function availableSeats(team: Team): number {
       if (!t.billingPlan) t.billingPlan = "free";
       if (t.seatCount === undefined) t.seatCount = undefined; // conserver Infinity implicite
       if (!Array.isArray(t.collaborators)) t.collaborators = [];
+      if (!Array.isArray(t.workspaceAdmins)) t.workspaceAdmins = [];
       teamsById.set(id, t);
     }
     console.log("[teams] %d équipe(s) chargée(s)", teamsById.size);
@@ -235,15 +257,74 @@ export function declineCollaboration(inviterUid: string, inviteeEmail: string): 
 
 // ── Teams ──
 
+export function isWorkspaceAdmin(team: Team, userEmail: string): boolean {
+  const email = userEmail.trim().toLowerCase();
+  return (team.workspaceAdmins ?? []).some((w) => w.email === email);
+}
+
+function isTeamEligibleForWorkspaceAdmin(team: Team): boolean {
+  const plan = team.billingPlan ?? "free";
+  return plan === "small" || plan === "large";
+}
+
+function assertTeamEligibleForWorkspaceAdmin(team: Team): void {
+  if (!isTeamEligibleForWorkspaceAdmin(team)) {
+    throw new ForbiddenError(
+      "Les administrateurs workspace sont réservés aux équipes Small ou Large teams.",
+      "WORKSPACE_ADMIN_FORBIDDEN",
+    );
+  }
+}
+
+export interface WorkspaceContext {
+  isWorkspaceAdminOnly: boolean;
+  managedTeamIds: string[];
+  hasSeatMembership: boolean;
+}
+
+/**
+ * Contexte workspace pour guards produit et shell frontend.
+ * `isWorkspaceAdminOnly` = au moins une équipe en workspace-admin et aucun siège productif.
+ */
+export function getWorkspaceContext(uid: string, userEmail: string): WorkspaceContext {
+  const email = userEmail.trim().toLowerCase();
+  const managedTeamIds: string[] = [];
+  let hasSeatMembership = false;
+  let isWorkspaceAdminSomewhere = false;
+
+  teamsById.forEach((team) => {
+    const isOwner = team.ownerUid === uid;
+    const isMember = team.members.some((m) => m.email === email);
+    if (isOwner || isMember) hasSeatMembership = true;
+    if (isWorkspaceAdmin(team, email)) {
+      isWorkspaceAdminSomewhere = true;
+      managedTeamIds.push(team.id);
+    }
+  });
+
+  return {
+    isWorkspaceAdminOnly: isWorkspaceAdminSomewhere && !hasSeatMembership,
+    managedTeamIds,
+    hasSeatMembership,
+  };
+}
+
+/** False when the user is workspace-admin-only (no billable seat on any team). */
+export function canAccessProductFeatures(uid: string, userEmail: string): boolean {
+  return !getWorkspaceContext(uid, userEmail).isWorkspaceAdminOnly;
+}
+
 /**
  * Returns the effective role of a user in a team.
  * Owner is implicit (not stored in members array).
  */
 export function getTeamRole(team: Team, uid: string, userEmail: string): TeamRole | null {
   if (team.ownerUid === uid) return "owner";
-  const member = team.members.find((m) => m.email === userEmail.toLowerCase());
-  if (!member) return null;
-  return member.role;
+  const email = userEmail.trim().toLowerCase();
+  const member = team.members.find((m) => m.email === email);
+  if (member) return member.role;
+  if (isWorkspaceAdmin(team, email)) return "workspace-admin";
+  return null;
 }
 
 /**
@@ -253,6 +334,15 @@ export function getTeamRole(team: Team, uid: string, userEmail: string): TeamRol
 export function canManageTeam(team: Team, uid: string, userEmail: string): boolean {
   const role = getTeamRole(team, uid, userEmail);
   return role === "owner" || role === "co-owner" || role === "admin";
+}
+
+/**
+ * Gestion console équipe : roster, collaborateurs externes, billing délégué, features.
+ * Inclut les workspace-admins (hors siège).
+ */
+export function canManageTeamWorkspace(team: Team, uid: string, userEmail: string): boolean {
+  if (canManageTeam(team, uid, userEmail)) return true;
+  return isWorkspaceAdmin(team, userEmail);
 }
 
 /**
@@ -281,7 +371,7 @@ const VALID_MEMBER_ROLES = new Set<TeamMember["role"]>(["co-owner", "admin", "su
 export function updateMemberRole(teamId: string, uid: string, userEmail: string, memberEmail: string, newRole: TeamMember["role"]): Team {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Seuls les admins peuvent changer les rôles");
+  if (!canManageTeamWorkspace(team, uid, userEmail)) throw new ForbiddenError("Seuls les admins peuvent changer les rôles");
   if (!VALID_MEMBER_ROLES.has(newRole)) throw new ValidationError("Rôle invalide");
 
   const normalised = memberEmail.trim().toLowerCase();
@@ -294,11 +384,13 @@ export function updateMemberRole(teamId: string, uid: string, userEmail: string,
 }
 
 export function listUserTeams(uid: string, userEmail: string): Team[] {
+  const email = userEmail.trim().toLowerCase();
   const result: Team[] = [];
   teamsById.forEach((team) => {
     if (
       team.ownerUid === uid ||
-      team.members.some((m) => m.email === userEmail)
+      team.members.some((m) => m.email === email) ||
+      isWorkspaceAdmin(team, email)
     ) {
       result.push(team);
     }
@@ -387,12 +479,18 @@ export function addTeamMember(
 ): Team {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
+  if (!canManageTeamWorkspace(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
   assertValidRosterEmail(email, "Email");
   const normalised = email.trim().toLowerCase();
   if (team.members.some((m) => m.email === normalised)) {
     throw new ValidationError("Ce membre fait déjà partie de l'équipe");
+  }
+  if ((team.workspaceAdmins ?? []).some((w) => w.email === normalised)) {
+    throw new ConflictError(
+      "Cet email est administrateur workspace : retirez ce rôle avant d'ajouter un siège.",
+      "WORKSPACE_ADMIN_ALREADY_MEMBER",
+    );
   }
 
   const seats = availableSeats(team);
@@ -416,7 +514,7 @@ export function removeTeamMember(
 ): Team {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
+  if (!canManageTeamWorkspace(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
   const normalised = email.trim().toLowerCase();
   const idx = team.members.findIndex((m) => m.email === normalised);
@@ -476,7 +574,7 @@ export function addTeamCollaborator(
 ): TeamCollaborator {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
+  if (!canManageTeamWorkspace(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
   assertValidRosterEmail(email, "Email");
   const normalised = email.trim().toLowerCase();
@@ -488,6 +586,9 @@ export function addTeamCollaborator(
 
   if (team.members.some((m) => m.email === normalised) || team.ownerUid === findUidByEmailSafe(normalised)) {
     throw new ValidationError("Cet utilisateur est déjà membre siège de l'équipe");
+  }
+  if ((team.workspaceAdmins ?? []).some((w) => w.email === normalised)) {
+    throw new ValidationError("Cet utilisateur est administrateur workspace de l'équipe");
   }
 
   const entry: TeamCollaborator = { email: normalised, status: "pending" };
@@ -504,7 +605,7 @@ export function removeTeamCollaborator(
 ): void {
   const team = teamsById.get(teamId);
   if (!team) throw new NotFoundError("Équipe introuvable");
-  if (!canManageTeam(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
+  if (!canManageTeamWorkspace(team, uid, userEmail)) throw new ForbiddenError("Non autorisé");
 
   const normalised = email.trim().toLowerCase();
   if (!Array.isArray(team.collaborators)) throw new NotFoundError("Collaborateur introuvable");
@@ -565,6 +666,9 @@ export function findTeamByStripeSubscriptionId(subId: string): Team | null {
  * À utiliser dans les controllers pour le gating des features.
  */
 export function getEffectiveEntitlementsForUid(uid: string, userEmail: string): Entitlements {
+  if (!canAccessProductFeatures(uid, userEmail)) {
+    return getEntitlementsForUid(uid);
+  }
   const personal = getEntitlementsForUid(uid);
   const email = userEmail.trim().toLowerCase();
   let best: BillingPlan | null = null;
@@ -592,4 +696,119 @@ export function deleteTeam(teamId: string, uid: string, userEmail: string): void
 
   teamsById.delete(teamId);
   persistTeams();
+}
+
+// ── Workspace admins (hors siège) ──
+
+export function listWorkspaceAdmins(teamId: string): WorkspaceAdmin[] {
+  return teamsById.get(teamId)?.workspaceAdmins ?? [];
+}
+
+export function addWorkspaceAdmin(
+  teamId: string,
+  uid: string,
+  userEmail: string,
+  email: string,
+): Team {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeam(team, uid, userEmail)) {
+    throw new ForbiddenError("Seuls les administrateurs siège peuvent nommer un admin workspace.", "WORKSPACE_ADMIN_FORBIDDEN");
+  }
+  assertTeamEligibleForWorkspaceAdmin(team);
+
+  assertValidRosterEmail(email, "Email");
+  const normalised = email.trim().toLowerCase();
+
+  if (!Array.isArray(team.workspaceAdmins)) team.workspaceAdmins = [];
+
+  if (team.workspaceAdmins.some((w) => w.email === normalised)) {
+    throw new ConflictError("Cet administrateur workspace existe déjà.", "WORKSPACE_ADMIN_DUPLICATE");
+  }
+  if (team.members.some((m) => m.email === normalised)) {
+    throw new ConflictError(
+      "Cet email est déjà membre siège : retirez-le du roster avant de le nommer admin workspace.",
+      "WORKSPACE_ADMIN_ALREADY_MEMBER",
+    );
+  }
+  const owner = findUserByUid(team.ownerUid);
+  if (owner?.email?.toLowerCase() === normalised) {
+    throw new ConflictError("Le propriétaire ne peut pas être administrateur workspace.", "WORKSPACE_ADMIN_ALREADY_MEMBER");
+  }
+  if (team.workspaceAdmins.length >= MAX_WORKSPACE_ADMINS) {
+    throw new UnprocessableEntityError(
+      `Maximum ${MAX_WORKSPACE_ADMINS} administrateurs workspace par équipe.`,
+      "WORKSPACE_ADMIN_CAP_REACHED",
+    );
+  }
+
+  team.workspaceAdmins.push({
+    email: normalised,
+    addedAt: new Date().toISOString(),
+    addedByUid: uid,
+  });
+  persistTeams();
+  return team;
+}
+
+export function removeWorkspaceAdmin(
+  teamId: string,
+  uid: string,
+  userEmail: string,
+  email: string,
+): Team {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+
+  const normalised = email.trim().toLowerCase();
+  const selfRemove = userEmail.trim().toLowerCase() === normalised;
+  if (!canManageTeam(team, uid, userEmail) && !(selfRemove && isWorkspaceAdmin(team, userEmail))) {
+    throw new ForbiddenError("Non autorisé", "WORKSPACE_ADMIN_FORBIDDEN");
+  }
+
+  if (!Array.isArray(team.workspaceAdmins)) throw new NotFoundError("Administrateur workspace introuvable");
+  const idx = team.workspaceAdmins.findIndex((w) => w.email === normalised);
+  if (idx === -1) throw new NotFoundError("Administrateur workspace introuvable");
+
+  team.workspaceAdmins.splice(idx, 1);
+  persistTeams();
+  return team;
+}
+
+// ── Team feature flags (P4) ──
+
+export function getTeamFeatureFlags(team: Team): Required<TeamFeatureFlags> {
+  const plan = team.billingPlan ?? "free";
+  const planIntegrations = plan === "small" || plan === "large";
+  return {
+    integrationsEnabled: team.featureFlags?.integrationsEnabled ?? planIntegrations,
+  };
+}
+
+export function patchTeamFeatures(
+  teamId: string,
+  uid: string,
+  userEmail: string,
+  patch: Partial<TeamFeatureFlags>,
+): Team {
+  const team = teamsById.get(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeamWorkspace(team, uid, userEmail)) {
+    throw new ForbiddenError("Non autorisé", "WORKSPACE_ADMIN_FORBIDDEN");
+  }
+  assertTeamEligibleForWorkspaceAdmin(team);
+
+  if (!team.featureFlags) team.featureFlags = {};
+  if (patch.integrationsEnabled !== undefined) {
+    team.featureFlags.integrationsEnabled = patch.integrationsEnabled;
+  }
+  persistTeams();
+  return team;
+}
+
+/** Test helper — clears in-memory teams map. */
+export function _resetTeamsForTests(): void {
+  teamsById.clear();
+  const store = getStore();
+  store.teams = {};
 }

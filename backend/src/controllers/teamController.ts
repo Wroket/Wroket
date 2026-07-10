@@ -25,6 +25,13 @@ import {
   removeTeamCollaborator,
   listTeamCollaborators,
   getEffectiveEntitlementsForUid,
+  listWorkspaceAdmins,
+  addWorkspaceAdmin,
+  removeWorkspaceAdmin,
+  canManageTeamWorkspace,
+  getTeamFeatureFlags,
+  patchTeamFeatures,
+  countUsedSeats,
 } from "../services/teamService";
 import { listActiveProjectIdsForTeam } from "../services/projectService";
 import { listAllTodos, listTodosForUsers } from "../services/todoService";
@@ -281,6 +288,27 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   const role = getTeamRole(team, req.user!.uid, req.user!.email);
   if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
 
+  const ownerUser = findUserByUid(team.ownerUid);
+  const memberMap: Record<string, string> = {};
+  if (ownerUser) memberMap[ownerUser.uid] = ownerUser.email;
+  for (const m of team.members) {
+    const u = findUserByEmail(m.email);
+    if (u) memberMap[u.uid] = u.email;
+  }
+
+  if (role === "workspace-admin") {
+    res.status(200).json({
+      team,
+      workspaceAdminMode: true,
+      stats: { totalTasks: 0, byMember: {}, overdue: 0, dueSoon: 0 },
+      todos: [],
+      memberMap,
+      usedSeats: countUsedSeats(team),
+      featureFlags: getTeamFeatureFlags(team),
+    });
+    return;
+  }
+
   const memberUids: string[] = [team.ownerUid];
   for (const m of team.members) {
     const u = findUserByEmail(m.email);
@@ -292,12 +320,12 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   /** Only tasks attached to an active team project — exclude members' personal tasks. */
   const todos = allMemberTodos.filter((t) => t.projectId && teamProjectIds.has(t.projectId));
 
-  const ownerUser = findUserByUid(team.ownerUid);
-  const memberMap: Record<string, string> = {};
-  if (ownerUser) memberMap[ownerUser.uid] = ownerUser.email;
+  const ownerUser2 = findUserByUid(team.ownerUid);
+  const memberMap2: Record<string, string> = {};
+  if (ownerUser2) memberMap2[ownerUser2.uid] = ownerUser2.email;
   for (const m of team.members) {
     const u = findUserByEmail(m.email);
-    if (u) memberMap[u.uid] = u.email;
+    if (u) memberMap2[u.uid] = u.email;
   }
 
   const stats = {
@@ -311,7 +339,7 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
   for (const todo of todos) {
-    const email = memberMap[todo.userId] ?? todo.userId;
+    const email = memberMap2[todo.userId] ?? todo.userId;
     if (!stats.byMember[email]) stats.byMember[email] = { total: 0, overdue: 0 };
     stats.byMember[email].total++;
 
@@ -322,7 +350,7 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
     }
   }
 
-  res.status(200).json({ team, stats, todos, memberMap });
+  res.status(200).json({ team, stats, todos, memberMap: memberMap2 });
 }
 
 export async function getTeamReporting(req: AuthenticatedRequest, res: Response) {
@@ -333,7 +361,14 @@ export async function getTeamReporting(req: AuthenticatedRequest, res: Response)
   const role = getTeamRole(team, req.user!.uid, req.user!.email);
   if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
 
-  if (!getEffectiveEntitlementsForUid(req.user!.uid, req.user!.email).teamReporting) {
+  const isWorkspaceAdminRole = role === "workspace-admin";
+  if (isWorkspaceAdminRole) {
+    if ((team.billingPlan ?? "free") !== "large") {
+      throw new ForbiddenError(
+        "Le reporting équipe nécessite le palier Large teams pour les administrateurs workspace.",
+      );
+    }
+  } else if (!getEffectiveEntitlementsForUid(req.user!.uid, req.user!.email).teamReporting) {
     throw new ForbiddenError(
       "Le reporting équipe nécessite le palier Large teams ou le statut early bird (attribué par un administrateur).",
     );
@@ -454,6 +489,67 @@ export async function deleteTeamCollaborator(req: AuthenticatedRequest, res: Res
   const email = decodeURIComponent(req.params.email as string);
   removeTeamCollaborator(teamId, req.user!.uid, req.user!.email, email);
   res.status(200).json({ ok: true });
+}
+
+export async function getWorkspaceAdmins(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const team = getTeam(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeamWorkspace(team, req.user!.uid, req.user!.email)) {
+    throw new ForbiddenError("Non autorisé", "WORKSPACE_ADMIN_FORBIDDEN");
+  }
+  res.status(200).json({ workspaceAdmins: listWorkspaceAdmins(teamId) });
+}
+
+export async function postAddWorkspaceAdmin(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const { email } = req.body as { email?: string };
+  if (!email || typeof email !== "string") throw new ValidationError("Email requis");
+
+  const team = addWorkspaceAdmin(teamId, req.user!.uid, req.user!.email, email);
+
+  try {
+    const targetUser = findUserByEmail(email);
+    if (targetUser) {
+      createNotification(
+        targetUser.uid,
+        "team_invite",
+        "Administrateur workspace",
+        `${req.user!.email} vous a nommé administrateur workspace de l'équipe "${team.name}"`,
+        { teamId: team.id, teamName: team.name, actorEmail: req.user!.email ?? "", workspaceAdmin: "true" },
+      );
+    }
+  } catch (err) {
+    console.warn("[team.postAddWorkspaceAdmin] notification failed:", err);
+  }
+
+  res.status(201).json(team);
+}
+
+export async function deleteWorkspaceAdmin(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const email = decodeURIComponent(req.params.email as string);
+  const team = removeWorkspaceAdmin(teamId, req.user!.uid, req.user!.email, email);
+  res.status(200).json(team);
+}
+
+export async function getTeamFeatures(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const team = getTeam(teamId);
+  if (!team) throw new NotFoundError("Équipe introuvable");
+  if (!canManageTeamWorkspace(team, req.user!.uid, req.user!.email)) {
+    throw new ForbiddenError("Non autorisé", "WORKSPACE_ADMIN_FORBIDDEN");
+  }
+  res.status(200).json({ featureFlags: getTeamFeatureFlags(team) });
+}
+
+export async function patchTeamFeaturesHandler(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const body = req.body as { integrationsEnabled?: boolean };
+  const patch: { integrationsEnabled?: boolean } = {};
+  if (typeof body.integrationsEnabled === "boolean") patch.integrationsEnabled = body.integrationsEnabled;
+  const team = patchTeamFeatures(teamId, req.user!.uid, req.user!.email, patch);
+  res.status(200).json({ team, featureFlags: getTeamFeatureFlags(team) });
 }
 
 export async function getTeamPortfolio(req: AuthenticatedRequest, res: Response) {
