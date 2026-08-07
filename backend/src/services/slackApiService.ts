@@ -2,6 +2,7 @@
  * Slack Web API helpers — outbound chat + inbound identity (Lot 2–3).
  */
 
+import { ValidationError } from "../utils/errors";
 import { getSlackBotTokenForTeam, getSlackConnectionForUser } from "./slackConnectionService";
 
 interface SlackApiOk {
@@ -36,6 +37,12 @@ export async function tryPostViaSlackOAuth(uid: string, body: unknown): Promise<
 
   const data = (await res.json()) as SlackApiOk;
   if (!data.ok) {
+    if (data.error === "not_in_channel") {
+      throw new ValidationError(
+        "Le bot Wroket n’est pas dans le canal Slack. Ouvrez le canal et tapez /invite @Wroket.",
+        "SLACK_NOT_IN_CHANNEL",
+      );
+    }
     throw new Error(data.error ?? `slack chat.postMessage HTTP ${res.status}`);
   }
   return true;
@@ -43,12 +50,17 @@ export async function tryPostViaSlackOAuth(uid: string, body: unknown): Promise<
 
 /**
  * Send a simple test message to the connected channel.
+ * Prefers chat.postMessage; on `not_in_channel`, falls back to the OAuth Incoming Webhook URL.
  */
 export async function postSlackTestMessage(uid: string): Promise<void> {
   const conn = getSlackConnectionForUser(uid);
   if (!conn?.accessToken || !conn.channelId) {
-    throw new Error("Slack non connecté ou canal manquant");
+    throw new ValidationError(
+      "Slack non connecté ou canal manquant — reconnectez Slack dans Paramètres.",
+      "SLACK_NOT_CONNECTED",
+    );
   }
+
   const res = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
@@ -62,9 +74,31 @@ export async function postSlackTestMessage(uid: string): Promise<void> {
     signal: AbortSignal.timeout(5_000),
   });
   const data = (await res.json()) as SlackApiOk;
-  if (!data.ok) {
-    throw new Error(data.error ?? `slack test failed HTTP ${res.status}`);
+  if (data.ok) return;
+
+  if (data.error === "not_in_channel" && conn.incomingWebhookUrl) {
+    const wh = await fetch(conn.incomingWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        text: "Test Wroket — connexion Slack OK ✅ (via webhook ; invitez @Wroket dans le canal pour les messages API / boutons)",
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (wh.ok) return;
   }
+
+  if (data.error === "not_in_channel") {
+    throw new ValidationError(
+      `Le bot Wroket n’est pas dans #${(conn.channelName ?? "canal").replace(/^#/, "")}. Dans Slack, ouvrez le canal et tapez /invite @Wroket, puis réessayez.`,
+      "SLACK_NOT_IN_CHANNEL",
+    );
+  }
+
+  throw new ValidationError(
+    `Échec du test Slack (${data.error ?? `HTTP ${res.status}`}).`,
+    "SLACK_TEST_FAILED",
+  );
 }
 
 /**

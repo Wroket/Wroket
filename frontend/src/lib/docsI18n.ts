@@ -595,8 +595,8 @@ export const docsTranslations = {
     en: "Button or `/wroket` rejects the action",
   },
   "docs.slack.trouble2.body": {
-    fr: "Vérifiez que l’e-mail Slack = e-mail Wroket, que vous êtes le destinataire de l’assignation, et que l’app Slack a les scopes `users:read` / `users:read.email` (reconnectez après mise à jour).",
-    en: "Check Slack email = Wroket email, that you are the assignment target, and that the Slack app has `users:read` / `users:read.email` (reconnect after scope updates).",
+    fr: "Vérifiez que l’e-mail Slack = e-mail Wroket, que vous êtes le destinataire de l’assignation, et que l’app Slack a les scopes `users:read` / `users:read.email` (reconnectez après mise à jour). Si le test échoue avec « not in channel », ouvrez le canal et tapez `/invite @Wroket`.",
+    en: "Check Slack email = Wroket email, that you are the assignment target, and that the Slack app has `users:read` / `users:read.email` (reconnect after scope updates). If the test fails with “not in channel”, open the channel and type `/invite @Wroket`.",
   },
 
   // Keep legacy keys for any stale references
