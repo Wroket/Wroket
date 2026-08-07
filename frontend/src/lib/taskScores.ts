@@ -1,5 +1,6 @@
 import type { Effort, Priority, Todo } from "@/lib/api";
-import { getEffectiveDaysLeft } from "./effectiveDue";
+import { getEffectiveDaysLeft, getEffectiveDueMs } from "./effectiveDue";
+import { QUADRANT_RGB } from "./tagPalette";
 
 export type EisenhowerQuadrant = "do-first" | "schedule" | "delegate" | "eliminate";
 
@@ -21,6 +22,71 @@ export type TaskScores = {
   daysLeft: number | null;
   quadrant: EisenhowerQuadrant;
 };
+
+/** Radar scores that may absorb active children's priority / due date. */
+export type RadarTaskScores = TaskScores & {
+  /** True when an active subtask raised priority or brought a sooner due. */
+  bubbledFromSubtask: boolean;
+};
+
+const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
+
+/** Higher severity wins (high > medium > low). */
+export function maxPriority(a: Priority, b: Priority): Priority {
+  return PRIORITY_RANK[a] >= PRIORITY_RANK[b] ? a : b;
+}
+
+/**
+ * Synthetic todo for radar placement: max priority and soonest effective due
+ * among parent + active children. Effort stays the parent's (charge of the unit).
+ */
+export function todoForRadarScoring(
+  parent: Todo,
+  children: Todo[] | undefined,
+  nowMs: number = Date.now(),
+): { scoringTodo: Todo; bubbledFromSubtask: boolean } {
+  const activeKids = (children ?? []).filter((c) => c.status === "active");
+  if (activeKids.length === 0) {
+    return { scoringTodo: parent, bubbledFromSubtask: false };
+  }
+
+  let priority = parent.priority;
+  for (const c of activeKids) {
+    priority = maxPriority(priority, c.priority);
+  }
+
+  let dueSource: Todo = parent;
+  let dueMs = getEffectiveDueMs(parent, nowMs);
+  for (const c of activeKids) {
+    const ms = getEffectiveDueMs(c, nowMs);
+    if (ms == null) continue;
+    if (dueMs == null || ms < dueMs) {
+      dueMs = ms;
+      dueSource = c;
+    }
+  }
+
+  const scoringTodo: Todo = {
+    ...parent,
+    priority,
+    deadline: dueSource.deadline,
+    scheduledSlot: dueSource.scheduledSlot,
+  };
+
+  const bubbledPriority = priority !== parent.priority;
+  const bubbledDeadline = dueSource.id !== parent.id && dueMs != null;
+  return { scoringTodo, bubbledFromSubtask: bubbledPriority || bubbledDeadline };
+}
+
+/** Scores for radar plot / priority list — children stay off the plot. */
+export function computeRadarTaskScores(
+  todo: Todo,
+  children: Todo[] | undefined,
+  nowMs: number = Date.now(),
+): RadarTaskScores {
+  const { scoringTodo, bubbledFromSubtask } = todoForRadarScoring(todo, children, nowMs);
+  return { ...computeTaskScores(scoringTodo, nowMs), bubbledFromSubtask };
+}
 
 export type RadarMode = "eisenhower" | "pressure" | "roi" | "load";
 
@@ -172,21 +238,32 @@ function cmpTodoId(a: Todo, b: Todo): number {
 /**
  * Ordre de tri pour la colonne « Priorités » (vue radar) : aligné sur les axes du mode
  * ({@link radarXY}) — Vue Radar par quadrant puis U+I ; Pression par P ; ROI par R ; Charge × urgence par U puis C.
+ * Pass `childrenByParent` so sort matches plot scoring (subtask priority / due bubble-up).
  */
-export function compareTodosForRadarList(a: Todo, b: Todo, mode: RadarMode, nowMs = Date.now()): number {
-  const sA = computeTaskScores(a, nowMs);
-  const sB = computeTaskScores(b, nowMs);
+export function compareTodosForRadarList(
+  a: Todo,
+  b: Todo,
+  mode: RadarMode,
+  nowMs = Date.now(),
+  childrenByParent?: Record<string, Todo[]>,
+): number {
+  const resolvedA = todoForRadarScoring(a, childrenByParent?.[a.id], nowMs);
+  const resolvedB = todoForRadarScoring(b, childrenByParent?.[b.id], nowMs);
+  const sA = computeTaskScores(resolvedA.scoringTodo, nowMs);
+  const sB = computeTaskScores(resolvedB.scoringTodo, nowMs);
+  const effA = resolvedA.scoringTodo;
+  const effB = resolvedB.scoringTodo;
 
   const tieDeadline = (): number => {
-    const dA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-    const dB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+    const dA = getEffectiveDueMs(effA, nowMs) ?? Infinity;
+    const dB = getEffectiveDueMs(effB, nowMs) ?? Infinity;
     if (dA !== dB) return dA - dB;
     return cmpTodoId(a, b);
   };
 
   const tiePriorityDeadline = (): number => {
-    const pA = PRIORITY_ORDER[a.priority];
-    const pB = PRIORITY_ORDER[b.priority];
+    const pA = PRIORITY_ORDER[effA.priority];
+    const pB = PRIORITY_ORDER[effB.priority];
     if (pA !== pB) return pA - pB;
     return tieDeadline();
   };
@@ -314,6 +391,52 @@ export function radarDotRadiusPx(C: number, compact: boolean): number {
   return minR + (C / 100) * (maxR - minR);
 }
 
+/** Smaller core radius for V2 constellation nodes (volume comes from soft halo). */
+export function radarConstellationRadiusPx(C: number, compact: boolean): number {
+  const minR = compact ? 2.5 : 3;
+  const maxR = compact ? 5 : 7;
+  return minR + (C / 100) * (maxR - minR);
+}
+
+/** Minimum hit target for constellation cores (a11y). */
+export const RADAR_STAR_HIT_PX = 24;
+
+/** Soft sky-style halo tint for constellation nodes (V2). */
+const STAR_HALO_RGB: Record<EisenhowerQuadrant, { r: number; g: number; b: number }> = {
+  "do-first": QUADRANT_RGB["do-first"],
+  schedule: QUADRANT_RGB.schedule,
+  delegate: QUADRANT_RGB.delegate,
+  eliminate: QUADRANT_RGB.eliminate,
+};
+
+export type RadarStarHalo = {
+  r: number;
+  g: number;
+  b: number;
+  /** 0–1 drives halo opacity / size */
+  intensity: number;
+  /** Stagger CSS animation (ms) */
+  delayMs: number;
+};
+
+/**
+ * Atmospheric halo params (Sky-loader style): soft diffusion, no hard stroke.
+ * Deadline / pressure raise intensity; overdue shifts toward red.
+ */
+export function radarStarHalo(scores: TaskScores, q: EisenhowerQuadrant, todoId: string): RadarStarHalo {
+  const time = deadlineRingIntensity(scores.daysLeft);
+  const p = scores.P / 100;
+  const intensity = clamp(0.28 + 0.42 * time + 0.3 * p, 0.22, 0.95);
+  let { r, g, b } = STAR_HALO_RGB[q];
+  if (scores.daysLeft != null && scores.daysLeft < 0) {
+    r = 220;
+    g = 38;
+    b = 38;
+  }
+  const delayMs = Math.round(seededRandom(todoId) * 2800);
+  return { r, g, b, intensity, delayMs };
+}
+
 /**
  * Ring stroke "heat" 0–1 from deadline (full ring when very soon / overdue).
  */
@@ -377,6 +500,181 @@ export function spreadRadarDots(items: RadarSpreadItem[]): Map<string, { left: n
     }
   }
 
+  return out;
+}
+
+export type ConstellationNode = {
+  id: string;
+  left: number;
+  bottom: number;
+  quadrant: EisenhowerQuadrant;
+  parentId?: string | null;
+  projectId?: string | null;
+};
+
+export type ConstellationLink = {
+  a: string;
+  b: string;
+  /** Percent coords in plot space (left / top). */
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** Same Eisenhower cell — drawn slightly stronger. */
+  sameQuadrant: boolean;
+};
+
+/** Nearby / same-quadrant project edges. */
+const CONSTELLATION_MAX_DIST = 42;
+/**
+ * Same-project edges across Eisenhower cells (plot % units).
+ * Adjacent cells are often ~45–55 apart; diagonal ~70+ — the local cap alone
+ * would hide cross-frame constellation links.
+ */
+const CONSTELLATION_MAX_DIST_CROSS = 92;
+const CONSTELLATION_MAX_DEGREE = 3;
+/** Nearest same-cell project edges per node. */
+const CONSTELLATION_K_NEAREST = 2;
+/** Extra cross-quadrant same-project edges per node (keeps the sky readable). */
+const CONSTELLATION_K_CROSS = 2;
+
+/**
+ * Whether two tasks may share a constellation edge:
+ * parent↔child, or both belonging to the same project.
+ * Independent / cross-project tasks stay unlinked.
+ */
+export function areConstellationRelated(a: ConstellationNode, b: ConstellationNode): boolean {
+  if (a.id === b.id) return false;
+  if (a.parentId === b.id || b.parentId === a.id) return true;
+  if (a.projectId && b.projectId && a.projectId === b.projectId) return true;
+  return false;
+}
+
+/**
+ * Constellation edges among related tasks (parent/child or same project).
+ * Same-project links may cross quadrants (dashed); parent↔child always kept.
+ */
+export function constellationLinks(
+  nodes: ConstellationNode[],
+  opts?: {
+    maxDist?: number;
+    maxDistCross?: number;
+    maxDegree?: number;
+    kNearest?: number;
+    kCross?: number;
+  },
+): ConstellationLink[] {
+  const maxDist = opts?.maxDist ?? CONSTELLATION_MAX_DIST;
+  const maxDistCross = opts?.maxDistCross ?? CONSTELLATION_MAX_DIST_CROSS;
+  const maxDegree = opts?.maxDegree ?? CONSTELLATION_MAX_DEGREE;
+  const kNearest = opts?.kNearest ?? CONSTELLATION_K_NEAREST;
+  const kCross = opts?.kCross ?? CONSTELLATION_K_CROSS;
+  if (nodes.length < 2) return [];
+
+  type Edge = {
+    a: string;
+    b: string;
+    dist: number;
+    sameQuadrant: boolean;
+    family: boolean;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  };
+
+  const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const candidates = new Map<string, Edge>();
+
+  const makeEdge = (A: ConstellationNode, B: ConstellationNode, dist: number, family: boolean): Edge => ({
+    a: A.id < B.id ? A.id : B.id,
+    b: A.id < B.id ? B.id : A.id,
+    dist,
+    sameQuadrant: A.quadrant === B.quadrant,
+    family,
+    x1: A.id < B.id ? A.left : B.left,
+    y1: A.id < B.id ? 100 - A.bottom : 100 - B.bottom,
+    x2: A.id < B.id ? B.left : A.left,
+    y2: A.id < B.id ? 100 - B.bottom : 100 - A.bottom,
+  });
+
+  for (const A of nodes) {
+    const related = nodes
+      .filter((B) => areConstellationRelated(A, B))
+      .map((B) => {
+        const dist = Math.hypot(A.left - B.left, A.bottom - B.bottom);
+        const family = A.parentId === B.id || B.parentId === A.id;
+        const sameQuadrant = A.quadrant === B.quadrant;
+        return { B, dist, family, sameQuadrant };
+      })
+      .filter((n) => n.dist > 0.01)
+      .sort((x, y) => {
+        // Prefer family, then closer; slight same-cell bias (not enough to hide cross links).
+        if (x.family !== y.family) return x.family ? -1 : 1;
+        const scoreX = x.dist - (x.sameQuadrant ? 2 : 0);
+        const scoreY = y.dist - (y.sameQuadrant ? 2 : 0);
+        return scoreX - scoreY || x.B.id.localeCompare(y.B.id);
+      });
+
+    const picked: typeof related = [];
+    let sameCount = 0;
+    let crossCount = 0;
+    for (const n of related) {
+      if (n.family) {
+        picked.push(n);
+        continue;
+      }
+      if (n.sameQuadrant) {
+        if (n.dist <= maxDist && sameCount < kNearest) {
+          picked.push(n);
+          sameCount += 1;
+        }
+        continue;
+      }
+      if (n.dist <= maxDistCross && crossCount < kCross) {
+        picked.push(n);
+        crossCount += 1;
+      }
+    }
+
+    for (const n of picked) {
+      const key = edgeKey(A.id, n.B.id);
+      const existing = candidates.get(key);
+      const edge = makeEdge(A, n.B, n.dist, n.family);
+      if (!existing || edge.dist < existing.dist || (edge.family && !existing.family)) {
+        candidates.set(key, edge);
+      }
+    }
+  }
+
+  const edges = [...candidates.values()].sort(
+    (e1, e2) =>
+      (e2.family ? 1 : 0) - (e1.family ? 1 : 0) ||
+      e1.dist - e2.dist ||
+      e1.a.localeCompare(e2.a) ||
+      e1.b.localeCompare(e2.b),
+  );
+
+  const degree = new Map<string, number>();
+  const out: ConstellationLink[] = [];
+  for (const e of edges) {
+    const da = degree.get(e.a) ?? 0;
+    const db = degree.get(e.b) ?? 0;
+    // Family edges always allowed even at degree cap (bump past soft cap once)
+    if (!e.family && (da >= maxDegree || db >= maxDegree)) continue;
+    if (e.family && (da >= maxDegree + 1 || db >= maxDegree + 1)) continue;
+    degree.set(e.a, da + 1);
+    degree.set(e.b, db + 1);
+    out.push({
+      a: e.a,
+      b: e.b,
+      x1: e.x1,
+      y1: e.y1,
+      x2: e.x2,
+      y2: e.y2,
+      sameQuadrant: e.sameQuadrant,
+    });
+  }
   return out;
 }
 

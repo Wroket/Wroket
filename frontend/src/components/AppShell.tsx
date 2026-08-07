@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -30,6 +31,9 @@ import FreeQuotaBanner from "@/components/FreeQuotaBanner";
 import { notificationOpenHref } from "@/lib/notificationDeepLink";
 import { PUSH_NOTIFICATION_ICON } from "@/lib/pushBranding";
 import { hasLocalWebPushSubscription } from "@/lib/webPushLocal";
+import { useUiV2 } from "@/lib/UiVersionContext";
+import CommandPalette from "@/components/v2/CommandPalette";
+import CreateMenu from "@/components/v2/CreateMenu";
 
 interface AppShellProps {
   children: ReactNode;
@@ -183,34 +187,176 @@ function userSeesAdminNav(me: { email: string; isAdmin?: boolean }): boolean {
   return LEGACY_ADMIN_EMAIL_ALLOWLIST.includes(me.email.toLowerCase());
 }
 
-function NavLink({ href, icon, label, active, onClick }: { href: string; icon: ReactNode; label: string; active: boolean; onClick?: () => void }) {
+function NavLink({
+  href,
+  icon,
+  label,
+  active,
+  onClick,
+  collapsed,
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  onClick?: () => void;
+  /** V2 icon rail: hide label, show native tooltip. */
+  collapsed?: boolean;
+}) {
   return (
     <Link
       href={href}
       onClick={onClick}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
+      className={`flex items-center rounded text-sm font-medium transition-colors ${
+        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+      } ${
         active
           ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
           : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
       }`}
     >
       {icon}
-      {label}
+      {collapsed ? <span className="sr-only">{label}</span> : label}
     </Link>
   );
 }
 
-function NavButton({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+function NavButton({
+  icon,
+  label,
+  onClick,
+  collapsed,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  collapsed?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
+      className={`w-full flex items-center rounded text-sm font-medium transition-colors text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100 ${
+        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+      }`}
     >
       {icon}
-      {label}
+      {collapsed ? <span className="sr-only">{label}</span> : label}
     </button>
   );
+}
+
+/** Icon-rail flyout for nested nav groups when the V2 sidebar is collapsed. */
+function CollapsedNavGroup({
+  icon,
+  label,
+  active,
+  open,
+  onOpenChange,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      // Flush to the rail (no gap) so the pointer never falls into dead space.
+      setMenuPos({ top: r.top, left: r.right });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      onOpenChange(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open, onOpenChange]);
+
+  const menu =
+    open && menuPos && mounted
+      ? createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{ top: menuPos.top, left: menuPos.left }}
+            /* Portal to body — sticky aside traps stacking vs Agenda main. */
+            className="fixed z-[200] min-w-[11rem] pl-1.5 pointer-events-auto"
+          >
+            <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-xl">
+              <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-slate-500">
+                {label}
+              </p>
+              {children}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={btnRef}
+        type="button"
+        /* Native title tooltips sit above the flyout and steal hover — only when closed. */
+        title={open ? undefined : label}
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => onOpenChange(!open)}
+        className={`w-full flex items-center justify-center px-2 py-2.5 rounded text-sm font-medium transition-colors ${
+          active
+            ? "bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-slate-100"
+            : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100"
+        }`}
+      >
+        {icon}
+      </button>
+      {menu}
+    </div>
+  );
+}
+
+function flyoutChildClass(active: boolean): string {
+  return `block mx-1 px-2.5 py-2 rounded text-sm transition-colors ${
+    active
+      ? "font-medium text-zinc-900 dark:text-slate-100 bg-zinc-100 dark:bg-slate-800 hover:bg-zinc-200/80 dark:hover:bg-slate-700"
+      : "text-zinc-600 dark:text-slate-300 hover:text-zinc-900 dark:hover:text-slate-100 hover:bg-zinc-100 dark:hover:bg-slate-800"
+  }`;
 }
 
 function timeAgo(iso: string, t: (k: import("@/lib/i18n").TranslationKey) => string): string {
@@ -244,6 +390,7 @@ export default function AppShell({ children }: AppShellProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const { user: me, loading, refresh } = useAuth();
+  const { uiV2, setUiV2, sidebarCollapsed, toggleSidebarCollapsed } = useUiV2();
   const wsAdminOnly = me?.isWorkspaceAdminOnly === true;
   const wsDefaultTeamId = me?.workspaceAdminTeamIds?.[0];
   const [darkMode, setDarkMode] = useState(false);
@@ -256,6 +403,9 @@ export default function AppShell({ children }: AppShellProps) {
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [sidebarFlyout, setSidebarFlyout] = useState<"tasks" | "agenda" | "teams" | "archive" | null>(null);
+  /** Enable width animation only after an explicit toggle (not on AppShell remount). */
+  const [sidebarWidthTransition, setSidebarWidthTransition] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const helpMenuRef = useRef<HTMLDivElement>(null);
@@ -287,6 +437,26 @@ export default function AppShell({ children }: AppShellProps) {
       setDarkMode(true);
       document.documentElement.classList.add("dark");
     }
+  }, []);
+
+  useEffect(() => {
+    setSidebarFlyout(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!uiV2) setSidebarFlyout(null);
+  }, [uiV2]);
+
+  const railCollapsed = uiV2 && sidebarCollapsed;
+
+  const onToggleSidebarCollapsed = useCallback(() => {
+    setSidebarWidthTransition(true);
+    toggleSidebarCollapsed();
+    setSidebarFlyout(null);
+  }, [toggleSidebarCollapsed]);
+
+  const setFlyout = useCallback((id: "tasks" | "agenda" | "teams" | "archive" | null) => {
+    setSidebarFlyout(id);
   }, []);
 
   useEffect(() => {
@@ -558,13 +728,21 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-100 dark:bg-slate-950 transition-colors [--app-mobile-header:4.5rem]">
+    <div className={`min-h-screen flex flex-col transition-colors [--app-mobile-header:4.5rem] ${
+      uiV2
+        ? "ui-v2 ui-v2-shell"
+        : "bg-zinc-100 dark:bg-slate-950"
+    }`}>
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:rounded focus:bg-slate-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white">
         {t("a11y.skipToContent")}
       </a>
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-50 shrink-0 bg-white dark:bg-slate-900 border-b border-zinc-200 dark:border-slate-700 shadow-sm">
+      <header className={`sticky top-0 z-50 shrink-0 border-b shadow-sm ${
+        uiV2
+          ? "ui-glass"
+          : "bg-white dark:bg-slate-900 border-zinc-200 dark:border-slate-700"
+      }`}>
         <div className="px-4 md:px-6 py-4 flex items-center justify-between min-h-[var(--app-mobile-header)]">
           <div className="flex items-center gap-3">
             <button
@@ -587,7 +765,7 @@ export default function AppShell({ children }: AppShellProps) {
             <WroketLockup
               theme="auto"
               markSize={28}
-              markContainerClassName="w-10 h-10 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0"
+              markContainerClassName="wroket-mark-tile w-10 h-10 bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0"
               wordmarkClassName="text-lg font-semibold"
             />
             {me?.earlyBird ? (
@@ -596,8 +774,44 @@ export default function AppShell({ children }: AppShellProps) {
                 <EarlyBirdBadge compact className="sm:hidden" />
               </>
             ) : null}
+            <button
+              type="button"
+              role="switch"
+              data-testid="ui-v2-toggle"
+              aria-checked={uiV2}
+              aria-label={t("settings.uiV2")}
+              title={uiV2 ? t("settings.uiV2On") : t("settings.uiV2Off")}
+              onClick={() => setUiV2(!uiV2)}
+              className={`hidden sm:inline-flex items-center gap-2 rounded-full border px-2 py-1 transition-colors ${
+                uiV2
+                  ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20"
+                  : "border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/60"
+              }`}
+            >
+              <span
+                className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${
+                  uiV2 ? "bg-emerald-600 dark:bg-emerald-500" : "bg-zinc-300 dark:bg-slate-600"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${
+                    uiV2 ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </span>
+              <span
+                className={`text-[10px] font-semibold whitespace-nowrap ${
+                  uiV2
+                    ? "text-emerald-700 dark:text-emerald-300"
+                    : "text-zinc-500 dark:text-slate-400"
+                }`}
+              >
+                {t("uiV2.newInterface")}
+              </span>
+            </button>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
+            {uiV2 && !wsAdminOnly && <CreateMenu />}
             {/* Mobile search button */}
             <button
               type="button"
@@ -628,7 +842,7 @@ export default function AppShell({ children }: AppShellProps) {
                 )}
               </div>
               {searchOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50">
+                <div className={`absolute left-0 top-full mt-1.5 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl z-50 ${uiV2 ? "rounded-sm" : "rounded-lg"}`}>
                   {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.length >= 2 ? (
                     <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
                   ) : (
@@ -722,7 +936,7 @@ export default function AppShell({ children }: AppShellProps) {
                 )}
               </button>
               {notifOpen && (
-                <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),26rem)] sm:w-[26rem] bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg shadow-xl z-50 max-h-[min(70vh,32rem)] flex flex-col">
+                <div className={`absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),26rem)] sm:w-[26rem] bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl z-50 max-h-[min(70vh,32rem)] flex flex-col ${uiV2 ? "rounded-sm" : "rounded-lg"}`}>
                   <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-slate-800">
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("notif.title")}</h3>
                     <div className="flex items-center gap-2">
@@ -945,7 +1159,13 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
         <nav
           aria-label={t("a11y.mainNavigation")}
-          className={`absolute left-0 bottom-0 top-[var(--app-mobile-header)] w-64 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700 flex flex-col min-h-0 overflow-hidden transition-transform duration-300 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+          className={`absolute left-0 bottom-0 top-[var(--app-mobile-header)] w-64 border-r flex flex-col min-h-0 overflow-hidden transition-transform duration-300 ease-in-out ${
+            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          } ${
+            uiV2
+              ? "ui-v2-sidebar"
+              : "bg-white dark:bg-slate-900 border-zinc-200 dark:border-slate-700"
+          }`}
         >
           <div className="flex-1 min-h-0 overflow-y-auto py-3 px-3 flex flex-col gap-1">
             {!wsAdminOnly && NAV_ITEMS.slice(0, 1).map((item) => (
@@ -1128,14 +1348,43 @@ export default function AppShell({ children }: AppShellProps) {
 
       <div className="flex flex-1 min-h-0">
         {/* ── Desktop Sidebar: full viewport height below header; main nav scrolls; settings pinned at bottom -- */}
-        <aside className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:sticky md:top-[4.5rem] md:h-[calc(100vh-4.5rem)] md:min-h-0 bg-white dark:bg-slate-900 border-r border-zinc-200 dark:border-slate-700">
+        <aside
+          className={`hidden md:flex md:flex-col md:shrink-0 md:sticky md:top-[4.5rem] md:h-[calc(100vh-4.5rem)] md:min-h-0 border-r ${
+            sidebarWidthTransition ? "transition-[width] duration-200 ease-out" : ""
+          } ${railCollapsed ? "md:w-16" : "md:w-56"} ${
+            uiV2
+              ? "ui-v2-sidebar"
+              : "bg-white dark:bg-slate-900 border-zinc-200 dark:border-slate-700"
+          }`}
+        >
           <nav aria-label={t("a11y.mainNavigation")} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto py-4 px-3 flex flex-col gap-1">
+            <div className={`flex-1 min-h-0 overflow-y-auto py-4 flex flex-col gap-1 ${railCollapsed ? "px-2" : "px-3"}`}>
             {!wsAdminOnly && NAV_ITEMS.slice(0, 1).map((item) => (
-              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
+              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} collapsed={railCollapsed} />
             ))}
             {!wsAdminOnly && (
             <>
+            {railCollapsed ? (
+              <CollapsedNavGroup
+                icon={TASKS_NAV.icon}
+                label={t(TASKS_NAV.tKey)}
+                active={pathname.startsWith("/todos")}
+                open={sidebarFlyout === "tasks"}
+                onOpenChange={(open) => setFlyout(open ? "tasks" : null)}
+              >
+                {TASKS_NAV.children.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    role="menuitem"
+                    onClick={() => setFlyout(null)}
+                    className={flyoutChildClass(pathname === child.href)}
+                  >
+                    {t(child.tKey)}
+                  </Link>
+                ))}
+              </CollapsedNavGroup>
+            ) : (
             <div>
               <button
                 type="button"
@@ -1170,6 +1419,28 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
+            )}
+            {railCollapsed ? (
+              <CollapsedNavGroup
+                icon={AGENDA_NAV.icon}
+                label={t(AGENDA_NAV.tKey)}
+                active={pathname.startsWith("/agenda")}
+                open={sidebarFlyout === "agenda"}
+                onOpenChange={(open) => setFlyout(open ? "agenda" : null)}
+              >
+                {AGENDA_NAV.children.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    role="menuitem"
+                    onClick={() => setFlyout(null)}
+                    className={flyoutChildClass(pathname === child.href)}
+                  >
+                    {t(child.tKey)}
+                  </Link>
+                ))}
+              </CollapsedNavGroup>
+            ) : (
             <div>
               <button
                 type="button"
@@ -1204,12 +1475,34 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <NavLink href={NOTES_ITEM.href} icon={NOTES_ITEM.icon} label={t(NOTES_ITEM.tKey)} active={pathname === "/notes"} />
+            )}
+            <NavLink href={NOTES_ITEM.href} icon={NOTES_ITEM.icon} label={t(NOTES_ITEM.tKey)} active={pathname === "/notes"} collapsed={railCollapsed} />
             {NAV_ITEMS.slice(1).map((item) => (
-              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} />
+              <NavLink key={item.href} href={item.href} icon={item.icon} label={t(item.tKey)} active={pathname === item.href} collapsed={railCollapsed} />
             ))}
             </>
             )}
+            {railCollapsed ? (
+              <CollapsedNavGroup
+                icon={TEAMS_NAV.icon}
+                label={t(TEAMS_NAV.tKey)}
+                active={pathname.startsWith("/teams")}
+                open={sidebarFlyout === "teams"}
+                onOpenChange={(open) => setFlyout(open ? "teams" : null)}
+              >
+                {TEAMS_NAV.children.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    role="menuitem"
+                    onClick={() => setFlyout(null)}
+                    className={flyoutChildClass(pathname === child.href)}
+                  >
+                    {t(child.tKey)}
+                  </Link>
+                ))}
+              </CollapsedNavGroup>
+            ) : (
             <div>
               <button
                 type="button"
@@ -1244,8 +1537,36 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} />
+            )}
+            <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} collapsed={railCollapsed} />
             {!wsAdminOnly && (
+            railCollapsed ? (
+              <CollapsedNavGroup
+                icon={ARCHIVE_NAV.icon}
+                label={t(ARCHIVE_NAV.tKey)}
+                active={pathname.startsWith("/archive")}
+                open={sidebarFlyout === "archive"}
+                onOpenChange={(open) => setFlyout(open ? "archive" : null)}
+              >
+                {ARCHIVE_NAV.children.map((child) => {
+                  const active =
+                    child.href === "/archive/data"
+                      ? pathname.startsWith("/archive/data")
+                      : pathname === child.href;
+                  return (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      role="menuitem"
+                      onClick={() => setFlyout(null)}
+                      className={flyoutChildClass(active)}
+                    >
+                      {t(child.tKey)}
+                    </Link>
+                  );
+                })}
+              </CollapsedNavGroup>
+            ) : (
             <div>
               <button
                 type="button"
@@ -1286,20 +1607,45 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
+            )
             )}
             </div>
-            <div className="shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 px-3 flex flex-col gap-1">
+            <div className={`shrink-0 border-t border-zinc-200 dark:border-slate-700 py-3 flex flex-col gap-1 ${railCollapsed ? "px-2" : "px-3"}`}>
               {me && (
                 <NavButton
                   icon={FEEDBACK_ITEM.icon}
                   label={t(FEEDBACK_ITEM.tKey)}
                   onClick={() => setFeedbackOpen(true)}
+                  collapsed={railCollapsed}
                 />
               )}
-              <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} />
-              <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} />
+              <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} collapsed={railCollapsed} />
+              <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} collapsed={railCollapsed} />
               {me && userSeesAdminNav(me) && (
-                <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} />
+                <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} collapsed={railCollapsed} />
+              )}
+              {uiV2 && (
+                <button
+                  type="button"
+                  onClick={onToggleSidebarCollapsed}
+                  title={railCollapsed ? t("a11y.expandSidebar") : t("a11y.collapseSidebar")}
+                  aria-label={railCollapsed ? t("a11y.expandSidebar") : t("a11y.collapseSidebar")}
+                  aria-expanded={!railCollapsed}
+                  className={`mt-1 w-full flex items-center rounded text-sm font-medium transition-colors text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 hover:text-zinc-900 dark:hover:text-slate-100 ${
+                    railCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+                  }`}
+                >
+                  <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden>
+                    {railCollapsed ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
+                    )}
+                  </svg>
+                  {!railCollapsed && (
+                    <span className="flex-1 text-left">{t("a11y.collapseSidebar")}</span>
+                  )}
+                </button>
               )}
             </div>
           </nav>
@@ -1413,7 +1759,7 @@ export default function AppShell({ children }: AppShellProps) {
 
       {shareOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShareOpen(false)} onKeyDown={(e) => { if (e.key === "Escape") setShareOpen(false); }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" className={`bg-white dark:bg-slate-900 shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6 ${uiV2 ? "rounded-sm" : "rounded-2xl"}`} onClick={(e) => e.stopPropagation()}>
             <h3 id="share-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("app.share")}</h3>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mb-4">{t("app.share.placeholder")}</p>
             <ContactEmailSuggestInput
@@ -1447,6 +1793,13 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {uiV2 && !wsAdminOnly && (
+        <>
+          <CommandPalette />
+          <CreateMenu fab />
+        </>
       )}
     </div>
   );

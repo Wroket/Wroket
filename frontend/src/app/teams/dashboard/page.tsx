@@ -8,6 +8,7 @@ import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskEditModal from "@/components/TaskEditModal";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
+import { SoftLock, PlanBadge } from "@/components/SoftLock";
 import { useAuth } from "@/components/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
@@ -570,11 +571,11 @@ export default function TeamDashboardPage() {
             )}
 
             <div>
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide">
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <h2 className="text-sm font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide inline-flex items-center gap-2">
                   {t("teamReport.title")}
+                  {!canTeamReporting && <PlanBadge tier="large" />}
                 </h2>
-                {canTeamReporting && (
                 <div className="flex items-center gap-2">
                   <label className="sr-only" htmlFor="team-reporting-period">
                     {t("teamReport.periodLabel")}
@@ -582,8 +583,9 @@ export default function TeamDashboardPage() {
                   <select
                     id="team-reporting-period"
                     value={reportingPeriodDays}
+                    disabled={!canTeamReporting}
                     onChange={(e) => setReportingPeriodDays(Number(e.target.value) as TeamReportingPeriodDays)}
-                    className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-2 text-sm text-zinc-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-2 text-sm text-zinc-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
                   >
                     <option value={7}>{t("teamReport.period7")}</option>
                     <option value={14}>{t("teamReport.period14")}</option>
@@ -591,8 +593,9 @@ export default function TeamDashboardPage() {
                   </select>
                   <button
                     type="button"
+                    disabled={!canTeamReporting || !reporting}
                     onClick={() => {
-                      if (!reporting) return;
+                      if (!reporting || !canTeamReporting) return;
                       const rows = reporting.byProject.map((p) => [
                         projectNameById.get(p.projectId) ?? p.projectId,
                         p.active,
@@ -618,17 +621,23 @@ export default function TeamDashboardPage() {
                         rows,
                       );
                     }}
-                    className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                    className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800 disabled:opacity-50"
                   >
                     {t("teamReport.exportCsv")}
                   </button>
                 </div>
-                )}
               </div>
 
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-4 space-y-4">
                 {!canTeamReporting ? (
-                  <p className="text-sm text-zinc-600 dark:text-slate-400">{t("teamReport.lockedLarge")}</p>
+                  <SoftLock locked tier="large" hintKey="teamReport.lockedLarge">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 opacity-80">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="rounded-lg border border-dashed border-zinc-200 dark:border-slate-700 p-3 h-16 bg-zinc-50 dark:bg-slate-800/40" />
+                      ))}
+                    </div>
+                    <div className="mt-3 h-24 rounded-lg border border-dashed border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/40" />
+                  </SoftLock>
                 ) : reportingLoading ? (
                   <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-slate-400">
                     <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />

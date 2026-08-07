@@ -28,7 +28,7 @@ export default function DeleteTaskDialog({
 
   useEffect(() => {
     if (!open) return;
-    cancelRef.current?.focus();
+    dialogRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -70,7 +70,9 @@ export default function DeleteTaskDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-task-dialog-title"
-        className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+        tabIndex={-1}
+        data-confirm
+        className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none"
       >
         <h2 id="delete-task-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
           {t("task.deleteTitle")}

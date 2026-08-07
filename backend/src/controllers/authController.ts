@@ -564,6 +564,7 @@ async function serializeAuthMeResponse(user: AuthUser) {
     notificationTypesDisabledOutbound: user.notificationTypesDisabledOutbound,
     notificationOutboundFrequency: user.notificationOutboundFrequency,
     notificationDigestHour: user.notificationDigestHour,
+    taskListColumnOrder: user.taskListColumnOrder,
     /** Mirrors `ADMIN_EMAILS` on the API — used for /admin nav without duplicating the list in the client. */
     isAdmin: emailIsInAdminAllowlist(user.email),
     ...(() => {
@@ -641,6 +642,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     notificationTypesDisabledInApp, notificationTypesDisabledOutbound,
     notificationOutboundFrequency, notificationDigestHour,
     automationNotifyAssigneeOverdue, automationNotifyProjectOwnerOverdue,
+    taskListColumnOrder,
   } = req.body as {
     firstName?: unknown; lastName?: unknown; effortMinutes?: unknown; workingHours?: unknown; skipNonWorkingDays?: unknown;
     notificationDeliveryMode?: unknown; notificationDeliveryWebhookUrl?: unknown;
@@ -651,6 +653,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     notificationDigestHour?: unknown;
     automationNotifyAssigneeOverdue?: unknown;
     automationNotifyProjectOwnerOverdue?: unknown;
+    taskListColumnOrder?: unknown;
   };
   if (firstName !== undefined && typeof firstName !== "string") {
     throw new ValidationError("Prénom invalide");
@@ -707,6 +710,17 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     validatedArchivedRetention = d;
   }
 
+  let validatedColumnOrder: string[] | undefined;
+  if (taskListColumnOrder !== undefined) {
+    if (!Array.isArray(taskListColumnOrder)) {
+      throw new ValidationError("taskListColumnOrder invalide");
+    }
+    if (!taskListColumnOrder.every((x) => typeof x === "string")) {
+      throw new ValidationError("taskListColumnOrder invalide");
+    }
+    validatedColumnOrder = taskListColumnOrder as string[];
+  }
+
   const updated = await updateProfileService(user.uid, {
     firstName: firstName as string | undefined,
     lastName: lastName as string | undefined,
@@ -728,6 +742,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
     notificationDigestHour: typeof notificationDigestHour === "number" ? notificationDigestHour : undefined,
     automationNotifyAssigneeOverdue: automationNotifyAssigneeOverdue !== undefined ? !!automationNotifyAssigneeOverdue : undefined,
     automationNotifyProjectOwnerOverdue: automationNotifyProjectOwnerOverdue !== undefined ? !!automationNotifyProjectOwnerOverdue : undefined,
+    taskListColumnOrder: validatedColumnOrder,
   });
   if (validatedArchivedRetention !== undefined) {
     void purgeArchivedTodosPastRetentionForUser(user.uid).catch((err) => {

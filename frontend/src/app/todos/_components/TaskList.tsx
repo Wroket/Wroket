@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   closestCenter,
@@ -8,22 +8,42 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { useLocale } from "@/lib/LocaleContext";
-import type { Todo, Project } from "@/lib/api";
+import { useUiV2 } from "@/lib/UiVersionContext";
+import { useAuth } from "@/components/AuthContext";
+import { useToast } from "@/components/Toast";
+import { updateProfile } from "@/lib/api";
+import type { Todo, Project, Priority, Effort } from "@/lib/api";
+import type { TaskEditZone } from "@/components/TaskEditModal";
 import type { SortColumn, SortDirection } from "@/lib/todoConstants";
 
 import SortArrow from "./SortArrow";
 import SortableTaskRow from "./SortableTaskRow";
 import { sortTodos } from "./sortUtils";
+import {
+  DEFAULT_TASK_LIST_COLUMNS,
+  sanitizeColumnOrder,
+  type TaskListColumnId,
+} from "./taskListColumns";
+import ActionsVisibilityPicker from "./ActionsVisibilityPicker";
+import {
+  readVisibleActions,
+  writeVisibleActions,
+  type TaskListActionId,
+} from "@/lib/taskListVisibleActions";
 
 export interface TaskListProps {
   todos: Todo[];
@@ -36,7 +56,9 @@ export interface TaskListProps {
   onComplete: (t: Todo) => void;
   onCancel: (t: Todo) => void;
   onDelete: (t: Todo) => void;
-  onEdit: (t: Todo) => void;
+  onEdit: (t: Todo, zone?: TaskEditZone) => void;
+  onPriorityChange?: (t: Todo, priority: Priority) => void;
+  onEffortChange?: (t: Todo, effort: Effort) => void;
   onSubtask: (t: Todo) => void;
   onDecline: (t: Todo) => void;
   onAccept: (t: Todo) => void;
@@ -58,6 +80,92 @@ export interface TaskListProps {
   onBulkDelete: (todos: Todo[]) => void;
 }
 
+function ColumnDragHandle({ listeners, attributes }: {
+  listeners: ReturnType<typeof useSortable>["listeners"];
+  attributes: ReturnType<typeof useSortable>["attributes"];
+}) {
+  const { t } = useLocale();
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center justify-center w-4 h-4 shrink-0 rounded text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 cursor-grab active:cursor-grabbing"
+      aria-label={t("table.reorderColumnHint")}
+      title={t("table.reorderColumnHint")}
+      {...attributes}
+      {...listeners}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+        <circle cx="5" cy="4" r="1.2" /><circle cx="11" cy="4" r="1.2" />
+        <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
+        <circle cx="5" cy="12" r="1.2" /><circle cx="11" cy="12" r="1.2" />
+      </svg>
+    </button>
+  );
+}
+
+function SortableColumnHeader({
+  id,
+  className,
+  children,
+  align = "left",
+  dataTestId,
+}: {
+  id: TaskListColumnId;
+  className?: string;
+  children: ReactNode;
+  align?: "left" | "center";
+  dataTestId?: string;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id,
+    data: { type: "column" as const },
+    /** Avoid layout-animation leftovers that stack stretched headers after drop. */
+    animateLayoutChanges: () => false,
+  });
+
+  /** Translate only — Transform keeps dnd-kit scaleX and stretches header labels. */
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? undefined : transition,
+    opacity: isDragging ? 0.45 : 1,
+    position: "relative",
+    zIndex: isDragging ? 40 : undefined,
+    backgroundColor: isDragging ? "var(--task-list-dnd-bg, rgb(255 255 255))" : undefined,
+  };
+
+  return (
+    <th
+      ref={setNodeRef}
+      style={style}
+      className={`${className ?? ""}${isDragging ? " task-list-col-dragging" : ""}`}
+      data-testid={dataTestId}
+    >
+      <div
+        className={`flex items-center gap-1 min-w-0 min-h-4 ${
+          align === "center" ? "justify-center" : ""
+        }`}
+      >
+        <ColumnDragHandle listeners={listeners} attributes={attributes} />
+        <div
+          className={`min-w-0 flex items-center ${
+            align === "center" ? "" : "flex-1"
+          }`}
+        >
+          {children}
+        </div>
+      </div>
+    </th>
+  );
+}
+
 export default function TaskList({
   todos,
   allTodos,
@@ -70,6 +178,8 @@ export default function TaskList({
   onCancel,
   onDelete,
   onEdit,
+  onPriorityChange,
+  onEffortChange,
   onSubtask,
   onDecline,
   onAccept,
@@ -90,12 +200,40 @@ export default function TaskList({
   onBulkDelete,
 }: TaskListProps) {
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
+  const { user, applyUser } = useAuth();
+  const { toast } = useToast();
   const selectAllRef = useRef<HTMLInputElement>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const sorted = useMemo(() => sortTodos(todos, sortCol, sortDir, nowMs), [todos, sortCol, sortDir, nowMs]);
 
   const [displayOrder, setDisplayOrder] = useState<Todo[]>(sorted);
   useEffect(() => { setDisplayOrder(sorted); }, [sorted]);
+
+  const [columnOrder, setColumnOrder] = useState<TaskListColumnId[]>(() =>
+    sanitizeColumnOrder(user?.taskListColumnOrder ?? DEFAULT_TASK_LIST_COLUMNS),
+  );
+  const lastSyncedColumnOrderRef = useRef(columnOrder);
+  const columnOrderSaveGenRef = useRef(0);
+  const [visibleActions, setVisibleActions] = useState<TaskListActionId[]>(() =>
+    readVisibleActions(),
+  );
+
+  useEffect(() => {
+    if (!uiV2) return;
+    setVisibleActions(readVisibleActions());
+  }, [uiV2]);
+
+  const handleVisibleActionsChange = useCallback((next: TaskListActionId[]) => {
+    setVisibleActions(next);
+    writeVisibleActions(next);
+  }, []);
+
+  useEffect(() => {
+    const next = sanitizeColumnOrder(user?.taskListColumnOrder ?? DEFAULT_TASK_LIST_COLUMNS);
+    setColumnOrder(next);
+    lastSyncedColumnOrderRef.current = next;
+  }, [user?.taskListColumnOrder]);
 
   useEffect(() => {
     const visible = new Set(displayOrder.map((x) => x.id));
@@ -126,30 +264,75 @@ export default function TaskList({
       return next;
     });
   };
-  const thBtn = "flex items-center gap-0.5 cursor-pointer select-none hover:text-zinc-900 transition-colors";
-  const thPad = "px-4 py-3";
-  /** Priorité, Effort, Échéance, Classification : même largeur */
-  const metaCol = "w-24";
+  const thLabel =
+    "text-xs font-semibold leading-none text-zinc-600 dark:text-slate-400";
+  const thBtn =
+    `inline-flex items-center gap-0.5 ${thLabel} cursor-pointer select-none hover:text-zinc-900 dark:hover:text-slate-100 transition-colors`;
+  const thPy = uiV2 ? "py-2" : "py-3";
+  /** V2 widths come from `.task-list-col-*` in globals.css — avoid Tailwind width utilities. */
+  const thPad = uiV2 ? `px-2 ${thPy}` : `px-4 ${thPy}`;
+  const metaCol = uiV2 ? "task-list-col-meta" : "w-24";
+  const thBase = `text-left ${thLabel}`;
+  const thMeta = `text-center ${thLabel}`;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const activeType = args.active.data.current?.type as string | undefined;
+    if (!activeType) return closestCenter(args);
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (c) => c.data.current?.type === activeType,
+      ),
+    });
+  }, []);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    const activeType = active.data.current?.type as string | undefined;
+
+    if (activeType === "column") {
+      const activeId = String(active.id) as TaskListColumnId;
+      const overId = String(over.id) as TaskListColumnId;
+      setColumnOrder((prev) => {
+        const oldIdx = prev.indexOf(activeId);
+        const newIdx = prev.indexOf(overId);
+        if (oldIdx === -1 || newIdx === -1) return prev;
+        const next = arrayMove(prev, oldIdx, newIdx);
+        const gen = ++columnOrderSaveGenRef.current;
+        void updateProfile({ taskListColumnOrder: next })
+          .then((me) => {
+            applyUser(me);
+            lastSyncedColumnOrderRef.current = sanitizeColumnOrder(
+              me.taskListColumnOrder ?? next,
+            );
+          })
+          .catch(() => {
+            if (gen !== columnOrderSaveGenRef.current) return;
+            setColumnOrder(lastSyncedColumnOrderRef.current);
+            toast.error(t("table.columnOrderSaveError"));
+          });
+        return next;
+      });
+      return;
+    }
+
     setDisplayOrder((prev) => {
-      const oldIdx = prev.findIndex((t) => t.id === active.id);
-      const newIdx = prev.findIndex((t) => t.id === (over.id as string));
+      const oldIdx = prev.findIndex((row) => row.id === active.id);
+      const newIdx = prev.findIndex((row) => row.id === (over.id as string));
       if (oldIdx === -1 || newIdx === -1) return prev;
       const next = arrayMove(prev, oldIdx, newIdx);
-      onReorder?.(next.map((t) => t.id));
+      onReorder?.(next.map((row) => row.id));
       return next;
     });
-  }, [onReorder]);
+  }, [onReorder, applyUser, t, toast]);
 
-  const sortableIds = useMemo(() => displayOrder.map((t) => t.id), [displayOrder]);
+  const sortableIds = useMemo(() => displayOrder.map((row) => row.id), [displayOrder]);
 
   const selectedCount = useMemo(() => {
     let n = 0;
@@ -215,53 +398,139 @@ export default function TaskList({
     onBulkDelete(selectedTodos);
   }, [selectedTodos, onBulkDelete]);
 
+  const renderColumnHeader = (col: TaskListColumnId) => {
+    switch (col) {
+      case "actions":
+        return (
+          <SortableColumnHeader
+            key={col}
+            id={col}
+            className={`${uiV2 ? "task-list-col-actions" : "w-16"} pl-2 pr-0.5 ${thPy} ${thBase}`}
+          >
+            <span className="inline-flex items-center gap-1 min-w-0">
+              <span className={thLabel}>{t("table.actions")}</span>
+              {uiV2 && (
+                <ActionsVisibilityPicker
+                  visible={visibleActions}
+                  onChange={handleVisibleActionsChange}
+                />
+              )}
+            </span>
+          </SortableColumnHeader>
+        );
+      case "title":
+        return (
+          <SortableColumnHeader
+            key={col}
+            id={col}
+            className={`${uiV2 ? "task-list-col-title" : ""} pl-2 pr-4 ${thPy} ${thBase}`}
+          >
+            <span className={thLabel}>{t("table.title")}</span>
+          </SortableColumnHeader>
+        );
+      case "priority":
+        return (
+          <SortableColumnHeader
+            key={col}
+            id={col}
+            align="center"
+            className={`${thPad} ${thMeta} ${metaCol}`}
+            dataTestId="task-list-col-priority"
+          >
+            <button type="button" className={thBtn} onClick={() => onSort("priority")}>
+              {t("table.priority")} <SortArrow col="priority" activeCol={sortCol} dir={sortDir} />
+            </button>
+          </SortableColumnHeader>
+        );
+      case "effort":
+        return (
+          <SortableColumnHeader
+            key={col}
+            id={col}
+            align="center"
+            className={`${thPad} ${thMeta} ${metaCol}`}
+            dataTestId="task-list-col-effort"
+          >
+            <span className={thLabel}>{t("table.effort")}</span>
+          </SortableColumnHeader>
+        );
+      case "deadline":
+        return (
+          <SortableColumnHeader
+            key={col}
+            id={col}
+            align="center"
+            className={`${thPad} ${thMeta} ${metaCol}`}
+            dataTestId="task-list-col-deadline"
+          >
+            <button type="button" className={thBtn} onClick={() => onSort("deadline")}>
+              {t("table.deadline")} <SortArrow col="deadline" activeCol={sortCol} dir={sortDir} />
+            </button>
+          </SortableColumnHeader>
+        );
+      case "classification":
+        return (
+          <SortableColumnHeader
+            key={col}
+            id={col}
+            align="center"
+            className={`${thPad} ${thMeta} ${metaCol}`}
+            dataTestId="task-list-col-focus"
+          >
+            <button type="button" className={thBtn} onClick={() => onSort("classification")}>
+              {t("table.classification")} <SortArrow col="classification" activeCol={sortCol} dir={sortDir} />
+            </button>
+          </SortableColumnHeader>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div>
-      <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-            <table className="w-full text-sm min-w-[676px]">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/80">
-                  <th className="w-8 px-1 py-3" />
-                  <th className="w-16 pl-2 pr-0.5 py-3 text-left font-semibold text-zinc-600 dark:text-slate-400 text-xs">{t("table.actions")}</th>
-                  <th className="text-left pl-2 pr-4 py-3 font-semibold text-zinc-600 dark:text-slate-400">{t("table.title")}</th>
-                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 ${metaCol}`}>
-                    <button type="button" className={thBtn} onClick={() => onSort("priority")}>
-                      {t("table.priority")} <SortArrow col="priority" activeCol={sortCol} dir={sortDir} />
-                    </button>
+      <div
+        className={
+          uiV2
+            ? "bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto px-2 pb-1"
+            : "bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto"
+        }
+      >
+        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={handleDragEnd}>
+          <table
+            className={`w-full text-sm ${uiV2 ? "task-list-v2" : "min-w-[676px]"}`}
+            data-testid="task-list"
+          >
+            <thead>
+              <tr className={uiV2 ? "bg-transparent" : "border-b border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/80"}>
+                <th className={`w-8 px-1 ${thPy}`} />
+                {uiV2 && (
+                  <th className={`w-9 px-0.5 ${thPy}`}>
+                    <span className="sr-only">{t("a11y.complete")}</span>
                   </th>
-                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 ${metaCol}`}>
-                    {t("table.effort")}
-                  </th>
-                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 ${metaCol}`}>
-                    <button type="button" className={thBtn} onClick={() => onSort("deadline")}>
-                      {t("table.deadline")} <SortArrow col="deadline" activeCol={sortCol} dir={sortDir} />
-                    </button>
-                  </th>
-                  <th className={`text-left ${thPad} font-semibold text-zinc-600 dark:text-slate-400 ${metaCol}`}>
-                    <button type="button" className={thBtn} onClick={() => onSort("classification")}>
-                      {t("table.classification")} <SortArrow col="classification" activeCol={sortCol} dir={sortDir} />
-                    </button>
-                  </th>
-                  <th className="w-10 px-1 py-3 text-center font-semibold text-zinc-600 dark:text-slate-400 text-xs">
-                    <span className="sr-only">{t("table.select")}</span>
-                    <input
-                      ref={selectAllRef}
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={(e) => { e.stopPropagation(); toggleSelectAll(); }}
-                      className="rounded border-zinc-300 dark:border-slate-600 dark:bg-slate-800 text-emerald-600 focus:ring-emerald-500"
-                      aria-label={t("a11y.selectAllTasks")}
-                      disabled={displayOrder.length === 0}
-                    />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                )}
+                <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
+                  {columnOrder.map((col) => renderColumnHeader(col))}
+                </SortableContext>
+                <th className={`w-10 px-1 ${thPy} text-center font-semibold text-zinc-600 dark:text-slate-400 text-xs`}>
+                  <span className="sr-only">{t("table.select")}</span>
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(e) => { e.stopPropagation(); toggleSelectAll(); }}
+                    className="rounded border-zinc-300 dark:border-slate-600 dark:bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+                    aria-label={t("a11y.selectAllTasks")}
+                    disabled={displayOrder.length === 0}
+                  />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
                 {selectedCount > 0 && (
                   <tr className="border-b border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/90 dark:bg-emerald-950/35">
-                    <td colSpan={8} className="px-3 py-2">
+                    <td colSpan={uiV2 ? 9 : 8} className="px-3 py-2">
                       <div className="flex flex-wrap items-center gap-2 gap-y-2">
                         <span className="text-xs font-medium text-emerald-900 dark:text-emerald-100 mr-1">
                           {t("bulk.selectedCount").replace("{{count}}", String(selectedCount))}
@@ -302,7 +571,7 @@ export default function TaskList({
                 )}
                 {displayOrder.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-10 text-zinc-400 italic">
+                    <td colSpan={uiV2 ? 9 : 8} className="text-center py-10 text-zinc-400 italic">
                       {t("matrix.empty")}
                     </td>
                   </tr>
@@ -319,6 +588,8 @@ export default function TaskList({
                       onCancel={onCancel}
                       onDelete={onDelete}
                       onEdit={onEdit}
+                      onPriorityChange={onPriorityChange}
+                      onEffortChange={onEffortChange}
                       onSubtask={onSubtask}
                       onDecline={onDecline}
                       onAccept={onAccept}
@@ -337,12 +608,14 @@ export default function TaskList({
                       toggleExpand={toggleExpand}
                       bulkSelected={selectedIds.has(todo.id)}
                       onBulkToggle={() => toggleSelect(todo.id)}
+                      columnOrder={columnOrder}
+                      visibleActions={visibleActions}
                     />
                   ))
                 )}
-              </tbody>
-            </table>
-          </SortableContext>
+              </SortableContext>
+            </tbody>
+          </table>
         </DndContext>
       </div>
     </div>

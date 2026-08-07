@@ -298,7 +298,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100 transition-colors">
+    <div className="landing-manrope min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100 transition-colors">
       {/* ── Navbar ── */}
       <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-zinc-100 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 min-w-0">
@@ -486,7 +486,7 @@ export default function LandingPage() {
       {/* ── CTA final ── */}
       <section className="py-24">
         <div className="max-w-2xl mx-auto px-6 text-center">
-          <div className="w-16 h-16 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-6">
+          <div className="wroket-mark-tile w-16 h-16 bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-6">
             <WroketMark />
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">

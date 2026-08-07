@@ -46,6 +46,7 @@ import {
 import { isEffectivelyOverdue } from "@/lib/effectiveDue";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import { useResourceSync } from "@/lib/useResourceSync";
@@ -118,6 +119,7 @@ function priorityRank(priority: Priority): number {
 
 export default function DashboardPage() {
   const { t, locale } = useLocale();
+  const { uiV2 } = useUiV2();
   const router = useRouter();
   const { user } = useAuth();
   const meUid = user?.uid ?? null;
@@ -224,6 +226,16 @@ export default function DashboardPage() {
     }
     return m;
   }, [personalTodos]);
+
+  /** Children for radar bubble-up (active only used in scoring). */
+  const radarChildrenByParent = useMemo(() => {
+    const m: Record<string, Todo[]> = {};
+    for (const td of allTodosScope) {
+      if (!td.parentId) continue;
+      (m[td.parentId] ??= []).push(td);
+    }
+    return m;
+  }, [allTodosScope]);
 
   const replaceTodoInLists = useCallback((updated: Todo) => {
     setMyTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
@@ -395,6 +407,58 @@ export default function DashboardPage() {
     [active],
   );
 
+  /** Active tasks due within the next 7 days (excludes already overdue). */
+  const dueThisWeekCount = useMemo(() => {
+    const horizon = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    return active.filter((td) => {
+      if (isEffectivelyOverdue(td)) return false;
+      const ms = getUpcomingPanelSortTimeMs(td);
+      return ms !== null && ms <= horizon;
+    }).length;
+  }, [active]);
+
+  /**
+   * Needs-attention strip: overdue first, then do-first next actions (max 8).
+   * Keeps the operational signal without burying the radar hero.
+   */
+  const needsAttentionTodos = useMemo(() => {
+    const ATTENTION_MAX = 8;
+    const NEXT_ACTIONS_MAX = 5;
+    const overdue = active
+      .filter((td) => isEffectivelyOverdue(td))
+      .sort((a, b) => {
+        const timeA = getUpcomingPanelSortTimeMs(a) ?? 0;
+        const timeB = getUpcomingPanelSortTimeMs(b) ?? 0;
+        if (timeA !== timeB) return timeA - timeB;
+        return priorityRank(a.priority) - priorityRank(b.priority);
+      });
+    const overdueIds = new Set(overdue.map((td) => td.id));
+    const nextActions = active
+      .filter((td) => !overdueIds.has(td.id) && classify(td) === "do-first")
+      .sort((a, b) => {
+        const timeA = getUpcomingPanelSortTimeMs(a) ?? Number.MAX_SAFE_INTEGER;
+        const timeB = getUpcomingPanelSortTimeMs(b) ?? Number.MAX_SAFE_INTEGER;
+        if (timeA !== timeB) return timeA - timeB;
+        return priorityRank(a.priority) - priorityRank(b.priority);
+      })
+      .slice(0, NEXT_ACTIONS_MAX);
+    return [...overdue, ...nextActions].slice(0, ATTENTION_MAX);
+  }, [active]);
+
+  const todayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+    [locale],
+  );
+
+  const panelClass = uiV2
+    ? "ui-glass rounded-md border p-5"
+    : "bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5";
+
   const recentlyCompleted = useMemo(
     () => [...completed]
       .sort((a, b) => new Date(b.statusChangedAt).getTime() - new Date(a.statusChangedAt).getTime())
@@ -449,54 +513,96 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div className="max-w-[1200px] mx-auto space-y-6">
-        {/* ── Title ── */}
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("dashboard.title")}</h2>
-            <PageHelpButton helpId="dashboard" />
+        {uiV2 ? (
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("dashboard.homeTitle")}</h2>
+                <PageHelpButton helpId="dashboard" />
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1 capitalize">{todayLabel}</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
+              <Link
+                href="/todos"
+                className="inline-flex items-center justify-center gap-1.5 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {t("dashboard.manageTasks")}
+              </Link>
+              <Link
+                href="/agenda/manage"
+                className="inline-flex items-center justify-center gap-1.5 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {t("dashboard.connectCalendar")}
+              </Link>
+              <Link
+                href="/teams"
+                className="inline-flex items-center justify-center gap-1.5 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                {t("dashboard.collaborate")}
+              </Link>
+            </div>
           </div>
-          <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("dashboard.subtitle")}</p>
-        </div>
+        ) : (
+          <>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("dashboard.title")}</h2>
+                <PageHelpButton helpId="dashboard" />
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("dashboard.subtitle")}</p>
+            </div>
+            <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2">
+              <Link
+                href="/todos"
+                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {t("dashboard.manageTasks")}
+              </Link>
+              <Link
+                href="/agenda/manage"
+                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {t("dashboard.connectCalendar")}
+              </Link>
+              <Link
+                href="/teams"
+                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                {t("dashboard.collaborate")}
+              </Link>
+              <button
+                type="button"
+                onClick={() => setImportChoiceOpen(true)}
+                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {t("dashboard.importData")}
+              </button>
+            </div>
+          </>
+        )}
 
-        <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2">
-          <Link
-            href="/todos"
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            {t("dashboard.manageTasks")}
-          </Link>
-          <Link
-            href="/agenda/manage"
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {t("dashboard.connectCalendar")}
-          </Link>
-          <Link
-            href="/teams"
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            {t("dashboard.collaborate")}
-          </Link>
-          <button
-            type="button"
-            onClick={() => setImportChoiceOpen(true)}
-            className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            {t("dashboard.importData")}
-          </button>
-        </div>
 
         <DashboardImportModal
           open={importChoiceOpen}
@@ -513,9 +619,111 @@ export default function DashboardPage() {
 
         {loading ? (
           <p className="text-zinc-400 dark:text-slate-500 text-sm py-8 text-center">{t("loading")}</p>
+        ) : uiV2 ? (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <SlimKpi
+                label={t("dashboard.overdue")}
+                value={overdueCount}
+                tone={overdueCount > 0 ? "danger" : "neutral"}
+              />
+              <SlimKpi label={t("dashboard.dueThisWeek")} value={dueThisWeekCount} tone="neutral" />
+              <SlimKpi label={t("dashboard.activeTasks")} value={active.length} tone="neutral" />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+              <div className={`${panelClass} xl:col-span-3`}>
+                {active.length === 0 ? (
+                  <>
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-1">
+                      {t("dashboard.radarTitle")}
+                    </h3>
+                    <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noTask")}</p>
+                  </>
+                ) : (
+                  <EisenhowerRadar
+                    todos={active}
+                    meUid={meUid}
+                    userDisplayName={userDisplayName}
+                    subtaskCounts={radarSubtaskCounts}
+                    activeChildrenByParent={radarChildrenByParent}
+                    onEditTask={openRadarEdit}
+                    headerStart={
+                      <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
+                        <span className="min-w-0 truncate">{t("dashboard.radarTitle")}</span>
+                      </h3>
+                    }
+                  />
+                )}
+              </div>
+
+              <div className={`${panelClass} xl:col-span-2`}>
+                <WeekFocusPanel
+                  todos={weekFocusTodos}
+                  totalCount={totalUpcomingPanelCount}
+                  maxShown={UPCOMING_DEADLINES_MAX}
+                  onOpen={openRadarEdit}
+                  t={t}
+                />
+              </div>
+            </div>
+
+            <div className={panelClass}>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-3">
+                {t("dashboard.needsAttention")}
+              </h3>
+              {needsAttentionTodos.length === 0 ? (
+                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.needsAttentionEmpty")}</p>
+              ) : (
+                <ul className="divide-y divide-zinc-100 dark:divide-slate-800">
+                  {needsAttentionTodos.map((todo) => {
+                    const timing = dashboardUpcomingTimingBadge(todo, t);
+                    const badge = QUADRANT_LABELS[classify(todo)];
+                    const overdue = isEffectivelyOverdue(todo);
+                    return (
+                      <li key={todo.id}>
+                        <button
+                          type="button"
+                          onClick={() => openRadarEdit(todo)}
+                          className="flex w-full items-center gap-2.5 py-2 text-left hover:bg-zinc-50/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer border-0 bg-transparent px-0"
+                          aria-label={`${displayTodoTitle(todo.title, t("todos.untitled"))}, ${timing.text}`}
+                        >
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>
+                            {t(badge.tKey)}
+                          </span>
+                          <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">
+                            {displayTodoTitle(todo.title, t("todos.untitled"))}
+                          </span>
+                          {overdue && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300 shrink-0">
+                              {t("dashboard.weekFocusOverdue")}
+                            </span>
+                          )}
+                          <span
+                            className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 max-w-[10rem] truncate ${timing.cls}`}
+                            title={timing.text}
+                          >
+                            {timing.text}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <AssignedDelegatedRow
+              panelClass={panelClass}
+              activeAssigned={activeAssigned}
+              activeDelegated={activeDelegated}
+              onOpen={openRadarEdit}
+              userDisplayName={userDisplayName}
+              t={t}
+            />
+          </>
         ) : (
           <>
-            {/* ── Stats cards ── */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard label={t("dashboard.activeTasks")} value={active.length} accent="bg-blue-500" />
               <StatCard label={t("dashboard.assignedCount")} value={activeAssigned.length} accent="bg-cyan-500" />
@@ -525,7 +733,6 @@ export default function DashboardPage() {
               <StatCard label={t("dashboard.overdue")} value={overdueCount} accent="bg-red-500" />
             </div>
 
-            {/* ── Quadrant summary (vue Radar) ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {(["do-first", "schedule", "delegate", "eliminate"] as Quadrant[]).map((q) => {
                 const info = QUADRANT_LABELS[q];
@@ -535,9 +742,14 @@ export default function DashboardPage() {
                     <div className={`w-2 h-10 rounded-full shrink-0 ${info.cls.split(" ")[0]}`} />
                     <div>
                       <p className="text-2xl font-bold text-zinc-900 dark:text-slate-100">
-                        {count} <span className="text-sm font-medium text-zinc-400 dark:text-slate-500">{count > 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}</span>
+                        {count}{" "}
+                        <span className="text-sm font-medium text-zinc-400 dark:text-slate-500">
+                          {count > 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}
+                        </span>
                       </p>
-                      <p className="text-xs text-zinc-500 dark:text-slate-400">{info.emoji} {t(info.tKey)}</p>
+                      <p className="text-xs text-zinc-500 dark:text-slate-400">
+                        {info.emoji} {t(info.tKey)}
+                      </p>
                     </div>
                   </div>
                 );
@@ -545,7 +757,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* ── Radar chart (left / first on lg) ── */}
               <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
                 {active.length === 0 ? (
                   <>
@@ -564,6 +775,7 @@ export default function DashboardPage() {
                     meUid={meUid}
                     userDisplayName={userDisplayName}
                     subtaskCounts={radarSubtaskCounts}
+                    activeChildrenByParent={radarChildrenByParent}
                     onEditTask={openRadarEdit}
                     headerStart={
                       <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
@@ -577,165 +789,26 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* ── My week (merged: priorities + deadlines, right / second on lg) ── */}
               <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 flex items-center gap-2 min-w-0">
-                    <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    {t("dashboard.weekFocusTitle")}
-                  </h3>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Link
-                      href="/agenda"
-                      className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none"
-                    >
-                      {t("dashboard.weekFocusOpenAgenda")}
-                    </Link>
-                    <Link
-                      href="/todos"
-                      className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none"
-                    >
-                      {t("dashboard.weekFocusOpenTasks")}
-                    </Link>
-                  </div>
-                </div>
-                {weekFocusTodos.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.weekFocusNoTask")}</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {weekFocusTodos.map((todo) => {
-                      const timing = dashboardUpcomingTimingBadge(todo, t);
-                      const badge = QUADRANT_LABELS[classify(todo)];
-                      const overdue = isEffectivelyOverdue(todo);
-                      return (
-                        <li key={todo.id}>
-                          <button
-                            type="button"
-                            onClick={() => openRadarEdit(todo)}
-                            className="flex w-full items-center gap-2.5 rounded-md -mx-1 px-1 py-0.5 text-left hover:bg-zinc-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer border-0 bg-transparent"
-                            aria-label={`${displayTodoTitle(todo.title, t("todos.untitled"))}, ${timing.text}`}
-                          >
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
-                            <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
-                            {overdue && (
-                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300 shrink-0">
-                                {t("dashboard.weekFocusOverdue")}
-                              </span>
-                            )}
-                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 max-w-[10rem] truncate ${timing.cls}`} title={timing.text}>
-                              {timing.text}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {totalUpcomingPanelCount > UPCOMING_DEADLINES_MAX && (
-                  <p className="text-xs text-zinc-400 dark:text-slate-500 mt-3">
-                    {t("dashboard.upcomingDeadlinesMore").replace(
-                      "{count}",
-                      String(totalUpcomingPanelCount - UPCOMING_DEADLINES_MAX),
-                    )}
-                  </p>
-                )}
+                <WeekFocusPanel
+                  todos={weekFocusTodos}
+                  totalCount={totalUpcomingPanelCount}
+                  maxShown={UPCOMING_DEADLINES_MAX}
+                  onOpen={openRadarEdit}
+                  t={t}
+                />
               </div>
             </div>
 
-            {/* ── Assigned to me & Delegated by me ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                  </svg>
-                  {t("dashboard.assignedToMe")}
-                  {activeAssigned.length > 0 && (
-                    <span className="text-[10px] font-bold bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded-full">{activeAssigned.length}</span>
-                  )}
-                </h3>
-                {activeAssigned.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noAssigned")}</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {activeAssigned.slice(0, 5).map((todo) => {
-                      const badge = QUADRANT_LABELS[classify(todo)];
-                      const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
-                      return (
-                        <li key={todo.id} className="flex items-center gap-3">
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
-                            <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dashboard.from")} {userDisplayName(todo.userId)}</p>
-                          </div>
-                          {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
-                          {todo.assignmentStatus && (
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                              todo.assignmentStatus === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                              : todo.assignmentStatus === "declined" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                              : "bg-zinc-100 text-zinc-500 dark:bg-slate-700 dark:text-slate-400"
-                            }`}>
-                              {t(`assign.${todo.assignmentStatus}` as TranslationKey)}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {activeAssigned.length > 5 && (
-                  <Link href="/todos" className="block text-xs text-indigo-600 dark:text-indigo-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
-                )}
-              </div>
+            <AssignedDelegatedRow
+              panelClass="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5"
+              activeAssigned={activeAssigned}
+              activeDelegated={activeDelegated}
+              onOpen={openRadarEdit}
+              userDisplayName={userDisplayName}
+              t={t}
+            />
 
-              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                  </svg>
-                  {t("dashboard.delegatedByMe")}
-                  {activeDelegated.length > 0 && (
-                    <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">{activeDelegated.length}</span>
-                  )}
-                </h3>
-                {activeDelegated.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noDelegated")}</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {activeDelegated.slice(0, 5).map((todo) => {
-                      const badge = QUADRANT_LABELS[classify(todo)];
-                      const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
-                      return (
-                        <li key={todo.id} className="flex items-center gap-3">
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
-                            <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dashboard.to")} {userDisplayName(todo.assignedTo!)}</p>
-                          </div>
-                          {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
-                          {todo.assignmentStatus && (
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                              todo.assignmentStatus === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                              : todo.assignmentStatus === "declined" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                              : "bg-zinc-100 text-zinc-500 dark:bg-slate-700 dark:text-slate-400"
-                            }`}>
-                              {t(`assign.${todo.assignmentStatus}` as TranslationKey)}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {activeDelegated.length > 5 && (
-                  <Link href="/todos?scope=delegated" className="block text-xs text-indigo-600 dark:text-indigo-400 mt-3 hover:underline">{t("dashboard.viewAll")}</Link>
-                )}
-              </div>
-            </div>
-
-            {/* ── Recently completed ── */}
             <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -752,14 +825,15 @@ export default function DashboardPage() {
                       <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
-                      <span className="text-sm text-zinc-500 dark:text-slate-400 line-through truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
+                      <span className="text-sm text-zinc-500 dark:text-slate-400 line-through truncate">
+                        {displayTodoTitle(todo.title, t("todos.untitled"))}
+                      </span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* ── Weekly summary ── */}
             <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -783,7 +857,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ── Recent notifications ── */}
             <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5">
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -801,7 +874,12 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">{notif.message}</p>
                         <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">
-                          {new Date(notif.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(notif.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </p>
                       </div>
                     </li>
@@ -866,6 +944,254 @@ export default function DashboardPage() {
         onDeleteAll={() => void executeDashboardDeleteTask("deleteAll")}
       />
     </AppShell>
+  );
+}
+
+function SlimKpi({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone: "danger" | "neutral";
+}) {
+  const valueCls =
+    tone === "danger" && Number(value) > 0
+      ? "text-red-600 dark:text-red-400"
+      : "text-zinc-900 dark:text-slate-100";
+  return (
+    <div className="ui-glass rounded-md border px-3 py-2.5 flex flex-col gap-0.5">
+      <p className={`text-xl font-semibold tabular-nums leading-none ${valueCls}`}>{value}</p>
+      <p className="text-[11px] text-zinc-500 dark:text-slate-400 truncate">{label}</p>
+    </div>
+  );
+}
+
+function WeekFocusPanel({
+  todos,
+  totalCount,
+  maxShown,
+  onOpen,
+  t,
+}: {
+  todos: Todo[];
+  totalCount: number;
+  maxShown: number;
+  onOpen: (todo: Todo) => void;
+  t: TranslationFunction;
+}) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 flex items-center gap-2 min-w-0">
+          <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          {t("dashboard.weekFocusTitle")}
+        </h3>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Link
+            href="/agenda"
+            className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none"
+          >
+            {t("dashboard.weekFocusOpenAgenda")}
+          </Link>
+          <Link
+            href="/todos"
+            className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none"
+          >
+            {t("dashboard.weekFocusOpenTasks")}
+          </Link>
+        </div>
+      </div>
+      {todos.length === 0 ? (
+        <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.weekFocusNoTask")}</p>
+      ) : (
+        <ul className="space-y-3">
+          {todos.map((todo) => {
+            const timing = dashboardUpcomingTimingBadge(todo, t);
+            const badge = QUADRANT_LABELS[classify(todo)];
+            const overdue = isEffectivelyOverdue(todo);
+            return (
+              <li key={todo.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(todo)}
+                  className="flex w-full items-center gap-2.5 rounded-md -mx-1 px-1 py-0.5 text-left hover:bg-zinc-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer border-0 bg-transparent"
+                  aria-label={`${displayTodoTitle(todo.title, t("todos.untitled"))}, ${timing.text}`}
+                >
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
+                  <span className="text-sm text-zinc-800 dark:text-slate-200 truncate flex-1">
+                    {displayTodoTitle(todo.title, t("todos.untitled"))}
+                  </span>
+                  {overdue && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300 shrink-0">
+                      {t("dashboard.weekFocusOverdue")}
+                    </span>
+                  )}
+                  <span
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 max-w-[10rem] truncate ${timing.cls}`}
+                    title={timing.text}
+                  >
+                    {timing.text}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {totalCount > maxShown && (
+        <p className="text-xs text-zinc-400 dark:text-slate-500 mt-3">
+          {t("dashboard.upcomingDeadlinesMore").replace("{count}", String(totalCount - maxShown))}
+        </p>
+      )}
+    </>
+  );
+}
+
+function AssignedDelegatedRow({
+  panelClass,
+  activeAssigned,
+  activeDelegated,
+  onOpen,
+  userDisplayName,
+  t,
+}: {
+  panelClass: string;
+  activeAssigned: Todo[];
+  activeDelegated: Todo[];
+  onOpen: (todo: Todo) => void;
+  userDisplayName: (uid: string) => string;
+  t: TranslationFunction;
+}) {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+      <div className={panelClass}>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+          <svg className="w-4 h-4 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+          </svg>
+          {t("dashboard.assignedToMe")}
+          {activeAssigned.length > 0 && (
+            <span className="text-[10px] font-bold bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded-full">
+              {activeAssigned.length}
+            </span>
+          )}
+        </h3>
+        {activeAssigned.length === 0 ? (
+          <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noAssigned")}</p>
+        ) : (
+          <ul className="space-y-3">
+            {activeAssigned.slice(0, 5).map((todo) => {
+              const badge = QUADRANT_LABELS[classify(todo)];
+              const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+              return (
+                <li key={todo.id}>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(todo)}
+                    className="flex w-full items-center gap-3 text-left border-0 bg-transparent p-0 cursor-pointer hover:opacity-90"
+                  >
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">
+                        {displayTodoTitle(todo.title, t("todos.untitled"))}
+                      </p>
+                      <p className="text-[10px] text-zinc-400 dark:text-slate-500">
+                        {t("dashboard.from")} {userDisplayName(todo.userId)}
+                      </p>
+                    </div>
+                    {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
+                    {todo.assignmentStatus && (
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                          todo.assignmentStatus === "accepted"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : todo.assignmentStatus === "declined"
+                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                              : "bg-zinc-100 text-zinc-500 dark:bg-slate-700 dark:text-slate-400"
+                        }`}
+                      >
+                        {t(`assign.${todo.assignmentStatus}` as TranslationKey)}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {activeAssigned.length > 5 && (
+          <Link href="/todos" className="block text-xs text-indigo-600 dark:text-indigo-400 mt-3 hover:underline">
+            {t("dashboard.viewAll")}
+          </Link>
+        )}
+      </div>
+
+      <div className={panelClass}>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+          <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+          {t("dashboard.delegatedByMe")}
+          {activeDelegated.length > 0 && (
+            <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+              {activeDelegated.length}
+            </span>
+          )}
+        </h3>
+        {activeDelegated.length === 0 ? (
+          <p className="text-sm text-zinc-400 dark:text-slate-500">{t("dashboard.noDelegated")}</p>
+        ) : (
+          <ul className="space-y-3">
+            {activeDelegated.slice(0, 5).map((todo) => {
+              const badge = QUADRANT_LABELS[classify(todo)];
+              const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+              return (
+                <li key={todo.id}>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(todo)}
+                    className="flex w-full items-center gap-3 text-left border-0 bg-transparent p-0 cursor-pointer hover:opacity-90"
+                  >
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{t(badge.tKey)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-zinc-800 dark:text-slate-200 truncate">
+                        {displayTodoTitle(todo.title, t("todos.untitled"))}
+                      </p>
+                      <p className="text-[10px] text-zinc-400 dark:text-slate-500">
+                        {t("dashboard.to")} {userDisplayName(todo.assignedTo!)}
+                      </p>
+                    </div>
+                    {dl && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${dl.cls}`}>{dl.text}</span>}
+                    {todo.assignmentStatus && (
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                          todo.assignmentStatus === "accepted"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : todo.assignmentStatus === "declined"
+                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                              : "bg-zinc-100 text-zinc-500 dark:bg-slate-700 dark:text-slate-400"
+                        }`}
+                      >
+                        {t(`assign.${todo.assignmentStatus}` as TranslationKey)}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {activeDelegated.length > 5 && (
+          <Link href="/todos?scope=delegated" className="block text-xs text-indigo-600 dark:text-indigo-400 mt-3 hover:underline">
+            {t("dashboard.viewAll")}
+          </Link>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -367,6 +367,7 @@ export async function updateProfile(payload: {
   automationNotifyAssigneeOverdue?: boolean;
   automationNotifyProjectOwnerOverdue?: boolean;
   archivedTaskRetentionDays?: number;
+  taskListColumnOrder?: string[];
 }): Promise<AuthMeResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PUT",

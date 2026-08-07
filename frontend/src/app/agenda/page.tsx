@@ -10,6 +10,8 @@ import TaskEditModal from "@/components/TaskEditModal";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useToast } from "@/components/Toast";
+import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import {
   affectedIdsForDelete,
   runOptimisticTaskDelete,
@@ -66,6 +68,7 @@ import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
+  const { uiV2 } = useUiV2();
   const router = useRouter();
   const { user, refresh } = useAuth();
   const { toast } = useToast();
@@ -98,6 +101,7 @@ export default function AgendaPage() {
   const [quickCreateAssignedUser, setQuickCreateAssignedUser] = useState<AuthMeResponse | null>(null);
   const [quickCreateAssignError, setQuickCreateAssignError] = useState<string | null>(null);
   const [quickCreateDuration, setQuickCreateDuration] = useState(30);
+  const [quickCreateMore, setQuickCreateMore] = useState(false);
   const [quickCreating, setQuickCreating] = useState(false);
   const quickCreateInFlightRef = useRef(false);
   const quickAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -323,11 +327,11 @@ export default function AgendaPage() {
   );
 
   const linkedCalendarCount = googleAccounts.length + microsoftAccounts.length;
-
-  const canSyncExternalSlots = !!(user?.entitlements?.integrations && linkedCalendarCount > 0);
+  const hasIntegrationsEntitlement = user?.entitlements?.integrations === true;
+  const canSyncExternalSlots = !!(hasIntegrationsEntitlement && linkedCalendarCount > 0);
 
   useEffect(() => {
-    if (!canSyncExternalSlots) {
+    if (linkedCalendarCount === 0) {
       setPendingSyncCount(0);
       return;
     }
@@ -343,7 +347,7 @@ export default function AgendaPage() {
     return () => {
       cancelled = true;
     };
-  }, [canSyncExternalSlots, googleAccounts, microsoftAccounts]);
+  }, [linkedCalendarCount, googleAccounts, microsoftAccounts]);
 
   const eventsForDay = useCallback(
     (day: Date, allDay: boolean) =>
@@ -886,6 +890,18 @@ export default function AgendaPage() {
                 </button>
               ))}
             </div>
+            {uiV2 && (
+              <div className="flex items-center gap-3 text-[10px] text-zinc-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                  {t("uiV2.legendWroket")}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-indigo-400 dark:bg-indigo-500" />
+                  {t("uiV2.legendExternal")}
+                </span>
+              </div>
+            )}
             {/* Calendar picker dropdown */}
             <div className="relative" ref={calendarMenuRef}>
               <button
@@ -981,16 +997,23 @@ export default function AgendaPage() {
           </div>
         </div>
 
-        {pendingSyncCount > 0 && canSyncExternalSlots && (
+        {pendingSyncCount > 0 && linkedCalendarCount > 0 && (
           <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/25 dark:text-amber-100">
-            <p className="text-sm font-medium">
-              {t("agenda.inAppSlotsSyncBanner").replace("{{count}}", String(pendingSyncCount))}
-            </p>
+            <div className="min-w-0">
+              <p className="text-sm font-medium inline-flex flex-wrap items-center gap-2">
+                {t("agenda.inAppSlotsSyncBanner").replace("{{count}}", String(pendingSyncCount))}
+                {!hasIntegrationsEntitlement && <PlanBadge tier="small" />}
+              </p>
+              {!hasIntegrationsEntitlement && <SoftLockHint tier="small" className="mt-1" />}
+            </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
-                disabled={syncBannerRunning}
-                onClick={() => void handleBannerSync()}
+                disabled={syncBannerRunning || !canSyncExternalSlots}
+                onClick={() => {
+                  if (!canSyncExternalSlots) return;
+                  void handleBannerSync();
+                }}
                 className="rounded-lg bg-slate-800 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
               >
                 {syncBannerRunning ? "…" : t("agenda.inAppSlotsSyncBannerSync")}
@@ -1015,23 +1038,33 @@ export default function AgendaPage() {
 
         {/* Calendar grid — Day / Week */}
         {!loading && viewMode !== "month" && (
-          <div className="flex-1 overflow-hidden rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div
+            className={`flex-1 overflow-hidden rounded-lg border ${
+              uiV2
+                ? "ui-v2-agenda-grid"
+                : "border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+            }`}
+          >
             <div className="flex flex-col h-full">
               {/* Day headers (sticky) */}
               <div
-                className="flex border-b border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-20"
+                className={`flex border-b sticky top-0 z-20 ${
+                  uiV2
+                    ? "ui-v2-agenda-header border-[var(--app-border)]"
+                    : "border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                }`}
                 style={{ paddingRight: timeGridScrollbarW }}
               >
-                <div className="w-14 shrink-0 border-r border-zinc-100 dark:border-slate-800" />
+                <div className={`w-14 shrink-0 border-r ${uiV2 ? "ui-v2-agenda-day-border" : "border-zinc-100 dark:border-slate-800"}`} />
                 {visibleDays.map((day, i) => {
                   const isToday = isSameDay(day, today);
                   const dayFmt = new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", { weekday: "short" });
                   return (
                     <div
                       key={i}
-                      className={`flex-1 min-w-[100px] text-center py-2 border-r border-zinc-100 dark:border-slate-800 last:border-r-0 ${
-                        isToday ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
-                      }`}
+                      className={`flex-1 min-w-[100px] text-center py-2 border-r last:border-r-0 ${
+                        uiV2 ? "ui-v2-agenda-day-border" : "border-zinc-100 dark:border-slate-800"
+                      } ${isToday ? (uiV2 ? "ui-v2-agenda-today-col" : "bg-blue-50/50 dark:bg-blue-950/20") : ""}`}
                     >
                       <div className="text-[11px] uppercase tracking-wide text-zinc-400 dark:text-slate-500 font-medium">
                         {dayFmt.format(day)}
@@ -1039,7 +1072,9 @@ export default function AgendaPage() {
                       <div
                         className={`text-sm font-semibold mt-0.5 ${
                           isToday
-                            ? "w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center mx-auto"
+                            ? uiV2
+                              ? "w-7 h-7 rounded-full ui-v2-agenda-today-pill flex items-center justify-center mx-auto"
+                              : "w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center mx-auto"
                             : "text-zinc-700 dark:text-slate-300"
                         }`}
                       >
@@ -1115,14 +1150,14 @@ export default function AgendaPage() {
               <div ref={timeGridScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
                 <div className="flex" style={{ minHeight: TOTAL_HOURS * HOUR_HEIGHT }}>
                   {/* Time labels column */}
-                  <div className="w-14 shrink-0 relative border-r border-zinc-100 dark:border-slate-800">
+                  <div className={`w-14 shrink-0 relative border-r ${uiV2 ? "ui-v2-agenda-day-border" : "border-zinc-100 dark:border-slate-800"}`}>
                     {hours.map((h) => (
                       <div
                         key={h}
                         className="absolute w-full text-right pr-2"
                         style={{ top: (h - DAY_START_HOUR) * HOUR_HEIGHT - 6 }}
                       >
-                        <span className="text-[11px] text-zinc-400 dark:text-slate-500">{formatHour(h)}</span>
+                        <span className="text-[11px] text-zinc-400 dark:text-slate-500 tabular-nums">{formatHour(h)}</span>
                       </div>
                     ))}
                   </div>
@@ -1135,16 +1170,18 @@ export default function AgendaPage() {
                       <div
                         key={dayIdx}
                         data-agenda-day={`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`}
-                        className={`flex-1 min-w-[100px] relative border-r border-zinc-100 dark:border-slate-800 last:border-r-0 ${
-                          isToday ? "bg-blue-50/30 dark:bg-blue-950/20" : ""
-                        }`}
+                        className={`flex-1 min-w-[100px] relative border-r last:border-r-0 ${
+                          uiV2 ? "ui-v2-agenda-day-border" : "border-zinc-100 dark:border-slate-800"
+                        } ${isToday ? (uiV2 ? "ui-v2-agenda-today-col" : "bg-blue-50/30 dark:bg-blue-950/20") : ""}`}
                         onDoubleClick={(e) => handleSlotClick(day, e)}
                       >
                         {/* Hour grid lines */}
                         {hours.map((h) => (
                           <div
                             key={h}
-                            className="absolute w-full border-b border-zinc-100 dark:border-slate-800/60"
+                            className={`absolute w-full border-b ${
+                              uiV2 ? "ui-v2-agenda-hour-line" : "border-zinc-100 dark:border-slate-800/60"
+                            }`}
                             style={{ top: (h - DAY_START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT - 1, height: 1 }}
                           />
                         ))}
@@ -1260,10 +1297,16 @@ export default function AgendaPage() {
           });
           const currentMonth = currentDate.getMonth();
           return (
-            <div className="flex-1 overflow-hidden rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-              <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-slate-700">
+            <div
+              className={`flex-1 overflow-hidden rounded-lg border ${
+                uiV2
+                  ? "ui-v2-agenda-grid"
+                  : "border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              }`}
+            >
+              <div className={`grid grid-cols-7 border-b ${uiV2 ? "ui-v2-agenda-header border-[var(--app-border)]" : "border-zinc-200 dark:border-slate-700"}`}>
                 {monthDayNames.map((name) => (
-                  <div key={name} className="text-center py-2 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-slate-500 font-medium border-r border-zinc-100 dark:border-slate-800 last:border-r-0">
+                  <div key={name} className={`text-center py-2 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-slate-500 font-medium border-r last:border-r-0 ${uiV2 ? "ui-v2-agenda-day-border" : "border-zinc-100 dark:border-slate-800"}`}>
                     {name}
                   </div>
                 ))}
@@ -1276,14 +1319,20 @@ export default function AgendaPage() {
                   return (
                     <div
                       key={i}
-                      className={`border-r border-b border-zinc-100 dark:border-slate-800 last:border-r-0 p-1 min-h-[80px] cursor-pointer hover:bg-zinc-50 dark:hover:bg-slate-800/50 transition-colors ${
+                      className={`border-r border-b last:border-r-0 p-1 min-h-[80px] cursor-pointer transition-colors ${
+                        uiV2
+                          ? "ui-v2-agenda-day-border hover:bg-emerald-500/[0.04] dark:hover:bg-emerald-400/[0.06]"
+                          : "border-zinc-100 dark:border-slate-800 hover:bg-zinc-50 dark:hover:bg-slate-800/50"
+                      } ${
                         !isCurrentMonth ? "opacity-40" : ""
-                      } ${isToday ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
+                      } ${isToday ? (uiV2 ? "ui-v2-agenda-today-col" : "bg-blue-50/50 dark:bg-blue-950/20") : ""}`}
                       onDoubleClick={() => handleDoubleClickSlot(day, 9, 0)}
                     >
                       <div className={`text-xs font-semibold mb-0.5 ${
                         isToday
-                          ? "w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center"
+                          ? uiV2
+                            ? "w-6 h-6 rounded-full ui-v2-agenda-today-pill flex items-center justify-center"
+                            : "w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center"
                           : "text-zinc-700 dark:text-slate-300 pl-1"
                       }`}>
                         {day.getDate()}
@@ -1360,21 +1409,31 @@ export default function AgendaPage() {
 
         {/* Quick-create task modal */}
         {showQuickCreate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowQuickCreate(false)}>
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowQuickCreate(false); setQuickCreateMore(false); }}>
+            <div className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-5 ${uiV2 ? "rounded-xl" : "rounded-lg"}`} onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("agenda.newTask")}</h3>
               <p className="text-xs text-zinc-400 dark:text-slate-500 mb-4">
-                {quickCreateDate}
+                {quickCreateDate}{quickCreateTime ? ` · ${quickCreateTime}` : ""}
               </p>
               <div className="space-y-3">
                 <input
                   value={quickCreateTitle}
                   onChange={(e) => setQuickCreateTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleQuickCreate(); if (e.key === "Escape") setShowQuickCreate(false); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleQuickCreate();
+                    if (e.key === "Escape") { setShowQuickCreate(false); setQuickCreateMore(false); }
+                  }}
                   placeholder={t("todos.addPlaceholder")}
                   autoFocus
-                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
+                {uiV2 && (
+                  <button type="button" onClick={() => setQuickCreateMore((v) => !v)} className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                    {quickCreateMore ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
+                  </button>
+                )}
+                {(!uiV2 || quickCreateMore) && (
+                  <>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("agenda.startTime")}</label>
@@ -1456,10 +1515,12 @@ export default function AgendaPage() {
                     <p className="text-xs text-red-500 mt-0.5">{quickCreateAssignError}</p>
                   )}
                 </div>
+                  </>
+                )}
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => setShowQuickCreate(false)} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("cancel")}</button>
-                <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating || personalTaskCreateBlocked(user, quickCreateProjectId, projects)} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-1.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{t("settings.save")}</button>
+                <button onClick={() => { setShowQuickCreate(false); setQuickCreateMore(false); }} className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("cancel")}</button>
+                <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating || personalTaskCreateBlocked(user, quickCreateProjectId, projects)} className={`rounded px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60 transition-colors ${uiV2 ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700" : "bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:text-slate-100"}`}>{t("settings.save")}</button>
               </div>
             </div>
           </div>

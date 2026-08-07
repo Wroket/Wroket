@@ -26,6 +26,7 @@ import { broadcastResourceChange } from "@/lib/useResourceSync";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import { useAuth } from "@/components/AuthContext";
+import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import Link from "next/link";
 
 const ACCOUNT_COLORS = [
@@ -102,7 +103,7 @@ export default function ManageCalendarsPage() {
   };
 
   const refreshPendingCountOnly = useCallback(async () => {
-    if (!canUseCalendarIntegrations || !accounts.some((a) => a.provider === "google" || a.provider === "microsoft")) {
+    if (!accounts.some((a) => a.provider === "google" || a.provider === "microsoft")) {
       setInAppSyncPendingCount(0);
       return;
     }
@@ -112,7 +113,7 @@ export default function ManageCalendarsPage() {
     } catch {
       setInAppSyncPendingCount(0);
     }
-  }, [accounts, canUseCalendarIntegrations]);
+  }, [accounts]);
 
   useEffect(() => {
     void loadAccounts();
@@ -338,9 +339,13 @@ export default function ManageCalendarsPage() {
           )}
         </div>
 
-        {!loading && canUseCalendarIntegrations && accounts.some((a) => a.provider === "google" || a.provider === "microsoft") && (
+        {!loading && accounts.some((a) => a.provider === "google" || a.provider === "microsoft") && (
           <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/90 dark:bg-slate-800/50 p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-slate-100">{t("agenda.inAppSlotsSyncCardTitle")}</h2>
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-slate-100 inline-flex flex-wrap items-center gap-2">
+              {t("agenda.inAppSlotsSyncCardTitle")}
+              {!canUseCalendarIntegrations && <PlanBadge tier="small" />}
+            </h2>
+            {!canUseCalendarIntegrations && <SoftLockHint tier="small" />}
             {inAppSyncPendingCount > 0 ? (
               <>
                 <p className="text-sm text-zinc-600 dark:text-slate-300">
@@ -349,7 +354,7 @@ export default function ManageCalendarsPage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={inAppSyncRunning}
+                    disabled={inAppSyncRunning || !canUseCalendarIntegrations}
                     onClick={() => void runInAppSlotSync(true)}
                     className="rounded-lg bg-slate-700 dark:bg-slate-600 px-3 py-2 text-xs font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                   >
@@ -357,7 +362,7 @@ export default function ManageCalendarsPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={inAppSyncRunning}
+                    disabled={inAppSyncRunning || !canUseCalendarIntegrations}
                     onClick={() => void runInAppSlotSync(false)}
                     className="rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-950/50 disabled:opacity-50 transition-colors"
                   >

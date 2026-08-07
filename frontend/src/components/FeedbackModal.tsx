@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/lib/LocaleContext";
 import { postFeedback } from "@/lib/api/feedback";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 
 const MAX_MESSAGE = 500;
 
@@ -35,6 +36,13 @@ export default function FeedbackModal({ open, onClose, user }: FeedbackModalProp
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const handleClose = () => {
+    if (submitting) return;
+    onClose();
+  };
+
+  useModalCloseKeys(open && !submitting, handleClose);
+
   useEffect(() => {
     if (!open) return;
     void Promise.resolve().then(() => {
@@ -45,17 +53,7 @@ export default function FeedbackModal({ open, onClose, user }: FeedbackModalProp
       setSubmitting(false);
       textareaRef.current?.focus();
     });
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !submitting) onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose, submitting]);
-
-  const handleClose = () => {
-    if (submitting) return;
-    onClose();
-  };
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

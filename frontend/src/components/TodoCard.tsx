@@ -12,7 +12,9 @@ import {
   SUBTASK_BADGE_CLS,
 } from "@/lib/todoConstants";
 import TaskIconToolbar from "@/components/TaskIconToolbar";
+import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { ScheduledSlotBadge } from "@/components/SlotPicker";
+import { useUiV2 } from "@/lib/UiVersionContext";
 
 interface TodoCardProps {
   todo: Todo;
@@ -64,8 +66,10 @@ export default function TodoCard({
   nowMs,
 }: TodoCardProps) {
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
   const badge = PRIORITY_BADGES[todo.priority];
   const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
+  const project = todo.projectId ? projects.find((p) => p.id === todo.projectId) : undefined;
 
   return (
     <div
@@ -91,32 +95,68 @@ export default function TodoCard({
         onCancel &&
         onSubtask &&
         onEdit && (
-          <TaskIconToolbar
-            todo={todo}
-            meUid={meUid ?? null}
-            projects={projects}
-            commentCount={commentCount}
-            subtaskCount={subtaskCount}
-            attachmentCount={attachmentCount}
-            onComplete={onComplete}
-            onSubtask={onSubtask}
-            onScheduleUpdate={onScheduleUpdate}
-            onCancel={onCancel}
-            onDecline={onDecline}
-            onAccept={onAccept}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onCreateNote={onCreateNote}
-            hasLinkedNote={hasLinkedNote}
-            justCreatedId={justCreatedId}
-            suggestedSlot={todo.suggestedSlot}
-            isolatePointerEvents
-            className="mt-0.5"
-          />
+          uiV2 ? (
+            <div className="shrink-0 self-start flex items-center h-6">
+              <TaskRowActionsV2
+                todo={todo}
+                meUid={meUid ?? null}
+                projects={projects}
+                commentCount={commentCount}
+                subtaskCount={subtaskCount}
+                attachmentCount={attachmentCount}
+                onComplete={onComplete}
+                onSubtask={onSubtask}
+                onScheduleUpdate={onScheduleUpdate}
+                onCancel={onCancel}
+                onDecline={onDecline}
+                onAccept={onAccept}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onCreateNote={onCreateNote}
+                hasLinkedNote={hasLinkedNote}
+                justCreatedId={justCreatedId}
+                suggestedSlot={todo.suggestedSlot}
+              />
+            </div>
+          ) : (
+            <TaskIconToolbar
+              todo={todo}
+              meUid={meUid ?? null}
+              projects={projects}
+              commentCount={commentCount}
+              subtaskCount={subtaskCount}
+              attachmentCount={attachmentCount}
+              onComplete={onComplete}
+              onSubtask={onSubtask}
+              onScheduleUpdate={onScheduleUpdate}
+              onCancel={onCancel}
+              onDecline={onDecline}
+              onAccept={onAccept}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onCreateNote={onCreateNote}
+              hasLinkedNote={hasLinkedNote}
+              justCreatedId={justCreatedId}
+              suggestedSlot={todo.suggestedSlot}
+              isolatePointerEvents
+              className="mt-0.5"
+            />
+          )
         )
       )}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-snug font-medium truncate ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}>{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
+        <div className="flex items-start gap-2 min-w-0">
+          <p className={`flex-1 min-w-0 text-sm leading-snug font-medium truncate ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}>{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
+          {project && (
+            <span
+              title={project.name}
+              className="ml-auto max-w-[40%] shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded truncate bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+            >
+              <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+              <span className="truncate">{project.name}</span>
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1 mt-1 flex-wrap gap-y-1">
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${badge.cls}`}>{t(badge.tKey)}</span>
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>

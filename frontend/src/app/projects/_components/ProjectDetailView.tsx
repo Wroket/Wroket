@@ -24,8 +24,10 @@ import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
+import TaskNoteModal from "@/components/TaskNoteModal";
 import TaskBlockedModal, { type TaskBlockerInfo } from "@/components/TaskBlockedModal";
 import { useToast } from "@/components/Toast";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import {
   affectedIdsForDelete,
   applyOptimisticDeleteToList,
@@ -55,10 +57,12 @@ import {
   getCollaborators,
   getCommentCounts,
   getTodoNoteMap,
+  getNoteApi,
   createNoteApi,
   type Collaborator,
   type ProjectAccessEntry,
   type ProjectAccessInfo,
+  type Note,
 } from "@/lib/api";
 import { updateTodoApi } from "@/lib/api/todos";
 import { displayTodoTitle } from "@/lib/todoDisplay";
@@ -122,6 +126,7 @@ export default function ProjectDetailView({
   onTaskImportSuccess,
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
+  const { uiV2 } = useUiV2();
   const { refresh } = useAuth();
   const router = useRouter();
   const { resolveUser, displayName, cacheRef } = useUserLookup();
@@ -130,6 +135,7 @@ export default function ProjectDetailView({
   const [, setCollaborators] = useState<Collaborator[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
+  const [taskNoteModal, setTaskNoteModal] = useState<{ note: Note; taskTitle: string } | null>(null);
 
   useEffect(() => {
     getCollaborators()
@@ -238,6 +244,8 @@ export default function ProjectDetailView({
 
   const [showAddTask, setShowAddTask] = useState(false);
   const [addTaskPhaseId, setAddTaskPhaseId] = useState<string | null>(null);
+  const [inlineAddPhaseId, setInlineAddPhaseId] = useState<string | null>(null);
+  const [addTaskMoreOpen, setAddTaskMoreOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>("medium");
   const [newTaskEffort, setNewTaskEffort] = useState<Effort>("medium");
@@ -934,11 +942,12 @@ export default function ProjectDetailView({
     }, 300);
   };
 
-  const handleAddTask = async () => {
+  const handleAddTask = async (phaseIdOverride?: string | null) => {
     if (addTaskInFlightRef.current || !newTaskTitle.trim()) return;
     addTaskInFlightRef.current = true;
     setAddingTask(true);
     const clientId = newClientEntityId();
+    const phaseId = phaseIdOverride !== undefined ? phaseIdOverride : addTaskPhaseId;
     try {
       const todo = await createTodo({
         id: clientId,
@@ -948,7 +957,7 @@ export default function ProjectDetailView({
         startDate: newTaskStartDate || null,
         deadline: newTaskDeadline || null,
         projectId: selectedProject.id,
-        phaseId: addTaskPhaseId,
+        phaseId,
         assignedTo: newTaskAssignedUser?.uid ?? null,
       });
       setProjectTodos((prev) => [...prev, todo]);
@@ -962,7 +971,9 @@ export default function ProjectDetailView({
       setNewTaskAssignError(null);
       setShowAddTask(false);
       setAddTaskPhaseId(null);
-      toast.success(t("toast.taskUpdated"));
+      setInlineAddPhaseId(null);
+      setAddTaskMoreOpen(false);
+      toast.success(uiV2 ? t("uiV2.taskCreated") : t("agenda.taskCreated"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {
@@ -1066,11 +1077,12 @@ export default function ProjectDetailView({
 
   const handleNoteAction = useCallback(async (todo: Todo) => {
     const existingNoteId = todoNoteIds[todo.id];
-    if (existingNoteId) {
-      router.push(`/notes?id=${existingNoteId}`);
-      return;
-    }
     try {
+      if (existingNoteId) {
+        const note = await getNoteApi(existingNoteId);
+        setTaskNoteModal({ note, taskTitle: todo.title });
+        return;
+      }
       const note = await createNoteApi({
         title: todo.title,
         content: "",
@@ -1079,11 +1091,11 @@ export default function ProjectDetailView({
       });
       setTodoNoteIds((prev) => ({ ...prev, [todo.id]: note.id }));
       toast.success(t("notes.noteCreated"));
-      router.push(`/notes?id=${note.id}`);
+      setTaskNoteModal({ note, taskTitle: todo.title });
     } catch {
       toast.error(t("toast.noteCreateError") as string);
     }
-  }, [todoNoteIds, router, toast, t]);
+  }, [todoNoteIds, toast, t]);
 
   const handleAcceptDeclineTask = async (todo: Todo, assignmentStatus: "accepted" | "declined") => {
     try {
@@ -2137,10 +2149,57 @@ export default function ProjectDetailView({
                             </DroppablePhaseColumn>
                             {isReal && (
                               <div className="px-2 py-2 border-t border-zinc-200 dark:border-slate-700 shrink-0">
-                                <button type="button" onClick={() => { setShowAddTask(true); setAddTaskPhaseId(phase.id); }} className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 rounded px-2 py-1.5 transition-colors flex items-center justify-center gap-1">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                                  {t("projects.addTask")}
-                                </button>
+                                {uiV2 && inlineAddPhaseId === phase.id ? (
+                                  <form
+                                    className="flex gap-1"
+                                    onSubmit={(e) => {
+                                      e.preventDefault();
+                                      void handleAddTask(phase.id);
+                                    }}
+                                  >
+                                    <input
+                                      autoFocus
+                                      value={newTaskTitle}
+                                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                                      onBlur={() => {
+                                        if (!newTaskTitle.trim()) setInlineAddPhaseId(null);
+                                      }}
+                                      placeholder={t("uiV2.inlineAddTask")}
+                                      className="flex-1 min-w-0 rounded-md border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs dark:bg-slate-800 dark:text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                    <button
+                                      type="button"
+                                      title={t("uiV2.moreOptions")}
+                                      onClick={() => {
+                                        setAddTaskPhaseId(phase.id);
+                                        setShowAddTask(true);
+                                        setAddTaskMoreOpen(true);
+                                        setInlineAddPhaseId(null);
+                                      }}
+                                      className="rounded-md px-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-slate-300"
+                                    >
+                                      ⋯
+                                    </button>
+                                  </form>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (uiV2) {
+                                        setInlineAddPhaseId(phase.id);
+                                        setNewTaskTitle("");
+                                        setAddTaskPhaseId(phase.id);
+                                      } else {
+                                        setShowAddTask(true);
+                                        setAddTaskPhaseId(phase.id);
+                                      }
+                                    }}
+                                    className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 rounded px-2 py-1.5 transition-colors flex items-center justify-center gap-1"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                    {t("projects.addTask")}
+                                  </button>
+                                )}
                               </div>
                             )}
                           </SortableKanbanPhaseColumn>
@@ -2242,11 +2301,18 @@ export default function ProjectDetailView({
 
         {/* Add task modal */}
         {showAddTask && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }}>
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); setAddTaskMoreOpen(false); }}>
+            <div className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 ${uiV2 ? "rounded-xl" : "rounded-lg"}`} onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.addTask")}</h3>
               <div className="space-y-3">
-                <input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t("todos.addPlaceholder")} className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400" autoFocus />
+                <input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t("todos.addPlaceholder")} className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" autoFocus onKeyDown={(e) => { if (e.key === "Enter" && uiV2 && !addTaskMoreOpen) void handleAddTask(); }} />
+                {uiV2 && (
+                  <button type="button" onClick={() => setAddTaskMoreOpen((v) => !v)} className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                    {addTaskMoreOpen ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
+                  </button>
+                )}
+                {(!uiV2 || addTaskMoreOpen) && (
+                  <>
                 <div className="flex gap-3">
                   <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as Priority)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100">
                     <option value="high">{t("priority.high")}</option>
@@ -2310,10 +2376,12 @@ export default function ProjectDetailView({
                       <p className="mt-1 text-xs text-red-600 dark:text-red-400">{newTaskAssignError}</p>
                     )}
                 </div>
+                  </>
+                )}
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
-                <button onClick={handleAddTask} disabled={addingTask || !newTaskTitle.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 transition-colors">{addingTask ? t("todos.adding") : t("projects.save")}</button>
+                <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); setAddTaskMoreOpen(false); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
+                <button onClick={() => void handleAddTask()} disabled={addingTask || !newTaskTitle.trim()} className={`rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors ${uiV2 ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700" : "bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:text-slate-100"}`}>{addingTask ? t("todos.adding") : t("projects.save")}</button>
               </div>
             </div>
           </div>
@@ -2525,6 +2593,15 @@ export default function ProjectDetailView({
           onTodoUpdated={(updated) => {
             setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
             setEditingTodo(updated);
+          }}
+        />
+
+        <TaskNoteModal
+          note={taskNoteModal?.note ?? null}
+          taskTitle={taskNoteModal?.taskTitle}
+          onClose={() => setTaskNoteModal(null)}
+          onNoteUpdated={(updated) => {
+            setTaskNoteModal((prev) => (prev ? { ...prev, note: updated } : prev));
           }}
         />
 

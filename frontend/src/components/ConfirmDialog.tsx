@@ -48,7 +48,8 @@ export default function ConfirmDialog({
 
   useEffect(() => {
     if (!open) return;
-    cancelBtnRef.current?.focus();
+    // Focus the dialog panel — not Cancel — so Enter does not dismiss accidentally.
+    dialogRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -98,7 +99,9 @@ export default function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+        tabIndex={-1}
+        data-confirm
+        className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none"
       >
         <h2
           id="confirm-dialog-title"

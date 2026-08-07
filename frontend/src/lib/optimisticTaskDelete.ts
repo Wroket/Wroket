@@ -40,7 +40,7 @@ export function applyOptimisticDeleteToList(
   subs: Todo[],
   mode: TaskDeleteMode,
 ): Todo[] {
-  let next = [...list];
+  const next = [...list];
   for (const sub of subs) {
     const idx = next.findIndex((t) => t.id === sub.id);
     if (idx === -1) continue;

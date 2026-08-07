@@ -33,9 +33,13 @@ Exécution priorisée en séquence : **Slack+**, puis **IA agentique**, puis opt
 
 ### Prochaine priorité (sprint)
 
-1. **Slack+ Lot 1** : Webhook+ PMO (events, delivery health, filtres projet/équipe).
-2. **Slack+ Lot 2** : connexion Slack OAuth native (workspace/channel).
-3. **IA agentique Phase 1** : cadrage action surface, sécurité, audit, KPI et seuils go/no-go.
+1. **Stabiliser le lot local** : découper / committer / valider le working tree (UI V2 + créneaux intelligents + colonnes TaskList) avant d’empiler Slack+.
+2. ~~**Sprint A — Qualité UI V2**~~ — **Fait** (2026-08-07) : E2E Playwright `tasklist.v2.spec.ts` (toggle V2, largeurs colonnes méta, prefs Actions → localStorage) ; unit `taskListVisibleActions` ; ESLint clean sur `todos/**` + `components/v2/**` + `UiVersionContext`.
+3. ~~**Sprint B — Extraire TaskEditModal**~~ — **Fait** (2026-08-07) : zones sous `frontend/src/components/taskEdit/` (types, tabs, essentials, planning, collab, advanced) ; orchestrateur ~660 lignes ; API publique inchangée (`TaskEditModal` + `TaskEditZone` re-exportés).
+4. **Dual UI V1+V2 (décision 2026-08-07)** : **garder les deux** pendant quelques semaines (toggle `wroket-ui-v2` / « Nouvelle interface »). Pas de suppression V1 ni V2-par-défaut forcé avant fin de période d’observation. **Sunset V1** = Later (après feedback prod + date à fixer, viser ~fin août / début septembre 2026).
+5. **Slack+ Lot 1** : Webhook+ PMO (events, delivery health, filtres projet/équipe).
+6. **Slack+ Lot 2** : connexion Slack OAuth native (workspace/channel).
+7. **IA agentique Phase 1** : cadrage action surface, sécurité, audit, KPI et seuils go/no-go.
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
@@ -68,6 +72,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ### Now (0-6 semaines)
 
+0. **Lot local à stabiliser (2026-08)** — Working tree ouvert : UI V2 + créneaux intelligents V2 + colonnes TaskList sync profil + polish cartes. **DoD** : commits découpés (ou PR), typecheck/lint verts, smoke E2E liste (drag colonnes + reload autre navigateur même compte) + SlotPicker ASAP/deadline, pas de wipe données.
 1. ~~**Reliability Pack — Calendar & Meeting**~~ — **Fait** (E2E prod 2026-06-07) : lifecycle Meet, compte prioritaire, Microsoft OAuth, conflit créneau dédup, sync Archives ; checklist complète §A–I.
 2. ~~**Reliability Pack — Todo Persistence**~~ — **Fait** (E2E prod 2026-06-07) : `todosDrift` horaire + `/health/ready`, mode `v2` + `attachLiveInvalidation` multi-replica, runbook [runbook-calendar-todos-reliability.md](docs/runbook-calendar-todos-reliability.md), persistance tâches/créneaux post-F5 et sync Archives cross-onglet validées §C.
 3. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
@@ -366,6 +371,11 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Expérience utilisateur & attractivité
 
+- [ ] **Refonte UI V2 (flag local)** — Track parallèle (hors deploy prod par défaut) : design system léger + AppShell + menu ⋯ tâches + polish Projets/Agenda/Notes ; flag `wroket-ui-v2` + toggle Paramètres › Apparence ; doc [`docs/refonte-ui-ideas.md`](docs/refonte-ui-ideas.md). *Ne remplace pas la priorité Slack+/IA en prod.*
+  - **Fait local (working tree, à committer)** : primitives `ui/*` (Menu, Modal, EmptyState, IconButton, Select) ; `TaskRowActionsV2` ; radar / constellation ; polish TodoCard (tag projet, toolbar) ; typo headers TaskList ; tooltip « Plus / More » sur le menu ⋯.
+  - **Reste** : découpage commits/PR ; revue visuelle dark/mobile ; décision go flag default en prod ; E2E parcours liste/cartes avec UI V2.
+- [x] **Vue Liste — colonnes réordonnables (sync profil)** — Drag des en-têtes (Actions, Title, Priority, Effort, Deadline, Classification) ; poignée + Sel. fixes ; persistance `taskListColumnOrder` via `PUT /auth/me` (multi-appareils, par compte) — *code local, à committer / déployer*.
+- [x] **Créneaux intelligents V2** — Suggestions deadline-aware (fenêtre différée / ASAP, scoring effort×heure, max 1 slot/jour, `todayAvailability` / `before_start_date`) ; SlotPicker modal centré + libellés justes — *code local, à committer / déployer*.
 - [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).
 - [x] **Notifications push (Web Push)** — Service worker + abonnement push **par appareil** pour assignations et événements clés **hors onglet / app fermée** ; actions Accepter/Refuser (`task_assigned` → deep-link app + mutation) ; icône 512×512 opaque ; complète in-app + email + webhooks — E2E Android 2026-06-07 ; desktop §I-bis à valider.
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + cloche ; alerte desktop détaillée avec deep-link si push locale inactive ; lien « Notifications système » → Paramètres ; skip doublon si Web Push locale active ; E2E §I validé.

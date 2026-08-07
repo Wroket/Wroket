@@ -4,14 +4,33 @@ Document de travail produit et design pour la refonte de l’interface. Il compl
 
 **Couleurs, transparence, pastilles** : la source à jour est la [charte `design-template.md`](design-template.md) (alignée sur le code `frontend/`).
 
+## Décision 2026-07 — Refonte UI V2 (périmètre large + flag local)
+
+**Choix produit** : refonte large de l’app authentifiée (shell, Tâches, Projets, Agenda, Notes) derrière un **feature flag local** « Nouvelle interface », travail **local uniquement** (pas de déploiement prod tant que non validé).
+
+| Élément | Décision |
+|---------|----------|
+| Flag | `localStorage` clé `wroket-ui-v2` (`"1"` = on) |
+| Toggle | Paramètres › Langues / Apparence |
+| Provider | [`UiVersionContext.tsx`](../frontend/src/lib/UiVersionContext.tsx) + `useUiV2()` |
+| Composants V2 | [`frontend/src/components/v2/`](../frontend/src/components/v2/) + primitives [`ui/`](../frontend/src/components/ui/) |
+| Accès fluide | Cmd/Ctrl+K (`CommandPalette`), CTA Créer header + FAB mobile |
+| Création | Title-first + progressive disclosure (tâches, projets, agenda, slash `/task`) |
+| Liste tâches | Menu ⋯ (`TaskRowActionsV2`) à la place de la toolbar dense |
+| Données | Aucun changement Firestore / API métier |
+
+Retour à l’UI actuelle : désactiver le toggle (supprime la clé). Track **parallèle** à Slack+/IA — hors deploy Cloud Run jusqu’à go humain.
+
+---
+
 ## Principe produit : deux versions d’interface
 
 L’objectif est de permettre à l’utilisateur de **choisir** entre :
 
 - **Version actuelle** — référence stable, habitudes préservées, risque de rupture minimal.
-- **Version refaite** — nouvelle présentation et/ou nouvelles interactions, alignée sur les lots UX du roadmap.
+- **Version refaite (V2)** — nouvelle présentation et/ou nouvelles interactions, alignée sur les lots UX du roadmap.
 
-Les modalités techniques restent à décider au moment du chantier : préférence dans les **Paramètres**, bascule par **feature flag**, période de **cohabitation** des deux modes, et possibilité de **revenir** à tout moment à la version actuelle sans perte de données métier.
+**Modalités livrées** : préférence dans les **Paramètres** (section Apparence), bascule par **feature flag local**, **cohabitation** des deux modes, retour à tout moment sans perte de données métier.
 
 ---
 

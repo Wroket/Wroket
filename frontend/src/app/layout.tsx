@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Manrope } from "next/font/google";
 import { LocaleProvider } from "@/lib/LocaleContext";
+import { UiVersionProvider } from "@/lib/UiVersionContext";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/components/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -16,6 +17,12 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+/** UI V2 only — see `html.ui-v2` in globals.css. Legacy keeps Geist. */
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
 });
 
@@ -113,7 +120,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${manrope.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
@@ -126,13 +133,15 @@ export default function RootLayout({
         />
         <PwaRegistration />
         <LocaleProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <ErrorBoundary>
-                {children}
-              </ErrorBoundary>
-            </AuthProvider>
-          </ToastProvider>
+          <UiVersionProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
+              </AuthProvider>
+            </ToastProvider>
+          </UiVersionProvider>
         </LocaleProvider>
       </body>
     </html>

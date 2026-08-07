@@ -12,10 +12,13 @@ import PageHelpButton from "@/components/PageHelpButton";
 import { ScheduledSlotBadge } from "@/components/SlotPicker";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
-import TaskEditModal from "@/components/TaskEditModal";
+import TaskEditModal, { type TaskEditZone } from "@/components/TaskEditModal";
+import TaskNoteModal from "@/components/TaskNoteModal";
 import TodoCard from "@/components/TodoCard";
 import TaskIconToolbar from "@/components/TaskIconToolbar";
+import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { useToast } from "@/components/Toast";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import { personalTaskCreateBlocked } from "@/lib/freeQuota";
 import { newClientEntityId } from "@/lib/newClientId";
 import {
@@ -25,12 +28,11 @@ import {
   runOptimisticTaskDelete,
   snapshotAffectedTodos,
 } from "@/lib/optimisticTaskDelete";
-import ExportImportDropdown from "@/components/ExportImportDropdown";
-import TaskImportModal from "@/components/TaskImportModal";
 import TaskTemplatePicker, { type TemplateApplyPayload } from "@/components/TaskTemplatePicker";
 import {
   createTodo,
   createNoteApi,
+  getNoteApi,
   getTodoNoteMap,
   deleteTodo,
   getTodos,
@@ -41,7 +43,6 @@ import {
   getCommentCounts,
   updateTodo,
   reorderTodos as reorderTodosApi,
-  exportTasks,
   lookupUser,
   getCollaborators,
   getTeams,
@@ -53,6 +54,7 @@ import {
   Project,
   Collaborator,
   Team,
+  Note,
 } from "@/lib/api";
 import { clearTaskMeet, createTaskMeet, getTaskSlots, updateTaskMeet } from "@/lib/api/calendar";
 import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
@@ -61,6 +63,7 @@ import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { getEffectiveDueDay, hasNoEffectiveDue } from "@/lib/effectiveDue";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
+import { QUADRANT_SURFACE, TAG_AUX } from "@/lib/tagPalette";
 import { ApiClientError, formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import {
@@ -74,7 +77,7 @@ import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
 import { useTodoListSync } from "@/lib/useTodoListSync";
 import { trackRadarEvent } from "@/lib/productAnalytics";
-import { compareTodosForRadarList, type RadarMode } from "@/lib/taskScores";
+import { compareTodosForRadarList, computeRadarTaskScores, type RadarMode } from "@/lib/taskScores";
 import type { TranslationKey } from "@/lib/i18n";
 
 import { FILTER_BUTTONS, QUADRANT_BADGES } from "./_components/sortUtils";
@@ -186,6 +189,7 @@ function mapMeetErrorToMessageKey(message: string): TranslationKey {
 
 export default function TodosPage() {
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
   const { user, refresh } = useAuth();
   const userTimeZone = user?.workingHours?.timezone ?? "UTC";
   const router = useRouter();
@@ -203,10 +207,10 @@ export default function TodosPage() {
     setRefreshKey((k) => k + 1);
   }, []);
   useTodoListSync(bumpRefresh, { pollIntervalMs: 120_000 });
-  const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
+  const [taskNoteModal, setTaskNoteModal] = useState<{ note: Note; taskTitle: string } | null>(null);
 
   type TaskScope = "all" | "personal" | "assigned" | "delegated";
   const [scope, setScope] = useState<TaskScope>("all");
@@ -300,6 +304,7 @@ export default function TodosPage() {
   const [templateTags, setTemplateTags] = useState<string[]>([]);
   const [templateSubtasks, setTemplateSubtasks] = useState<string[]>([]);
   const [templateEstimatedMinutes, setTemplateEstimatedMinutes] = useState<number | null>(null);
+  const [createMoreOpen, setCreateMoreOpen] = useState(false);
 
   const handleApplyTemplate = useCallback((payload: TemplateApplyPayload) => {
     setPriority(payload.priority);
@@ -351,6 +356,8 @@ export default function TodosPage() {
   const createInFlightRef = useRef(false);
   const subtaskCreateInFlightRef = useRef(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [editInitialZone, setEditInitialZone] = useState<TaskEditZone>("essentials");
+  const [editOpenNonce, setEditOpenNonce] = useState(0);
   const [editForm, setEditForm] = useState({ title: "", priority: "medium" as Priority, effort: "medium" as Effort, startDate: "", deadline: "", assignedTo: "" as string | null, estimatedMinutes: null as number | null, tags: [] as string[], recurrence: null as import("@/lib/api").Recurrence | null, projectId: null as string | null });
   const [editAssignEmail, setEditAssignEmail] = useState("");
   const [editAssignedUser, setEditAssignedUser] = useState<AuthMeResponse | null>(null);
@@ -370,7 +377,9 @@ export default function TodosPage() {
     };
   }, []);
 
-  const openEdit = (todo: Todo) => {
+  const openEdit = (todo: Todo, zone: TaskEditZone = "essentials") => {
+    setEditInitialZone(zone);
+    setEditOpenNonce((n) => n + 1);
     setEditingTodo(todo);
     setEditForm({
       title: todo.title,
@@ -662,6 +671,46 @@ export default function TodosPage() {
     }
   }, [toast, replaceTodoInLists, t]);
 
+  const handlePriorityChange = useCallback(async (todo: Todo, priority: Priority) => {
+    if (todo.priority === priority) return;
+    const optimistic = { ...todo, priority };
+    replaceTodoInLists(optimistic);
+    try {
+      const updated = await updateTodo(todo.id, { priority });
+      replaceTodoInLists(updated);
+    } catch {
+      const rollback = (prev: Todo[]) => {
+        const i = prev.findIndex((x) => x.id === todo.id);
+        if (i === -1) return prev;
+        if (prev[i].priority !== priority) return prev;
+        return replaceTodoInArray(prev, todo);
+      };
+      setMyTodos(rollback);
+      setAssignedTodos(rollback);
+      toast.error(t("toast.updateError"));
+    }
+  }, [toast, replaceTodoInLists, t]);
+
+  const handleEffortChange = useCallback(async (todo: Todo, effort: Effort) => {
+    if ((todo.effort ?? "medium") === effort) return;
+    const optimistic = { ...todo, effort };
+    replaceTodoInLists(optimistic);
+    try {
+      const updated = await updateTodo(todo.id, { effort });
+      replaceTodoInLists(updated);
+    } catch {
+      const rollback = (prev: Todo[]) => {
+        const i = prev.findIndex((x) => x.id === todo.id);
+        if (i === -1) return prev;
+        if ((prev[i].effort ?? "medium") !== effort) return prev;
+        return replaceTodoInArray(prev, todo);
+      };
+      setMyTodos(rollback);
+      setAssignedTodos(rollback);
+      toast.error(t("toast.updateError"));
+    }
+  }, [toast, replaceTodoInLists, t]);
+
   const handleAccept = useCallback(async (todo: Todo) => {
     try {
       const updated = await updateTodo(todo.id, { assignmentStatus: "accepted" });
@@ -919,11 +968,12 @@ export default function TodosPage() {
 
   const handleNoteAction = useCallback(async (todo: Todo) => {
     const existingNoteId = todoNoteIds[todo.id];
-    if (existingNoteId) {
-      router.push(`/notes?id=${existingNoteId}`);
-      return;
-    }
     try {
+      if (existingNoteId) {
+        const note = await getNoteApi(existingNoteId);
+        setTaskNoteModal({ note, taskTitle: todo.title });
+        return;
+      }
       const note = await createNoteApi({
         title: todo.title,
         content: "",
@@ -932,11 +982,11 @@ export default function TodosPage() {
       });
       setTodoNoteIds((prev) => ({ ...prev, [todo.id]: note.id }));
       toast.success(t("notes.noteCreated"));
-      router.push(`/notes?id=${note.id}`);
+      setTaskNoteModal({ note, taskTitle: todo.title });
     } catch {
       toast.error(t("toast.noteCreateError"));
     }
-  }, [toast, t, router, todoNoteIds]);
+  }, [toast, t, todoNoteIds]);
 
   const openSubtaskModal = (todo: Todo) => {
     setSubtaskParent(todo);
@@ -1235,8 +1285,10 @@ export default function TodosPage() {
 
   const radarPriorityList = useMemo(() => {
     const source: Todo[] = filters.size === 0 ? activeTodos : listTodos;
-    return [...source].sort((a, b) => compareTodosForRadarList(a, b, radarMode, nowMs));
-  }, [filters.size, activeTodos, listTodos, radarMode, nowMs]);
+    return [...source].sort((a, b) =>
+      compareTodosForRadarList(a, b, radarMode, nowMs, subtasksByParent),
+    );
+  }, [filters.size, activeTodos, listTodos, radarMode, nowMs, subtasksByParent]);
 
   const activeQuadrantFilters = QUADRANT_KEYS.filter((k) => filters.has(k));
   const activeStatusFilters = STATUS_KEYS.filter((k) => filters.has(k));
@@ -1257,7 +1309,11 @@ export default function TodosPage() {
         {/* ── Create form ── */}
         <form
           onSubmit={handleCreate}
-          className="rounded-lg border border-emerald-200/80 dark:border-emerald-900/60 bg-white dark:bg-slate-900 p-3 sm:p-5 shadow-sm"
+          className={`rounded-xl border shadow-sm p-3 sm:p-5 ${
+            uiV2
+              ? "border-zinc-200/80 dark:border-slate-700 bg-white dark:bg-slate-900"
+              : "border-emerald-200/80 dark:border-emerald-900/60 bg-white dark:bg-slate-900"
+          }`}
         >
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -1267,16 +1323,26 @@ export default function TodosPage() {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="flex-1 min-w-0 rounded border border-zinc-300 dark:border-slate-600 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 h-[38px] sm:h-[42px]"
+                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-slate-600 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 h-[36px] sm:h-[40px]"
               />
               <button
                 type="submit"
                 disabled={submitting || !!assignError || personalTaskCreateBlocked(user, selectedProjectId, projects)}
-                className="rounded bg-slate-700 dark:bg-slate-600 px-6 py-2 sm:py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60 whitespace-nowrap transition-colors h-[38px] sm:h-[42px] shrink-0"
+                className="rounded-lg bg-emerald-600 dark:bg-emerald-500 px-6 py-2 sm:py-2.5 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 whitespace-nowrap transition-colors h-[36px] sm:h-[40px] shrink-0 shadow-sm shadow-emerald-500/25"
               >
                 {submitting ? t("todos.adding") : t("todos.add")}
               </button>
             </div>
+            {uiV2 && (
+              <button
+                type="button"
+                onClick={() => setCreateMoreOpen((v) => !v)}
+                className="self-start text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {createMoreOpen ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
+              </button>
+            )}
+            {(!uiV2 || createMoreOpen) && (
             <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
               <div className="col-span-2 sm:col-span-1">
                 <TaskTemplatePicker onApply={handleApplyTemplate} />
@@ -1407,6 +1473,7 @@ export default function TodosPage() {
                 }
               />
             </div>
+            )}
           </div>
           {formError && (
             <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">
@@ -1464,37 +1531,17 @@ export default function TodosPage() {
                 </svg>
                 <span className="hidden sm:inline">{t("todos.undo")}</span>
               </button>
-              <span className="text-sm text-zinc-400 hidden sm:inline">
-                {mainView === "list"
-                  ? `${listTodos.length} ${listTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
-                  : `${activeTodos.length} ${activeTodos.length !== 1 ? t("dashboard.tasksCount") : t("dashboard.taskCount")}`
-                }
-                {filters.size > 0 ? ` (${[...filters].map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(", ")})` : ""}
-              </span>
-              <ExportImportDropdown
-                exportCsv={() => exportTasks("csv")}
-                exportJson={() => exportTasks("json")}
-                onImportFile={(f) => setTaskImportFile(f)}
-                templateCsv={'title,status,priority,effort,estimatedMinutes,startDate,deadline,tags,projectId,phaseId,assignedTo\nMy task,active,medium,medium,,2025-06-01,2025-06-15,"tag1, tag2",,,'}
-                templateJson={JSON.stringify([{ title: "My task", status: "active", priority: "medium", effort: "medium", deadline: "2025-06-15", tags: ["tag1"] }], null, 2)}
-              />
-              <TaskImportModal
-                file={taskImportFile}
-                open={taskImportFile !== null}
-                onClose={() => setTaskImportFile(null)}
-                onSuccess={bumpRefresh}
-              />
               <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setMainView("list")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
                     mainView === "list"
                       ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                   {t("view.list")}
@@ -1502,13 +1549,13 @@ export default function TodosPage() {
                 <button
                   type="button"
                   onClick={() => setMainView("cards")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
+                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "cards"
                       ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                   </svg>
                   {t("view.cards")}
@@ -1516,13 +1563,13 @@ export default function TodosPage() {
                 <button
                   type="button"
                   onClick={() => setMainView("radar")}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
+                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "radar"
                       ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <circle cx="12" cy="12" r="3" />
                     <circle cx="5" cy="8" r="2" />
                     <circle cx="18" cy="6" r="2" />
@@ -1536,7 +1583,7 @@ export default function TodosPage() {
           </div>
 
         {/* ── Filters panel (collapsible) — below task list toolbar, above table/matrix ── */}
-        <div className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden mb-4">
+        <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden mb-4">
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((v) => !v)}
@@ -1582,7 +1629,7 @@ export default function TodosPage() {
                   >
                     <option value="">{t("filter.allClassifications")}</option>
                     {FILTER_BUTTONS.filter((b) => QUADRANT_KEYS.includes(b.key as Quadrant)).map((btn) => (
-                      <option key={btn.key} value={btn.key}>{btn.icon} {t(btn.tKey)} ({filterCounts[btn.key]})</option>
+                      <option key={btn.key} value={btn.key}>{t(btn.tKey)} ({filterCounts[btn.key]})</option>
                     ))}
                   </select>
                 </div>
@@ -1604,7 +1651,7 @@ export default function TodosPage() {
                   >
                     <option value="">{t("filter.activeOnly")}</option>
                     {FILTER_BUTTONS.filter((b) => STATUS_KEYS.includes(b.key)).map((btn) => (
-                      <option key={btn.key} value={btn.key}>{btn.icon} {t(btn.tKey)} ({filterCounts[btn.key]})</option>
+                      <option key={btn.key} value={btn.key}>{t(btn.tKey)} ({filterCounts[btn.key]})</option>
                     ))}
                   </select>
                 </div>
@@ -1716,6 +1763,8 @@ export default function TodosPage() {
               onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")}
               onDelete={(t) => requestDelete(t)}
               onEdit={openEdit}
+              onPriorityChange={handlePriorityChange}
+              onEffortChange={handleEffortChange}
               onSubtask={openSubtaskModal}
               onDecline={handleDecline}
               onAccept={handleAccept}
@@ -1741,7 +1790,7 @@ export default function TodosPage() {
                 <div className="min-h-[220px]">
                   <div className="px-1 py-2 mb-3">
                     <span className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">
-                      {activeStatusFilters.map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? btn.icon + " " + t(btn.tKey) : f; }).join(" · ")}
+                      {activeStatusFilters.map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(" · ")}
                     </span>
                   </div>
                   {listTodos.length === 0 ? (
@@ -1768,7 +1817,7 @@ export default function TodosPage() {
                     <div className="min-h-[120px] col-span-full">
                       <div className="px-1 py-2 mb-2">
                         <span className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">
-                          {activeStatusFilters.map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? btn.icon + " " + t(btn.tKey) : f; }).join(" · ")}
+                          {activeStatusFilters.map((f) => { const btn = FILTER_BUTTONS.find((b) => b.key === f); return btn ? t(btn.tKey) : f; }).join(" · ")}
                         </span>
                       </div>
                       <div className="space-y-2">
@@ -1787,46 +1836,38 @@ export default function TodosPage() {
                   {/* Column headers */}
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
                     <div className="w-10" />
-                    <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
-                      <span className="text-xs font-bold tracking-[0.15em] uppercase text-amber-600">
-                        ⚡ {t("matrix.urgent")}
+                    <div className="text-center py-2 bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
+                      <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-600 dark:text-slate-300">
+                        {t("matrix.urgent")}
                       </span>
                     </div>
-                    <div className="text-center py-2 bg-zinc-50/50 dark:bg-slate-800/50 rounded">
-                      <span className="text-xs font-bold tracking-[0.15em] uppercase text-blue-500">
-                        🕐 {t("matrix.notUrgent")}
+                    <div className="text-center py-2 bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
+                      <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-500 dark:text-slate-400">
+                        {t("matrix.notUrgent")}
                       </span>
                     </div>
                   </div>
 
                   {/* Important row — left: urgent (do first), right: not urgent (schedule) */}
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2">
-                    <div className="w-10 flex items-center justify-center bg-zinc-50/50 dark:bg-slate-800/50 rounded-l">
-                      <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-red-500">
+                    <div className="w-10 flex items-center justify-center bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
+                      <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-600 dark:text-slate-300">
                         {t("matrix.important")}
                       </span>
                     </div>
-                    <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
-                    </div>
-                    <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
-                    </div>
+                    <QuadrantCell quadrant="do-first" todos={grouped["do-first"]} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                    <QuadrantCell quadrant="schedule" todos={grouped.schedule} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                   </div>
 
                   {/* Not important row — left: urgent (delegate), right: not urgent (eliminate) */}
                   <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mt-2">
-                    <div className="w-10 flex items-center justify-center bg-zinc-50/50 dark:bg-slate-800/50 rounded-l">
-                      <span className="[writing-mode:vertical-lr] rotate-180 text-xs font-bold tracking-[0.15em] uppercase text-zinc-400">
+                    <div className="w-10 flex items-center justify-center bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
+                      <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-500 dark:text-slate-400">
                         {t("matrix.notImportant")}
                       </span>
                     </div>
-                    <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
-                    </div>
-                    <div className="rounded overflow-hidden">
-                      <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
-                    </div>
+                    <QuadrantCell quadrant="delegate" todos={grouped.delegate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
+                    <QuadrantCell quadrant="eliminate" todos={grouped.eliminate} allTodos={todos} onComplete={(t) => handleStatusChange(t, "completed")} onDelete={(t) => requestDelete(t)} onCancel={(t) => handleStatusChange(t, t.status === "cancelled" ? "active" : "cancelled")} onSubtask={openSubtaskModal} onDecline={handleDecline} onAccept={handleAccept} onEdit={openEdit} onScheduleUpdate={handleScheduleUpdate} subtaskCounts={subtaskCounts} commentCounts={commentCounts} attachmentCounts={attachmentCounts} todoNoteIds={todoNoteIds} onCreateNote={handleNoteAction} justCreatedId={justCreatedId} nowMs={nowMs} meUid={meUid} userDisplayName={userDisplayName} projects={projects} />
                   </div>
                 </>
               )}
@@ -1851,14 +1892,10 @@ export default function TodosPage() {
                   <div className="space-y-2">
                     {(() => {
                       const priorityTodos = radarPriorityList;
-                      const CARD_BG: Record<Quadrant, string> = {
-                        "do-first": "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800",
-                        schedule: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800",
-                        delegate: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800",
-                        eliminate: "bg-zinc-50 dark:bg-slate-800/40 border-zinc-200 dark:border-slate-700",
-                      };
+                      const CARD_BG = QUADRANT_SURFACE;
                       return priorityTodos.slice(0, 5).map((todo, i) => {
-                        const q = classify(todo, nowMs);
+                        const radarScores = computeRadarTaskScores(todo, subtasksByParent[todo.id], nowMs);
+                        const q = radarScores.quadrant;
                         const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
                         return (
                           <div
@@ -1874,20 +1911,28 @@ export default function TodosPage() {
                                 {displayTodoTitle(todo.title, t("todos.untitled"))}
                               </p>
                               <div className="flex items-center gap-1 flex-wrap gap-y-1">
-                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${QUADRANT_BADGES[q].cls}`}>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 shrink-0 whitespace-nowrap ${QUADRANT_BADGES[q].cls}`}>
                                   {t(QUADRANT_BADGES[q].tKey)}
                                 </span>
-                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 shrink-0 whitespace-nowrap ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>
                                   {t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}
                                 </span>
                                 {dl && (
-                                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${dl.cls}`}>{dl.text}</span>
+                                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 shrink-0 whitespace-nowrap ${dl.cls}`}>{dl.text}</span>
                                 )}
                                 {todo.scheduledSlot && (
                                   <ScheduledSlotBadge slot={todo.scheduledSlot} />
                                 )}
                                 {(subtaskCounts[todo.id] ?? 0) > 0 && (
                                   <SubtaskBadge count={subtaskCounts[todo.id]} />
+                                )}
+                                {radarScores.bubbledFromSubtask && (
+                                  <span
+                                    className="text-[10px] font-semibold px-1.5 py-0.5 shrink-0 whitespace-nowrap rounded-sm bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                    title={t("matrix.viaSubtaskHint")}
+                                  >
+                                    {t("matrix.viaSubtask")}
+                                  </span>
                                 )}
                                 {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (
                                   <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
@@ -1907,7 +1952,7 @@ export default function TodosPage() {
                                   </span>
                                 )}
                                 {(todo.tags ?? []).map((tag) => (
-                                  <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 shrink-0 whitespace-nowrap">
+                                  <span key={tag} className={`text-[10px] font-medium px-1.5 py-0.5 ${TAG_AUX.userTag} shrink-0 whitespace-nowrap`}>
                                     {tag}
                                   </span>
                                 ))}
@@ -1920,6 +1965,30 @@ export default function TodosPage() {
                             </div>
                             <div className="shrink-0 self-start pt-0.5">
                               {todo.status === "active" ? (
+                                uiV2 ? (
+                                <TaskRowActionsV2
+                                  todo={todo}
+                                  meUid={meUid}
+                                  projects={projects}
+                                  commentCount={commentCounts[todo.id] ?? 0}
+                                  subtaskCount={getSubtasks(todo.id).length}
+                                  attachmentCount={attachmentCounts[todo.id] ?? 0}
+                                  onComplete={(t) => handleStatusChange(t, "completed")}
+                                  onSubtask={openSubtaskModal}
+                                  onScheduleUpdate={handleScheduleUpdate}
+                                  onMeet={handleMeet}
+                                  meetLoading={meetLoadingId === todo.id}
+                                  onCancel={(t) => handleStatusChange(t, "cancelled")}
+                                  onDecline={handleDecline}
+                                  onAccept={handleAccept}
+                                  onEdit={openEdit}
+                                  onDelete={requestDelete}
+                                  onCreateNote={handleNoteAction}
+                                  hasLinkedNote={!!todoNoteIds[todo.id]}
+                                  justCreatedId={justCreatedId}
+                                  suggestedSlot={todo.suggestedSlot}
+                                />
+                                ) : (
                                 <TaskIconToolbar
                                   todo={todo}
                                   meUid={meUid}
@@ -1944,6 +2013,7 @@ export default function TodosPage() {
                                   isolatePointerEvents
                                   variant="radar"
                                 />
+                                )
                               ) : (
                                 <button
                                   type="button"
@@ -1970,6 +2040,7 @@ export default function TodosPage() {
                   <EisenhowerRadar
                     todos={activeTodos}
                     subtaskCounts={subtaskCounts}
+                    activeChildrenByParent={subtasksByParent}
                     meUid={meUid}
                     userDisplayName={userDisplayName}
                     radarMode={radarMode}
@@ -1989,6 +2060,8 @@ export default function TodosPage() {
         form={editForm}
         onFormChange={(updates) => setEditForm((f) => ({ ...f, ...updates }))}
         onClose={closeEditModal}
+        initialZone={editInitialZone}
+        openNonce={editOpenNonce}
         saving={editAutoSaving}
         assignEmail={editAssignEmail}
         onAssignEmailChange={handleEditAssignLookup}
@@ -2039,6 +2112,15 @@ export default function TodosPage() {
         onDeleteSubtask={(sub) => requestDelete(sub)}
         onPromoteSubtask={handlePromoteSubtask}
         onReorderSubtasks={handleReorderSubtasks}
+      />
+
+      <TaskNoteModal
+        note={taskNoteModal?.note ?? null}
+        taskTitle={taskNoteModal?.taskTitle}
+        onClose={() => setTaskNoteModal(null)}
+        onNoteUpdated={(updated) => {
+          setTaskNoteModal((prev) => (prev ? { ...prev, note: updated } : prev));
+        }}
       />
 
       <DeleteTaskDialog

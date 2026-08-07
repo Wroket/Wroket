@@ -12,6 +12,7 @@ import {
   replacePlainTextRange,
 } from "@/lib/noteSlashRange";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 
 /* ─── Types ─── */
@@ -80,6 +81,7 @@ export default function SlashCommandMenu({
   bindingNoteId,
 }: SlashCommandMenuProps) {
   const { t, locale } = useLocale();
+  const { uiV2 } = useUiV2();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -95,6 +97,7 @@ export default function SlashCommandMenu({
   const [taskProject, setTaskProject] = useState("");
   const [taskAssign, setTaskAssign] = useState("");
   const [taskCreating, setTaskCreating] = useState(false);
+  const [taskMore, setTaskMore] = useState(false);
   const taskCreateInFlightRef = useRef(false);
   const [assignEmail, setAssignEmail] = useState("");
   const [deadlineValue, setDeadlineValue] = useState("");
@@ -209,6 +212,7 @@ export default function SlashCommandMenu({
       setTaskDeadline("");
       setTaskProject("");
       setTaskAssign("");
+      setTaskMore(false);
     } else if (panelId === "assign") {
       setAssignEmail("");
     } else if (panelId === "deadline") {
@@ -446,6 +450,13 @@ export default function SlashCommandMenu({
               onChange={(e) => setTaskTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateTask(); } }}
               className={inputCls} />
+            {uiV2 && (
+              <button type="button" onClick={() => setTaskMore((v) => !v)} className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                {taskMore ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
+              </button>
+            )}
+            {(!uiV2 || taskMore) && (
+              <>
             <div className="grid grid-cols-2 gap-2">
               <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as Priority)} className={inputCls}>
                 <option value="high">🔴 {t("slash.priorityHigh")}</option>
@@ -468,6 +479,8 @@ export default function SlashCommandMenu({
               placeholder={t("slash.task.assignPlaceholder")}
               inputClassName={inputCls}
             />
+              </>
+            )}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={handleCreateTask} disabled={!taskTitle.trim() || taskCreating} className={btnPrimaryCls}>
                 {taskCreating ? t("slash.task.creating") : t("slash.task.create")}
@@ -575,14 +588,14 @@ export default function SlashCommandMenu({
 
   const menuContent = activePanel ? (
     <div ref={menuRef}
-      className="fixed z-[9999] w-72 bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-600"
+      className="fixed z-[9999] w-72 bg-white dark:bg-slate-800 rounded-sm shadow-2xl border border-zinc-200 dark:border-slate-600"
       style={{ top: menuPos.top, left: menuPos.left }}
       onMouseDown={(e) => e.stopPropagation()}>
       {renderPanel()}
     </div>
   ) : filtered.length === 0 ? null : (
     <div ref={menuRef}
-      className="fixed z-[9999] w-60 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-600 py-1"
+      className="fixed z-[9999] w-60 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 rounded-sm shadow-2xl border border-zinc-200 dark:border-slate-600 py-1"
       style={{ top: menuPos.top, left: menuPos.left }}>
       <div className="px-2 py-1.5 border-b border-zinc-100 dark:border-slate-700">
         <p className="text-[10px] font-semibold text-zinc-400 dark:text-slate-500 uppercase tracking-wider">{t("slash.commands")}</p>

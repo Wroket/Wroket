@@ -6,6 +6,7 @@ import CommentHoverIcon from "@/components/CommentHoverIcon";
 import SlotPicker from "@/components/SlotPicker";
 import {
   toolbarAffordanceClass,
+  toolbarCompleteButton,
   toolbarNeutralButton,
 } from "@/components/taskToolbarStyles";
 import { useLocale } from "@/lib/LocaleContext";
@@ -17,7 +18,7 @@ export interface TaskIconToolbarProps {
   meUid: string | null;
   projects: Project[];
   commentCount: number;
-  /** Nombre de sous-tâches (pour contour sous-tâche bleu / vert). */
+  /** Nombre de sous-tâches (pour contour sous-tâche ghost / emerald lié). */
   subtaskCount?: number;
   /** Nombre de pièces jointes sur la tâche (pour contour PJ). */
   attachmentCount?: number;
@@ -111,7 +112,7 @@ export default function TaskIconToolbar({
         onClick={wrap(() => onComplete(todo))}
         aria-label={t("a11y.complete")}
         title={t("a11y.complete")}
-        className={toolbarNeutralButton}
+        className={toolbarCompleteButton}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

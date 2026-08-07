@@ -3,6 +3,7 @@ export type {
   ScheduledSlot,
   SuggestedSlot,
   SlotProposal,
+  SlotReasonCode,
   GoogleCalendarEntry,
   GoogleAccountPublic,
   MicrosoftAccountPublic,
@@ -14,6 +15,8 @@ export type {
   NotificationDeliveryMode,
   NotificationOutboundFrequency,
 } from "./core";
+
+export type { TodayAvailability } from "./calendar";
 
 export {
   login,
@@ -243,6 +246,7 @@ export {
   getNotes,
   getSharedNotes,
   getNotesByTodo,
+  getNoteApi,
   getTodoNoteMap,
   createNoteApi,
   updateNoteApi,

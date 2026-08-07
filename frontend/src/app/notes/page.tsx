@@ -13,6 +13,7 @@ import PageHelpButton from "@/components/PageHelpButton";
 import { useToast } from "@/components/Toast";
 import SlashCommandMenu, { type SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import { clearNotesLocalStorage, useOfflineNotes } from "@/lib/useOfflineNotes";
 import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
@@ -21,6 +22,7 @@ import { newClientEntityId } from "@/lib/newClientId";
 
 function NotesPageInner() {
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
   const { toast } = useToast();
   const { user: authUser } = useAuth();
   const currentUid = authUser?.uid ?? null;
@@ -494,7 +496,11 @@ function NotesPageInner() {
                 <button
                   type="button"
                   onClick={handleNew}
-                  className="rounded-lg bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white p-1.5 transition-colors"
+                  className={`rounded-lg text-white p-1.5 transition-colors ${
+                    uiV2
+                      ? "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 shadow-sm shadow-emerald-500/25"
+                      : "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                  }`}
                   title={t("notes.new")}
                   aria-label={t("notes.new")}
                   data-testid="notes-new-tiles"
@@ -1134,7 +1140,7 @@ function NotesPageInner() {
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
+              <div className={`text-center ${uiV2 ? "ui-v2-fade px-6" : ""}`}>
                 <svg className="w-16 h-16 mx-auto text-zinc-200 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
