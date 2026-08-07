@@ -6,7 +6,10 @@ import { stripUndefinedDeep } from "./utils/firestoreSanitize";
 type Firestore = import("@google-cloud/firestore").Firestore;
 
 const USE_LOCAL = process.env.USE_LOCAL_STORE === "true";
-const STORE_PATH = path.join(__dirname, "..", "data", "local-store.json");
+/** Override for vitest / isolated runs — never point this at the real local-store in CI scripts. */
+const STORE_PATH =
+  process.env.LOCAL_STORE_PATH?.trim() ||
+  path.join(__dirname, "..", "data", "local-store.json");
 
 /** Number of Firestore documents used to store todos (`store/todos_0` … `todos_{N-1}`). */
 export const TODO_SHARD_COUNT = 128;

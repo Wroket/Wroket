@@ -445,6 +445,8 @@ export interface AuthUser {
   webPushEnabled: boolean;
   /** Order of movable columns on the personal TaskList (per user). */
   taskListColumnOrder: TaskListColumnId[];
+  /** Agent API keys metadata (no secrets). */
+  apiKeys: ApiKeyPublic[];
 }
 
 interface StoredUser {
@@ -520,6 +522,52 @@ interface StoredUser {
     createdAt: string;
     userAgent?: string;
   }>;
+  /** Agent / MCP API keys — hashes only; plaintext never persisted. */
+  apiKeys?: StoredApiKey[];
+}
+
+/** Long-lived agent credential (Cursor, Claude, …). */
+export interface StoredApiKey {
+  id: string;
+  name: string;
+  /** First chars of the key for UI (e.g. wrk_live_ab12). */
+  prefix: string;
+  keyHash: string;
+  scopes: ApiKeyScope[];
+  createdAt: string;
+  lastUsedAt?: string;
+  revokedAt?: string;
+}
+
+export type ApiKeyScope =
+  | "todos:read"
+  | "todos:write"
+  | "projects:read"
+  | "notes:read"
+  | "notes:write"
+  | "calendar:write";
+
+export const ALL_API_KEY_SCOPES: ApiKeyScope[] = [
+  "todos:read",
+  "todos:write",
+  "projects:read",
+  "notes:read",
+  "notes:write",
+  "calendar:write",
+];
+
+export interface ApiKeyPublic {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: ApiKeyScope[];
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface CreateApiKeyResult extends ApiKeyPublic {
+  /** Plaintext secret — returned once at creation. */
+  key: string;
 }
 
 interface StoredSession {
@@ -731,7 +779,165 @@ function toAuthUser(user: StoredUser): AuthUser {
     automationNotifyProjectOwnerOverdue: user.automationNotifyProjectOwnerOverdue === true,
     webPushEnabled: user.webPushEnabled === true,
     taskListColumnOrder: sanitizeTaskListColumnOrder(user.taskListColumnOrder),
+    apiKeys: listApiKeysPublic(user),
   };
+}
+
+function listApiKeysPublic(user: StoredUser): ApiKeyPublic[] {
+  const keys = user.apiKeys ?? [];
+  return keys
+    .filter((k) => !k.revokedAt)
+    .map((k) => ({
+      id: k.id,
+      name: k.name,
+      prefix: k.prefix,
+      scopes: effectiveApiKeyScopes(Array.isArray(k.scopes) ? k.scopes : undefined),
+      createdAt: k.createdAt,
+      lastUsedAt: k.lastUsedAt,
+    }));
+}
+
+function hashApiKey(plaintext: string): string {
+  return crypto.createHash("sha256").update(plaintext, "utf8").digest("hex");
+}
+
+function maxApiKeysForUser(user: StoredUser): number {
+  const plan = readBillingPlan(user);
+  if (user.earlyBird || plan === "small" || plan === "large" || plan === "first") return 5;
+  return 1;
+}
+
+function sanitizeScopes(raw: unknown): ApiKeyScope[] {
+  const allowed = new Set<string>(ALL_API_KEY_SCOPES);
+  if (!Array.isArray(raw) || raw.length === 0) return [...ALL_API_KEY_SCOPES];
+  const out: ApiKeyScope[] = [];
+  for (const s of raw) {
+    if (typeof s === "string" && allowed.has(s) && !out.includes(s as ApiKeyScope)) {
+      out.push(s as ApiKeyScope);
+    }
+  }
+  return out.length > 0 ? out : [...ALL_API_KEY_SCOPES];
+}
+
+/** v1 default trio — keys with exactly these scopes are upgraded to the current full set. */
+const LEGACY_FULL_SCOPES = ["todos:read", "todos:write", "projects:read"] as const;
+
+/**
+ * Resolve stored scopes for auth/API. Empty → all. Exact v1 full set → current ALL_API_KEY_SCOPES.
+ * Intentionally restricted subsets are preserved.
+ */
+export function effectiveApiKeyScopes(stored: ApiKeyScope[] | undefined | null): ApiKeyScope[] {
+  if (!Array.isArray(stored) || stored.length === 0) return [...ALL_API_KEY_SCOPES];
+  const sorted = [...stored].sort().join(",");
+  const legacy = [...LEGACY_FULL_SCOPES].sort().join(",");
+  if (sorted === legacy) return [...ALL_API_KEY_SCOPES];
+  return stored.filter((s) => (ALL_API_KEY_SCOPES as string[]).includes(s));
+}
+
+/**
+ * Create a personal API key for MCP / agents. Plaintext returned once.
+ */
+export function createApiKeyForUser(
+  uid: string,
+  name: string,
+  scopes?: unknown,
+): CreateApiKeyResult {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const active = (user.apiKeys ?? []).filter((k) => !k.revokedAt);
+  const max = maxApiKeysForUser(user);
+  if (active.length >= max) {
+    throw new ValidationError(
+      `Limite de clés API atteinte (${max}). Révoquez une clé ou passez à un palier supérieur.`,
+      "API_KEY_LIMIT",
+    );
+  }
+  const id = crypto.randomUUID();
+  const secret = crypto.randomBytes(24).toString("base64url");
+  const key = `wrk_live_${secret}`;
+  const prefix = key.slice(0, 16);
+  const now = new Date().toISOString();
+  const scoped = sanitizeScopes(scopes);
+  const entry: StoredApiKey = {
+    id,
+    name: name.trim().slice(0, 64) || "Agent",
+    prefix,
+    keyHash: hashApiKey(key),
+    scopes: scoped,
+    createdAt: now,
+  };
+  user.apiKeys = [...(user.apiKeys ?? []), entry];
+  usersByUid.set(uid, user);
+  persistUsers();
+  return {
+    id,
+    name: entry.name,
+    prefix,
+    scopes: scoped,
+    createdAt: now,
+    key,
+  };
+}
+
+export function listApiKeysForUser(uid: string): ApiKeyPublic[] {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  return listApiKeysPublic(user);
+}
+
+export function revokeApiKeyForUser(uid: string, keyId: string): void {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const keys = user.apiKeys ?? [];
+  const idx = keys.findIndex((k) => k.id === keyId && !k.revokedAt);
+  if (idx === -1) throw new NotFoundError("Clé API introuvable");
+  keys[idx] = { ...keys[idx], revokedAt: new Date().toISOString() };
+  user.apiKeys = keys;
+  usersByUid.set(uid, user);
+  persistUsers();
+}
+
+export interface ApiKeyAuthSuccess {
+  user: AuthUser;
+  keyId: string;
+  scopes: ApiKeyScope[];
+}
+
+/**
+ * Resolve Authorization Bearer wrk_live_… to AuthUser + scopes.
+ */
+export function authenticateApiKey(authorizationHeader: string | undefined): ApiKeyAuthSuccess | null {
+  if (!authorizationHeader) return null;
+  const m = authorizationHeader.match(/^Bearer\s+(\S+)/i);
+  if (!m) return null;
+  const plaintext = m[1];
+  if (!plaintext.startsWith("wrk_live_")) return null;
+  const hash = hashApiKey(plaintext);
+  for (const user of usersByUid.values()) {
+    const keys = user.apiKeys ?? [];
+    for (const k of keys) {
+      if (k.revokedAt) continue;
+      if (!timingSafeEqualStrings(k.keyHash, hash)) continue;
+      const now = Date.now();
+      const prev = k.lastUsedAt ? Date.parse(k.lastUsedAt) : 0;
+      // Throttle persistence: at most once per 5 minutes per key.
+      if (!Number.isFinite(prev) || now - prev > 5 * 60_000) {
+        k.lastUsedAt = new Date(now).toISOString();
+        usersByUid.set(user.uid, user);
+        persistUsers();
+      }
+      return {
+        user: toAuthUser(user),
+        keyId: k.id,
+        scopes: effectiveApiKeyScopes(Array.isArray(k.scopes) ? k.scopes : undefined),
+      };
+    }
+  }
+  return null;
+}
+
+export function apiKeyHasScope(scopes: ApiKeyScope[], needed: ApiKeyScope): boolean {
+  return scopes.includes(needed);
 }
 
 const COOKIE_NAME = "auth_token";

@@ -130,6 +130,7 @@ const SENSITIVE_FIELDS = [
   "emailVerifyToken", "resetToken", "resetTokenExpiry",
   "totpSecretB64", "totpPendingSecretB64", "totpEnabled",
   "emailOtp2faEnabled", "email2faEnrollHash", "email2faDisableHash",
+  "apiKeys",
 ];
 
 function sanitizeUserForExport(user: Record<string, unknown>): Record<string, unknown> {
