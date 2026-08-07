@@ -34,10 +34,19 @@ export interface SuggestedSlot {
   end: string;
 }
 
+export type SlotReasonCode =
+  | "ideal_window"
+  | "deadline_soon"
+  | "morning_focus"
+  | "light_gap"
+  | "sooner_option"
+  | "next_available";
+
 export interface SlotProposal {
   start: string;
   end: string;
   label: string;
+  reasonCode?: SlotReasonCode;
 }
 
 export interface GoogleCalendarEntry {
@@ -130,6 +139,8 @@ export interface AuthMeResponse {
   automationNotifyProjectOwnerOverdue?: boolean;
   /** Web Push enabled (at least one device subscribed). */
   webPushEnabled?: boolean;
+  /** Order of movable TaskList columns (synced per account). */
+  taskListColumnOrder?: string[];
   /** Days before archived tasks are permanently removed; 0 = never. Default 30. */
   archivedTaskRetentionDays?: number;
   /** Where new bookings are written when both Google and Outlook are connected. */

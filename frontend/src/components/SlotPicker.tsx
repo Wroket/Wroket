@@ -12,10 +12,12 @@ import {
   type SlotProposal,
   type SlotConflict,
   type Todo,
+  type TodayAvailability,
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
+import { TAG_AUX } from "@/lib/tagPalette";
 import { toolbarAffordanceClass } from "@/components/taskToolbarStyles";
 
 export interface SlotPickerProps {
@@ -25,11 +27,13 @@ export interface SlotPickerProps {
   onBooked: (todo: Todo) => void;
   onCleared: (todo: Todo) => void;
   autoOpen?: boolean;
+  /** Increment to open the picker (e.g. from an overflow menu). */
+  openSignal?: number;
   dateMin?: string;
   dateMax?: string;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, dateMin, dateMax }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -52,8 +56,10 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   }, [autoOpen, scheduledSlot]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState<SlotProposal[]>([]);
+  const [slotsVisibleCount, setSlotsVisibleCount] = useState(3);
+  const [todayAvailability, setTodayAvailability] = useState<TodayAvailability | null>(null);
+  const [effectiveStartDate, setEffectiveStartDate] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
-  const [durationSource, setDurationSource] = useState<"task" | "settings">("settings");
   const [effort, setEffort] = useState("");
   const [serverSuggestedSlot, setServerSuggestedSlot] = useState<SuggestedSlot | null>(suggestedSlot ?? null);
   const [booking, setBooking] = useState(false);
@@ -64,6 +70,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const [rescheduleMode, setRescheduleMode] = useState(false);
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("09:00");
+  const [manualWarn, setManualWarn] = useState<"heavy_late" | "outside_hours" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
@@ -72,43 +79,71 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     const popW = 288;
-    const popH = 320;
-    const openBelow = (window.innerHeight - rect.bottom) >= popH;
-    const openRight = (window.innerWidth - rect.left) >= popW;
+    const margin = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    const openBelow = spaceBelow >= 260 || spaceBelow >= spaceAbove;
+    const available = openBelow ? spaceBelow : spaceAbove;
+    const maxH = Math.max(220, Math.min(available, window.innerHeight - margin * 2));
+    const openRight = window.innerWidth - rect.left >= popW;
+    const left = openRight
+      ? Math.min(rect.left, window.innerWidth - popW - margin)
+      : undefined;
+    const right = openRight ? undefined : Math.max(margin, window.innerWidth - rect.right);
 
     setPopoverStyle({
       position: "fixed",
       top: openBelow ? rect.bottom + 4 : undefined,
-      bottom: openBelow ? undefined : (window.innerHeight - rect.top + 4),
-      left: openRight ? rect.left : undefined,
-      right: openRight ? undefined : (window.innerWidth - rect.right),
+      bottom: openBelow ? undefined : window.innerHeight - rect.top + 4,
+      left,
+      right,
       zIndex: 9999,
+      maxHeight: maxH,
+      overflowY: "auto",
     });
   }, []);
 
+  useEffect(() => {
+    if (!open || presentation !== "popover") return;
+    computePosition();
+    const onResize = () => computePosition();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [open, presentation, slotsVisibleCount, slots.length, mode, computePosition]);
+
   const fetchSlots = useCallback(async () => {
     setLoading(true);
+    setSlotsVisibleCount(3);
     try {
       const data = await getTaskSlots(todoId);
       setSlots(data.slots);
+      setTodayAvailability(data.todayAvailability ?? null);
+      setEffectiveStartDate(data.effectiveStartDate ?? null);
       setDuration(data.duration);
-      setDurationSource(data.durationSource);
       setEffort(data.effort);
       if (data.suggestedSlot) setServerSuggestedSlot(data.suggestedSlot);
     } catch {
       setSlots([]);
+      setTodayAvailability(null);
+      setEffectiveStartDate(null);
     } finally {
       setLoading(false);
     }
   }, [todoId]);
 
   const handleOpen = () => {
-    setPresentation("popover");
-    computePosition();
+    setPresentation("modal");
     setOpen(true);
     setRescheduleMode(false);
     if (!scheduledSlot) fetchSlots();
   };
+
+  const lastOpenSignalRef = useRef(0);
+  useEffect(() => {
+    if (!openSignal || openSignal === lastOpenSignalRef.current) return;
+    lastOpenSignalRef.current = openSignal;
+    handleOpen();
+  }, [openSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReschedule = async () => {
     setOpen(false);
@@ -161,12 +196,45 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const handleBook = (slot: SlotProposal) => doBook(slot.start, slot.end);
 
+  /** Soft checks for recoverable manual-slot constraints (heavy late / unusual hours). */
+  const manualSlotWarning = (date: string, time: string): "heavy_late" | "outside_hours" | null => {
+    const [hh, mm] = time.split(":").map(Number);
+    const minutes = (hh ?? 0) * 60 + (mm ?? 0);
+    if (minutes < 8 * 60 || minutes >= 18 * 60) return "outside_hours";
+    if (effort === "heavy" && minutes >= 15 * 60) return "heavy_late";
+    return null;
+  };
+
   const handleManualBook = () => {
     if (!manualDate || !manualTime) return;
+    if (!manualWarn) {
+      const warn = manualSlotWarning(manualDate, manualTime);
+      if (warn) {
+        setManualWarn(warn);
+        return;
+      }
+    }
+    setManualWarn(null);
     const start = new Date(`${manualDate}T${manualTime}`);
     const end = new Date(start.getTime() + (duration || 30) * 60 * 1000);
     doBook(start.toISOString(), end.toISOString());
   };
+
+  const todayHint = (() => {
+    if (!todayAvailability || todayAvailability === "available") return null;
+    if (todayAvailability === "before_start_date") {
+      const raw = effectiveStartDate ?? "";
+      const formatted = raw
+        ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw).toLocaleDateString(undefined, {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          })
+        : "—";
+      return t("schedule.today.before_start_date").replace("{date}", formatted);
+    }
+    return t(`schedule.today.${todayAvailability}`);
+  })();
 
   const handleForceBook = () => {
     if (!pendingSlot) return;
@@ -219,7 +287,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const formatSlotBadge = (slot: ScheduledSlot): string => `📅 ${formatScheduledSlotLabel(slot)}`;
 
   const panelShellClass =
-    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-xl w-72 max-w-[min(100vw-2rem,18rem)]";
+    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-sm shadow-xl w-72 max-w-[min(100vw-2rem,18rem)] overflow-y-auto";
 
   const renderScheduleBody = () => (
     <>
@@ -341,7 +409,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                   <input
                     type="date"
                     value={manualDate}
-                    onChange={(e) => setManualDate(e.target.value)}
+                    onChange={(e) => { setManualDate(e.target.value); setManualWarn(null); }}
                     min={dateMin ?? new Date().toISOString().split("T")[0]}
                     max={dateMax}
                     className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -352,18 +420,48 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                   <input
                     type="time"
                     value={manualTime}
-                    onChange={(e) => setManualTime(e.target.value)}
+                    onChange={(e) => { setManualTime(e.target.value); setManualWarn(null); }}
                     className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={handleManualBook}
-                  disabled={booking || !manualDate || !manualTime}
-                  className="w-full rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
-                >
-                  {t("schedule.book")}
-                </button>
+                {manualWarn && (
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 space-y-2"
+                  >
+                    <p className="text-xs text-amber-900 dark:text-amber-100">
+                      {manualWarn === "heavy_late" ? t("schedule.warnHeavyLate") : t("schedule.warnOutsideHours")}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setManualWarn(null)}
+                        className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700"
+                      >
+                        {t("cancel")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleManualBook}
+                        disabled={booking}
+                        className="flex-1 rounded bg-amber-600 dark:bg-amber-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        {t("schedule.warnContinue")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!manualWarn && (
+                  <button
+                    type="button"
+                    onClick={handleManualBook}
+                    disabled={booking || !manualDate || !manualTime}
+                    className="w-full rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
+                  >
+                    {t("schedule.book")}
+                  </button>
+                )}
               </div>
             ) : loading ? (
               <div className="space-y-2">
@@ -439,23 +537,21 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                   </div>
                 )}
                 {duration > 0 && (
-                  <div className="mb-2">
-                    <p className="text-[11px] text-zinc-600 dark:text-slate-300 font-medium">
-                      {t("schedule.duration")}: {duration} min
-                    </p>
-                    <p className="text-[10px] text-zinc-400 dark:text-slate-500 italic">
-                      {durationSource === "task"
-                        ? t("schedule.sourceTask")
-                        : `${t("schedule.sourceSettings")} (${effort})`}
-                    </p>
-                  </div>
+                  <p className="mb-2 text-[11px] text-zinc-600 dark:text-slate-300 font-medium">
+                    {t("schedule.duration")}: {duration} min
+                  </p>
                 )}
-                {slots.map((slot, i) => (
+                {todayHint && (
+                  <p className="text-[10px] text-amber-700 dark:text-amber-300 mb-1">
+                    {todayHint}
+                  </p>
+                )}
+                {slots.slice(0, slotsVisibleCount).map((slot, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between rounded-md border border-zinc-200 dark:border-slate-600 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-slate-700/50 transition-colors"
+                    className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 dark:border-slate-600 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-slate-700/50 transition-colors"
                   >
-                    <span className="text-sm text-zinc-800 dark:text-slate-200 font-medium">
+                    <span className="text-sm text-zinc-800 dark:text-slate-200 font-medium min-w-0 flex-1">
                       {slot.label}
                     </span>
                     <button
@@ -468,6 +564,23 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                     </button>
                   </div>
                 ))}
+                {slots.length > slotsVisibleCount && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlotsVisibleCount(slots.length);
+                      requestAnimationFrame(() => {
+                        popoverRef.current?.scrollTo({
+                          top: popoverRef.current.scrollHeight,
+                          behavior: "smooth",
+                        });
+                      });
+                    }}
+                    className="w-full rounded border border-zinc-200 dark:border-slate-600 px-3 py-2 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700/50 transition-colors"
+                  >
+                    {t("schedule.moreSuggestions")}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -480,7 +593,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   return (
     <>
-      <div ref={ref} className="relative inline-flex">
+      <div ref={ref} className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center">
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); if (!slotMutationBusy) handleOpen(); }}
@@ -527,7 +640,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
             onClick={() => setOpen(false)}
           />
           <div
-            className={`relative z-[1] max-h-[90vh] overflow-y-auto ${panelShellClass}`}
+            ref={popoverRef}
+            className={`relative z-[1] w-full max-w-sm max-h-[min(90vh,36rem)] overflow-y-auto ${panelShellClass}`}
             onClick={(e) => e.stopPropagation()}
           >
             {renderScheduleBody()}
@@ -541,7 +655,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
 export function ScheduledSlotBadge({ slot }: { slot: ScheduledSlot }) {
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 shrink-0 whitespace-nowrap">
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 ${TAG_AUX.slot} shrink-0 whitespace-nowrap`}>
       📅 {formatScheduledSlotLabel(slot)}
     </span>
   );

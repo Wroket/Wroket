@@ -21,6 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import type { Todo, Priority, Effort } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
@@ -167,14 +168,7 @@ export default function SubtaskModal({
     });
   }, [parent]);
 
-  useEffect(() => {
-    if (!parent) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [parent, onClose]);
+  useModalCloseKeys(!!parent, onClose);
 
   if (!parent) return null;
 
@@ -247,8 +241,12 @@ export default function SubtaskModal({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && title.trim()) handleSubmit();
-              if (e.key === "Escape") onClose();
+              if (e.key === "Enter" && title.trim()) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSubmit();
+                return;
+              }
             }}
             autoFocus
             className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"

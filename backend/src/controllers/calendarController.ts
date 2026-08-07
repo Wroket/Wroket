@@ -248,13 +248,30 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
     priority: todo.priority,
     deadline: effectiveDeadline,
     startDate: effectiveStartDate,
+    effort: todo.effort ?? "medium",
   };
-  const slots = await findAvailableSlots(uid, duration, workingHours, googleBusySlots, 3, undefined, ctx);
+  const { slots, todayAvailability } = await findAvailableSlots(
+    uid,
+    duration,
+    workingHours,
+    googleBusySlots,
+    6,
+    undefined,
+    ctx,
+  );
   if (slots.length === 0) {
     const occupied = (await listTodos(uid)).filter((t) => t.scheduledSlot).length;
-    console.log(`[getSlots] 0 slots for todo=${todoId} title="${todo.title}" duration=${duration}min ctx=`, JSON.stringify(ctx), `busySlots=${googleBusySlots.length} occupiedTasks=${occupied}`);
+    console.log(`[getSlots] 0 slots for todo=${todoId} title="${todo.title}" duration=${duration}min ctx=`, JSON.stringify(ctx), `busySlots=${googleBusySlots.length} occupiedTasks=${occupied} today=${todayAvailability}`);
   }
-  res.status(200).json({ slots, duration, durationSource, effort, suggestedSlot: todo.suggestedSlot ?? null });
+  res.status(200).json({
+    slots,
+    duration,
+    durationSource,
+    effort,
+    suggestedSlot: todo.suggestedSlot ?? null,
+    todayAvailability,
+    effectiveStartDate: effectiveStartDate ?? null,
+  });
 }
 
 interface ConflictInfo { id: string; title: string; start: string; end: string }

@@ -13,13 +13,17 @@ import {
 import type { Todo } from "@/lib/api";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import {
-  computeTaskScores,
+  computeRadarTaskScores,
+  constellationLinks,
+  radarConstellationRadiusPx,
   radarDotPlacement,
   radarDotRadiusPx,
   radarRingVisual,
+  radarStarHalo,
+  RADAR_STAR_HIT_PX,
   spreadRadarDots,
   type RadarMode,
-  type TaskScores,
+  type RadarTaskScores,
 } from "@/lib/taskScores";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
@@ -29,13 +33,140 @@ import { PRIORITY_BADGES, SUBTASK_BADGE_CLS, type Quadrant } from "@/lib/todoCon
 import type { TranslationKey } from "@/lib/i18n";
 import { trackRadarEvent } from "@/lib/productAnalytics";
 import { QUADRANT_BADGES } from "@/app/todos/_components/sortUtils";
+import { useUiV2 } from "@/lib/UiVersionContext";
 
 const DOT_COLORS: Record<Quadrant, string> = {
   "do-first": "bg-red-500",
-  schedule: "bg-blue-500",
+  schedule: "bg-indigo-500",
   delegate: "bg-amber-400",
   eliminate: "bg-zinc-400",
 };
+
+/** Compact skips edges when the plot is dense. */
+const COMPACT_EDGE_TODO_CAP = 18;
+
+type MorphPt = [number, number];
+
+const MORPH_N = 16;
+
+/** Unit circle samples (viewBox 24×24), clockwise from top — shared topology for lerp. */
+const MORPH_CIRCLE: MorphPt[] = Array.from({ length: MORPH_N }, (_, i) => {
+  const a = (i / MORPH_N) * Math.PI * 2 - Math.PI / 2;
+  return [12 + 9.2 * Math.cos(a), 12 + 9.2 * Math.sin(a)];
+});
+
+/**
+ * Fat check silhouette (Wroket-like single tick), same vertex count/order as MORPH_CIRCLE
+ * so hover is a true point-wise morph, not an SVG swap.
+ * Index 0 ≈ tip (maps from circle top).
+ */
+const MORPH_TICK: MorphPt[] = [
+  [18.6, 4.9],
+  [20.5, 6.5],
+  [17.4, 10.2],
+  [14.2, 13.8],
+  [11.6, 16.6],
+  [10.2, 18.5],
+  [8.0, 18.7],
+  [6.1, 16.0],
+  [4.6, 13.3],
+  [4.5, 11.5],
+  [6.9, 12.3],
+  [9.3, 15.1],
+  [12.0, 13.1],
+  [15.0, 9.5],
+  [17.2, 6.9],
+  [18.1, 5.5],
+];
+
+function smoothstep(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+/** Linear morph between two same-length polygons → SVG path. */
+function morphPolygonPath(from: MorphPt[], to: MorphPt[], t: number): string {
+  const u = smoothstep(t);
+  const parts: string[] = [];
+  for (let i = 0; i < from.length; i++) {
+    const x = from[i][0] + (to[i][0] - from[i][0]) * u;
+    const y = from[i][1] + (to[i][1] - from[i][1]) * u;
+    parts.push(`${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return `${parts.join(" ")} Z`;
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
+
+/**
+ * Core disc that truly morphs (vertex lerp) toward a Wroket-like tick while `active`.
+ */
+function RadarStarMorphCore({ active }: { active: boolean }) {
+  const reduced = usePrefersReducedMotion();
+  const [t, setT] = useState(0);
+  const tRef = useRef(0);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
+    if (reduced) {
+      setT(active ? 1 : 0);
+      return;
+    }
+
+    let raf = 0;
+
+    if (!active) {
+      const from = tRef.current;
+      if (from <= 0.001) {
+        setT(0);
+        return;
+      }
+      const start = performance.now();
+      const dur = 500;
+      const tick = (now: number) => {
+        const p = Math.min(1, (now - start) / dur);
+        const next = from * (1 - smoothstep(p));
+        setT(next);
+        if (p < 1) raf = requestAnimationFrame(tick);
+        else setT(0);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }
+
+    const start = performance.now();
+    const period = 3200;
+    const loop = (now: number) => {
+      const phase = ((now - start) % period) / period;
+      const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+      setT(tri);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [active, reduced]);
+
+  const d = useMemo(() => morphPolygonPath(MORPH_CIRCLE, MORPH_TICK, t), [t]);
+
+  return (
+    <svg className="radar-star-core" viewBox="0 0 24 24" aria-hidden>
+      <path className="radar-star-morph-path" d={d} />
+    </svg>
+  );
+}
 
 /** Lets the pointer cross the gap between the dot and the tooltip without closing it. */
 const HOVER_TOOLTIP_LEAVE_MS = 220;
@@ -61,6 +192,8 @@ function SubtaskBadge({ count }: { count: number }) {
 interface Props {
   todos: Todo[];
   subtaskCounts?: Record<string, number>;
+  /** Active (and other) children by parent id — only `status === "active"` affect scores. */
+  activeChildrenByParent?: Record<string, Todo[]>;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   compact?: boolean;
@@ -78,6 +211,7 @@ interface Props {
 export default function EisenhowerRadar({
   todos,
   subtaskCounts = {},
+  activeChildrenByParent = {},
   meUid,
   userDisplayName,
   compact,
@@ -88,6 +222,7 @@ export default function EisenhowerRadar({
   headerStart,
 }: Props) {
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelHoverClear = useCallback(() => {
@@ -128,12 +263,12 @@ export default function EisenhowerRadar({
   const scoreById = useMemo(() => {
     // "Now" for scoring; when not controlled, wall-clock time is intentional for overdue / due-soon.
     const now = nowMs ?? Date.now(); // eslint-disable-line react-hooks/purity -- time-dependent layout
-    const m = new Map<string, TaskScores>();
+    const m = new Map<string, RadarTaskScores>();
     for (const todo of todos) {
-      m.set(todo.id, computeTaskScores(todo, now));
+      m.set(todo.id, computeRadarTaskScores(todo, activeChildrenByParent[todo.id], now));
     }
     return m;
-  }, [todos, nowMs]);
+  }, [todos, nowMs, activeChildrenByParent]);
 
   /** Fan-out nearby dots inside the same quadrant cell for readability */
   const spreadById = useMemo(() => {
@@ -144,6 +279,25 @@ export default function EisenhowerRadar({
     });
     return spreadRadarDots(items);
   }, [todos, radarMode, scoreById]);
+
+  const edgeLinks = useMemo(() => {
+    if (!uiV2) return [];
+    if (compact && todos.length > COMPACT_EDGE_TODO_CAP) return [];
+    const nodes = todos.map((todo) => {
+      const scores = scoreById.get(todo.id)!;
+      const base = radarDotPlacement(todo.id, scores, radarMode);
+      const spread = spreadById.get(todo.id) ?? base;
+      return {
+        id: todo.id,
+        left: spread.left,
+        bottom: spread.bottom,
+        quadrant: scores.quadrant,
+        parentId: todo.parentId,
+        projectId: todo.projectId,
+      };
+    });
+    return constellationLinks(nodes);
+  }, [uiV2, compact, todos, scoreById, radarMode, spreadById]);
 
   /** Colonne 1 (gauche) = Important / charge forte ; colonne 2 (droite) = pas important / charge faible. */
   const xLabels = useMemo(() => {
@@ -234,21 +388,59 @@ export default function EisenhowerRadar({
           </div>
         </div>
 
-        <div className="relative overflow-visible aspect-square min-w-0 border border-zinc-200 dark:border-slate-600 rounded-lg">
-          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-px bg-zinc-200 dark:bg-slate-600 rounded overflow-hidden">
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-            <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
-          </div>
+        <div
+          className={`relative overflow-visible aspect-square min-w-0 rounded-lg border ${
+            uiV2
+              ? "radar-constellation-plot border-zinc-300/80 dark:border-slate-600/70"
+              : "border-zinc-200 dark:border-slate-600"
+          }`}
+        >
+          {uiV2 ? (
+            <div className="radar-constellation-sky absolute inset-0 rounded-[inherit] overflow-hidden" aria-hidden>
+              <div className="radar-constellation-cells">
+                <div className="q do-first" />
+                <div className="q delegate" />
+                <div className="q schedule" />
+                <div className="q eliminate" />
+              </div>
+              <div className="radar-constellation-cross" />
+            </div>
+          ) : (
+            <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-px bg-zinc-200 dark:bg-slate-600 rounded overflow-hidden">
+              <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
+              <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
+              <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
+              <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
+            </div>
+          )}
 
-          <span className={`absolute top-3 left-3 font-bold text-red-400/60 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.doFirst")}</span>
-          <span className={`absolute top-3 right-3 font-bold text-amber-400/60 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.delegate")}</span>
-          <span className={`absolute bottom-3 left-3 font-bold text-blue-400/60 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.schedule")}</span>
-          <span className={`absolute bottom-3 right-3 font-bold text-zinc-400/60 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.eliminate")}</span>
+          {uiV2 && <div className="radar-constellation-dust absolute inset-0 rounded-[inherit]" aria-hidden />}
+
+          <span className={`absolute top-3 left-3 z-[3] font-bold text-rose-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.doFirst")}</span>
+          <span className={`absolute top-3 right-3 z-[3] font-bold text-amber-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.delegate")}</span>
+          <span className={`absolute bottom-3 left-3 z-[3] font-bold text-blue-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.schedule")}</span>
+          <span className={`absolute bottom-3 right-3 z-[3] font-bold text-zinc-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.eliminate")}</span>
+
+          {uiV2 && edgeLinks.length > 0 && (
+            <svg className="radar-constellation-edges" aria-hidden>
+              {edgeLinks.map((link) => {
+                const lit = hoveredId != null && (link.a === hoveredId || link.b === hoveredId);
+                return (
+                  <line
+                    key={`${link.a}-${link.b}`}
+                    className={`${link.sameQuadrant ? "" : "cross"} ${lit ? "is-lit" : ""}`.trim()}
+                    x1={`${link.x1}%`}
+                    y1={`${link.y1}%`}
+                    x2={`${link.x2}%`}
+                    y2={`${link.y2}%`}
+                  />
+                );
+              })}
+            </svg>
+          )}
 
           {todos.map((todo) => {
-            const scores = scoreById.get(todo.id) ?? computeTaskScores(todo);
+            const scores = scoreById.get(todo.id) ?? computeRadarTaskScores(todo, activeChildrenByParent[todo.id]);
             const base = radarDotPlacement(todo.id, scores, radarMode);
             const spread = spreadById.get(todo.id) ?? base;
             const x = spread.left;
@@ -258,6 +450,96 @@ export default function EisenhowerRadar({
             const badge = PRIORITY_BADGES[todo.priority];
             const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
             const bookingLabel = todo.scheduledSlot ? formatScheduledSlotLabel(todo.scheduledSlot) : null;
+
+            if (uiV2) {
+              const coreR = radarConstellationRadiusPx(scores.C, !!compact);
+              const halo = radarStarHalo(scores, q, todo.id);
+              const hit = RADAR_STAR_HIT_PX;
+              return (
+                <div
+                  key={todo.id}
+                  className={`absolute ${isHovered ? "z-50" : "z-10"}`}
+                  style={{
+                    left: `${x}%`,
+                    bottom: `${y}%`,
+                    transform: "translate(-50%, 50%)",
+                  }}
+                  onMouseEnter={() => pinHover(todo.id)}
+                  onMouseLeave={scheduleHoverClear}
+                  onFocus={() => pinHover(todo.id)}
+                  onBlur={scheduleHoverClear}
+                >
+                  <button
+                    type="button"
+                    tabIndex={0}
+                    aria-label={displayTodoTitle(todo.title, t("todos.untitled"))}
+                    className={`radar-star ${compact ? "compact" : ""} ${isHovered ? "is-hovered" : ""}`}
+                    style={{
+                      width: hit,
+                      height: hit,
+                      ["--star-r" as string]: halo.r,
+                      ["--star-g" as string]: halo.g,
+                      ["--star-b" as string]: halo.b,
+                      ["--star-intensity" as string]: String(halo.intensity),
+                      ["--star-core" as string]: `${coreR * 2}px`,
+                      ["--star-delay" as string]: `${halo.delayMs}ms`,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onEditTask) {
+                        cancelHoverClear();
+                        setHoveredId(null);
+                        openTaskEdit(todo);
+                      }
+                    }}
+                    onKeyDown={(e: KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (onEditTask) {
+                          cancelHoverClear();
+                          setHoveredId(null);
+                          openTaskEdit(todo);
+                        }
+                      }
+                    }}
+                  >
+                    <span className="radar-star-halo outer" aria-hidden />
+                    <span className="radar-star-halo mid" aria-hidden />
+                    <span className="radar-star-ping" aria-hidden />
+                    <RadarStarMorphCore active={isHovered} />
+                  </button>
+
+                  {isHovered && (
+                    <Tooltip
+                      x={x}
+                      y={y}
+                      todo={todo}
+                      badge={badge}
+                      quadrant={q}
+                      dl={dl}
+                      bookingLabel={bookingLabel}
+                      subtaskCount={subtaskCounts[todo.id] ?? 0}
+                      bubbledFromSubtask={scores.bubbledFromSubtask}
+                      meUid={meUid}
+                      userDisplayName={userDisplayName}
+                      t={t}
+                      onMouseEnter={() => pinHover(todo.id)}
+                      onMouseLeave={scheduleHoverClear}
+                      onEditTaskClick={
+                        onEditTask
+                          ? () => {
+                              cancelHoverClear();
+                              setHoveredId(null);
+                              openTaskEdit(todo);
+                            }
+                          : undefined
+                      }
+                    />
+                  )}
+                </div>
+              );
+            }
+
             const dotR = radarDotRadiusPx(scores.C, !!compact);
             const ring = radarRingVisual(scores, q);
             const ringR = dotR + ring.ringPaddingPx;
@@ -353,6 +635,7 @@ export default function EisenhowerRadar({
                     dl={dl}
                     bookingLabel={bookingLabel}
                     subtaskCount={subtaskCounts[todo.id] ?? 0}
+                    bubbledFromSubtask={scores.bubbledFromSubtask}
                     meUid={meUid}
                     userDisplayName={userDisplayName}
                     t={t}
@@ -387,6 +670,7 @@ function Tooltip({
   dl,
   bookingLabel,
   subtaskCount = 0,
+  bubbledFromSubtask = false,
   meUid,
   userDisplayName,
   t,
@@ -402,6 +686,7 @@ function Tooltip({
   dl: { text: string; cls: string } | null;
   bookingLabel: string | null;
   subtaskCount?: number;
+  bubbledFromSubtask?: boolean;
   meUid?: string | null;
   userDisplayName?: (uid: string) => string;
   t: (key: TranslationKey) => string;
@@ -468,6 +753,14 @@ function Tooltip({
         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${QUADRANT_BADGES[quadrant].cls}`}>{t(QUADRANT_BADGES[quadrant].tKey)}</span>
         {dl && <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${dl.cls}`}>{dl.text}</span>}
         {subtaskCount > 0 && <SubtaskBadge count={subtaskCount} />}
+        {bubbledFromSubtask && (
+          <span
+            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+            title={t("matrix.viaSubtaskHint")}
+          >
+            {t("matrix.viaSubtask")}
+          </span>
+        )}
         {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && userDisplayName && (
           <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
             {userDisplayName(todo.userId)}

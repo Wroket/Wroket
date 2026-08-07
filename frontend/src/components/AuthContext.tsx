@@ -9,6 +9,8 @@ interface AuthContextType {
   loading: boolean;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Merge / replace in-memory user after a successful profile update. */
+  applyUser: (me: AuthMeResponse) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   logout: async () => {},
   refresh: async () => {},
+  applyUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,8 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const applyUser = useCallback((me: AuthMeResponse) => {
+    setUser(me);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout: handleLogout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, logout: handleLogout, refresh, applyUser }}>
       {children}
     </AuthContext.Provider>
   );

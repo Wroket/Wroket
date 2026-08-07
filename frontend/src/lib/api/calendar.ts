@@ -33,12 +33,22 @@ async function throwCalendarHttpError(res: Response): Promise<never> {
   throw await parseApiErrorResponse(res, "errors.fallback.generic");
 }
 
+export type TodayAvailability =
+  | "available"
+  | "not_working_day"
+  | "outside_hours"
+  | "no_remaining_fit"
+  | "busy"
+  | "before_start_date";
+
 export async function getTaskSlots(todoId: string): Promise<{
   slots: SlotProposal[];
   duration: number;
   durationSource: "task" | "settings";
   effort: string;
   suggestedSlot: SuggestedSlot | null;
+  todayAvailability?: TodayAvailability;
+  effectiveStartDate?: string | null;
 }> {
   const res = await fetch(`${API_BASE_URL}/calendar/slots/${todoId}`, { credentials: "include" });
   if (!res.ok) {

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ChangeEvent } from "react";
+import { useCallback, useRef, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import {
   downloadProjectImportTemplateCsv,
   downloadTaskImportTemplateCsv,
@@ -27,14 +28,7 @@ export default function DashboardImportModal({
   const trapRef = useFocusTrap(open);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+  useModalCloseKeys(open, onClose);
 
   const handleFileChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {

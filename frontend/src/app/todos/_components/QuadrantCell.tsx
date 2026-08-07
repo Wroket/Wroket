@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import TodoCard from "@/components/TodoCard";
+import QuadrantIcon from "@/components/QuadrantIcon";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { QUADRANT_CONFIG, type Quadrant } from "@/lib/todoConstants";
@@ -81,16 +82,18 @@ export default function QuadrantCell({
   const subtasksOf = (id: string) => childrenMap[id] ?? [];
 
   return (
-    <div className={`${cfg.cellBg} flex flex-col min-h-[220px] h-full`}>
-      <div className={`${cfg.headerBg} px-4 py-2 flex items-center justify-between`}>
-        <div className="flex items-center gap-2">
-          <span>{cfg.icon}</span>
-          <span className={`text-xs font-bold ${cfg.headerText} tracking-wide uppercase`}>
+    <div className={`${cfg.cellBg} flex flex-col min-h-[220px] h-full border border-zinc-200/80 dark:border-slate-700/80 rounded-sm overflow-hidden`}>
+      <div className={`${cfg.headerBg} px-3 py-2 flex items-center justify-between gap-2`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`shrink-0 ${cfg.iconClass}`}>
+            <QuadrantIcon id={cfg.icon} />
+          </span>
+          <span className={`text-[11px] font-semibold ${cfg.headerText} tracking-[0.08em] uppercase truncate`}>
             {t(cfg.tKey)}
           </span>
         </div>
         {todos.length > 0 && (
-          <span className={`${cfg.headerText} text-[10px] font-bold bg-white/20 rounded-full w-5 h-5 flex items-center justify-center`}>
+          <span className="shrink-0 text-[10px] font-semibold tabular-nums text-zinc-600 dark:text-slate-300 bg-zinc-200/80 dark:bg-slate-700/80 rounded-sm min-w-[1.25rem] h-5 px-1 flex items-center justify-center">
             {todos.length}
           </span>
         )}

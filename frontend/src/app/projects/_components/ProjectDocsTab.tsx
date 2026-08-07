@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
+import { useUiV2 } from "@/lib/UiVersionContext";
 import { getProjectNotesApi } from "@/lib/api/projects";
 import { createNoteApi, type Note } from "@/lib/api/notes";
 
@@ -17,6 +18,7 @@ interface Props {
 
 export default function ProjectDocsTab({ projectId, projectName, canEdit }: Props) {
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
   const { toast } = useToast();
   const router = useRouter();
   const [notes, setNotes] = useState<Note[]>([]);
@@ -43,21 +45,11 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
 
   const defaultTitleSuggestion = `${projectName} — ${t("projects.docsNewNote")}`;
 
-  const openCreateModal = () => {
-    setCreateTitle("");
-    setCreateModalOpen(true);
-  };
-
-  const handleCreate = async () => {
-    const title = createTitle.trim();
-    if (!title) {
-      toast.error(t("projects.docsCreateNameRequired"));
-      return;
-    }
+  const createNote = async (title?: string) => {
     setCreating(true);
     try {
       const note = await createNoteApi({
-        title,
+        title: title?.trim() || defaultTitleSuggestion,
         content: "",
         projectId,
       });
@@ -71,6 +63,24 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
     } finally {
       setCreating(false);
     }
+  };
+
+  const openCreate = () => {
+    if (uiV2) {
+      void createNote();
+      return;
+    }
+    setCreateTitle("");
+    setCreateModalOpen(true);
+  };
+
+  const handleCreate = async () => {
+    const title = createTitle.trim();
+    if (!title) {
+      toast.error(t("projects.docsCreateNameRequired"));
+      return;
+    }
+    await createNote(title);
   };
 
   if (loading) {
@@ -88,18 +98,22 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
         {canEdit && (
           <button
             type="button"
-            onClick={openCreateModal}
+            onClick={openCreate}
             disabled={creating}
-            className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 ${
+              uiV2
+                ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700"
+                : "bg-slate-700 dark:bg-slate-600"
+            }`}
           >
-            {t("projects.docsAdd")}
+            {creating ? "…" : t("projects.docsAdd")}
           </button>
         )}
       </div>
       {notes.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-slate-400 py-8 text-center">{t("projects.docsEmpty")}</p>
       ) : (
-        <ul className="divide-y divide-zinc-100 dark:divide-slate-800 rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <ul className="divide-y divide-zinc-100 dark:divide-slate-800 rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           {notes.map((note) => (
             <li key={note.id}>
               <Link

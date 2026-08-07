@@ -1,6 +1,10 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave, flushNow } from "../persistence";
+import {
+  sanitizeTaskListColumnOrder,
+  type TaskListColumnId,
+} from "../lib/taskListColumns";
 import { deviceLabelFromUserAgent, truncateUserAgent } from "../utils/sessionDevice";
 import {
   buildKeyUri,
@@ -439,6 +443,8 @@ export interface AuthUser {
   automationNotifyProjectOwnerOverdue?: boolean;
   /** Web Push notifications (background / closed tab). */
   webPushEnabled: boolean;
+  /** Order of movable columns on the personal TaskList (per user). */
+  taskListColumnOrder: TaskListColumnId[];
 }
 
 interface StoredUser {
@@ -450,6 +456,8 @@ interface StoredUser {
   passwordHashB64: string;
   effortMinutes?: EffortMinutes;
   workingHours?: WorkingHours;
+  /** Order of movable TaskList columns (actions, title, …). */
+  taskListColumnOrder?: string[];
   /** @deprecated migrated to googleAccounts */
   googleCalendarTokens?: GoogleCalendarTokens;
   /** @deprecated migrated to googleAccounts */
@@ -722,6 +730,7 @@ function toAuthUser(user: StoredUser): AuthUser {
     automationNotifyAssigneeOverdue: user.automationNotifyAssigneeOverdue === true,
     automationNotifyProjectOwnerOverdue: user.automationNotifyProjectOwnerOverdue === true,
     webPushEnabled: user.webPushEnabled === true,
+    taskListColumnOrder: sanitizeTaskListColumnOrder(user.taskListColumnOrder),
   };
 }
 
@@ -1090,6 +1099,7 @@ export interface UpdateProfileInput {
   archivedTaskRetentionDays?: number;
   automationNotifyAssigneeOverdue?: boolean;
   automationNotifyProjectOwnerOverdue?: boolean;
+  taskListColumnOrder?: string[];
 }
 
 const HH_MM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -1213,6 +1223,12 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
   }
   if (input.automationNotifyProjectOwnerOverdue !== undefined) {
     user.automationNotifyProjectOwnerOverdue = !!input.automationNotifyProjectOwnerOverdue;
+  }
+  if (input.taskListColumnOrder !== undefined) {
+    if (!Array.isArray(input.taskListColumnOrder)) {
+      throw new ValidationError("taskListColumnOrder invalide");
+    }
+    user.taskListColumnOrder = sanitizeTaskListColumnOrder(input.taskListColumnOrder);
   }
 
   usersByUid.set(uid, user);

@@ -1,4 +1,5 @@
 import type { TranslationKey } from "./i18n";
+import { TAG_DEADLINE } from "./tagPalette";
 
 export type TranslationFunction = (key: TranslationKey) => string;
 
@@ -58,28 +59,28 @@ export function deadlineLabel(
   if (diff < 0)
     return {
       text: t("deadline.overdue"),
-      cls: "rounded-full bg-rose-100 text-rose-900 dark:bg-rose-900/35 dark:text-rose-200",
+      cls: TAG_DEADLINE.overdue,
       urgent: true,
     };
 
   if (diff === 0)
     return {
       text: t("deadline.today"),
-      cls: "rounded-full bg-orange-100 text-orange-900 dark:bg-orange-900/30 dark:text-orange-200",
+      cls: TAG_DEADLINE.today,
       urgent: true,
     };
 
   if (diff === 1)
     return {
       text: t("deadline.tomorrow"),
-      cls: "rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
+      cls: TAG_DEADLINE.tomorrow,
       urgent: true,
     };
 
   if (diff <= 7)
     return {
       text: `${diff} ${t("deadline.daysLeft")}`,
-      cls: "rounded-full bg-sky-100 text-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
+      cls: TAG_DEADLINE.week,
       urgent: diff <= 3,
     };
 
@@ -88,7 +89,7 @@ export function deadlineLabel(
       day: "numeric",
       month: "short",
     }),
-    cls: "rounded-full bg-zinc-200 text-zinc-800 dark:bg-slate-600/50 dark:text-slate-300",
+    cls: TAG_DEADLINE.far,
     urgent: false,
   };
 }

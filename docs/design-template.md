@@ -197,8 +197,25 @@ Dans [`sortUtils.ts`](../frontend/src/app/todos/_components/sortUtils.ts) : mêm
 - [ ] CTA principal : emerald (§1 + §5)
 - [ ] Lien / accent secondaire marque : indigo quand pertinent (§2)
 - [ ] Petites étiquettes : pattern §4.4 / §7 (éviter `bg-{color}-500 text-white` sauf exception critique)
+- [ ] Surfaces V2 : tokens `--surface`, `--border`, `.ui-glass` (§10) si flag `wroket-ui-v2`
 - [ ] Dark : tester **`/20`–`/50`** sur fonds teintés et bordures
 - [ ] Sticky header optionnel : `backdrop-blur-md` + `bg-…/80` (§4.1)
+
+---
+
+## 10. Tokens UI V2 (`globals.css`)
+
+Variables CSS (light / dark) pour le chantier « Nouvelle interface » :
+
+| Token | Rôle |
+|-------|------|
+| `--surface` / `--surface-muted` / `--surface-elevated` | Surfaces cartes / panneaux |
+| `--border` / `--border-subtle` | Bordures |
+| `--text-muted` / `--text-subtle` | Texte secondaire |
+| `--radius-sm` … `--radius-xl` | Rayons |
+| `--glass-bg` / `--glass-border` | Header glass (`.ui-glass`) |
+
+Flag client : `localStorage wroket-ui-v2` — voir [`docs/refonte-ui-ideas.md`](refonte-ui-ideas.md).
 
 ---
 

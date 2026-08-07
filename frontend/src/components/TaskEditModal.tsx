@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useToast } from "@/components/Toast";
-import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   getComments,
@@ -17,25 +17,15 @@ import {
   inviteCollaborator,
   getAttachments,
   uploadAttachment,
-  downloadAttachment,
   deleteAttachmentApi,
   syncOneScheduledSlotToCalendar,
 } from "@/lib/api";
 import { broadcastResourceChange } from "@/lib/useResourceSync";
-import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 import type {
-  Todo,
-  Priority,
-  Effort,
-  AuthMeResponse,
   Comment,
   Collaborator,
-  Recurrence,
-  RecurrenceFrequency,
-  Project,
-  ProjectCustomFieldDef,
-  SuggestedSlot,
   Attachment,
+  Project,
 } from "@/lib/api";
 import {
   getTodoTimeSessions,
@@ -45,71 +35,23 @@ import {
   type TimeSession,
 } from "@/lib/api/timeSessions";
 import { updateTodo } from "@/lib/api";
+import { useUiV2 } from "@/lib/UiVersionContext";
+import TaskEditZoneTabs from "@/components/taskEdit/TaskEditZoneTabs";
+import TaskEditEssentialsZone from "@/components/taskEdit/TaskEditEssentialsZone";
+import TaskEditPlanningZone from "@/components/taskEdit/TaskEditPlanningZone";
+import TaskEditCollabZone from "@/components/taskEdit/TaskEditCollabZone";
+import TaskEditAdvancedZone from "@/components/taskEdit/TaskEditAdvancedZone";
+import type { TaskEditZone, TaskEditModalProps } from "@/components/taskEdit/types";
 
-export interface TaskEditModalProps {
-  todo: Todo | null;
-  form: {
-    title: string;
-    priority: Priority;
-    effort: Effort;
-    startDate: string;
-    deadline: string;
-    assignedTo: string | null;
-    estimatedMinutes: number | null;
-    tags: string[];
-    recurrence: Recurrence | null;
-    projectId: string | null;
-    blockedByTodoIds?: string[];
-  };
-  onFormChange: (updates: Partial<TaskEditModalProps["form"]>) => void;
-  /** Close the modal (parent should flush auto-save if used). */
-  onClose: () => void | Promise<void>;
-  saving: boolean;
-  assignEmail: string;
-  onAssignEmailChange: (email: string) => void;
-  assignedUser: AuthMeResponse | null;
-  assignError: string | null;
-  onAssignLookup: () => void;
-  onClearAssign: () => void;
-  userDisplayName: (uid: string) => string;
-  onOpenSubtasks?: (todo: Todo) => void;
-  subtaskCount?: number;
-  effortDefaults?: { light: number; medium: number; heavy: number };
-  currentUserUid?: string;
-  projects?: Project[];
-  isTaskOwner?: boolean;
-  onAcceptDecline?: (status: "accepted" | "declined") => void;
-  onSuggestedSlotChange?: (slot: SuggestedSlot | null) => void;
-  /** When set, add/remove tag calls the API immediately (optimistic UI, revert on error). */
-  onPersistTags?: (tags: string[]) => Promise<void>;
-  /** After comments are added or removed (e.g. refresh global comment counts in list views). */
-  onTodoCommentsChanged?: (todoId: string) => void;
-  /** Read-only preview (no edits; team dashboard when user is not owner/assignee). */
-  viewOnly?: boolean;
-  /** Open the meeting management modal for this task. */
-  onManageMeet?: (todo: Todo) => void;
-  /** When true, disable recurrence and new attachments (Free-tier task owner). */
-  freeTierContentLocks?: boolean;
-  /** Calendar integrations entitlement + linked account (agenda page). */
-  canSyncToCalendar?: boolean;
-  /** After pushing in-app slot to external calendar (refresh parent state). */
-  onExternalSlotSynced?: () => void | Promise<void>;
-  /** Soft-delete (archives / corbeille Wroket) — parent opens confirmation then calls delete API. */
-  onRequestDeleteTask?: (todo: Todo) => void | Promise<void>;
-  /** Same-project tasks for dependency picker (project views). */
-  projectTasks?: Todo[];
-  canUseDependencies?: boolean;
-  customFieldDefs?: ProjectCustomFieldDef[];
-  canUseCustomFields?: boolean;
-  canUseTimeTracking?: boolean;
-  onTodoUpdated?: (todo: Todo) => void;
-}
+export type { TaskEditZone, TaskEditModalProps } from "@/components/taskEdit/types";
 
 export default function TaskEditModal({
   todo,
   form,
   onFormChange,
   onClose,
+  initialZone = "essentials",
+  openNonce = 0,
   saving,
   assignEmail,
   onAssignEmailChange,
@@ -143,8 +85,20 @@ export default function TaskEditModal({
 }: TaskEditModalProps) {
   void _onAssignLookup;
   const { t } = useLocale();
+  const { uiV2 } = useUiV2();
   const { toast } = useToast();
   const trapRef = useFocusTrap(!!todo);
+  useModalCloseKeys(!!todo, onClose);
+  const [editZone, setEditZone] = useState<TaskEditZone>(initialZone);
+
+  /**
+   * V2: inactive zones are removed from flow (`hidden`); the zone host keeps a fixed height
+   * so tab switches do not resize the dialog.
+   */
+  const zoneCls = (zone: TaskEditZone, base = "space-y-3") =>
+    uiV2
+      ? `${base}${editZone !== zone ? " hidden" : " h-full"}`
+      : base;
 
   const sortedProjectOptions = useMemo(() => {
     const roots = projects.filter((p) => !p.parentProjectId);
@@ -208,7 +162,6 @@ export default function TaskEditModal({
   const [mentionIdx, setMentionIdx] = useState(0);
   const [allCollaborators, setAllCollaborators] = useState<Collaborator[]>([]);
   const commentInputRef = useRef<HTMLInputElement>(null);
-  const [detailsOpen, setDetailsOpen] = useState(true);
   const [showAllComments, setShowAllComments] = useState(false);
   const [showSuggestSlot, setShowSuggestSlot] = useState(false);
   const [suggestDate, setSuggestDate] = useState("");
@@ -221,29 +174,28 @@ export default function TaskEditModal({
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [slotPushRunning, setSlotPushRunning] = useState(false);
 
-  const loadComments = useCallback(async (todoId: string) => {
-    try {
-      const c = await getComments(todoId);
-      setComments(c);
-    } catch { /* ignore */ }
-  }, []);
-
   useEffect(() => {
     getCollaborators().then(setAllCollaborators).catch(() => {});
   }, []);
 
+  // Reset zone / side panels only when opening a different task — not on every
+  // in-place update of the same `todo` (which would bounce the user back to Essentiel).
+  const openTodoId = todo?.id;
+  const initialZoneRef = useRef(initialZone);
+  initialZoneRef.current = initialZone;
   useEffect(() => {
-    if (!todo) return;
+    if (!openTodoId) return;
+    setEditZone(initialZoneRef.current);
     setComments([]);
     setCommentText("");
     setShowAllComments(false);
     setAttachments([]);
     let cancelled = false;
-    getComments(todo.id).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
-    getAttachments(todo.id).then((a) => { if (!cancelled) setAttachments(a); }).catch(() => {});
+    getComments(openTodoId).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
+    getAttachments(openTodoId).then((a) => { if (!cancelled) setAttachments(a); }).catch(() => {});
     if (canUseTimeTracking) {
       setTimeLoading(true);
-      getTodoTimeSessions(todo.id)
+      getTodoTimeSessions(openTodoId)
         .then((data) => {
           if (cancelled) return;
           setTimeSessions(data.sessions);
@@ -253,10 +205,8 @@ export default function TaskEditModal({
         .catch(() => {})
         .finally(() => { if (!cancelled) setTimeLoading(false); });
     }
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") void onClose(); };
-    document.addEventListener("keydown", handleKey);
-    return () => { cancelled = true; document.removeEventListener("keydown", handleKey); };
-  }, [todo, onClose, loadComments, canUseTimeTracking]);
+    return () => { cancelled = true; };
+  }, [openTodoId, openNonce, canUseTimeTracking]);
 
   const formatLoggedMins = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -483,7 +433,27 @@ export default function TaskEditModal({
     setReactionPickerCommentId(null);
   };
 
-  const REACTION_EMOJIS = ["\u{1F44D}", "\u{1F44E}", "\u2764\uFE0F", "\u{1F604}", "\u{1F680}", "\u2705"];
+  const handlePushSlotToCalendar = () => {
+    void (async () => {
+      setSlotPushRunning(true);
+      try {
+        const r = await syncOneScheduledSlotToCalendar(todo.id, { skipIfConflict: false });
+        if (r.outcome === "synced") {
+          broadcastResourceChange("todos");
+          toast.success(t("agenda.inAppSlotsSyncTaskSuccess"));
+          await onExternalSlotSynced?.();
+        } else if (r.outcome === "skipped") {
+          toast.info(t("agenda.inAppSlotsSyncTaskSkipped"));
+        } else {
+          toast.error(r.message?.trim() ? r.message : t("agenda.inAppSlotsSyncTaskFailed"));
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncTaskFailed"));
+      } finally {
+        setSlotPushRunning(false);
+      }
+    })();
+  };
 
   return (
     <div
@@ -526,897 +496,152 @@ export default function TaskEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-edit-modal-title"
-        className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+        className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-4 ${
+          uiV2
+            ? "rounded-sm max-w-xl h-[min(36rem,90vh)] overflow-hidden flex flex-col"
+            : "rounded-lg max-w-lg max-h-[90vh] overflow-y-auto"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6">
+        <div className={`p-6 ${uiV2 ? "flex flex-col flex-1 min-h-0" : ""}`}>
         {viewOnly && (
           <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             {t("teamDash.viewOnlyHint")}
           </p>
         )}
-        <div className={viewOnly ? "pointer-events-none select-none" : undefined}>
-        <button
-          type="button"
-          onClick={() => setDetailsOpen((v) => !v)}
-          className="w-full flex items-center justify-between mb-3"
+        <div className={`${viewOnly ? "pointer-events-none select-none " : ""}${uiV2 ? "flex flex-col flex-1 min-h-0" : ""}`}>
+        <h3
+          id="task-edit-modal-title"
+          className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-3 shrink-0"
         >
-          <h3
-            id="task-edit-modal-title"
-            className="text-lg font-semibold text-zinc-900 dark:text-slate-100"
-          >
-            {t("edit.title")}
-          </h3>
-          <svg className={`w-4 h-4 text-zinc-400 dark:text-slate-500 transition-transform ${detailsOpen ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {detailsOpen && <div className="space-y-3">
-          {isTaskOwner &&
-            canSyncToCalendar &&
-            !viewOnly &&
-            todo.scheduledSlot?.start &&
-            todo.scheduledSlot?.end &&
-            !todo.scheduledSlot?.calendarEventId && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-800/60 dark:bg-blue-950/35 dark:text-blue-100">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span className="font-medium">{t("agenda.inAppSlotsSyncTaskButton")}</span>
-                <button
-                  type="button"
-                  disabled={slotPushRunning}
-                  onClick={() => {
-                    void (async () => {
-                      setSlotPushRunning(true);
-                      try {
-                        const r = await syncOneScheduledSlotToCalendar(todo.id, { skipIfConflict: false });
-                        if (r.outcome === "synced") {
-                          broadcastResourceChange("todos");
-                          toast.success(t("agenda.inAppSlotsSyncTaskSuccess"));
-                          await onExternalSlotSynced?.();
-                        } else if (r.outcome === "skipped") {
-                          toast.info(t("agenda.inAppSlotsSyncTaskSkipped"));
-                        } else {
-                          toast.error(r.message?.trim() ? r.message : t("agenda.inAppSlotsSyncTaskFailed"));
-                        }
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncTaskFailed"));
-                      } finally {
-                        setSlotPushRunning(false);
-                      }
-                    })();
-                  }}
-                  className="shrink-0 rounded border border-blue-300 dark:border-blue-600 bg-white/90 dark:bg-slate-900/50 px-2.5 py-1 text-[11px] font-medium hover:bg-blue-100/80 dark:hover:bg-blue-950/50 disabled:opacity-50"
-                >
-                  {slotPushRunning ? "…" : t("agenda.inAppSlotsSyncTaskPush")}
-                </button>
-              </div>
-            </div>
-          )}
-          {todo.scheduledSlot?.meetingUrl && (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{t("meet.scheduledIndicator")}</span>
-                <div className="flex items-center gap-2">
-                  {onManageMeet && (
-                    <button
-                      type="button"
-                      onClick={() => onManageMeet(todo)}
-                      className="rounded border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30"
-                    >
-                      {t("meet.editMeet")}
-                    </button>
-                  )}
-                  <a
-                    href={todo.scheduledSlot.meetingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2 hover:opacity-80"
-                    title={t(meetingJoinI18nKey(todo.scheduledSlot.meetingProvider))}
-                  >
-                    {t(meetingJoinI18nKey(todo.scheduledSlot.meetingProvider))}
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-              {t("edit.titleField")}
-            </label>
-            {todo.externalRef?.provider === "notion" && (
-              <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-1">{t("tasks.managedByNotion")}</p>
-            )}
-            <input
-              type="text"
-              value={form.title}
-              onChange={(e) => onFormChange({ title: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") void onClose();
-              }}
-              autoFocus
-              className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-                {t("edit.priority")}
-              </label>
-              <select
-                value={form.priority}
-                onChange={(e) => onFormChange({ priority: e.target.value as Priority })}
-                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-              >
-                <option value="high">{t("priority.high")}</option>
-                <option value="medium">{t("priority.medium")}</option>
-                <option value="low">{t("priority.low")}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-                {t("edit.effort")}
-              </label>
-              <select
-                value={form.effort}
-                onChange={(e) => onFormChange({ effort: e.target.value as Effort })}
-                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-              >
-                <option value="light">{t("effort.light")}</option>
-                <option value="medium">{t("effort.medium")}</option>
-                <option value="heavy">{t("effort.heavy")}</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-                {t("edit.startDate")}
-              </label>
-              <input
-                type="date"
-                value={form.startDate}
-                min={phaseDateRange.start ?? undefined}
-                max={form.deadline || phaseDateRange.end || undefined}
-                onChange={(e) => onFormChange({ startDate: e.target.value })}
-                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-                {t("edit.deadline")}
-              </label>
-              {isTaskOwner ? (
-                <input
-                  type="date"
-                  value={form.deadline}
-                  min={form.startDate || phaseDateRange.start || new Date().toISOString().split("T")[0]}
-                  max={phaseDateRange.end ?? undefined}
-                  onChange={(e) => onFormChange({ deadline: e.target.value })}
-                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-                />
-              ) : (
-                <div className="w-full rounded border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/50 px-3 py-2 text-sm text-zinc-600 dark:text-slate-400 cursor-not-allowed" title={t("assign.deadlineOwnerOnly")}>
-                  {form.deadline || "—"}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-                {t("todos.estimatedTime")}
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={480}
-                  step={5}
-                  value={form.estimatedMinutes ?? ""}
-                  placeholder={String(effortDefaults?.[form.effort] ?? "")}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    onFormChange({ estimatedMinutes: v === "" ? null : Math.max(1, Math.min(480, Number(v) || 1)) });
-                  }}
-                  className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400 text-center"
-                />
-                <span className="text-xs text-zinc-400 dark:text-slate-500">{t("todos.estimatedMinutes")}</span>
-                {form.estimatedMinutes !== null && (
-                  <button
-                    type="button"
-                    onClick={() => onFormChange({ estimatedMinutes: null })}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    {t("todos.useDefault")}
-                  </button>
-                )}
-              </div>
-            </div>
-            {sortedProjectOptions.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-                {t("projects.project")}
-              </label>
-              <select
-                value={form.projectId ?? ""}
-                onChange={(e) => onFormChange({ projectId: e.target.value || null })}
-                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400"
-              >
-                <option value="">{t("projects.noProject")}</option>
-                {sortedProjectOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">
-              {t("assign.label")}
-            </label>
-            {isTaskOwner ? (
-              <div>
-                <ContactEmailSuggestInput
-                  value={assignEmail}
-                  onChange={onAssignEmailChange}
-                  placeholder={t("assign.placeholder")}
-                  inputClassName={`w-full rounded border px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 ${
-                    assignedUser
-                      ? "border-green-400 dark:border-green-600 focus:border-green-500 focus:ring-green-500"
-                      : assignError
-                        ? "border-red-400 dark:border-red-600 focus:border-red-500 focus:ring-red-500"
-                        : "border-zinc-300 dark:border-slate-600 focus:border-slate-700 dark:focus:border-slate-400 focus:ring-slate-700 dark:focus:ring-slate-400"
-                  }`}
-                  rightAdornment={
-                    assignedUser ? (
-                      <span className="text-green-500">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </span>
-                    ) : undefined
-                  }
-                />
-                {form.assignedTo && !assignEmail && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-zinc-500 dark:text-slate-400">
-                      {t("assign.label")}: {userDisplayName(form.assignedTo)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={onClearAssign}
-                      className="text-xs text-red-500 hover:text-red-700"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-                {assignError && (
-                  <p className="text-[10px] text-red-500 mt-0.5">{assignError}</p>
-                )}
-              </div>
-            ) : (
-              <div>
-                {form.assignedTo ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 rounded border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/60 px-3 py-2">
-                      <svg className="w-4 h-4 text-zinc-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <span className="text-sm text-zinc-700 dark:text-slate-300">{userDisplayName(form.assignedTo)}</span>
-                      {todo?.assignmentStatus && (
-                        <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                          todo.assignmentStatus === "accepted"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : todo.assignmentStatus === "declined"
-                              ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                        }`}>
-                          {todo.assignmentStatus === "accepted" ? t("assign.statusAccepted")
-                            : todo.assignmentStatus === "declined" ? t("assign.statusDeclined")
-                              : t("assign.statusPending")}
-                        </span>
-                      )}
-                    </div>
-                    {onAcceptDecline && currentUserUid && form.assignedTo === currentUserUid && todo?.userId !== currentUserUid && todo?.assignmentStatus !== "accepted" && (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onAcceptDecline("accepted")}
-                          className="flex-1 rounded border border-emerald-300 dark:border-emerald-700 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
-                        >
-                          {t("assign.accept")}
-                        </button>
-                        {todo?.assignmentStatus !== "declined" && (
-                          <button
-                            type="button"
-                            onClick={() => onAcceptDecline("declined")}
-                            className="flex-1 rounded border border-red-300 dark:border-red-700 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                          >
-                            {t("assign.decline")}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("assign.ownerOnly")}</p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("assign.unassigned")}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {isTaskOwner && form.assignedTo && onSuggestedSlotChange && (
-            <div className="rounded-md border border-zinc-200 dark:border-slate-700 p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-zinc-600 dark:text-slate-300">{t("schedule.suggestSlot")}</span>
-                {todo?.suggestedSlot && (
-                  <button type="button" onClick={() => { onSuggestedSlotChange(null); }} className="text-[10px] text-red-500 hover:underline">{t("schedule.clearSuggestion")}</button>
-                )}
-              </div>
-              {todo?.suggestedSlot && !showSuggestSlot ? (
-                <div className="flex items-center justify-between rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-2 mt-1">
-                  <div>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{t("schedule.suggestedByOwner")}</p>
-                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                      {new Date(todo.suggestedSlot.start).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}{", "}
-                      {new Date(todo.suggestedSlot.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => setShowSuggestSlot(true)} className="text-xs text-amber-700 dark:text-amber-300 hover:underline">{t("projects.edit")}</button>
-                </div>
-              ) : (
-                <div className="space-y-2 mt-1">
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={suggestDate}
-                      min={phaseDateRange.start ?? new Date().toISOString().split("T")[0]}
-                      max={phaseDateRange.end ?? undefined}
-                      onChange={(e) => setSuggestDate(e.target.value)}
-                      className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
-                    />
-                    <input
-                      type="time"
-                      value={suggestTime}
-                      onChange={(e) => setSuggestTime(e.target.value)}
-                      className="w-24 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-[10px] text-zinc-500 dark:text-slate-400">{t("schedule.duration")}:</label>
-                    <input type="number" value={suggestDuration} min={5} max={480} step={5} onChange={(e) => setSuggestDuration(Number(e.target.value) || 30)} className="w-16 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-100 text-center" />
-                    <span className="text-[10px] text-zinc-400 dark:text-slate-500">min</span>
-                    <button
-                      type="button"
-                      disabled={!suggestDate}
-                      onClick={() => {
-                        const start = new Date(`${suggestDate}T${suggestTime}`);
-                        const end = new Date(start.getTime() + suggestDuration * 60_000);
-                        onSuggestedSlotChange({ start: start.toISOString(), end: end.toISOString() });
-                        setShowSuggestSlot(false);
-                      }}
-                      className="ml-auto rounded bg-amber-600 dark:bg-amber-700 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
-                    >
-                      {t("schedule.suggestSlot")}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Recurrence */}
-          <div className="rounded border border-zinc-200 dark:border-slate-700 p-3 space-y-2">
-            <label
-              className={
-                "flex items-center gap-2 " +
-                (deadlineIsPast || !isTaskOwner || freeTierContentLocks ? "cursor-not-allowed opacity-70" : "cursor-pointer")
-              }
-            >
-              <input
-                type="checkbox"
-                checked={!!form.recurrence}
-                disabled={deadlineIsPast || !isTaskOwner || freeTierContentLocks}
-                onChange={(e) => {
-                  if (deadlineIsPast || !isTaskOwner || freeTierContentLocks) return;
-                  if (e.target.checked) {
-                    onFormChange({ recurrence: { frequency: "weekly", interval: 1 } });
-                  } else {
-                    onFormChange({ recurrence: null });
-                  }
-                }}
-                className="rounded border-zinc-300 dark:border-slate-600 text-slate-700 focus:ring-slate-500 disabled:opacity-50"
-              />
-              <span className="text-xs font-medium text-zinc-700 dark:text-slate-300">
-                🔄 {t("edit.recurrenceEnabled")}
-              </span>
-            </label>
-            {freeTierContentLocks && isTaskOwner && (
-              <p className="text-[10px] text-amber-700 dark:text-amber-300/90">{t("quota.free.recurrenceDisabled")}</p>
-            )}
-            {deadlineIsPast && isTaskOwner && !freeTierContentLocks && (
-              <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("edit.recurrenceNeedsDeadline")}</p>
-            )}
-            {form.recurrence && (
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrence")}
-                  </label>
-                  <select
-                    value={form.recurrence.frequency}
-                    disabled={!isTaskOwner || freeTierContentLocks}
-                    onChange={(e) => {
-                      const freq = e.target.value as RecurrenceFrequency;
-                      onFormChange({
-                        recurrence: {
-                          ...form.recurrence!,
-                          frequency: freq,
-                          interval: freq === "daily" ? 1 : form.recurrence!.interval,
-                        },
-                      });
-                    }}
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
-                  >
-                    <option value="daily">{t("edit.recurrenceDaily")}</option>
-                    <option value="weekly">{t("edit.recurrenceWeekly")}</option>
-                    <option value="monthly">{t("edit.recurrenceMonthly")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-[10px] mb-0.5 ${form.recurrence.frequency === "daily" ? "text-zinc-300 dark:text-slate-600" : "text-zinc-500 dark:text-slate-400"}`}>
-                    {form.recurrence.frequency === "weekly"
-                      ? t("edit.recurrenceIntervalWeeks")
-                      : form.recurrence.frequency === "monthly"
-                        ? t("edit.recurrenceIntervalMonths")
-                        : t("edit.recurrenceIntervalDays")}
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={form.recurrence.frequency === "weekly" ? 52 : form.recurrence.frequency === "monthly" ? 12 : 365}
-                    disabled={form.recurrence.frequency === "daily" || !isTaskOwner || freeTierContentLocks}
-                    value={form.recurrence.interval}
-                    onChange={(e) =>
-                      onFormChange({ recurrence: { ...form.recurrence!, interval: Math.max(1, Number(e.target.value) || 1) } })
-                    }
-                    className={`w-full rounded border px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-slate-500 ${
-                      form.recurrence.frequency === "daily"
-                        ? "border-zinc-200 dark:border-slate-700 bg-zinc-100 dark:bg-slate-900 text-zinc-400 dark:text-slate-600 cursor-not-allowed"
-                        : "border-zinc-300 dark:border-slate-600 text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-zinc-500 dark:text-slate-400 mb-0.5">
-                    {t("edit.recurrenceEnd")}
-                  </label>
-                  <input
-                    type="date"
-                    value={form.recurrence.endDate ?? ""}
-                    min={new Date().toISOString().split("T")[0]}
-                    disabled={!isTaskOwner || freeTierContentLocks}
-                    onChange={(e) =>
-                      onFormChange({ recurrence: { ...form.recurrence!, endDate: e.target.value || undefined } })
-                    }
-                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        }
-
-        {detailsOpen && <>
-        {/* Tags */}
-        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-          <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
-            {t("tags.label")}
-          </label>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {form.tags.map((tag) => (
-              <span key={tag} className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                {tag}
-                <button type="button" onClick={() => void handleRemoveTag(tag)} disabled={tagsSaving} className="hover:text-red-500 disabled:opacity-40">×</button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-1.5">
-            <input
-              type="text"
-              placeholder={t("tags.add")}
-              value={tagInput}
-              disabled={tagsSaving}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleAddTag(); } }}
-              className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50"
-            />
-            <button type="button" onClick={() => void handleAddTag()} disabled={!tagInput.trim() || tagsSaving} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-40">+</button>
-          </div>
-        </div>
-
-        {canUseDependencies && todo?.projectId && isTaskOwner && (
-          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
-              {t("dependencies.blockedBy")}
-            </label>
-            <div className="max-h-32 overflow-y-auto space-y-1">
-              {projectTasks
-                .filter((pt) => pt.id !== todo.id && !pt.parentId && pt.status === "active")
-                .map((pt) => {
-                  const selected = (form.blockedByTodoIds ?? todo.blockedByTodoIds ?? []).includes(pt.id);
-                  return (
-                    <label key={pt.id} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(e) => {
-                          const cur = form.blockedByTodoIds ?? todo.blockedByTodoIds ?? [];
-                          const next = e.target.checked
-                            ? [...cur, pt.id]
-                            : cur.filter((id) => id !== pt.id);
-                          onFormChange({ blockedByTodoIds: next });
-                        }}
-                        className="rounded border-zinc-300 dark:border-slate-600"
-                      />
-                      <span className="truncate">{pt.title || t("todos.untitled")}</span>
-                    </label>
-                  );
-                })}
-            </div>
-            {projectTasks.filter((pt) => pt.id !== todo.id && !pt.parentId).length === 0 && (
-              <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("dependencies.noneAvailable")}</p>
-            )}
-          </div>
+          {t("edit.title")}
+        </h3>
+        {uiV2 && (
+          <TaskEditZoneTabs editZone={editZone} onEditZoneChange={setEditZone} />
         )}
+        <div className={uiV2 ? "flex-1 min-h-0 overflow-hidden" : undefined}>
+        <TaskEditEssentialsZone
+          className={zoneCls("essentials")}
+          todo={todo}
+          form={form}
+          onFormChange={onFormChange}
+          isTaskOwner={isTaskOwner}
+          viewOnly={viewOnly}
+          canSyncToCalendar={canSyncToCalendar}
+          slotPushRunning={slotPushRunning}
+          onPushSlotToCalendar={handlePushSlotToCalendar}
+          onManageMeet={onManageMeet}
+        />
 
-        {canUseTimeTracking && isTaskOwner && (
-          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
-              {t("timeTracking.title")}
-            </label>
-            {timeLoading ? (
-              <p className="text-xs text-zinc-400">…</p>
-            ) : (
-              <>
-                <p className="text-xs text-zinc-600 dark:text-slate-300 mb-2">
-                  {t("timeTracking.total")}: <span className="font-semibold">{formatLoggedMins(timeTotalMinutes)}</span>
-                </p>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {activeTimer ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleStopTimer()}
-                      disabled={timeSaving}
-                      className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-                    >
-                      {t("timeTracking.stop")}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void handleStartTimer()}
-                      disabled={timeSaving}
-                      className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-                    >
-                      {t("timeTracking.start")}
-                    </button>
-                  )}
-                  <input
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={manualMinutes}
-                    onChange={(e) => setManualMinutes(e.target.value)}
-                    placeholder={t("timeTracking.minutes")}
-                    className="w-20 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleAddManualTime()}
-                    disabled={timeSaving || !manualMinutes}
-                    className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs disabled:opacity-50"
-                  >
-                    {t("timeTracking.manualAdd")}
-                  </button>
-                </div>
-                {timeSessions.length > 0 && (
-                  <ul className="text-[10px] text-zinc-500 dark:text-slate-400 space-y-0.5 max-h-20 overflow-y-auto">
-                    {timeSessions.slice(0, 5).map((s) => (
-                      <li key={s.id}>
-                        {formatLoggedMins(s.durationMinutes ?? 0)} — {new Date(s.startedAt).toLocaleDateString()}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </div>
-        )}
+        <TaskEditPlanningZone
+          className={zoneCls("planning")}
+          todo={todo}
+          form={form}
+          onFormChange={onFormChange}
+          isTaskOwner={isTaskOwner}
+          freeTierContentLocks={freeTierContentLocks}
+          deadlineIsPast={deadlineIsPast}
+          phaseDateRange={phaseDateRange}
+          sortedProjectOptions={sortedProjectOptions}
+          effortDefaults={effortDefaults}
+          onSuggestedSlotChange={onSuggestedSlotChange}
+          showSuggestSlot={showSuggestSlot}
+          onShowSuggestSlotChange={setShowSuggestSlot}
+          suggestDate={suggestDate}
+          onSuggestDateChange={setSuggestDate}
+          suggestTime={suggestTime}
+          onSuggestTimeChange={setSuggestTime}
+          suggestDuration={suggestDuration}
+          onSuggestDurationChange={setSuggestDuration}
+        />
 
-        {canUseCustomFields && customFieldDefs.length > 0 && todo.projectId && isTaskOwner && (
-          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1.5">
-              {t("projects.customFieldsTitle")}
-            </label>
-            <div className="space-y-2">
-              {[...customFieldDefs].sort((a, b) => a.order - b.order).map((def) => {
-                const val = todo.customFieldValues?.[def.id];
-                return (
-                  <div key={def.id}>
-                    <span className="text-[10px] text-zinc-500 dark:text-slate-400">{def.name}</span>
-                    {def.type === "checkbox" ? (
-                      <label className="flex items-center gap-2 mt-0.5 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={val === true}
-                          disabled={customFieldsSaving}
-                          onChange={(e) => void handleCustomFieldChange(def.id, e.target.checked)}
-                          className="rounded border-zinc-300"
-                        />
-                      </label>
-                    ) : def.type === "select" ? (
-                      <select
-                        value={typeof val === "string" ? val : ""}
-                        disabled={customFieldsSaving}
-                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value || null)}
-                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
-                      >
-                        <option value="">—</option>
-                        {(def.options ?? []).map((o) => (
-                          <option key={o} value={o}>{o}</option>
-                        ))}
-                      </select>
-                    ) : def.type === "date" ? (
-                      <input
-                        type="date"
-                        value={typeof val === "string" ? val : ""}
-                        disabled={customFieldsSaving}
-                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value || null)}
-                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
-                      />
-                    ) : def.type === "number" ? (
-                      <input
-                        type="number"
-                        value={typeof val === "number" ? val : ""}
-                        disabled={customFieldsSaving}
-                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value === "" ? null : Number(e.target.value))}
-                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
-                      />
-                    ) : (
-                      <input
-                        type="text"
-                        value={typeof val === "string" ? val : ""}
-                        disabled={customFieldsSaving}
-                        onChange={(e) => void handleCustomFieldChange(def.id, e.target.value || null)}
-                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs dark:bg-slate-800"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        </>}
+        <TaskEditCollabZone
+          className={zoneCls("collab")}
+          todo={todo}
+          form={form}
+          isTaskOwner={isTaskOwner}
+          assignEmail={assignEmail}
+          onAssignEmailChange={onAssignEmailChange}
+          assignedUser={assignedUser}
+          assignError={assignError}
+          onClearAssign={onClearAssign}
+          userDisplayName={userDisplayName}
+          currentUserUid={currentUserUid}
+          onAcceptDecline={onAcceptDecline}
+        />
 
-        {/* Attachments */}
-        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <div>
-              <h4 className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("edit.attachments")}</h4>
-              <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-0.5">{t("edit.maxSize")}</p>
-            </div>
-            {isTaskOwner && !freeTierContentLocks && (
-              <>
-                <input
-                  ref={attachmentInputRef}
-                  type="file"
-                  className="sr-only"
-                  onChange={handleAttachmentFile}
-                  accept="image/*,application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  disabled={attachmentUploading}
-                />
-                <button
-                  type="button"
-                  disabled={attachmentUploading}
-                  onClick={() => attachmentInputRef.current?.click()}
-                  className="shrink-0 rounded border border-emerald-300 dark:border-emerald-600 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 disabled:opacity-50"
-                >
-                  {t("edit.addFile")}
-                </button>
-              </>
-            )}
-            {isTaskOwner && freeTierContentLocks && (
-              <p className="text-[10px] text-amber-700 dark:text-amber-300/90 shrink-0 max-w-[14rem] text-right">
-                {t("quota.free.attachmentsDisabled")}
-              </p>
-            )}
-          </div>
-          {attachments.length === 0 ? (
-            <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("edit.noAttachments")}</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {attachments.map((a) => (
-                <li key={a.id} className="flex items-center gap-2 text-xs min-w-0">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left text-emerald-600 dark:text-emerald-400 hover:underline truncate"
-                    onClick={() => void downloadAttachment(todo.id, a.id, a.originalName)}
-                  >
-                    {a.originalName}
-                  </button>
-                  <span className="text-zinc-400 dark:text-slate-500 shrink-0 tabular-nums">{formatAttachmentSize(a.size)}</span>
-                  {isTaskOwner && (
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteAttachment(a.id)}
-                      className="text-zinc-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 shrink-0"
-                      title={t("a11y.delete")}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+        <TaskEditAdvancedZone
+          className={zoneCls("advanced", "space-y-0")}
+          uiV2={uiV2}
+          editZone={editZone}
+          todo={todo}
+          form={form}
+          onFormChange={onFormChange}
+          isTaskOwner={isTaskOwner}
+          freeTierContentLocks={freeTierContentLocks}
+          currentUserUid={currentUserUid}
+          projectTasks={projectTasks}
+          canUseDependencies={canUseDependencies}
+          canUseTimeTracking={canUseTimeTracking}
+          canUseCustomFields={canUseCustomFields}
+          customFieldDefs={customFieldDefs}
+          tagInput={tagInput}
+          onTagInputChange={setTagInput}
+          tagsSaving={tagsSaving}
+          onAddTag={handleAddTag}
+          onRemoveTag={handleRemoveTag}
+          timeLoading={timeLoading}
+          timeTotalMinutes={timeTotalMinutes}
+          formatLoggedMins={formatLoggedMins}
+          activeTimer={activeTimer}
+          timeSaving={timeSaving}
+          onStartTimer={handleStartTimer}
+          onStopTimer={handleStopTimer}
+          manualMinutes={manualMinutes}
+          onManualMinutesChange={setManualMinutes}
+          onAddManualTime={handleAddManualTime}
+          timeSessions={timeSessions}
+          customFieldsSaving={customFieldsSaving}
+          onCustomFieldChange={handleCustomFieldChange}
+          attachments={attachments}
+          attachmentUploading={attachmentUploading}
+          attachmentInputRef={attachmentInputRef}
+          onAttachmentFile={handleAttachmentFile}
+          onDeleteAttachment={handleDeleteAttachment}
+          formatAttachmentSize={formatAttachmentSize}
+          comments={comments}
+          showAllComments={showAllComments}
+          onShowAllCommentsChange={setShowAllComments}
+          editingCommentId={editingCommentId}
+          editingText={editingText}
+          onEditingCommentIdChange={setEditingCommentId}
+          onEditingTextChange={setEditingText}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
+          reactionPickerCommentId={reactionPickerCommentId}
+          onReactionPickerCommentIdChange={setReactionPickerCommentId}
+          onToggleReaction={handleToggleReaction}
+          commentText={commentText}
+          commentLoading={commentLoading}
+          commentInputRef={commentInputRef}
+          onCommentChange={handleCommentChange}
+          mentionResults={mentionResults}
+          mentionIdx={mentionIdx}
+          onMentionIdxChange={setMentionIdx}
+          onClearMentions={() => {
+            setMentionQuery(null);
+            setMentionResults([]);
+          }}
+          onInsertMention={insertMention}
+          onPostComment={handlePostComment}
+          onOpenSubtasks={onOpenSubtasks}
+          subtaskCount={subtaskCount}
+        />
         </div>
-
-        {/* Comments */}
-        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-          <h4 className="text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">
-            {t("comments.title")} ({comments.length})
-          </h4>
-          <div className="max-h-48 overflow-y-auto space-y-2 mb-2">
-            {comments.length === 0 ? (
-              <p className="text-xs text-zinc-400 dark:text-slate-500 italic">{t("comments.empty")}</p>
-            ) : <>
-            {comments.length > 3 && !showAllComments && (
-              <button
-                type="button"
-                onClick={() => setShowAllComments(true)}
-                className="w-full text-center text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium py-1 transition-colors"
-              >
-                {t("comments.showOlder")} ({comments.length - 3})
-              </button>
-            )}
-            {(showAllComments ? comments : comments.slice(-3)).map((c) => (
-              <div key={c.id} className="bg-zinc-50 dark:bg-slate-800/60 rounded px-3 py-2 text-xs group">
-                <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-zinc-700 dark:text-slate-300">{c.userEmail}</span>
-                    {c.editedAt && <span className="text-[10px] text-zinc-400 dark:text-slate-500 italic">{t("comments.edited")}</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-zinc-400 dark:text-slate-500">
-                      {new Date(c.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                    {currentUserUid === c.userId && (
-                      <>
-                        <button type="button" onClick={() => { setEditingCommentId(c.id); setEditingText(c.text); }} className="text-zinc-300 dark:text-slate-600 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" title={t("comments.edit")}>
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button type="button" onClick={() => handleDeleteComment(c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {editingCommentId === c.id ? (
-                  <div className="flex gap-1.5 mt-1">
-                    <input type="text" value={editingText} onChange={(e) => setEditingText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEditComment(c.id); } if (e.key === "Escape") setEditingCommentId(null); }} autoFocus className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500" />
-                    <button type="button" onClick={() => handleEditComment(c.id)} disabled={!editingText.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-2 py-1 text-xs text-white disabled:opacity-40">{t("edit.save")}</button>
-                    <button type="button" onClick={() => setEditingCommentId(null)} className="rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-600 dark:text-slate-300">{t("edit.cancel")}</button>
-                  </div>
-                ) : (
-                  <p className="text-zinc-600 dark:text-slate-400 whitespace-pre-wrap">{c.text.split(/(@[\w.+-]+@[\w.-]+)/g).map((part, i) => /^@[\w.+-]+@[\w.-]+$/.test(part) ? <span key={i} className="text-indigo-600 dark:text-indigo-400 font-medium">{part}</span> : part)}</p>
-                )}
-                {/* Reactions */}
-                <div className="flex items-center gap-1 mt-1 flex-wrap">
-                  {c.reactions && Object.entries(c.reactions).map(([emoji, userIds]) => (
-                    <button key={emoji} type="button" onClick={() => handleToggleReaction(c.id, emoji)} className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] border transition-colors ${currentUserUid && userIds.includes(currentUserUid) ? "border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40" : "border-zinc-200 dark:border-slate-700 hover:border-zinc-400 dark:hover:border-slate-500"}`}>
-                      <span>{emoji}</span>
-                      <span className="text-zinc-500 dark:text-slate-400">{userIds.length}</span>
-                    </button>
-                  ))}
-                  <div className="relative">
-                    <button type="button" onClick={() => setReactionPickerCommentId(reactionPickerCommentId === c.id ? null : c.id)} className="text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none" title={t("comments.addReaction")}>+</button>
-                    {reactionPickerCommentId === c.id && (
-                      <div className="absolute bottom-full left-0 mb-1 flex gap-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-zinc-200 dark:border-slate-700 p-1.5 z-10">
-                        {REACTION_EMOJIS.map((emoji) => (
-                          <button key={emoji} type="button" onClick={() => handleToggleReaction(c.id, emoji)} className="hover:bg-zinc-100 dark:hover:bg-slate-700 rounded p-0.5 text-sm">{emoji}</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            </>}
-          </div>
-          <div className="relative flex gap-1.5">
-            <div className="flex-1 relative">
-              <input
-                ref={commentInputRef}
-                type="text"
-                placeholder={t("comments.placeholder")}
-                value={commentText}
-                onChange={(e) => handleCommentChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (mentionResults.length > 0) {
-                    if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx((i) => Math.min(i + 1, mentionResults.length - 1)); return; }
-                    if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx((i) => Math.max(i - 1, 0)); return; }
-                    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionResults[mentionIdx].email); return; }
-                    if (e.key === "Escape") { e.preventDefault(); setMentionQuery(null); setMentionResults([]); return; }
-                  }
-                  if (e.key === "Enter") { e.preventDefault(); handlePostComment(); }
-                }}
-                className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              />
-              {mentionResults.length > 0 && (
-                <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg z-50 max-h-32 overflow-y-auto">
-                  {mentionResults.map((c, i) => (
-                    <button
-                      key={c.email}
-                      type="button"
-                      onClick={() => insertMention(c.email)}
-                      className={`w-full text-left px-2 py-1.5 text-xs transition-colors ${
-                        i === mentionIdx
-                          ? "bg-slate-100 dark:bg-slate-700 text-zinc-900 dark:text-slate-100"
-                          : "text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700"
-                      }`}
-                    >
-                      {c.email}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button type="button" onClick={handlePostComment} disabled={commentLoading || !commentText.trim()} className="rounded bg-slate-700 dark:bg-slate-600 px-3 py-1 text-xs font-medium text-white dark:text-slate-100 disabled:opacity-40">
-              {t("comments.send")}
-            </button>
-          </div>
-        </div>
-
-        {!todo.parentId && onOpenSubtasks && (
-          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-zinc-700 dark:text-slate-300">
-                {t("subtask.title")}
-              </h4>
-              <button
-                type="button"
-                onClick={() => onOpenSubtasks(todo)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                {t("subtask.addShort")}
-              </button>
-            </div>
-            {subtaskCount === 0 ? (
-              <p className="text-xs text-zinc-400 dark:text-slate-500">
-                {t("subtask.none")}
-              </p>
-            ) : (
-              <p className="text-xs text-zinc-500 dark:text-slate-400">
-                {subtaskCount} {t("subtask.title").toLowerCase()}
-              </p>
-            )}
-          </div>
-        )}
 
         </div>
 
-        <div className="flex flex-col gap-3 mt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className={`flex flex-col gap-3 mt-5 sm:flex-row sm:items-center sm:justify-between ${uiV2 ? "shrink-0" : ""}`}>
           <div className="flex flex-wrap items-center gap-2">
             {!todo.parentId && onOpenSubtasks && !viewOnly && (
               <button

@@ -2,6 +2,7 @@
 
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 
 export interface TaskBlockerInfo {
   id: string;
@@ -19,6 +20,7 @@ interface Props {
 export default function TaskBlockedModal({ open, taskTitle, blockers, onClose, onOpenBlocker }: Props) {
   const { t } = useLocale();
   const trapRef = useFocusTrap(open);
+  useModalCloseKeys(open, onClose);
 
   if (!open) return null;
 

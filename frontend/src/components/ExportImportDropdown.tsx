@@ -136,7 +136,7 @@ export default function ExportImportDropdown({ exportCsv, exportJson, onImport, 
             <div className="fixed inset-0 z-[200]" aria-hidden onClick={close} />
             <div
               role="menu"
-              className="fixed z-[201] rounded-lg border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl py-2 text-sm"
+              className="fixed z-[201] rounded-sm border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl py-2 text-sm"
               style={{ top: menuPos.top, left: menuPos.left, width: MENU_WIDTH }}
             >
               <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-slate-500">

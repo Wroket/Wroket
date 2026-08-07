@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocale } from "@/lib/LocaleContext";
 import { postEarlyBirdEnroll } from "@/lib/api/earlyBird";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import type { TranslationKey } from "@/lib/i18n";
 
 const STORAGE_KEY = "wroket-tutorial-v4-seen";
@@ -82,13 +83,14 @@ export default function TutorialModal({ open, onClose, earlyBird = false, onEarl
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
       if (e.key === "ArrowRight" && step < STEPS.length - 1) setStep((s) => s + 1);
       if (e.key === "ArrowLeft" && step > 0) setStep((s) => s - 1);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [open, step, onClose]);
+  }, [open, step]);
+
+  useModalCloseKeys(open, onClose);
 
   const handleEarlyBirdEnroll = async () => {
     if (isEarlyBirdActive || enrolling) return;
