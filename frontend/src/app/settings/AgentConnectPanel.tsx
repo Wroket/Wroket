@@ -151,7 +151,7 @@ export default function AgentConnectPanel() {
     <div className="space-y-6">
       <p className="text-sm text-zinc-600 dark:text-slate-400">{t("settings.agentConnectIntro")}</p>
       <p className="text-xs text-zinc-500 dark:text-slate-500">
-        <Link href="/docs" className="text-emerald-700 dark:text-emerald-400 hover:underline">
+        <Link href="/docs/integrations/mcp" className="text-emerald-700 dark:text-emerald-400 hover:underline">
           {t("settings.agentDocsLink")}
         </Link>
         {" · "}

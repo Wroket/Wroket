@@ -20,7 +20,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const guide = getDocGuide(slug);
   if (!guide) return {};
   return buildPageMetadata({
-    title: slug === "notion" ? "Guide Notion" : slug === "monday" ? "Guide Monday" : `Guide ${slug}`,
+    title:
+      slug === "notion"
+        ? "Guide Notion"
+        : slug === "monday"
+          ? "Guide Monday"
+          : slug === "slack"
+            ? "Guide Slack+"
+            : slug === "mcp"
+              ? "Guide agents MCP"
+              : slug === "calendar"
+                ? "Guide calendriers"
+                : `Guide ${slug}`,
     description:
       slug === "notion"
         ? "Connecter Notion, préparer une base projet, importer contacts ou données vers Wroket."
@@ -28,7 +39,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           ? "Importer boards Monday en projets, bases ou notes Wroket."
           : slug === "calendar"
             ? "Connecter Google Calendar et Microsoft Outlook à Wroket."
-            : `Guide d'intégration ${slug} pour Wroket.`,
+            : slug === "slack"
+              ? "Slack+ : OAuth, notifications, boutons d’action et commande /wroket."
+              : slug === "mcp"
+                ? "Connecter Cursor ou Claude Desktop au serveur MCP Wroket (clés API, outils PMO)."
+                : `Guide d'intégration ${slug} pour Wroket.`,
     path: `/docs/integrations/${slug}`,
   });
 }

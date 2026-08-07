@@ -9,6 +9,7 @@ export type DocGuideId =
   | "monday"
   | "calendar"
   | "slack"
+  | "mcp"
   | "teams"
   | "discord";
 
@@ -362,16 +363,46 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     metaTitleKey: "docs.slack.metaTitle",
     summaryKey: "docs.slack.summary",
     access: "smallTeams",
-    publicTeaser: false,
-    lastUpdated: "2026-06-17",
-    benefitKeys: ["docs.slack.benefit1", "docs.slack.benefit2", "docs.slack.benefit3"],
-    prerequisiteKeys: ["docs.slack.prereq1"],
+    publicTeaser: true,
+    lastUpdated: "2026-08-07",
+    benefitKeys: ["docs.slack.benefit1", "docs.slack.benefit2", "docs.slack.benefit3", "docs.slack.benefit4"],
+    prerequisiteKeys: ["docs.slack.prereq1", "docs.slack.prereq2"],
     sections: [
-      { id: "webhook", titleKey: "docs.slack.step1.title", paragraphKeys: ["docs.slack.step1.p1"] },
-      { id: "wroket", titleKey: "docs.slack.step2.title", paragraphKeys: ["docs.slack.step2.p1"] },
+      { id: "oauth", titleKey: "docs.slack.stepOauth.title", paragraphKeys: ["docs.slack.stepOauth.p1", "docs.slack.stepOauth.p2"] },
+      { id: "webhook", titleKey: "docs.slack.stepWebhook.title", paragraphKeys: ["docs.slack.stepWebhook.p1"] },
+      { id: "actions", titleKey: "docs.slack.stepActions.title", paragraphKeys: ["docs.slack.stepActions.p1", "docs.slack.stepActions.p2"] },
+      { id: "events", titleKey: "docs.slack.stepEvents.title", paragraphKeys: ["docs.slack.stepEvents.p1"] },
     ],
-    troubleshooting: [],
+    troubleshooting: [
+      { titleKey: "docs.slack.trouble1.title", bodyKey: "docs.slack.trouble1.body" },
+      { titleKey: "docs.slack.trouble2.title", bodyKey: "docs.slack.trouble2.body" },
+    ],
     ctaHrefs: [{ labelKey: "docs.banner.ctaSettings", href: "/settings?tab=integrations" }],
+  },
+  {
+    id: "mcp",
+    category: "integration",
+    href: "/docs/integrations/mcp",
+    hubTitleKey: "docs.hub.mcp.title",
+    hubSummaryKey: "docs.hub.mcp.summary",
+    metaTitleKey: "docs.mcp.metaTitle",
+    summaryKey: "docs.mcp.summary",
+    access: "public",
+    publicTeaser: true,
+    lastUpdated: "2026-08-07",
+    benefitKeys: ["docs.mcp.benefit1", "docs.mcp.benefit2", "docs.mcp.benefit3"],
+    prerequisiteKeys: ["docs.mcp.prereq1", "docs.mcp.prereq2"],
+    sections: [
+      { id: "keys", titleKey: "docs.mcp.stepKeys.title", paragraphKeys: ["docs.mcp.stepKeys.p1", "docs.mcp.stepKeys.p2"] },
+      { id: "cursor", titleKey: "docs.mcp.stepCursor.title", paragraphKeys: ["docs.mcp.stepCursor.p1"] },
+      { id: "tools", titleKey: "docs.mcp.stepTools.title", paragraphKeys: ["docs.mcp.stepTools.p1", "docs.mcp.stepTools.p2"] },
+      { id: "limits", titleKey: "docs.mcp.stepLimits.title", paragraphKeys: ["docs.mcp.stepLimits.p1"] },
+    ],
+    troubleshooting: [
+      { titleKey: "docs.mcp.trouble1.title", bodyKey: "docs.mcp.trouble1.body" },
+      { titleKey: "docs.mcp.trouble2.title", bodyKey: "docs.mcp.trouble2.body" },
+    ],
+    ctaHrefs: [{ labelKey: "docs.cta.agentConnect", href: "/settings?tab=integrations&section=agents" }],
   },
   {
     id: "teams",

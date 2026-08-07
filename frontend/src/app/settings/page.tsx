@@ -2111,6 +2111,12 @@ function ConnectedAppsBlock({
                 <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionSlack")}</h5>
                 <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionSlackDesc")}</p>
                 <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-1">{t("settings.connectionSlackActionsHint")}</p>
+                <Link
+                  href="/docs/integrations/slack"
+                  className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+                >
+                  {t("settings.viewIntegrationGuide")}
+                </Link>
               </div>
             </div>
             {slackStatus?.connected ? (
@@ -2230,8 +2236,18 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
   const [connections, setConnections] = useState<AppConnectionSummary[]>([]);
 
   useEffect(() => {
-    if (searchParams.get("notion") === "connected") {
+    if (searchParams.get("notion") === "connected" || searchParams.get("slack") === "connected") {
       setActiveSubSection("connections");
+    }
+    const section = searchParams.get("section");
+    if (
+      section === "connections" ||
+      section === "data" ||
+      section === "webhooks" ||
+      section === "notifications" ||
+      section === "agents"
+    ) {
+      setActiveSubSection(section);
     }
   }, [searchParams]);
 

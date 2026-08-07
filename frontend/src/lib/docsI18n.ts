@@ -1,16 +1,17 @@
 /**
  * User-facing integration documentation (FR/EN).
- * Editorial source: docs/contacts-notion-v1.md, docs/donnees-notion-v1.md, docs/monday-docs-v1.md
+ * Editorial source: docs/contacts-notion-v1.md, docs/donnees-notion-v1.md, docs/monday-docs-v1.md,
+ * docs/slack-plus.md, docs/mcp-agents.md
  */
 export const docsTranslations = {
   "docs.title": { fr: "Documentation", en: "Documentation" },
   "docs.subtitle": {
-    fr: "Guides produit pour démarrer et maîtriser Wroket, puis intégrations Notion, Monday, calendriers et notifications.",
-    en: "Product guides to get started with Wroket, plus Notion, Monday, calendar, and notification integrations.",
+    fr: "Guides produit pour démarrer et maîtriser Wroket, puis intégrations Notion, Monday, Slack, calendriers, MCP et notifications.",
+    en: "Product guides to get started with Wroket, plus Notion, Monday, Slack, calendars, MCP, and notification integrations.",
   },
   "docs.metaDescription": {
-    fr: "Documentation Wroket : premiers pas, projets, notes et bases, puis intégrations Notion, Monday, Google Calendar et Microsoft Outlook.",
-    en: "Wroket documentation: getting started, projects, notes and databases, plus Notion, Monday, Google Calendar and Microsoft Outlook integrations.",
+    fr: "Documentation Wroket : premiers pas, projets, notes, Slack+, agents MCP, Notion, Monday, Google Calendar et Microsoft Outlook.",
+    en: "Wroket documentation: getting started, projects, notes, Slack+, MCP agents, Notion, Monday, Google Calendar and Microsoft Outlook.",
   },
   "docs.backToHub": { fr: "← Tous les guides", en: "← All guides" },
   "docs.lastUpdated": { fr: "Dernière mise à jour", en: "Last updated" },
@@ -37,6 +38,7 @@ export const docsTranslations = {
   "docs.banner.ctaRegister": { fr: "Créer un compte", en: "Create account" },
   "docs.banner.ctaPricing": { fr: "Voir les tarifs", en: "View pricing" },
   "docs.banner.ctaSettings": { fr: "Ouvrir Paramètres › Intégrations", en: "Open Settings › Integrations" },
+  "docs.cta.agentConnect": { fr: "Connecter votre agent", en: "Connect your agent" },
   "docs.cta.migrateNotion": { fr: "Lancer l'import Notion", en: "Start Notion import" },
   "docs.cta.migrateNotionData": { fr: "Importer une base Notion", en: "Import a Notion database" },
   "docs.cta.migrateMonday": { fr: "Lancer l'import Monday", en: "Start Monday import" },
@@ -90,8 +92,13 @@ export const docsTranslations = {
   },
   "docs.hub.slack.title": { fr: "Slack", en: "Slack" },
   "docs.hub.slack.summary": {
-    fr: "Webhook entrant pour les événements tâches et digests.",
-    en: "Incoming webhook for task events and digests.",
+    fr: "OAuth Slack+, webhooks, boutons d’action et commande /wroket.",
+    en: "Slack+ OAuth, webhooks, action buttons, and /wroket slash command.",
+  },
+  "docs.hub.mcp.title": { fr: "Agents MCP", en: "MCP agents" },
+  "docs.hub.mcp.summary": {
+    fr: "Connectez Cursor ou Claude Desktop à vos tâches via le serveur MCP Wroket.",
+    en: "Connect Cursor or Claude Desktop to your tasks via the Wroket MCP server.",
   },
   "docs.hub.teams.title": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "docs.hub.teams.summary": {
@@ -518,24 +525,81 @@ export const docsTranslations = {
     en: "Reconnect the account from Manage calendars. Ensure prod OAuth redirect URL is configured (api.wroket.com).",
   },
 
-  "docs.slack.metaTitle": { fr: "Guide Slack", en: "Slack guide" },
+  "docs.slack.metaTitle": { fr: "Guide Slack+", en: "Slack+ guide" },
   "docs.slack.summary": {
-    fr: "Recevez des notifications Wroket dans un canal Slack via webhook entrant.",
-    en: "Receive Wroket notifications in a Slack channel via incoming webhook.",
+    fr: "Connectez votre workspace Slack pour recevoir les notifications Wroket, agir sur les tâches (accepter, refuser, terminer) et utiliser la commande /wroket.",
+    en: "Connect your Slack workspace to receive Wroket notifications, act on tasks (accept, decline, complete), and use the /wroket command.",
   },
   "docs.slack.benefit1": {
-    fr: "L'équipe voit assignations et commentaires sans ouvrir Wroket.",
-    en: "The team sees assignments and comments without opening Wroket.",
+    fr: "Notifications dans le canal choisi (assignations, deadlines, digests, événements PMO).",
+    en: "Notifications in your chosen channel (assignments, deadlines, digests, PMO events).",
   },
   "docs.slack.benefit2": {
-    fr: "Filtres d'événements et digests configurables depuis Paramètres.",
-    en: "Event filters and digests configurable from Settings.",
+    fr: "Boutons Accepter / Refuser / Terminer sur les messages (connexion OAuth).",
+    en: "Accept / Decline / Complete buttons on messages (OAuth connection).",
   },
   "docs.slack.benefit3": {
-    fr: "Complète l'e-mail et les notifications in-app pour réduire les angles morts.",
-    en: "Complements email and in-app notifications to reduce blind spots.",
+    fr: "Slash `/wroket` : help, tasks, open, accept, decline, complete.",
+    en: "`/wroket` slash: help, tasks, open, accept, decline, complete.",
   },
-  "docs.slack.prereq1": { fr: "Palier Small teams et droits pour créer un webhook dans votre workspace Slack.", en: "Small teams plan and permission to create a webhook in your Slack workspace." },
+  "docs.slack.benefit4": {
+    fr: "Filtres projet/équipe et indicateurs de livraison (OK, erreur, backoff).",
+    en: "Project/team filters and delivery health (OK, error, backoff).",
+  },
+  "docs.slack.prereq1": {
+    fr: "Palier Small teams (ou entitlements Intégrations) et droits d’installer une app Slack sur le workspace.",
+    en: "Small teams plan (or Integrations entitlements) and permission to install a Slack app on the workspace.",
+  },
+  "docs.slack.prereq2": {
+    fr: "Même adresse e-mail sur Slack et Wroket pour les actions (boutons et slash).",
+    en: "Same email on Slack and Wroket for actions (buttons and slash).",
+  },
+  "docs.slack.stepOauth.title": { fr: "Connecter Slack (recommandé)", en: "Connect Slack (recommended)" },
+  "docs.slack.stepOauth.p1": {
+    fr: "Paramètres › Intégrations › Connexions › Slack › Connecter. Autorisez le workspace et choisissez le canal. Wroket utilise alors l’API Slack (chat.postMessage) pour poster et activer les boutons.",
+    en: "Settings › Integrations › Connections › Slack › Connect. Authorize the workspace and pick a channel. Wroket then uses the Slack API (chat.postMessage) to post and enable buttons.",
+  },
+  "docs.slack.stepOauth.p2": {
+    fr: "Utilisez Reconnecter après un changement de scopes côté app Slack. Le bouton Tester envoie un message de contrôle dans le canal lié.",
+    en: "Use Reconnect after Slack app scope changes. Test sends a control message to the linked channel.",
+  },
+  "docs.slack.stepWebhook.title": { fr: "Option : Incoming Webhook seul", en: "Option: Incoming Webhook only" },
+  "docs.slack.stepWebhook.p1": {
+    fr: "Sans OAuth, vous pouvez coller une URL Incoming Webhook dans Paramètres › Intégrations › Webhooks (plateforme Slack). Les notifications partent, mais pas les boutons ni `/wroket`. Si OAuth est aussi connecté, Wroket préfère chat.postMessage puis retombe sur le webhook.",
+    en: "Without OAuth, paste an Incoming Webhook URL under Settings › Integrations › Webhooks (Slack platform). Notifications work, but not buttons or `/wroket`. If OAuth is also connected, Wroket prefers chat.postMessage then falls back to the webhook.",
+  },
+  "docs.slack.stepActions.title": { fr: "Agir depuis Slack", en: "Act from Slack" },
+  "docs.slack.stepActions.p1": {
+    fr: "Sur les messages postés via OAuth : boutons pour accepter/refuser une assignation ou terminer une tâche. Après succès, le message est mis à jour.",
+    en: "On messages posted via OAuth: buttons to accept/decline an assignment or complete a task. After success, the message updates.",
+  },
+  "docs.slack.stepActions.p2": {
+    fr: "Commande slash `/wroket` : `help`, `tasks`, `open <id>`, `accept|decline|complete <id>`. Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
+    en: "Slash `/wroket`: `help`, `tasks`, `open <id>`, `accept|decline|complete <id>`. Ephemeral replies. The Slack user must map to the Wroket account (email).",
+  },
+  "docs.slack.stepEvents.title": { fr: "Événements et livraison", en: "Events and delivery" },
+  "docs.slack.stepEvents.p1": {
+    fr: "En plus des événements classiques (assignation, complétion, deadline…), Slack+ peut signaler `project_at_risk`, `milestone_due_soon` et `dependency_blocked`. Sur chaque webhook : statut de dernière livraison, erreurs successives et backoff après échecs 429/5xx. Filtres optionnels projet/équipe.",
+    en: "Beyond classic events (assignment, completion, deadline…), Slack+ can emit `project_at_risk`, `milestone_due_soon`, and `dependency_blocked`. Per webhook: last delivery status, consecutive errors, and backoff after 429/5xx. Optional project/team filters.",
+  },
+  "docs.slack.trouble1.title": {
+    fr: "Connecter ouvre une page JSON / erreur « non configuré »",
+    en: "Connect opens a JSON page / “not configured” error",
+  },
+  "docs.slack.trouble1.body": {
+    fr: "Les secrets Slack (Client ID / Secret) ne sont pas encore branchés sur l’API de production. Contactez l’administrateur Wroket ou utilisez temporairement un Incoming Webhook.",
+    en: "Slack secrets (Client ID / Secret) are not wired on the production API yet. Contact a Wroket admin or temporarily use an Incoming Webhook.",
+  },
+  "docs.slack.trouble2.title": {
+    fr: "Bouton ou `/wroket` refuse l’action",
+    en: "Button or `/wroket` rejects the action",
+  },
+  "docs.slack.trouble2.body": {
+    fr: "Vérifiez que l’e-mail Slack = e-mail Wroket, que vous êtes le destinataire de l’assignation, et que l’app Slack a les scopes `users:read` / `users:read.email` (reconnectez après mise à jour).",
+    en: "Check Slack email = Wroket email, that you are the assignment target, and that the Slack app has `users:read` / `users:read.email` (reconnect after scope updates).",
+  },
+
+  // Keep legacy keys for any stale references
   "docs.slack.step1.title": { fr: "Créer le webhook Slack", en: "Create the Slack webhook" },
   "docs.slack.step1.p1": {
     fr: "Dans Slack : application ou workflow › Incoming Webhook › copiez l'URL HTTPS.",
@@ -543,8 +607,72 @@ export const docsTranslations = {
   },
   "docs.slack.step2.title": { fr: "Configurer dans Wroket", en: "Configure in Wroket" },
   "docs.slack.step2.p1": {
-    fr: "Paramètres › Intégrations › Webhooks : collez l'URL, choisissez les événements (assignation, commentaire, digest…) et enregistrez.",
-    en: "Settings › Integrations › Webhooks: paste the URL, pick events (assignment, comment, digest…), and save.",
+    fr: "Paramètres › Intégrations › Webhooks : collez l'URL, choisissez les événements et enregistrez.",
+    en: "Settings › Integrations › Webhooks: paste the URL, pick events, and save.",
+  },
+
+  "docs.mcp.metaTitle": { fr: "Guide agents MCP", en: "MCP agents guide" },
+  "docs.mcp.summary": {
+    fr: "Wroket expose un serveur MCP distant : vos agents (Cursor, Claude Desktop…) listent et créent des tâches, projets, notes et créneaux — sans IA hébergée dans Wroket.",
+    en: "Wroket exposes a remote MCP server: your agents (Cursor, Claude Desktop…) list and create tasks, projects, notes, and slots — with no hosted AI inside Wroket.",
+  },
+  "docs.mcp.benefit1": {
+    fr: "Utilisez l’IA que vous payez déjà ; Wroket fournit les actions PMO sécurisées.",
+    en: "Use the AI you already pay for; Wroket provides secured PMO actions.",
+  },
+  "docs.mcp.benefit2": {
+    fr: "Clés API personnelles (`wrk_live_…`), scopes todos / projets / notes / calendrier, révocation immédiate.",
+    en: "Personal API keys (`wrk_live_…`), todos / projects / notes / calendar scopes, instant revoke.",
+  },
+  "docs.mcp.benefit3": {
+    fr: "Même logique métier que l’app (move, conflits de créneau, droits).",
+    en: "Same business logic as the app (move, slot conflicts, permissions).",
+  },
+  "docs.mcp.prereq1": {
+    fr: "Compte Wroket avec accès produit (pas uniquement workspace-admin).",
+    en: "Wroket account with product access (not workspace-admin-only).",
+  },
+  "docs.mcp.prereq2": {
+    fr: "Client MCP compatible (Cursor, Claude Desktop, ou autre).",
+    en: "Compatible MCP client (Cursor, Claude Desktop, or other).",
+  },
+  "docs.mcp.stepKeys.title": { fr: "Créer une clé API", en: "Create an API key" },
+  "docs.mcp.stepKeys.p1": {
+    fr: "Paramètres › Intégrations › Connecter votre agent. Donnez un libellé (ex. « Cursor laptop »), créez la clé, puis copiez le secret immédiatement — il n’est plus réaffiché.",
+    en: "Settings › Integrations › Connect your agent. Enter a label (e.g. “Cursor laptop”), create the key, then copy the secret immediately — it is never shown again.",
+  },
+  "docs.mcp.stepKeys.p2": {
+    fr: "Limites : Free = 1 clé active ; Small teams+ / early bird = jusqu’à 5. Seul le hash SHA-256 est stocké côté serveur.",
+    en: "Limits: Free = 1 active key; Small teams+ / early bird = up to 5. Only a SHA-256 hash is stored server-side.",
+  },
+  "docs.mcp.stepCursor.title": { fr: "Configurer Cursor ou Claude", en: "Configure Cursor or Claude" },
+  "docs.mcp.stepCursor.p1": {
+    fr: "Endpoint production : `https://api.wroket.com/mcp`. Dans `mcp.json` (Cursor) ou la config MCP Claude, ajoutez le serveur avec l’en-tête `Authorization: Bearer wrk_live_…`. Un snippet prêt à coller apparaît dans Paramètres après création de la clé.",
+    en: "Production endpoint: `https://api.wroket.com/mcp`. In Cursor `mcp.json` or Claude MCP config, add the server with `Authorization: Bearer wrk_live_…`. A ready-to-paste snippet appears in Settings after you create a key.",
+  },
+  "docs.mcp.stepTools.title": { fr: "Outils disponibles", en: "Available tools" },
+  "docs.mcp.stepTools.p1": {
+    fr: "Tâches : list / get / create / update / move. Projets & phases : list / get. Notes : list / get / create / update. Commentaires : list / add. Agenda : propose_slots, book_task_slot, clear_task_slot.",
+    en: "Todos: list / get / create / update / move. Projects & phases: list / get. Notes: list / get / create / update. Comments: list / add. Calendar: propose_slots, book_task_slot, clear_task_slot.",
+  },
+  "docs.mcp.stepTools.p2": {
+    fr: "En cas de conflit de créneau, `book_task_slot` renvoie un conflit structuré ; réessayez avec `force=true` (comme dans l’Agenda) ou choisissez un autre créneau.",
+    en: "On slot conflict, `book_task_slot` returns a structured conflict; retry with `force=true` (same as Agenda) or pick another slot.",
+  },
+  "docs.mcp.stepLimits.title": { fr: "Limites et hors périmètre", en: "Limits and out of scope" },
+  "docs.mcp.stepLimits.p1": {
+    fr: "Rate limit : 60 requêtes / minute / clé. Hors v1 : chat intégré Wroket, pièces jointes, sync Notion/Monday, billing/admin. Révoquez une clé dès qu’elle n’est plus utile.",
+    en: "Rate limit: 60 requests / minute / key. Out of v1: in-app Wroket chat, attachments, Notion/Monday sync, billing/admin. Revoke a key as soon as you no longer need it.",
+  },
+  "docs.mcp.trouble1.title": { fr: "L’agent reçoit 401", en: "The agent gets 401" },
+  "docs.mcp.trouble1.body": {
+    fr: "Clé révoquée, mal collée, ou Bearer manquant. Recréez une clé dans Paramètres et mettez à jour la config MCP.",
+    en: "Key revoked, mistyped, or missing Bearer. Create a new key in Settings and update the MCP config.",
+  },
+  "docs.mcp.trouble2.title": { fr: "Outil refusé (scope / droits)", en: "Tool rejected (scope / permissions)" },
+  "docs.mcp.trouble2.body": {
+    fr: "Les nouvelles clés ont tous les scopes par défaut. Vérifiez aussi les droits Wroket sur la tâche ou le projet (même règles que l’UI).",
+    en: "New keys get all scopes by default. Also check Wroket permissions on the task or project (same rules as the UI).",
   },
 
   "docs.teams.metaTitle": { fr: "Guide Microsoft Teams", en: "Microsoft Teams guide" },
@@ -610,8 +738,8 @@ export const docsTranslations = {
     en: "How do I migrate from Notion or Monday?",
   },
   "docs.pricing.faq5a": {
-    fr: "Consultez les guides Notion et Monday dans la documentation. Un compte Small teams est requis pour l'import API.",
-    en: "See the Notion and Monday guides in the documentation. A Small teams account is required for API import.",
+    fr: "Consultez les guides Notion, Monday, Slack+ et agents MCP dans la documentation. Un compte Small teams est requis pour la plupart des imports et pour Slack OAuth.",
+    en: "See the Notion, Monday, Slack+, and MCP agents guides in the documentation. A Small teams account is required for most imports and for Slack OAuth.",
   },
   "docs.pricing.faq5linkNotion": { fr: "Guide Notion", en: "Notion guide" },
   "docs.pricing.faq5linkMonday": { fr: "Guide Monday", en: "Monday guide" },
