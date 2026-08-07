@@ -8,7 +8,7 @@ import {
   postSlackResponseUrl,
   resolveBotTokenForTeam,
 } from "./slackApiService";
-import { findTodoForUser, listAssignedToMe, updateTodo, type Todo } from "./todoService";
+import { findTodoForUser, listAssignedToMe, listTodos, updateTodo, type Todo } from "./todoService";
 import { taskDeepLink } from "./notificationFormatting";
 import { AppError, UnprocessableEntityError } from "../utils/errors";
 
@@ -150,7 +150,7 @@ export async function runSlackTaskAction(opts: {
 const SLASH_HELP = [
   "*Commandes `/wroket`*",
   "`/wroket help` — cette aide",
-  "`/wroket tasks` — vos tâches assignées actives",
+  "`/wroket tasks` — vos tâches actives (personnelles + assignées)",
   "`/wroket open <todoId>` — détail + lien",
   "`/wroket accept <todoId>` — accepter une assignation",
   "`/wroket decline <todoId>` — refuser",
@@ -179,12 +179,28 @@ export async function handleSlashText(opts: {
     return slashHelpText();
   }
 
-  if (verb === "tasks" || verb === "list") {
-    const todos = (await listAssignedToMe(opts.actorUid))
-      .filter((t) => t.status === "active")
-      .slice(0, 10);
-    if (todos.length === 0) return "Aucune tâche assignée active.";
-    return [`Vos tâches assignées (${todos.length}) :`, ...todos.map(formatTodoLine)].join("\n");
+  if (verb === "tasks" || verb === "list" || verb === "mine") {
+    const [mine, assigned] = await Promise.all([
+      listTodos(opts.actorUid),
+      listAssignedToMe(opts.actorUid),
+    ]);
+    const personal = mine.filter((t) => t.status === "active").slice(0, 10);
+    const assignedActive = assigned.filter((t) => t.status === "active").slice(0, 10);
+
+    if (personal.length === 0 && assignedActive.length === 0) {
+      return "Aucune tâche active (personnelle ou assignée).";
+    }
+
+    const sections: string[] = [];
+    if (personal.length > 0) {
+      sections.push(`*Personnelles* (${personal.length}) :`, ...personal.map(formatTodoLine));
+    }
+    if (assignedActive.length > 0) {
+      sections.push(`*Assignées à vous* (${assignedActive.length}) :`, ...assignedActive.map(formatTodoLine));
+    } else {
+      sections.push("_Aucune tâche assignée par quelqu’un d’autre._");
+    }
+    return sections.join("\n");
   }
 
   if (verb === "open") {

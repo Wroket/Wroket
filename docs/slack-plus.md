@@ -58,7 +58,7 @@
  * ### Slash `/wroket`
  *
  * - `help` — aide
- * - `tasks` — jusqu’à 10 tâches assignées actives
+ * - `tasks` — jusqu’à 10 tâches personnelles actives + 10 assignées à vous
  * - `open <todoId>` — détail + deep link
  * - `accept|decline|complete <todoId>` — mêmes règles métier que les boutons
  *

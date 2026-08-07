@@ -574,8 +574,8 @@ export const docsTranslations = {
     en: "On messages posted via OAuth: buttons to accept/decline an assignment or complete a task. After success, the message updates.",
   },
   "docs.slack.stepActions.p2": {
-    fr: "Commande slash `/wroket` : `help`, `tasks`, `open <id>`, `accept|decline|complete <id>`. Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
-    en: "Slash `/wroket`: `help`, `tasks`, `open <id>`, `accept|decline|complete <id>`. Ephemeral replies. The Slack user must map to the Wroket account (email).",
+    fr: "Commande slash `/wroket` : `help`, `tasks` (personnelles + assignées), `open <id>`, `accept|decline|complete <id>`. Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
+    en: "Slash `/wroket`: `help`, `tasks` (personal + assigned), `open <id>`, `accept|decline|complete <id>`. Ephemeral replies. The Slack user must map to the Wroket account (email).",
   },
   "docs.slack.stepEvents.title": { fr: "Événements et livraison", en: "Events and delivery" },
   "docs.slack.stepEvents.p1": {
