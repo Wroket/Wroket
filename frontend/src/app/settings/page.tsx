@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskImportModal from "@/components/TaskImportModal";
 import { SoftLock, SoftLockHint, PlanBadge } from "@/components/SoftLock";
+import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import {
   downloadProjectImportTemplateCsv,
   downloadTaskImportTemplateCsv,
@@ -62,14 +63,31 @@ import {
   connectNotionOAuth,
   connectMondayOAuth,
   connectSlackOAuth,
+  connectTeamsOAuth,
+  connectGoogleChatOAuth,
+  connectDiscordOAuth,
   disconnectNotionConnection,
   disconnectMondayConnection,
   disconnectSlackConnection,
+  disconnectTeamsConnection,
+  disconnectGoogleChatConnection,
+  disconnectDiscordConnection,
   getConnections,
   getSlackStatus,
+  getTeamsStatus,
+  getGoogleChatStatus,
+  getDiscordStatus,
   testSlackConnection,
+  testTeamsConnection,
+  testGoogleChatConnection,
+  testDiscordConnection,
+  linkDiscordUserId,
+  unlinkDiscordUserId,
   type AppConnectionSummary,
   type SlackConnectionStatus,
+  type TeamsConnectionStatus,
+  type GoogleChatConnectionStatus,
+  type DiscordConnectionStatus,
 } from "@/lib/api/integrations";
 import {
   billingPlanCodeKey,
@@ -190,7 +208,7 @@ export default function SettingsPage() {
 
 function SettingsContent() {
   const { t } = useLocale();
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [active, setActive] = useState<Section>(
@@ -198,6 +216,7 @@ function SettingsContent() {
   );
 
   const hasIntegrations = user?.entitlements?.integrations === true;
+  const isEarlyBird = user?.earlyBird === true;
 
   return (
     <AppShell>
@@ -236,7 +255,13 @@ function SettingsContent() {
             {active === "languages" && <LanguagesSection />}
             {active === "tasks" && <TasksSection />}
             {active === "subscription" && <SubscriptionSection />}
-            {active === "integrations" && <IntegrationsSection hasIntegrations={hasIntegrations} />}
+            {active === "integrations" && (
+              <IntegrationsSection
+                hasIntegrations={hasIntegrations}
+                showEarlyBirdUnlock={!hasIntegrations && !isEarlyBird}
+                onEarlyBirdEnrolled={refresh}
+              />
+            )}
             {active === "history" && <HistorySection />}
             {active === "admin" && <AdminSection />}
           </div>
@@ -1848,9 +1873,16 @@ function ConnectedAppsBlock({
   const oauthToastHandled = useRef(false);
   const [connections, setConnections] = useState<AppConnectionSummary[]>([]);
   const [slackStatus, setSlackStatus] = useState<SlackConnectionStatus | null>(null);
+  const [teamsStatus, setTeamsStatus] = useState<TeamsConnectionStatus | null>(null);
+  const [googleChatStatus, setGoogleChatStatus] = useState<GoogleChatConnectionStatus | null>(null);
+  const [discordStatus, setDiscordStatus] = useState<DiscordConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [slackTesting, setSlackTesting] = useState(false);
+  const [teamsTesting, setTeamsTesting] = useState(false);
+  const [googleChatTesting, setGoogleChatTesting] = useState(false);
+  const [discordTesting, setDiscordTesting] = useState(false);
+  const [discordLinkInput, setDiscordLinkInput] = useState("");
 
   const integrationActionBtn =
     "w-full rounded-md px-3 py-2 text-xs font-medium text-center border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/25 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors";
@@ -1863,12 +1895,18 @@ function ConnectedAppsBlock({
 
   const refresh = useCallback(async () => {
     try {
-      const [list, slack] = await Promise.all([
+      const [list, slack, teams, gchat, discord] = await Promise.all([
         getConnections(),
         getSlackStatus().catch(() => null),
+        getTeamsStatus().catch(() => null),
+        getGoogleChatStatus().catch(() => null),
+        getDiscordStatus().catch(() => null),
       ]);
       setConnections(list);
       if (slack) setSlackStatus(slack);
+      if (teams) setTeamsStatus(teams);
+      if (gchat) setGoogleChatStatus(gchat);
+      if (discord) setDiscordStatus(discord);
     } catch {
       /* ignore */
     } finally {
@@ -1887,7 +1925,10 @@ function ConnectedAppsBlock({
     const notionOk = params.get("notion") === "connected";
     const mondayOk = params.get("monday") === "connected";
     const slackOk = params.get("slack") === "connected";
-    if (!notionOk && !mondayOk && !slackOk) {
+    const teamsOk = params.get("teams") === "connected";
+    const googleChatOk = params.get("google_chat") === "connected";
+    const discordOk = params.get("discord") === "connected";
+    if (!notionOk && !mondayOk && !slackOk && !teamsOk && !googleChatOk && !discordOk) {
       oauthToastHandled.current = false;
       return;
     }
@@ -1897,11 +1938,17 @@ function ConnectedAppsBlock({
     if (notionOk) toast.success(t("settings.notionConnectedToast"));
     if (mondayOk) toast.success(t("settings.mondayConnectedToast"));
     if (slackOk) toast.success(t("settings.slackConnectedToast"));
+    if (teamsOk) toast.success(t("settings.teamsConnectedToast"));
+    if (googleChatOk) toast.success(t("settings.googleChatConnectedToast"));
+    if (discordOk) toast.success(t("settings.discordConnectedToast"));
     void refresh();
 
     params.delete("notion");
     params.delete("monday");
     params.delete("slack");
+    params.delete("teams");
+    params.delete("google_chat");
+    params.delete("discord");
     const qs = params.toString();
     router.replace(qs ? `/settings?${qs}` : "/settings", { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2187,6 +2234,181 @@ function ConnectedAppsBlock({
               </button>
             )}
           </div>
+
+          {/* Microsoft Teams+ */}
+          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 flex flex-col min-h-[180px] hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200">
+            <div className="flex items-start gap-3 mb-3">
+              <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${integrationIconShell}`}>
+                <span className={`text-sm font-bold tracking-tight ${integrationIconLetter}`}>T</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionTeams")}</h5>
+                <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionTeamsDesc")}</p>
+                <Link href="/docs/integrations/teams" className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+                  {t("settings.viewIntegrationGuide")}
+                </Link>
+              </div>
+            </div>
+            {teamsStatus?.connected ? (
+              <div className="mt-auto space-y-2">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  {t("settings.connectionTeamsConnected")}
+                  {teamsStatus.tenantName ? ` · ${teamsStatus.tenantName}` : ""}
+                </p>
+                <button type="button" disabled={!hasIntegrations || teamsTesting} onClick={async () => {
+                  setTeamsTesting(true);
+                  try { await testTeamsConnection(); toast.success(t("settings.connectionTeamsTestOk")); }
+                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  finally { setTeamsTesting(false); }
+                }} className={`${integrationSecondaryBtn} relative z-0`}>
+                  {teamsTesting ? "…" : t("settings.connectionTeamsTest")}
+                </button>
+                <button type="button" disabled={!hasIntegrations} onClick={() => connectTeamsOAuth("/settings?tab=integrations")} className={`${integrationSecondaryBtn} relative z-0`}>
+                  {t("settings.connectionTeamsReconnect")}
+                </button>
+                <button type="button" disabled={!hasIntegrations || disconnecting === "teams"} onClick={async () => {
+                  setDisconnecting("teams");
+                  try { await disconnectTeamsConnection(); await refresh(); }
+                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  finally { setDisconnecting(null); }
+                }} className="relative z-0 self-end rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-50 transition-colors">
+                  {t("settings.connectionDisconnect")}
+                </button>
+              </div>
+            ) : (
+              <button type="button" disabled={!hasIntegrations} title={!hasIntegrations ? t("planRequired.small") : undefined} onClick={() => connectTeamsOAuth("/settings?tab=integrations")} className={`${integrationConnectBtn} relative z-0 mt-auto disabled:opacity-50`}>
+                {t("settings.connectionConnect")}
+              </button>
+            )}
+          </div>
+
+          {/* Google Chat+ */}
+          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 flex flex-col min-h-[180px] hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200">
+            <div className="flex items-start gap-3 mb-3">
+              <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${integrationIconShell}`}>
+                <span className={`text-sm font-bold tracking-tight ${integrationIconLetter}`}>G</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionGoogleChat")}</h5>
+                <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionGoogleChatDesc")}</p>
+                <Link href="/docs/integrations/google-chat" className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+                  {t("settings.viewIntegrationGuide")}
+                </Link>
+              </div>
+            </div>
+            {googleChatStatus?.connected ? (
+              <div className="mt-auto space-y-2">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  {t("settings.connectionGoogleChatConnected")}
+                  {googleChatStatus.spaceDisplayName ? ` · ${googleChatStatus.spaceDisplayName}` : ""}
+                </p>
+                <button type="button" disabled={!hasIntegrations || googleChatTesting} onClick={async () => {
+                  setGoogleChatTesting(true);
+                  try { await testGoogleChatConnection(); toast.success(t("settings.connectionGoogleChatTestOk")); }
+                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  finally { setGoogleChatTesting(false); }
+                }} className={`${integrationSecondaryBtn} relative z-0`}>
+                  {googleChatTesting ? "…" : t("settings.connectionGoogleChatTest")}
+                </button>
+                <button type="button" disabled={!hasIntegrations} onClick={() => connectGoogleChatOAuth("/settings?tab=integrations")} className={`${integrationSecondaryBtn} relative z-0`}>
+                  {t("settings.connectionGoogleChatReconnect")}
+                </button>
+                <button type="button" disabled={!hasIntegrations || disconnecting === "google-chat"} onClick={async () => {
+                  setDisconnecting("google-chat");
+                  try { await disconnectGoogleChatConnection(); await refresh(); }
+                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  finally { setDisconnecting(null); }
+                }} className="relative z-0 self-end rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-50 transition-colors">
+                  {t("settings.connectionDisconnect")}
+                </button>
+              </div>
+            ) : (
+              <button type="button" disabled={!hasIntegrations} title={!hasIntegrations ? t("planRequired.small") : undefined} onClick={() => connectGoogleChatOAuth("/settings?tab=integrations")} className={`${integrationConnectBtn} relative z-0 mt-auto disabled:opacity-50`}>
+                {t("settings.connectionConnect")}
+              </button>
+            )}
+          </div>
+
+          {/* Discord+ */}
+          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 flex flex-col min-h-[180px] hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200">
+            <div className="flex items-start gap-3 mb-3">
+              <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${integrationIconShell}`}>
+                <span className={`text-sm font-bold tracking-tight ${integrationIconLetter}`}>D</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionDiscord")}</h5>
+                <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionDiscordDesc")}</p>
+                <Link href="/docs/integrations/discord" className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+                  {t("settings.viewIntegrationGuide")}
+                </Link>
+              </div>
+            </div>
+            {discordStatus?.connected ? (
+              <div className="mt-auto space-y-2">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  {t("settings.connectionDiscordConnected")}
+                  {discordStatus.guildName ? ` · ${discordStatus.guildName}` : ""}
+                </p>
+                {discordStatus.linkedDiscordUserId && (
+                  <p className="text-xs text-zinc-500 dark:text-slate-400">
+                    {t("settings.connectionDiscordLinked")}: {discordStatus.linkedDiscordUserId}
+                  </p>
+                )}
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={discordLinkInput}
+                    onChange={(e) => setDiscordLinkInput(e.target.value)}
+                    placeholder={t("settings.connectionDiscordLinkPlaceholder")}
+                    className="flex-1 rounded-md border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
+                  />
+                  <button type="button" disabled={!hasIntegrations || !discordLinkInput.trim()} onClick={async () => {
+                    try {
+                      await linkDiscordUserId(discordLinkInput.trim());
+                      setDiscordLinkInput("");
+                      await refresh();
+                      toast.success(t("settings.connectionDiscordLinkOk"));
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
+                    }
+                  }} className={`${integrationSecondaryBtn} relative z-0 !w-auto px-2`}>
+                    {t("settings.connectionDiscordLink")}
+                  </button>
+                </div>
+                {discordStatus.linkedDiscordUserId && (
+                  <button type="button" disabled={!hasIntegrations} onClick={async () => {
+                    try { await unlinkDiscordUserId(); await refresh(); }
+                    catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  }} className={`${integrationSecondaryBtn} relative z-0`}>
+                    {t("settings.connectionDiscordUnlink")}
+                  </button>
+                )}
+                <button type="button" disabled={!hasIntegrations || discordTesting} onClick={async () => {
+                  setDiscordTesting(true);
+                  try { await testDiscordConnection(); toast.success(t("settings.connectionDiscordTestOk")); }
+                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  finally { setDiscordTesting(false); }
+                }} className={`${integrationSecondaryBtn} relative z-0`}>
+                  {discordTesting ? "…" : t("settings.connectionDiscordTest")}
+                </button>
+                <button type="button" disabled={!hasIntegrations} onClick={() => connectDiscordOAuth("/settings?tab=integrations")} className={`${integrationSecondaryBtn} relative z-0`}>
+                  {t("settings.connectionDiscordReconnect")}
+                </button>
+                <button type="button" disabled={!hasIntegrations || disconnecting === "discord"} onClick={async () => {
+                  setDisconnecting("discord");
+                  try { await disconnectDiscordConnection(); await refresh(); }
+                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  finally { setDisconnecting(null); }
+                }} className="relative z-0 self-end rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-50 transition-colors">
+                  {t("settings.connectionDisconnect")}
+                </button>
+              </div>
+            ) : (
+              <button type="button" disabled={!hasIntegrations} title={!hasIntegrations ? t("planRequired.small") : undefined} onClick={() => connectDiscordOAuth("/settings?tab=integrations")} className={`${integrationConnectBtn} relative z-0 mt-auto disabled:opacity-50`}>
+                {t("settings.connectionConnect")}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -2195,7 +2417,15 @@ function ConnectedAppsBlock({
 
 type IntegrationSubSection = "connections" | "data" | "webhooks" | "notifications" | "agents" | null;
 
-function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) {
+function IntegrationsSection({
+  hasIntegrations,
+  showEarlyBirdUnlock,
+  onEarlyBirdEnrolled,
+}: {
+  hasIntegrations: boolean;
+  showEarlyBirdUnlock: boolean;
+  onEarlyBirdEnrolled: () => Promise<void>;
+}) {
   const { t } = useLocale();
   const { toast } = useToast();
   const router = useRouter();
@@ -2908,6 +3138,9 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
               </Link>
             </div>
           </div>
+          {!hasIntegrations && showEarlyBirdUnlock && (
+            <EarlyBirdUnlockCard variant="banner" onEnrolled={onEarlyBirdEnrolled} />
+          )}
           {!hasIntegrations && (
             <SoftLockHint
               tier="small"

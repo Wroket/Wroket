@@ -59,6 +59,9 @@
  *
  * - `help` — aide
  * - `tasks` — jusqu’à 10 tâches personnelles actives + 10 assignées à vous
+ * - `my-week` — Ma semaine (retards + échéances/créneaux sous 7 jours)
+ * - `overdue` — tâches actives en retard
+ * - `team-risk` — projets d’équipe at-risk / overdue (membre d’équipe requis)
  * - `open <todoId>` — détail + deep link
  * - `accept|decline|complete <todoId>` — mêmes règles métier que les boutons
  *

@@ -55,6 +55,18 @@ Le **Directory tenant ID** ci-dessus sert au portail Azure (admin, DNS, consente
 
 `openid`, `email`, `profile`, `offline_access`, `User.Read`, `Calendars.Read`, `Calendars.ReadWrite`
 
+## Teams+ (Bot Framework)
+
+Pour l’intégration chat interactive (Adaptive Cards, `/wroket`), voir [teams-plus.md](./teams-plus.md).
+
+| Variable | Rôle |
+|----------|------|
+| `TEAMS_BOT_APP_ID` (ou `MICROSOFT_BOT_APP_ID` / réutiliser `MICROSOFT_CLIENT_ID`) | App ID bot |
+| `TEAMS_BOT_APP_PASSWORD` (ou `MICROSOFT_BOT_APP_PASSWORD` / `MICROSOFT_CLIENT_SECRET`) | Secret bot |
+| `TEAMS_REDIRECT_URI` | `https://api.wroket.com/integrations/teams/callback` |
+
+Messaging endpoint Bot : `https://api.wroket.com/integrations/teams/interactions`
+
 ## Checklist opérationnelle
 
 - [x] Application **Wroket** enregistrée — Client ID `e75f60be-547f-40fe-b910-5feb59a600bc`

@@ -257,6 +257,115 @@ export function buildSlackTaskActionBlocks(
   ];
 }
 
+/** Which task actions to offer for an event (shared across Slack/Teams/Chat/Discord). */
+function taskActionKindsForEvent(
+  event: WebhookEvent,
+  data: Record<string, string> | undefined,
+): Array<"accept" | "decline" | "complete"> {
+  const kinds: Array<"accept" | "decline" | "complete"> = [];
+  if (event === "task_assigned") {
+    const asg = (data?.assignmentStatus ?? "pending").toLowerCase();
+    if (asg === "pending" || !data?.assignmentStatus) {
+      kinds.push("accept", "decline");
+    }
+  }
+  const completeEvents = new Set<WebhookEvent>([
+    "deadline_approaching",
+    "deadline_today",
+    "task_accepted",
+    "dependency_blocked",
+  ]);
+  if (
+    completeEvents.has(event) ||
+    event === "task_assigned"
+  ) {
+    kinds.push("complete");
+  }
+  return [...new Set(kinds)];
+}
+
+/**
+ * Adaptive Card Action.Submit buttons for Teams+ (OAuth / bot path).
+ */
+export function buildTeamsTaskActions(
+  event: WebhookEvent,
+  data: Record<string, string> | undefined,
+  actorUid: string | undefined,
+): Record<string, unknown>[] {
+  const todoId = data?.todoId?.trim();
+  if (!todoId || !actorUid) return [];
+  const labels: Record<string, string> = {
+    accept: "Accepter",
+    decline: "Refuser",
+    complete: "Terminer",
+  };
+  return taskActionKindsForEvent(event, data).map((action) => ({
+    type: "Action.Submit",
+    title: labels[action],
+    data: {
+      action: `wroket_${action}`,
+      todoId,
+      targetUid: actorUid,
+    },
+  }));
+}
+
+/**
+ * Discord message components (buttons) for Discord+.
+ */
+export function buildDiscordTaskComponents(
+  event: WebhookEvent,
+  data: Record<string, string> | undefined,
+  actorUid: string | undefined,
+): Record<string, unknown>[] {
+  const todoId = data?.todoId?.trim();
+  if (!todoId || !actorUid) return [];
+  const styles: Record<string, number> = { accept: 3, decline: 4, complete: 1 };
+  const labels: Record<string, string> = {
+    accept: "Accepter",
+    decline: "Refuser",
+    complete: "Terminer",
+  };
+  const buttons = taskActionKindsForEvent(event, data).map((action) => ({
+    type: 2,
+    style: styles[action],
+    label: labels[action],
+    custom_id: `wroket_${action}:${todoId}|${actorUid}`,
+  }));
+  if (buttons.length === 0) return [];
+  return [{ type: 1, components: buttons.slice(0, 5) }];
+}
+
+/**
+ * Google Chat cards v2 buttons.
+ */
+export function buildGoogleChatTaskButtons(
+  event: WebhookEvent,
+  data: Record<string, string> | undefined,
+  actorUid: string | undefined,
+): Record<string, unknown>[] {
+  const todoId = data?.todoId?.trim();
+  if (!todoId || !actorUid) return [];
+  const labels: Record<string, string> = {
+    accept: "Accepter",
+    decline: "Refuser",
+    complete: "Terminer",
+  };
+  return taskActionKindsForEvent(event, data).map((action) => ({
+    text: labels[action],
+    onClick: {
+      action: {
+        function: `wroket_${action}`,
+        parameters: [
+          { key: "action", value: `wroket_${action}` },
+          { key: "todoId", value: todoId },
+          { key: "targetUid", value: actorUid },
+        ],
+      },
+    },
+  }));
+}
+
 function truncateDiscord(s: string, max: number): string {
   if (s.length <= max) return s;
   return `${s.slice(0, max - 1)}…`;
@@ -468,8 +577,13 @@ export function formatWebhookPayload(
     }
 
     case "discord": {
+      const components =
+        options?.interactive === true
+          ? buildDiscordTaskComponents(payload.event, payload.data, options.actorUid)
+          : [];
       if (!rich) {
         return {
+          content: undefined,
           embeds: [
             {
               title: `${emoji} ${payload.title}`,
@@ -479,6 +593,7 @@ export function formatWebhookPayload(
               footer: { text: "Wroket" },
             },
           ],
+          components: components.length > 0 ? components : undefined,
         };
       }
       const discordFields: { name: string; value: string; inline: boolean }[] = [];
@@ -506,6 +621,7 @@ export function formatWebhookPayload(
             url: deepLink,
           },
         ],
+        components: components.length > 0 ? components : undefined,
       };
     }
 
@@ -526,17 +642,19 @@ export function formatWebhookPayload(
         }
       }
       body.push({ type: "TextBlock", text: payload.message, wrap: true });
+      const actions: Record<string, unknown>[] = [];
       if (deepLink) {
-        body.push({
-          type: "ActionSet",
-          actions: [
-            {
-              type: "Action.OpenUrl",
-              title: "Ouvrir dans Wroket",
-              url: deepLink,
-            },
-          ],
+        actions.push({
+          type: "Action.OpenUrl",
+          title: "Ouvrir dans Wroket",
+          url: deepLink,
         });
+      }
+      if (options?.interactive === true) {
+        actions.push(...buildTeamsTaskActions(payload.event, payload.data, options.actorUid));
+      }
+      if (actions.length > 0) {
+        body.push({ type: "ActionSet", actions: actions.slice(0, 6) });
       }
       return {
         type: "message",
@@ -555,6 +673,30 @@ export function formatWebhookPayload(
     }
 
     case "google_chat": {
+      if (options?.interactive === true) {
+        const buttons = buildGoogleChatTaskButtons(payload.event, payload.data, options.actorUid);
+        const widgets: Record<string, unknown>[] = [
+          { textParagraph: { text: `<b>${emoji} ${payload.title}</b><br>${payload.message}` } },
+        ];
+        if (buttons.length > 0) {
+          widgets.push({ buttonList: { buttons } });
+        }
+        if (deepLink) {
+          widgets.push({
+            buttonList: {
+              buttons: [{ text: "Ouvrir dans Wroket", onClick: { openLink: { url: deepLink } } }],
+            },
+          });
+        }
+        return {
+          cardsV2: [
+            {
+              cardId: "wroket",
+              card: { sections: [{ widgets }] },
+            },
+          ],
+        };
+      }
       if (!rich) {
         return {
           text: `${emoji} *${payload.title}*\n\n${payload.message}`,
@@ -662,6 +804,65 @@ async function postWebhookBody(
         }
       } catch (err) {
         console.warn("[webhook] slack oauth post failed, falling back to URL: %s", (err as Error).message ?? err);
+      }
+    }
+
+    if (webhook.platform === "teams") {
+      try {
+        const { tryPostViaTeamsBot } = await import("./teamsApiService");
+        const oauthBody = formatWebhookPayload(webhook.platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        });
+        if (await tryPostViaTeamsBot(uid, oauthBody)) {
+          recordWebhookDelivery(uid, webhook.id, { ok: true, statusCode: 200 });
+          return;
+        }
+      } catch (err) {
+        console.warn("[webhook] teams bot post failed, falling back: %s", (err as Error).message ?? err);
+      }
+    }
+
+    if (webhook.platform === "google_chat") {
+      try {
+        const { tryPostViaGoogleChat } = await import("./googleChatApiService");
+        const oauthBody = formatWebhookPayload(webhook.platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        });
+        if (await tryPostViaGoogleChat(uid, oauthBody)) {
+          recordWebhookDelivery(uid, webhook.id, { ok: true, statusCode: 200 });
+          return;
+        }
+      } catch (err) {
+        console.warn("[webhook] google chat post failed, falling back: %s", (err as Error).message ?? err);
+      }
+    }
+
+    if (webhook.platform === "discord") {
+      try {
+        const { tryPostViaDiscordBot } = await import("./discordApiService");
+        const oauthBody = formatWebhookPayload(webhook.platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        }) as { content?: string; embeds?: unknown[]; components?: unknown[] };
+        const content =
+          typeof oauthBody.content === "string"
+            ? oauthBody.content
+            : payload.title;
+        if (
+          await tryPostViaDiscordBot(
+            uid,
+            content,
+            Array.isArray(oauthBody.embeds) ? oauthBody.embeds : undefined,
+            Array.isArray(oauthBody.components) ? oauthBody.components : undefined,
+          )
+        ) {
+          recordWebhookDelivery(uid, webhook.id, { ok: true, statusCode: 200 });
+          return;
+        }
+      } catch (err) {
+        console.warn("[webhook] discord bot post failed, falling back: %s", (err as Error).message ?? err);
       }
     }
 

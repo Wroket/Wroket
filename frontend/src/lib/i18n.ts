@@ -1070,6 +1070,45 @@ const translations = {
   "settings.connectionSlackReconnect": { fr: "Reconnecter (mettre à jour les scopes)", en: "Reconnect (update scopes)" },
   "settings.connectionSlackConnected": { fr: "Connecté", en: "Connected" },
   "settings.slackConnectedToast": { fr: "Slack connecté.", en: "Slack connected." },
+
+  "settings.connectionTeams": { fr: "Microsoft Teams", en: "Microsoft Teams" },
+  "settings.connectionTeamsDesc": {
+    fr: "Connectez Teams (Bot Framework) pour notifications Adaptive Cards, actions Accepter/Refuser/Terminer et commandes /wroket (dont my-week, overdue, team-risk). Le webhook entrant reste un repli.",
+    en: "Connect Teams (Bot Framework) for Adaptive Card notifications, Accept/Decline/Complete actions, and /wroket commands (including my-week, overdue, team-risk). Incoming webhook remains a fallback.",
+  },
+  "settings.connectionTeamsConnected": { fr: "Connecté", en: "Connected" },
+  "settings.connectionTeamsTest": { fr: "Envoyer un test", en: "Send a test" },
+  "settings.connectionTeamsTestOk": { fr: "Message de test Teams envoyé.", en: "Teams test message sent." },
+  "settings.connectionTeamsReconnect": { fr: "Reconnecter", en: "Reconnect" },
+  "settings.teamsConnectedToast": { fr: "Microsoft Teams connecté.", en: "Microsoft Teams connected." },
+
+  "settings.connectionGoogleChat": { fr: "Google Chat", en: "Google Chat" },
+  "settings.connectionGoogleChatDesc": {
+    fr: "App Google Chat + cartes v2 : notifications, actions et commandes @Wroket (parité Slack+). Webhook = repli.",
+    en: "Google Chat app + cards v2: notifications, actions, and @Wroket commands (Slack+ parity). Webhook = fallback.",
+  },
+  "settings.connectionGoogleChatConnected": { fr: "Connecté", en: "Connected" },
+  "settings.connectionGoogleChatTest": { fr: "Envoyer un test", en: "Send a test" },
+  "settings.connectionGoogleChatTestOk": { fr: "Message de test Google Chat envoyé.", en: "Google Chat test message sent." },
+  "settings.connectionGoogleChatReconnect": { fr: "Reconnecter", en: "Reconnect" },
+  "settings.googleChatConnectedToast": { fr: "Google Chat connecté.", en: "Google Chat connected." },
+
+  "settings.connectionDiscord": { fr: "Discord", en: "Discord" },
+  "settings.connectionDiscordDesc": {
+    fr: "Bot Discord + slash /wroket et boutons. Si Discord ne partage pas l’email, liez votre ID utilisateur Discord ci-dessous.",
+    en: "Discord bot + /wroket slash and buttons. If Discord does not share your email, link your Discord user ID below.",
+  },
+  "settings.connectionDiscordConnected": { fr: "Connecté", en: "Connected" },
+  "settings.connectionDiscordTest": { fr: "Envoyer un test", en: "Send a test" },
+  "settings.connectionDiscordTestOk": { fr: "Message de test Discord envoyé.", en: "Discord test message sent." },
+  "settings.connectionDiscordReconnect": { fr: "Reconnecter", en: "Reconnect" },
+  "settings.connectionDiscordLinked": { fr: "Compte Discord lié", en: "Linked Discord account" },
+  "settings.connectionDiscordLinkPlaceholder": { fr: "ID utilisateur Discord", en: "Discord user ID" },
+  "settings.connectionDiscordLink": { fr: "Lier", en: "Link" },
+  "settings.connectionDiscordUnlink": { fr: "Délier le compte Discord", en: "Unlink Discord account" },
+  "settings.connectionDiscordLinkOk": { fr: "Compte Discord lié.", en: "Discord account linked." },
+  "settings.discordConnectedToast": { fr: "Discord connecté.", en: "Discord connected." },
+
   "settings.notificationDeliveryTitle": { fr: "Envoi des notifications", en: "Notification delivery" },
   "settings.notificationDeliveryDesc": {
     fr: "En plus des notifications dans l’application, vous pouvez recevoir une copie par email (adresse du compte) ou via un webhook Slack, Microsoft Teams ou Google Chat. Les webhooks avancés ci‑dessous restent disponibles pour plusieurs canaux et filtres d’événements.",
@@ -1980,13 +2019,21 @@ const translations = {
   "agenda.connectGoogle": { fr: "Connecter Google Calendar", en: "Connect Google Calendar" },
   "agenda.connectOutlook": { fr: "Connecter Outlook / Microsoft 365", en: "Connect Outlook / Microsoft 365" },
   "agenda.calendarIntegrationsBanner": {
-    fr: "Google Calendar et Outlook font partie du pack intégrations (palier Small teams). Passez à ce palier pour connecter ou reconfigurer vos agendas.",
-    en: "Google Calendar and Outlook are part of the integrations pack (Small teams plan). Upgrade to connect or reconfigure your calendars.",
+    fr: "Pour connecter Google Calendar ou Outlook gratuitement pendant la phase founding, devenez Early Bird. Le palier Small teams reste l’offre commerciale ensuite.",
+    en: "To connect Google Calendar or Outlook for free during the founding phase, become an Early Bird. The Small teams plan remains the commercial offer afterward.",
   },
   "agenda.openIntegrationsTab": { fr: "Paramètres → Intégrations", en: "Settings → Integrations" },
   "agenda.calendarReadonlyPlanHint": {
     fr: "Votre palier actuel ne permet pas de modifier les calendriers connectés. Vous pouvez toujours déconnecter un compte.",
     en: "Your current plan does not allow editing connected calendars. You can still disconnect an account.",
+  },
+  "earlyBird.unlock.bannerBody": {
+    fr: "Early Bird débloque Google Calendar, Outlook et le pack intégrations — gratuitement pour les early adopters.",
+    en: "Early Bird unlocks Google Calendar, Outlook, and the integrations pack — free for early adopters.",
+  },
+  "earlyBird.unlock.compactBody": {
+    fr: "Devenez Early Bird pour connecter votre agenda et synchroniser vos créneaux.",
+    en: "Become an Early Bird to connect your calendar and sync time blocks.",
   },
   "agenda.googleConnected": { fr: "Google Calendar connecté", en: "Google Calendar connected" },
   "agenda.outlookConnected": { fr: "Outlook connecté", en: "Outlook connected" },
@@ -1995,8 +2042,8 @@ const translations = {
     en: "Outlook connection declined — retry or check account permissions.",
   },
   "agenda.outlookConnectErrorPlan": {
-    fr: "Outlook nécessite le palier Small teams (pack intégrations).",
-    en: "Outlook requires the Small teams plan (integrations pack).",
+    fr: "Outlook nécessite Early Bird (gratuit) ou le palier Small teams (pack intégrations).",
+    en: "Outlook requires Early Bird (free) or the Small teams plan (integrations pack).",
   },
   "agenda.priorityAccountSaved": {
     fr: "Compte prioritaire enregistré",
@@ -2151,8 +2198,8 @@ const translations = {
   },
   "tutorial.step5.title": { fr: "Early Bird", en: "Early Bird" },
   "tutorial.step5.desc": {
-    fr: "Pour vous remercier de travailler avec Wroket, bénéficiez d'un accès total et gratuit à l'application.",
-    en: "As a thank-you for working with Wroket, get full free access to the app.",
+    fr: "Devenez Early Bird pour connecter Google Calendar, bloquer vos créneaux dans l’agenda réel, et profiter de l’accès complet gratuitement pendant la phase founding.",
+    en: "Become an Early Bird to connect Google Calendar, block slots on your real calendar, and enjoy full free access during the founding phase.",
   },
   "tutorial.earlyBird.cta": { fr: "Devenir Early Bird", en: "Become an Early Bird" },
   "tutorial.earlyBird.submitting": { fr: "Inscription…", en: "Signing up…" },
@@ -2538,7 +2585,10 @@ const translations = {
   },
   "pricing.tier.free.tagline": { fr: "Pour démarrer et structurer vos priorités.", en: "To get started and structure your priorities." },
   "pricing.tier.free.b1": { fr: "Tâches et projets personnels", en: "Personal tasks and projects" },
-  "pricing.tier.free.b2": { fr: "Agenda interne Wroket", en: "Built-in Wroket calendar" },
+  "pricing.tier.free.b2": {
+    fr: "Agenda interne + Early Bird (Google Calendar / Outlook)",
+    en: "Built-in calendar + Early Bird (Google Calendar / Outlook)",
+  },
   "pricing.tier.free.b3": { fr: "Notes de base", en: "Core notes" },
   "pricing.tier.first.tagline": { fr: "Toute la puissance produit, sans pack intégrations.", en: "Full product power without the integrations pack." },
   "pricing.tier.first.b1": { fr: "Radar, récurrence, pièces jointes", en: "Radar, recurrence, attachments" },

@@ -30,6 +30,23 @@ import {
   slackStatus,
   disconnectSlack,
   slackTestPost,
+  teamsConnect,
+  teamsCallback,
+  teamsStatus,
+  disconnectTeams,
+  teamsTestPost,
+  googleChatConnect,
+  googleChatCallback,
+  googleChatStatus,
+  disconnectGoogleChat,
+  googleChatTestPost,
+  discordConnect,
+  discordCallback,
+  discordStatus,
+  disconnectDiscord,
+  discordTestPost,
+  discordLinkAccount,
+  discordUnlinkAccount,
 } from "../controllers/integrationsController";
 
 const router = Router();
@@ -67,6 +84,29 @@ router.get("/slack/callback", slackCallback);
 router.get("/slack/status", requireAuth, slackStatus);
 router.post("/slack/test", requireAuth, slackTestPost);
 router.delete("/slack/connection", requireAuth, disconnectSlack);
+
+/** Microsoft Teams+ — Bot Framework / Entra */
+router.get("/teams/connect", requireAuth, teamsConnect);
+router.get("/teams/callback", teamsCallback);
+router.get("/teams/status", requireAuth, teamsStatus);
+router.post("/teams/test", requireAuth, teamsTestPost);
+router.delete("/teams/connection", requireAuth, disconnectTeams);
+
+/** Google Chat+ */
+router.get("/google-chat/connect", requireAuth, googleChatConnect);
+router.get("/google-chat/callback", googleChatCallback);
+router.get("/google-chat/status", requireAuth, googleChatStatus);
+router.post("/google-chat/test", requireAuth, googleChatTestPost);
+router.delete("/google-chat/connection", requireAuth, disconnectGoogleChat);
+
+/** Discord+ — bot OAuth + optional manual account link */
+router.get("/discord/connect", requireAuth, discordConnect);
+router.get("/discord/callback", discordCallback);
+router.get("/discord/status", requireAuth, discordStatus);
+router.post("/discord/test", requireAuth, discordTestPost);
+router.delete("/discord/connection", requireAuth, disconnectDiscord);
+router.post("/discord/link", requireAuth, discordLinkAccount);
+router.delete("/discord/link", requireAuth, discordUnlinkAccount);
 
 /** Monday Docs → Wroket Documents */
 router.get("/monday/docs", requireAuth, listMondayDocsHandler);

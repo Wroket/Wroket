@@ -27,6 +27,38 @@ import {
 } from "../services/slackConnectionService";
 import { postSlackTestMessage, revokeSlackToken } from "../services/slackApiService";
 import {
+  exchangeTeamsOAuthCode,
+  getTeamsAuthorizeUrl,
+  isTeamsBotConfigured,
+} from "../services/teamsOAuthService";
+import {
+  deleteTeamsConnectionForUser,
+  getTeamsConnectionSummary,
+} from "../services/teamsConnectionService";
+import { postTeamsTestMessage } from "../services/teamsApiService";
+import {
+  exchangeGoogleChatOAuthCode,
+  getGoogleChatAuthorizeUrl,
+  isGoogleChatOAuthConfigured,
+} from "../services/googleChatOAuthService";
+import {
+  deleteGoogleChatConnectionForUser,
+  getGoogleChatConnectionSummary,
+} from "../services/googleChatConnectionService";
+import { postGoogleChatTestMessage } from "../services/googleChatApiService";
+import {
+  exchangeDiscordOAuthCode,
+  getDiscordAuthorizeUrl,
+  isDiscordOAuthConfigured,
+} from "../services/discordOAuthService";
+import {
+  deleteDiscordConnectionForUser,
+  getDiscordConnectionSummary,
+  linkDiscordAccount as persistDiscordAccountLink,
+  unlinkDiscordAccount as persistDiscordAccountUnlink,
+} from "../services/discordConnectionService";
+import { postDiscordTestMessage } from "../services/discordApiService";
+import {
   buildNotionDatabaseSnapshot,
   buildNotionContactsSnapshot,
   buildNotionDataSnapshot,
@@ -802,4 +834,225 @@ export async function slackTestPost(req: AuthenticatedRequest, res: Response) {
   }
   await postSlackTestMessage(req.user!.uid);
   res.status(200).json({ ok: true });
+}
+
+/* ─── Microsoft Teams+ ─── */
+
+export async function teamsConnect(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!isTeamsBotConfigured()) {
+    throw new ValidationError(
+      "Intégration Teams non configurée (TEAMS_BOT_APP_ID / TEAMS_BOT_APP_PASSWORD)",
+      "TEAMS_OAUTH_NOT_CONFIGURED",
+    );
+  }
+  const returnTo = sanitizeOAuthReturnTo(
+    typeof req.query.returnTo === "string" ? req.query.returnTo : undefined,
+  );
+  res.redirect(getTeamsAuthorizeUrl(req.user!.uid, returnTo));
+}
+
+export async function teamsCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const code = req.query.code as string | undefined;
+  const state = req.query.state as string | undefined;
+  const error = req.query.error as string | undefined;
+  if (error || !code || !state) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=teams_auth_failed`);
+    return;
+  }
+  const statePayload = consumeOAuthState(state);
+  if (!statePayload) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=teams_auth_failed`);
+    return;
+  }
+  const { uid, returnTo } = statePayload;
+  const user = findUserByUid(uid);
+  if (!user?.email || !getEffectiveEntitlementsForUid(uid, user.email).integrations) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=integrations_plan_required`);
+    return;
+  }
+  try {
+    await exchangeTeamsOAuthCode(code, uid, user.email);
+    const dest = returnTo
+      ? `${frontendUrl}${returnTo}${returnTo.includes("?") ? "&" : "?"}teams=connected`
+      : `${frontendUrl}/settings?tab=integrations&teams=connected`;
+    res.redirect(dest);
+  } catch (err) {
+    console.error("[teams-oauth] callback failed:", err);
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=teams_auth_failed`);
+  }
+}
+
+export async function teamsStatus(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  res.status(200).json(getTeamsConnectionSummary(req.user!.uid));
+}
+
+export async function disconnectTeams(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const removed = deleteTeamsConnectionForUser(req.user!.uid);
+  res.status(200).json({ disconnected: !!removed });
+}
+
+export async function teamsTestPost(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!getTeamsConnectionSummary(req.user!.uid).connected) {
+    throw new ForbiddenError("Teams n'est pas connecté", "TEAMS_NOT_CONNECTED");
+  }
+  await postTeamsTestMessage(req.user!.uid);
+  res.status(200).json({ ok: true });
+}
+
+/* ─── Google Chat+ ─── */
+
+export async function googleChatConnect(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!isGoogleChatOAuthConfigured()) {
+    throw new ValidationError(
+      "Intégration Google Chat non configurée (GOOGLE_CHAT_CLIENT_ID / SECRET)",
+      "GOOGLE_CHAT_OAUTH_NOT_CONFIGURED",
+    );
+  }
+  const returnTo = sanitizeOAuthReturnTo(
+    typeof req.query.returnTo === "string" ? req.query.returnTo : undefined,
+  );
+  res.redirect(getGoogleChatAuthorizeUrl(req.user!.uid, returnTo));
+}
+
+export async function googleChatCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const code = req.query.code as string | undefined;
+  const state = req.query.state as string | undefined;
+  const error = req.query.error as string | undefined;
+  if (error || !code || !state) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=google_chat_auth_failed`);
+    return;
+  }
+  const statePayload = consumeOAuthState(state);
+  if (!statePayload) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=google_chat_auth_failed`);
+    return;
+  }
+  const { uid, returnTo } = statePayload;
+  const user = findUserByUid(uid);
+  if (!user?.email || !getEffectiveEntitlementsForUid(uid, user.email).integrations) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=integrations_plan_required`);
+    return;
+  }
+  try {
+    await exchangeGoogleChatOAuthCode(code, uid, user.email);
+    const dest = returnTo
+      ? `${frontendUrl}${returnTo}${returnTo.includes("?") ? "&" : "?"}google_chat=connected`
+      : `${frontendUrl}/settings?tab=integrations&google_chat=connected`;
+    res.redirect(dest);
+  } catch (err) {
+    console.error("[google-chat-oauth] callback failed:", err);
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=google_chat_auth_failed`);
+  }
+}
+
+export async function googleChatStatus(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  res.status(200).json(getGoogleChatConnectionSummary(req.user!.uid));
+}
+
+export async function disconnectGoogleChat(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const removed = deleteGoogleChatConnectionForUser(req.user!.uid);
+  res.status(200).json({ disconnected: !!removed });
+}
+
+export async function googleChatTestPost(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!getGoogleChatConnectionSummary(req.user!.uid).connected) {
+    throw new ForbiddenError("Google Chat n'est pas connecté", "GOOGLE_CHAT_NOT_CONNECTED");
+  }
+  await postGoogleChatTestMessage(req.user!.uid);
+  res.status(200).json({ ok: true });
+}
+
+/* ─── Discord+ ─── */
+
+export async function discordConnect(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!isDiscordOAuthConfigured()) {
+    throw new ValidationError(
+      "Intégration Discord non configurée (DISCORD_CLIENT_ID / SECRET)",
+      "DISCORD_OAUTH_NOT_CONFIGURED",
+    );
+  }
+  const returnTo = sanitizeOAuthReturnTo(
+    typeof req.query.returnTo === "string" ? req.query.returnTo : undefined,
+  );
+  res.redirect(getDiscordAuthorizeUrl(req.user!.uid, returnTo));
+}
+
+export async function discordCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const code = req.query.code as string | undefined;
+  const state = req.query.state as string | undefined;
+  const error = req.query.error as string | undefined;
+  if (error || !code || !state) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=discord_auth_failed`);
+    return;
+  }
+  const statePayload = consumeOAuthState(state);
+  if (!statePayload) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=discord_auth_failed`);
+    return;
+  }
+  const { uid, returnTo } = statePayload;
+  const user = findUserByUid(uid);
+  if (!user?.email || !getEffectiveEntitlementsForUid(uid, user.email).integrations) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=integrations_plan_required`);
+    return;
+  }
+  try {
+    await exchangeDiscordOAuthCode(code, uid, user.email);
+    const dest = returnTo
+      ? `${frontendUrl}${returnTo}${returnTo.includes("?") ? "&" : "?"}discord=connected`
+      : `${frontendUrl}/settings?tab=integrations&discord=connected`;
+    res.redirect(dest);
+  } catch (err) {
+    console.error("[discord-oauth] callback failed:", err);
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=discord_auth_failed`);
+  }
+}
+
+export async function discordStatus(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  res.status(200).json(getDiscordConnectionSummary(req.user!.uid));
+}
+
+export async function disconnectDiscord(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const removed = deleteDiscordConnectionForUser(req.user!.uid);
+  res.status(200).json({ disconnected: !!removed });
+}
+
+export async function discordTestPost(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!getDiscordConnectionSummary(req.user!.uid).connected) {
+    throw new ForbiddenError("Discord n'est pas connecté", "DISCORD_NOT_CONNECTED");
+  }
+  await postDiscordTestMessage(req.user!.uid);
+  res.status(200).json({ ok: true });
+}
+
+export async function discordLinkAccount(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const discordUserId =
+    typeof req.body?.discordUserId === "string" ? req.body.discordUserId.trim() : "";
+  if (!discordUserId) {
+    throw new ValidationError("discordUserId requis", "DISCORD_USER_ID_REQUIRED");
+  }
+  const link = persistDiscordAccountLink(req.user!.uid, discordUserId);
+  res.status(200).json({ linked: true, discordUserId: link.discordUserId });
+}
+
+export async function discordUnlinkAccount(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const ok = persistDiscordAccountUnlink(req.user!.uid);
+  res.status(200).json({ unlinked: ok });
 }

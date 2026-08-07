@@ -27,6 +27,9 @@ import integrationRoutes from "./routes/integrationRoutes";
 import sharePublicRoutes from "./routes/sharePublicRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
 import { postSlackInteractions, postSlackCommands } from "./controllers/slackInteractController";
+import { postTeamsInteractions } from "./controllers/teamsInteractController";
+import { postGoogleChatInteractions } from "./controllers/googleChatInteractController";
+import { postDiscordInteractions } from "./controllers/discordInteractController";
 import billingRoutes from "./routes/billingRoutes";
 import marketingRoutes from "./routes/marketingRoutes";
 import feedbackRoutes from "./routes/feedbackRoutes";
@@ -93,7 +96,24 @@ app.post(
   },
 );
 
+/** Discord Interactions — raw body for Ed25519 signature. */
+app.post(
+  "/integrations/discord/interactions",
+  express.raw({ type: "*/*" }),
+  (req, res, next) => {
+    void postDiscordInteractions(req, res).catch(next);
+  },
+);
+
 app.use(express.json({ limit: "128kb" }));
+
+/** Teams Bot Framework + Google Chat — JSON body (JWT / verification token). */
+app.post("/integrations/teams/interactions", (req, res, next) => {
+  void postTeamsInteractions(req, res).catch(next);
+});
+app.post("/integrations/google-chat/interactions", (req, res, next) => {
+  void postGoogleChatInteractions(req, res).catch(next);
+});
 
 // 300/min per client IP: active SPA usage (autosave + list refetch + counts) peaks well
 // above 100/min for a single legitimate user; 429 storms were observed at 100.

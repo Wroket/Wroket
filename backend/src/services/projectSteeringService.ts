@@ -66,7 +66,8 @@ function getEffectiveDueDay(todo: Todo): Date | null {
   return days.reduce((a, b) => (a.getTime() <= b.getTime() ? a : b));
 }
 
-function isEffectivelyOverdue(todo: Todo, now: Date): boolean {
+/** True when effective due day (deadline or slot) is before today local. */
+export function isEffectivelyOverdue(todo: Todo, now: Date = new Date()): boolean {
   const due = getEffectiveDueDay(todo);
   if (!due) return false;
   const today = new Date(now);

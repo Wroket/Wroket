@@ -102,13 +102,18 @@ export const docsTranslations = {
   },
   "docs.hub.teams.title": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "docs.hub.teams.summary": {
-    fr: "Notifications via webhook entrant ou Power Automate.",
-    en: "Notifications via incoming webhook or Power Automate.",
+    fr: "Bot Teams + Adaptive Cards : actions et commandes /wroket (parité Slack+).",
+    en: "Teams bot + Adaptive Cards: actions and /wroket commands (Slack+ parity).",
+  },
+  "docs.hub.googleChat.title": { fr: "Google Chat", en: "Google Chat" },
+  "docs.hub.googleChat.summary": {
+    fr: "App Chat + cartes v2 : actions et commandes @Wroket.",
+    en: "Chat app + cards v2: actions and @Wroket commands.",
   },
   "docs.hub.discord.title": { fr: "Discord", en: "Discord" },
   "docs.hub.discord.summary": {
-    fr: "Webhook avancé pour les événements sélectionnés.",
-    en: "Advanced webhook for selected events.",
+    fr: "Bot Discord + slash /wroket et liaison de compte si besoin.",
+    en: "Discord bot + /wroket slash and optional account link.",
   },
 
   // ── Product guides ──
@@ -574,9 +579,15 @@ export const docsTranslations = {
     en: "On messages posted via OAuth: buttons to accept/decline an assignment or complete a task. After success, the message updates.",
   },
   "docs.slack.stepActions.p2": {
-    fr: "Commande slash `/wroket` : `help`, `tasks` (personnelles + assignées), `open <id>`, `accept|decline|complete <id>`. Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
-    en: "Slash `/wroket`: `help`, `tasks` (personal + assigned), `open <id>`, `accept|decline|complete <id>`. Ephemeral replies. The Slack user must map to the Wroket account (email).",
+    fr: "Commande slash `/wroket` : `help`, `tasks` (personnelles + assignées), `my-week`, `overdue`, `team-risk`, `open <id>`, `accept|decline|complete <id>`. Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
+    en: "Slash `/wroket`: `help`, `tasks` (personal + assigned), `my-week`, `overdue`, `team-risk`, `open <id>`, `accept|decline|complete <id>`. Ephemeral replies. The Slack user must map to the Wroket account (email).",
   },
+  "docs.slack.stepPmo.title": { fr: "Commandes PMO (Lot 4)", en: "PMO commands (Lot 4)" },
+  "docs.slack.stepPmo.p1": {
+    fr: "`/wroket my-week` résume retards et échéances/créneaux sous 7 jours. `/wroket overdue` liste les retards. `/wroket team-risk` montre les projets d’équipe at-risk ou overdue (vous devez être membre d’une équipe).",
+    en: "`/wroket my-week` summarizes overdue items and due/booked work in the next 7 days. `/wroket overdue` lists overdue tasks. `/wroket team-risk` shows at-risk or overdue team projects (you must be a team member).",
+  },
+
   "docs.slack.stepEvents.title": { fr: "Événements et livraison", en: "Events and delivery" },
   "docs.slack.stepEvents.p1": {
     fr: "En plus des événements classiques (assignation, complétion, deadline…), Slack+ peut signaler `project_at_risk`, `milestone_due_soon` et `dependency_blocked`. Sur chaque webhook : statut de dernière livraison, erreurs successives et backoff après échecs 429/5xx. Filtres optionnels projet/équipe.",
@@ -675,62 +686,181 @@ export const docsTranslations = {
     en: "New keys get all scopes by default. Also check Wroket permissions on the task or project (same rules as the UI).",
   },
 
-  "docs.teams.metaTitle": { fr: "Guide Microsoft Teams", en: "Microsoft Teams guide" },
+  "docs.teams.metaTitle": { fr: "Guide Microsoft Teams+", en: "Microsoft Teams+ guide" },
   "docs.teams.summary": {
-    fr: "Envoyez les notifications Wroket vers un canal Teams.",
-    en: "Send Wroket notifications to a Teams channel.",
+    fr: "Bot Framework + Adaptive Cards : notifications, actions et commandes PMO (parité Slack+).",
+    en: "Bot Framework + Adaptive Cards: notifications, actions, and PMO commands (Slack+ parity).",
   },
   "docs.teams.benefit1": {
-    fr: "Intégration naturelle pour les organisations Microsoft 365.",
-    en: "Natural fit for Microsoft 365 organizations.",
+    fr: "Actions Accepter / Refuser / Terminer depuis Adaptive Cards.",
+    en: "Accept / Decline / Complete from Adaptive Cards.",
   },
   "docs.teams.benefit2": {
-    fr: "Webhook entrant ou Power Automate — même logique de filtres que Slack.",
-    en: "Incoming webhook or Power Automate — same filter logic as Slack.",
+    fr: "Commandes /wroket : tasks, open, my-week, overdue, team-risk.",
+    en: "/wroket commands: tasks, open, my-week, overdue, team-risk.",
   },
   "docs.teams.benefit3": {
-    fr: "Assignations et échéances visibles dans le canal où l'équipe travaille déjà.",
-    en: "Assignments and deadlines visible in the channel where the team already works.",
+    fr: "Identité via email Azure AD → compte Wroket.",
+    en: "Identity via Azure AD email → Wroket account.",
   },
-  "docs.teams.prereq1": { fr: "Palier Small teams.", en: "Small teams plan." },
-  "docs.teams.step1.title": { fr: "Webhook entrant Teams", en: "Teams incoming webhook" },
-  "docs.teams.step1.p1": {
-    fr: "Dans le canal Teams : Connecteurs › Incoming Webhook › créez et copiez l'URL.",
-    en: "In the Teams channel: Connectors › Incoming Webhook › create and copy the URL.",
+  "docs.teams.benefit4": {
+    fr: "Incoming Webhook reste disponible en repli.",
+    en: "Incoming Webhook remains available as fallback.",
   },
-  "docs.teams.step2.title": { fr: "Enregistrer dans Wroket", en: "Register in Wroket" },
-  "docs.teams.step2.p1": {
-    fr: "Paramètres › Intégrations › Webhooks Teams : URL + filtres d'événements, comme pour Slack.",
-    en: "Settings › Integrations › Teams webhooks: URL + event filters, same as Slack.",
+  "docs.teams.prereq1": { fr: "Palier Small teams (ou entitlements Intégrations).", en: "Small teams plan (or Integrations entitlements)." },
+  "docs.teams.prereq2": { fr: "Bot Azure / Entra enregistré (voir docs/microsoft-azure.md + docs/teams-plus.md).", en: "Azure / Entra bot registered (see docs/microsoft-azure.md + docs/teams-plus.md)." },
+  "docs.teams.stepOauth.title": { fr: "Connecter Teams (OAuth / Bot)", en: "Connect Teams (OAuth / Bot)" },
+  "docs.teams.stepOauth.p1": {
+    fr: "Paramètres › Intégrations › Connexions › Microsoft Teams. Autorisez l’app Entra ; le tenant est mémorisé pour les posts proactifs.",
+    en: "Settings › Integrations › Connections › Microsoft Teams. Authorize the Entra app; the tenant is stored for proactive posts.",
+  },
+  "docs.teams.stepOauth.p2": {
+    fr: "Ajoutez le bot Wroket dans le canal Teams cible pour activer les messages bot (sinon webhook).",
+    en: "Add the Wroket bot to the target Teams channel to enable bot messages (otherwise webhook).",
+  },
+  "docs.teams.stepWebhook.title": { fr: "Webhook entrant (repli)", en: "Incoming webhook (fallback)" },
+  "docs.teams.stepWebhook.p1": {
+    fr: "Connecteurs › Incoming Webhook dans le canal, puis Paramètres › Webhooks avancés (plateforme Teams).",
+    en: "Connectors › Incoming Webhook in the channel, then Settings › Advanced webhooks (Teams platform).",
+  },
+  "docs.teams.stepActions.title": { fr: "Actions & messaging endpoint", en: "Actions & messaging endpoint" },
+  "docs.teams.stepActions.p1": {
+    fr: "Endpoint Bot : POST https://api.wroket.com/integrations/teams/interactions. Les Adaptive Cards envoient Action.Submit (accept/decline/complete).",
+    en: "Bot endpoint: POST https://api.wroket.com/integrations/teams/interactions. Adaptive Cards send Action.Submit (accept/decline/complete).",
+  },
+  "docs.teams.stepPmo.title": { fr: "Commandes PMO", en: "PMO commands" },
+  "docs.teams.stepPmo.p1": {
+    fr: "Dans une conversation avec le bot : /wroket my-week | overdue | team-risk | tasks | open | accept | decline | complete.",
+    en: "In a bot conversation: /wroket my-week | overdue | team-risk | tasks | open | accept | decline | complete.",
+  },
+  "docs.teams.stepOps.title": { fr: "Ops propriétaire", en: "Owner ops" },
+  "docs.teams.stepOps.p1": {
+    fr: "Checklist : Azure Bot + secrets TEAMS_BOT_* / MICROSOFT_BOT_* dans Secret Manager, redirect URI, smoke test. Voir docs/teams-plus.md.",
+    en: "Checklist: Azure Bot + TEAMS_BOT_* / MICROSOFT_BOT_* secrets in Secret Manager, redirect URI, smoke test. See docs/teams-plus.md.",
+  },
+  "docs.teams.trouble1.title": { fr: "JWT rejeté", en: "JWT rejected" },
+  "docs.teams.trouble1.body": {
+    fr: "Vérifiez TEAMS_BOT_APP_ID (audience) et que le messaging endpoint pointe bien vers api.wroket.com.",
+    en: "Check TEAMS_BOT_APP_ID (audience) and that the messaging endpoint points to api.wroket.com.",
+  },
+  "docs.teams.trouble2.title": { fr: "Email introuvable", en: "Email not found" },
+  "docs.teams.trouble2.body": {
+    fr: "Le compte Entra doit exposer un email identique à Wroket. Reconnectez Teams depuis Paramètres.",
+    en: "The Entra account must expose an email matching Wroket. Reconnect Teams from Settings.",
   },
 
-  "docs.discord.metaTitle": { fr: "Guide Discord", en: "Discord guide" },
+  "docs.googleChat.metaTitle": { fr: "Guide Google Chat+", en: "Google Chat+ guide" },
+  "docs.googleChat.summary": {
+    fr: "App Google Chat + cartes v2 : notifications, actions et commandes @Wroket.",
+    en: "Google Chat app + cards v2: notifications, actions, and @Wroket commands.",
+  },
+  "docs.googleChat.benefit1": {
+    fr: "Parité Slack+ pour les équipes Google Workspace.",
+    en: "Slack+ parity for Google Workspace teams.",
+  },
+  "docs.googleChat.benefit2": {
+    fr: "Cartes interactives accept / decline / complete.",
+    en: "Interactive cards for accept / decline / complete.",
+  },
+  "docs.googleChat.benefit3": {
+    fr: "Digests PMO : my-week, overdue, team-risk.",
+    en: "PMO digests: my-week, overdue, team-risk.",
+  },
+  "docs.googleChat.prereq1": { fr: "Palier Small teams.", en: "Small teams plan." },
+  "docs.googleChat.prereq2": { fr: "App Chat configurée dans Google Cloud (voir docs/google-chat-plus.md).", en: "Chat app configured in Google Cloud (see docs/google-chat-plus.md)." },
+  "docs.googleChat.stepOauth.title": { fr: "Connecter Google Chat", en: "Connect Google Chat" },
+  "docs.googleChat.stepOauth.p1": {
+    fr: "Paramètres › Connexions › Google Chat. Autorisez les scopes Chat ; ajoutez l’app à l’espace cible.",
+    en: "Settings › Connections › Google Chat. Authorize Chat scopes; add the app to the target space.",
+  },
+  "docs.googleChat.stepWebhook.title": { fr: "Webhook (repli)", en: "Webhook (fallback)" },
+  "docs.googleChat.stepWebhook.p1": {
+    fr: "Créez un webhook d’espace puis enregistrez-le dans Webhooks avancés (plateforme Google Chat).",
+    en: "Create a space webhook then register it under Advanced webhooks (Google Chat platform).",
+  },
+  "docs.googleChat.stepActions.title": { fr: "Endpoint & actions", en: "Endpoint & actions" },
+  "docs.googleChat.stepActions.p1": {
+    fr: "POST https://api.wroket.com/integrations/google-chat/interactions — token de vérification GOOGLE_CHAT_VERIFICATION_TOKEN.",
+    en: "POST https://api.wroket.com/integrations/google-chat/interactions — GOOGLE_CHAT_VERIFICATION_TOKEN verification.",
+  },
+  "docs.googleChat.stepPmo.title": { fr: "Commandes", en: "Commands" },
+  "docs.googleChat.stepPmo.p1": {
+    fr: "@Wroket help | tasks | my-week | overdue | team-risk | open | accept | decline | complete.",
+    en: "@Wroket help | tasks | my-week | overdue | team-risk | open | accept | decline | complete.",
+  },
+  "docs.googleChat.stepOps.title": { fr: "Ops", en: "Ops" },
+  "docs.googleChat.stepOps.p1": {
+    fr: "Secrets GOOGLE_CHAT_* (ou GOOGLE_CLIENT_*), redirect URI, smoke. Voir docs/google-chat-plus.md.",
+    en: "GOOGLE_CHAT_* secrets (or GOOGLE_CLIENT_*), redirect URI, smoke. See docs/google-chat-plus.md.",
+  },
+  "docs.googleChat.trouble1.title": { fr: "Token invalide", en: "Invalid token" },
+  "docs.googleChat.trouble1.body": {
+    fr: "Alignez le Verification Token de la console Chat avec Secret Manager.",
+    en: "Align the Chat console Verification Token with Secret Manager.",
+  },
+
+  "docs.discord.metaTitle": { fr: "Guide Discord+", en: "Discord+ guide" },
   "docs.discord.summary": {
-    fr: "Webhook Discord pour les utilisateurs avancés (événements sélectionnés).",
-    en: "Discord webhook for advanced users (selected events).",
+    fr: "Bot Discord + Interactions HTTP : slash /wroket, boutons, liaison manuelle si pas d’email.",
+    en: "Discord bot + HTTP Interactions: /wroket slash, buttons, manual link if no email.",
   },
   "docs.discord.benefit1": {
-    fr: "Pour les équipes qui pilotent déjà leurs flux sur Discord.",
-    en: "For teams already running workflows on Discord.",
+    fr: "Parité Slack+ pour les communautés Discord.",
+    en: "Slack+ parity for Discord communities.",
   },
   "docs.discord.benefit2": {
-    fr: "Webhook avancé avec sélection fine des types d'événements.",
-    en: "Advanced webhook with fine-grained event selection.",
+    fr: "Slash commands + boutons de message.",
+    en: "Slash commands + message buttons.",
   },
   "docs.discord.benefit3": {
-    fr: "Alternative légère aux intégrations Slack/Teams pour les petites structures.",
-    en: "Lightweight alternative to Slack/Teams integrations for smaller teams.",
+    fr: "Liaison manuelle Discord user ID ↔ compte Wroket.",
+    en: "Manual Discord user ID ↔ Wroket account link.",
+  },
+  "docs.discord.benefit4": {
+    fr: "Webhook de salon toujours disponible en repli.",
+    en: "Channel webhook still available as fallback.",
   },
   "docs.discord.prereq1": { fr: "Palier Small teams.", en: "Small teams plan." },
-  "docs.discord.step1.title": { fr: "Créer un webhook de salon", en: "Create a channel webhook" },
-  "docs.discord.step1.p1": {
-    fr: "Paramètres du salon Discord › Intégrations › Webhooks › Nouveau webhook. Copiez l'URL.",
-    en: "Discord channel settings › Integrations › Webhooks › New webhook. Copy the URL.",
+  "docs.discord.prereq2": { fr: "Application Discord + Public Key (voir docs/discord-plus.md).", en: "Discord Application + Public Key (see docs/discord-plus.md)." },
+  "docs.discord.stepOauth.title": { fr: "Installer le bot", en: "Install the bot" },
+  "docs.discord.stepOauth.p1": {
+    fr: "Paramètres › Connexions › Discord. Choisissez le serveur à l’installation OAuth2.",
+    en: "Settings › Connections › Discord. Pick the guild during OAuth2 install.",
   },
-  "docs.discord.step2.title": { fr: "Ajouter dans Wroket", en: "Add in Wroket" },
-  "docs.discord.step2.p1": {
-    fr: "Paramètres › Intégrations › section Discord (webhook avancé). Limite : pas de thread routing natif en V1.",
-    en: "Settings › Integrations › Discord section (advanced webhook). Limit: no native thread routing in V1.",
+  "docs.discord.stepLink.title": { fr: "Lier le compte (sans email)", en: "Link account (no email)" },
+  "docs.discord.stepLink.p1": {
+    fr: "Mode développeur Discord → copiez votre ID utilisateur → collez-le dans la carte Discord (Lier).",
+    en: "Discord Developer Mode → copy your user ID → paste it in the Discord card (Link).",
+  },
+  "docs.discord.stepWebhook.title": { fr: "Webhook (repli)", en: "Webhook (fallback)" },
+  "docs.discord.stepWebhook.p1": {
+    fr: "Salon › Intégrations › Webhooks, puis Webhooks avancés dans Wroket.",
+    en: "Channel › Integrations › Webhooks, then Advanced webhooks in Wroket.",
+  },
+  "docs.discord.stepActions.title": { fr: "Interactions endpoint", en: "Interactions endpoint" },
+  "docs.discord.stepActions.p1": {
+    fr: "POST https://api.wroket.com/integrations/discord/interactions — signature Ed25519 (DISCORD_PUBLIC_KEY).",
+    en: "POST https://api.wroket.com/integrations/discord/interactions — Ed25519 signature (DISCORD_PUBLIC_KEY).",
+  },
+  "docs.discord.stepPmo.title": { fr: "Slash /wroket", en: "Slash /wroket" },
+  "docs.discord.stepPmo.p1": {
+    fr: "/wroket help|tasks|my-week|overdue|team-risk|open|accept|decline|complete — réponses éphémères.",
+    en: "/wroket help|tasks|my-week|overdue|team-risk|open|accept|decline|complete — ephemeral replies.",
+  },
+  "docs.discord.stepOps.title": { fr: "Ops", en: "Ops" },
+  "docs.discord.stepOps.p1": {
+    fr: "Secrets DISCORD_CLIENT_*, DISCORD_PUBLIC_KEY, DISCORD_BOT_TOKEN. Voir docs/discord-plus.md.",
+    en: "Secrets DISCORD_CLIENT_*, DISCORD_PUBLIC_KEY, DISCORD_BOT_TOKEN. See docs/discord-plus.md.",
+  },
+  "docs.discord.trouble1.title": { fr: "Signature invalide", en: "Invalid signature" },
+  "docs.discord.trouble1.body": {
+    fr: "Vérifiez DISCORD_PUBLIC_KEY (hex) et que l’Interactions URL est exacte.",
+    en: "Check DISCORD_PUBLIC_KEY (hex) and that the Interactions URL is exact.",
+  },
+  "docs.discord.trouble2.title": { fr: "Utilisateur non résolu", en: "User not resolved" },
+  "docs.discord.trouble2.body": {
+    fr: "Activez le scope email OAuth ou liez votre ID Discord dans Paramètres.",
+    en: "Enable the OAuth email scope or link your Discord ID in Settings.",
   },
 
   "docs.pricing.faq5q": {

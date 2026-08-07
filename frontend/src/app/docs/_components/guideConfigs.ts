@@ -11,6 +11,7 @@ export type DocGuideId =
   | "slack"
   | "mcp"
   | "teams"
+  | "google-chat"
   | "discord";
 
 export type DocGuideCategory = "product" | "integration";
@@ -371,6 +372,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
       { id: "oauth", titleKey: "docs.slack.stepOauth.title", paragraphKeys: ["docs.slack.stepOauth.p1", "docs.slack.stepOauth.p2"] },
       { id: "webhook", titleKey: "docs.slack.stepWebhook.title", paragraphKeys: ["docs.slack.stepWebhook.p1"] },
       { id: "actions", titleKey: "docs.slack.stepActions.title", paragraphKeys: ["docs.slack.stepActions.p1", "docs.slack.stepActions.p2"] },
+      { id: "pmo", titleKey: "docs.slack.stepPmo.title", paragraphKeys: ["docs.slack.stepPmo.p1"] },
       { id: "events", titleKey: "docs.slack.stepEvents.title", paragraphKeys: ["docs.slack.stepEvents.p1"] },
     ],
     troubleshooting: [
@@ -413,15 +415,46 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     metaTitleKey: "docs.teams.metaTitle",
     summaryKey: "docs.teams.summary",
     access: "smallTeams",
-    publicTeaser: false,
-    lastUpdated: "2026-06-17",
-    benefitKeys: ["docs.teams.benefit1", "docs.teams.benefit2", "docs.teams.benefit3"],
-    prerequisiteKeys: ["docs.teams.prereq1"],
+    publicTeaser: true,
+    lastUpdated: "2026-08-07",
+    benefitKeys: ["docs.teams.benefit1", "docs.teams.benefit2", "docs.teams.benefit3", "docs.teams.benefit4"],
+    prerequisiteKeys: ["docs.teams.prereq1", "docs.teams.prereq2"],
     sections: [
-      { id: "webhook", titleKey: "docs.teams.step1.title", paragraphKeys: ["docs.teams.step1.p1"] },
-      { id: "wroket", titleKey: "docs.teams.step2.title", paragraphKeys: ["docs.teams.step2.p1"] },
+      { id: "oauth", titleKey: "docs.teams.stepOauth.title", paragraphKeys: ["docs.teams.stepOauth.p1", "docs.teams.stepOauth.p2"] },
+      { id: "webhook", titleKey: "docs.teams.stepWebhook.title", paragraphKeys: ["docs.teams.stepWebhook.p1"] },
+      { id: "actions", titleKey: "docs.teams.stepActions.title", paragraphKeys: ["docs.teams.stepActions.p1"] },
+      { id: "pmo", titleKey: "docs.teams.stepPmo.title", paragraphKeys: ["docs.teams.stepPmo.p1"] },
+      { id: "ops", titleKey: "docs.teams.stepOps.title", paragraphKeys: ["docs.teams.stepOps.p1"] },
     ],
-    troubleshooting: [],
+    troubleshooting: [
+      { titleKey: "docs.teams.trouble1.title", bodyKey: "docs.teams.trouble1.body" },
+      { titleKey: "docs.teams.trouble2.title", bodyKey: "docs.teams.trouble2.body" },
+    ],
+    ctaHrefs: [{ labelKey: "docs.banner.ctaSettings", href: "/settings?tab=integrations" }],
+  },
+  {
+    id: "google-chat",
+    category: "integration",
+    href: "/docs/integrations/google-chat",
+    hubTitleKey: "docs.hub.googleChat.title",
+    hubSummaryKey: "docs.hub.googleChat.summary",
+    metaTitleKey: "docs.googleChat.metaTitle",
+    summaryKey: "docs.googleChat.summary",
+    access: "smallTeams",
+    publicTeaser: true,
+    lastUpdated: "2026-08-07",
+    benefitKeys: ["docs.googleChat.benefit1", "docs.googleChat.benefit2", "docs.googleChat.benefit3"],
+    prerequisiteKeys: ["docs.googleChat.prereq1", "docs.googleChat.prereq2"],
+    sections: [
+      { id: "oauth", titleKey: "docs.googleChat.stepOauth.title", paragraphKeys: ["docs.googleChat.stepOauth.p1"] },
+      { id: "webhook", titleKey: "docs.googleChat.stepWebhook.title", paragraphKeys: ["docs.googleChat.stepWebhook.p1"] },
+      { id: "actions", titleKey: "docs.googleChat.stepActions.title", paragraphKeys: ["docs.googleChat.stepActions.p1"] },
+      { id: "pmo", titleKey: "docs.googleChat.stepPmo.title", paragraphKeys: ["docs.googleChat.stepPmo.p1"] },
+      { id: "ops", titleKey: "docs.googleChat.stepOps.title", paragraphKeys: ["docs.googleChat.stepOps.p1"] },
+    ],
+    troubleshooting: [
+      { titleKey: "docs.googleChat.trouble1.title", bodyKey: "docs.googleChat.trouble1.body" },
+    ],
     ctaHrefs: [{ labelKey: "docs.banner.ctaSettings", href: "/settings?tab=integrations" }],
   },
   {
@@ -433,15 +466,22 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     metaTitleKey: "docs.discord.metaTitle",
     summaryKey: "docs.discord.summary",
     access: "smallTeams",
-    publicTeaser: false,
-    lastUpdated: "2026-06-17",
-    benefitKeys: ["docs.discord.benefit1", "docs.discord.benefit2", "docs.discord.benefit3"],
-    prerequisiteKeys: ["docs.discord.prereq1"],
+    publicTeaser: true,
+    lastUpdated: "2026-08-07",
+    benefitKeys: ["docs.discord.benefit1", "docs.discord.benefit2", "docs.discord.benefit3", "docs.discord.benefit4"],
+    prerequisiteKeys: ["docs.discord.prereq1", "docs.discord.prereq2"],
     sections: [
-      { id: "webhook", titleKey: "docs.discord.step1.title", paragraphKeys: ["docs.discord.step1.p1"] },
-      { id: "wroket", titleKey: "docs.discord.step2.title", paragraphKeys: ["docs.discord.step2.p1"] },
+      { id: "oauth", titleKey: "docs.discord.stepOauth.title", paragraphKeys: ["docs.discord.stepOauth.p1"] },
+      { id: "link", titleKey: "docs.discord.stepLink.title", paragraphKeys: ["docs.discord.stepLink.p1"] },
+      { id: "webhook", titleKey: "docs.discord.stepWebhook.title", paragraphKeys: ["docs.discord.stepWebhook.p1"] },
+      { id: "actions", titleKey: "docs.discord.stepActions.title", paragraphKeys: ["docs.discord.stepActions.p1"] },
+      { id: "pmo", titleKey: "docs.discord.stepPmo.title", paragraphKeys: ["docs.discord.stepPmo.p1"] },
+      { id: "ops", titleKey: "docs.discord.stepOps.title", paragraphKeys: ["docs.discord.stepOps.p1"] },
     ],
-    troubleshooting: [],
+    troubleshooting: [
+      { titleKey: "docs.discord.trouble1.title", bodyKey: "docs.discord.trouble1.body" },
+      { titleKey: "docs.discord.trouble2.title", bodyKey: "docs.discord.trouble2.body" },
+    ],
     ctaHrefs: [{ labelKey: "docs.banner.ctaSettings", href: "/settings?tab=integrations" }],
   },
 ];

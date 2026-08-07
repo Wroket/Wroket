@@ -291,6 +291,31 @@ export async function deleteUserData(uid: string): Promise<void> {
     console.warn("[rgpd] slack disconnect failed:", err);
   }
 
+  try {
+    const { deleteTeamsConnectionForUser } = await import("./teamsConnectionService");
+    deleteTeamsConnectionForUser(uid);
+  } catch (err) {
+    console.warn("[rgpd] teams disconnect failed:", err);
+  }
+
+  try {
+    const { deleteGoogleChatConnectionForUser } = await import("./googleChatConnectionService");
+    deleteGoogleChatConnectionForUser(uid);
+  } catch (err) {
+    console.warn("[rgpd] google chat disconnect failed:", err);
+  }
+
+  try {
+    const {
+      deleteDiscordConnectionForUser,
+      unlinkDiscordAccount,
+    } = await import("./discordConnectionService");
+    deleteDiscordConnectionForUser(uid);
+    unlinkDiscordAccount(uid);
+  } catch (err) {
+    console.warn("[rgpd] discord disconnect failed:", err);
+  }
+
   const stripeSubIds: string[] = [];
   const userRecord = users[uid] as { stripeSubscriptionId?: string } | undefined;
   if (typeof userRecord?.stripeSubscriptionId === "string" && userRecord.stripeSubscriptionId.trim()) {
