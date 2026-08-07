@@ -281,6 +281,16 @@ export async function deleteUserData(uid: string): Promise<void> {
   delete webhookStore[uid];
   scheduleSave("webhooks");
 
+  // Remove Slack OAuth connection (+ revoke best-effort)
+  try {
+    const { deleteSlackConnectionForUser } = await import("./slackConnectionService");
+    const { revokeSlackToken } = await import("./slackApiService");
+    const removed = deleteSlackConnectionForUser(uid);
+    if (removed?.accessToken) await revokeSlackToken(removed.accessToken);
+  } catch (err) {
+    console.warn("[rgpd] slack disconnect failed:", err);
+  }
+
   const stripeSubIds: string[] = [];
   const userRecord = users[uid] as { stripeSubscriptionId?: string } | undefined;
   if (typeof userRecord?.stripeSubscriptionId === "string" && userRecord.stripeSubscriptionId.trim()) {

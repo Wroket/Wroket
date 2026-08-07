@@ -266,9 +266,6 @@ function flushUserDigest(userId: string): void {
       return;
     }
 
-    if (!prefs.webhookUrl) return;
-    const url = prefs.webhookUrl;
-
     let body: unknown;
     if (prefs.mode === "slack") {
       body = buildSlackDigestBlocks(entries);
@@ -280,12 +277,23 @@ function flushUserDigest(userId: string): void {
       return;
     }
 
-    void fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8_000),
-    }).catch((err) => {
+    void (async () => {
+      if (prefs.mode === "slack") {
+        try {
+          const { tryPostViaSlackOAuth } = await import("./slackApiService");
+          if (await tryPostViaSlackOAuth(userId, body)) return;
+        } catch (err) {
+          console.warn("[digest] slack oauth failed for %s: %s", userId, (err as Error).message ?? err);
+        }
+      }
+      if (!prefs.webhookUrl) return;
+      await fetch(prefs.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(8_000),
+      });
+    })().catch((err) => {
       console.warn("[digest] outbound flush failed for %s: %s", userId, (err as Error).message ?? err);
     });
   } catch (err) {

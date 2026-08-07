@@ -5,6 +5,7 @@ import { NotFoundError } from "../utils/errors";
 import { findUserByUid, getEntitlementsForUid, getNotificationDeliveryPrefs, getNotificationFilterPrefs } from "./authService";
 import { enqueueDigest } from "./digestService";
 import { sendNotificationEmail } from "./emailService";
+import { getProjectById } from "./projectService";
 import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
 import { sendWebPushForNotification } from "./webPushService";
 import { filterNotificationsForDisplay } from "./notificationDisplayPolicy";
@@ -20,7 +21,10 @@ export type NotificationType =
   | "deadline_today"
   | "comment_mention"
   | "note_mention"
-  | "project_deleted";
+  | "project_deleted"
+  | "dependency_blocked"
+  | "milestone_due_soon"
+  | "project_at_risk";
 
 export interface Notification {
   id: string;
@@ -88,6 +92,14 @@ export function createNotification(
   if (recipient?.email && !enriched.recipientEmail) {
     enriched.recipientEmail = recipient.email;
   }
+  // Enrich project / team for webhook filters when producers pass projectId.
+  if (enriched.projectId && (!enriched.projectName || !enriched.teamId)) {
+    const project = getProjectById(enriched.projectId);
+    if (project) {
+      if (!enriched.projectName) enriched.projectName = project.name;
+      if (!enriched.teamId && project.teamId) enriched.teamId = project.teamId;
+    }
+  }
   const payloadData: Record<string, string> | undefined =
     Object.keys(enriched).length > 0 ? enriched : undefined;
 
@@ -152,11 +164,39 @@ function deliverProfileOutbound(
     void sendNotificationEmail(prefs.email, title, message, data);
     return;
   }
+  if (prefs.mode === "slack") {
+    // Prefer OAuth chat.postMessage; fall back to Incoming Webhook URL.
+    if (prefs.webhookUrl) {
+      dispatchOutboundWebhook(prefs.webhookUrl, "slack", type as WebhookEvent, title, message, data, userId);
+    } else {
+      void (async () => {
+        try {
+          const { formatWebhookPayload } = await import("./webhookService");
+          const { tryPostViaSlackOAuth } = await import("./slackApiService");
+          const body = formatWebhookPayload(
+            "slack",
+            {
+              event: type as WebhookEvent,
+              title,
+              message,
+              data,
+              timestamp: new Date().toISOString(),
+            },
+            { interactive: true, actorUid: userId },
+          );
+          await tryPostViaSlackOAuth(userId, body);
+        } catch (err) {
+          console.warn("[notifications] slack oauth outbound failed:", err);
+        }
+      })();
+    }
+    return;
+  }
   if (
-    (prefs.mode === "slack" || prefs.mode === "teams" || prefs.mode === "google_chat") &&
+    (prefs.mode === "teams" || prefs.mode === "google_chat") &&
     prefs.webhookUrl
   ) {
-    dispatchOutboundWebhook(prefs.webhookUrl, prefs.mode, type as WebhookEvent, title, message, data);
+    dispatchOutboundWebhook(prefs.webhookUrl, prefs.mode, type as WebhookEvent, title, message, data, userId);
   }
 }
 

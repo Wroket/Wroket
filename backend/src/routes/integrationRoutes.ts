@@ -25,6 +25,11 @@ import {
   listMondayDocsHandler,
   previewMondayDocsSync,
   confirmMondayDocsSync,
+  slackConnect,
+  slackCallback,
+  slackStatus,
+  disconnectSlack,
+  slackTestPost,
 } from "../controllers/integrationsController";
 
 const router = Router();
@@ -55,6 +60,13 @@ router.post("/monday/confirm-sync", requireAuth, confirmMondaySync);
 router.post("/monday/preview-data-sync", requireAuth, previewMondayDataSync);
 router.post("/monday/confirm-data-sync", requireAuth, confirmMondayDataSync);
 router.delete("/monday/connection", requireAuth, disconnectMonday);
+
+/** Slack OAuth (Lot 2) — chat.postMessage + Incoming Webhook channel pick */
+router.get("/slack/connect", requireAuth, slackConnect);
+router.get("/slack/callback", slackCallback);
+router.get("/slack/status", requireAuth, slackStatus);
+router.post("/slack/test", requireAuth, slackTestPost);
+router.delete("/slack/connection", requireAuth, disconnectSlack);
 
 /** Monday Docs → Wroket Documents */
 router.get("/monday/docs", requireAuth, listMondayDocsHandler);

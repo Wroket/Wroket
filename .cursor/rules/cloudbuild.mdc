@@ -18,6 +18,7 @@ Pour `gcloud run deploy`, **`--set-secrets` définit la liste complète** des va
 - Après la migration **sans chiffrement contenu** (Option A), **`CRYPTO_KEK_BASE64` ne doit plus** être injecté au runtime pour l’API. Le `cloudbuild.yaml` doit monter **`OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest`** (et pas remplacer par erreur par le seul KEK).
 - Intégrations Notion : **`NOTION_CLIENT_ID`**, **`NOTION_CLIENT_SECRET`** (Secret Manager) + **`NOTION_REDIRECT_URI`** (env en clair dans `--update-env-vars`, ex. `https://api.wroket.com/integrations/notion/callback`).
 - Intégrations Monday : **`MONDAY_CLIENT_ID`**, **`MONDAY_CLIENT_SECRET`** (Secret Manager) + **`MONDAY_REDIRECT_URI`** (env en clair, ex. `https://api.wroket.com/integrations/monday/callback`). Scopes OAuth : `boards:read docs:read` via **`MONDAY_OAUTH_SCOPES`** (doit correspondre exactement aux scopes cochés dans Monday Dev).
+- Intégrations Slack : **`SLACK_CLIENT_ID`**, **`SLACK_CLIENT_SECRET`** (Secret Manager — à ajouter à `--set-secrets` seulement une fois créés) + **`SLACK_REDIRECT_URI`** (env en clair). Lot 3 : **`SLACK_SIGNING_SECRET`** (Secret Manager, même règle) pour `POST /integrations/slack/interactions` et `/commands`. Scopes bot : `chat:write`, `channels:read`, `groups:read`, `incoming-webhook`, `users:read`, `users:read.email`.
 - Le compte **`wroket-run@…`** doit avoir **Secret Manager Secret Accessor** sur chaque secret référencé.
 
 ## Avant un push sur `main`

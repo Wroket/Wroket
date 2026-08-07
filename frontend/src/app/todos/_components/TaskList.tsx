@@ -269,8 +269,8 @@ export default function TaskList({
   const thBtn =
     `inline-flex items-center gap-0.5 ${thLabel} cursor-pointer select-none hover:text-zinc-900 dark:hover:text-slate-100 transition-colors`;
   const thPy = uiV2 ? "py-2" : "py-3";
-  /** V2 widths come from `.task-list-col-*` in globals.css — avoid Tailwind width utilities. */
-  const thPad = uiV2 ? `px-2 ${thPy}` : `px-4 ${thPy}`;
+  /** Meta cells match V1 `px-4`; widths come from `.task-list-col-*` in globals.css. */
+  const thPad = `px-4 ${thPy}`;
   const metaCol = uiV2 ? "task-list-col-meta" : "w-24";
   const thBase = `text-left ${thLabel}`;
   const thMeta = `text-center ${thLabel}`;

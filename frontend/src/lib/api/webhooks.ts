@@ -10,9 +10,14 @@ export type WebhookEvent =
   | "deadline_approaching"
   | "deadline_today"
   | "comment_mention"
-  | "project_deleted";
+  | "project_deleted"
+  | "dependency_blocked"
+  | "milestone_due_soon"
+  | "project_at_risk";
 
 export type WebhookPlatform = "slack" | "discord" | "teams" | "google_chat" | "custom";
+
+export type WebhookDeliveryStatus = "ok" | "error";
 
 export interface WebhookConfig {
   id: string;
@@ -22,6 +27,14 @@ export interface WebhookConfig {
   events: WebhookEvent[];
   enabled: boolean;
   createdAt: string;
+  projectIds?: string[];
+  teamIds?: string[];
+  lastDeliveryAt?: string;
+  lastStatus?: WebhookDeliveryStatus;
+  lastStatusCode?: number;
+  lastError?: string;
+  consecutiveFailures?: number;
+  backoffUntil?: string;
 }
 
 export async function getWebhooks(): Promise<WebhookConfig[]> {
@@ -46,11 +59,15 @@ export async function deleteWebhookApi(id: string): Promise<void> {
   if (!res.ok) throw new Error("Impossible de supprimer le webhook");
 }
 
-export async function testWebhookApi(url: string, platform: WebhookPlatform): Promise<boolean> {
+export async function testWebhookApi(
+  url: string,
+  platform: WebhookPlatform,
+  webhookId?: string,
+): Promise<boolean> {
   const res = await fetch(`${API_BASE_URL}/webhooks/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, platform }),
+    body: JSON.stringify({ url, platform, webhookId }),
     credentials: "include",
   });
   if (!res.ok) return false;

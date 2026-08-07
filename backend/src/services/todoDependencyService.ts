@@ -115,6 +115,39 @@ export async function assertCanCompleteTodo(userId: string, todo: Todo): Promise
   const blockers = await getActiveBlockersForTodo(todo);
   if (blockers.length === 0) return;
 
+  // PMO webhook event: notify once per day when complete is refused (avoid cycles via dynamic import).
+  try {
+    const { createNotification, listNotifications } = await import("./notificationService");
+    const todayStr = new Date().toISOString().split("T")[0];
+    const alreadyToday = listNotifications(userId).some(
+      (n) =>
+        n.type === "dependency_blocked" &&
+        n.data?.todoId === todo.id &&
+        n.createdAt.startsWith(todayStr),
+    );
+    if (!alreadyToday) {
+      const blockerTitles = blockers
+        .slice(0, 3)
+        .map((b) => b.title)
+        .join(", ");
+      const more = blockers.length > 3 ? ` (+${blockers.length - 3})` : "";
+      createNotification(
+        userId,
+        "dependency_blocked",
+        "Tâche bloquée",
+        `Impossible de terminer « ${todo.title} » : dépendances actives (${blockerTitles}${more})`,
+        {
+          todoId: todo.id,
+          todoTitle: todo.title,
+          ...(todo.projectId ? { projectId: todo.projectId } : {}),
+          blockerIds: blockers.map((b) => b.id).join(","),
+        },
+      );
+    }
+  } catch (err) {
+    console.warn("[deps] dependency_blocked notification failed:", err);
+  }
+
   throw new UnprocessableEntityError(
     "Cette tâche est bloquée par d'autres tâches non terminées",
     "TASK_BLOCKED_BY_ACTIVE",

@@ -172,14 +172,14 @@ export default function SubtaskSortableRows({
               return (
                 <td
                   key={col}
-                  className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center`}
+                  className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center`}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {!onPriorityChange || sub.status !== "active" ? (
                     <span className={`${metaTag} ${subBadge.cls}`}>{t(subBadge.tKey)}</span>
                   ) : (
                     <Menu
-                      className={uiV2 ? undefined : "w-full"}
+                      className="w-full"
                       label={t("a11y.changePriority")}
                       trigger={t(subBadge.tKey)}
                       triggerProps={{
@@ -201,14 +201,14 @@ export default function SubtaskSortableRows({
               return (
                 <td
                   key={col}
-                  className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center`}
+                  className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center`}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {!onEffortChange || sub.status !== "active" ? (
                     <span className={`${metaTag} ${effortBadge.cls}`}>{t(effortBadge.tKey)}</span>
                   ) : (
                     <Menu
-                      className={uiV2 ? undefined : "w-full"}
+                      className="w-full"
                       label={t("a11y.changeEffort")}
                       trigger={t(effortBadge.tKey)}
                       triggerProps={{
@@ -229,7 +229,7 @@ export default function SubtaskSortableRows({
               return (
                 <td
                   key={col}
-                  className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center cursor-pointer`}
+                  className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center cursor-pointer`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onEdit(sub, "planning");
@@ -246,7 +246,7 @@ export default function SubtaskSortableRows({
               return (
                 <td
                   key={col}
-                  className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center`}
+                  className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-2 align-top text-center`}
                 >
                   <span className={`${metaTag} ${qBadge.cls}`}>
                     {t(qBadge.tKey)}

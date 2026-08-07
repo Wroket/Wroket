@@ -17,6 +17,16 @@ import {
   isMondayOAuthConfigured,
 } from "../services/mondayOAuthService";
 import {
+  exchangeSlackOAuthCode,
+  getSlackAuthorizeUrl,
+  isSlackOAuthConfigured,
+} from "../services/slackOAuthService";
+import {
+  deleteSlackConnectionForUser,
+  getSlackConnectionSummary,
+} from "../services/slackConnectionService";
+import { postSlackTestMessage, revokeSlackToken } from "../services/slackApiService";
+import {
   buildNotionDatabaseSnapshot,
   buildNotionContactsSnapshot,
   buildNotionDataSnapshot,
@@ -66,6 +76,14 @@ import { ForbiddenError, ValidationError } from "../utils/errors";
 
 function assertIntegrationsEntitlement(uid: string): void {
   assertSyncEntitlement(uid);
+}
+
+function assertIntegrationsEntitlementEffective(uid: string, email: string): void {
+  if (!getEffectiveEntitlementsForUid(uid, email).integrations) {
+    throw new ForbiddenError(
+      "Les webhooks et intégrations nécessitent le palier Small teams ou le statut early bird (attribué par un administrateur).",
+    );
+  }
 }
 
 export async function listConnections(req: AuthenticatedRequest, res: Response) {
@@ -701,4 +719,87 @@ export async function confirmMondayDocsSync(req: AuthenticatedRequest, res: Resp
     folder,
     projectId,
   });
+}
+
+/* ─── Slack OAuth (Lot 2) ─── */
+
+export async function slackConnect(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  if (!isSlackOAuthConfigured()) {
+    throw new ValidationError(
+      "Intégration Slack non configurée sur le serveur (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET)",
+      "SLACK_OAUTH_NOT_CONFIGURED",
+    );
+  }
+  const returnTo = sanitizeOAuthReturnTo(
+    typeof req.query.returnTo === "string" ? req.query.returnTo : undefined,
+  );
+  const url = getSlackAuthorizeUrl(req.user!.uid, returnTo);
+  res.redirect(url);
+}
+
+export async function slackCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const code = req.query.code as string | undefined;
+  const state = req.query.state as string | undefined;
+  const error = req.query.error as string | undefined;
+
+  if (error || !code || !state) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=slack_auth_failed`);
+    return;
+  }
+
+  const statePayload = consumeOAuthState(state);
+  if (!statePayload) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=slack_auth_failed`);
+    return;
+  }
+  const { uid, returnTo } = statePayload;
+
+  const userEmail = findUserByUid(uid)?.email ?? "";
+  if (!getEffectiveEntitlementsForUid(uid, userEmail).integrations) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=integrations_plan_required`);
+    return;
+  }
+
+  const user = findUserByUid(uid);
+  if (!user?.email) {
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=slack_auth_failed`);
+    return;
+  }
+
+  try {
+    await exchangeSlackOAuthCode(code, uid, user.email);
+    const dest = returnTo
+      ? `${frontendUrl}${returnTo}${returnTo.includes("?") ? "&" : "?"}slack=connected`
+      : `${frontendUrl}/settings?tab=integrations&slack=connected`;
+    res.redirect(dest);
+  } catch (err) {
+    console.error("[slack-oauth] callback failed:", err);
+    res.redirect(`${frontendUrl}/settings?tab=integrations&error=slack_auth_failed`);
+  }
+}
+
+export async function slackStatus(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  res.status(200).json(getSlackConnectionSummary(req.user!.uid));
+}
+
+export async function disconnectSlack(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const removed = deleteSlackConnectionForUser(req.user!.uid);
+  if (removed?.accessToken) {
+    await revokeSlackToken(removed.accessToken);
+  }
+  res.status(200).json({ disconnected: !!removed });
+}
+
+export async function slackTestPost(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const summary = getSlackConnectionSummary(req.user!.uid);
+  if (!summary.connected) {
+    throw new ForbiddenError("Slack n'est pas connecté", "SLACK_NOT_CONNECTED");
+  }
+  await postSlackTestMessage(req.user!.uid);
+  res.status(200).json({ ok: true });
 }

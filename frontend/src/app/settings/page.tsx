@@ -61,10 +61,15 @@ import { formatUserFacingError } from "@/lib/apiErrors";
 import {
   connectNotionOAuth,
   connectMondayOAuth,
+  connectSlackOAuth,
   disconnectNotionConnection,
   disconnectMondayConnection,
+  disconnectSlackConnection,
   getConnections,
+  getSlackStatus,
+  testSlackConnection,
   type AppConnectionSummary,
+  type SlackConnectionStatus,
 } from "@/lib/api/integrations";
 import {
   billingPlanCodeKey,
@@ -1489,6 +1494,9 @@ const ALL_EVENTS: { key: WebhookEvent; tKey: TranslationKey }[] = [
   { key: "deadline_today", tKey: "settings.eventDeadlineToday" },
   { key: "comment_mention", tKey: "settings.eventCommentMention" },
   { key: "project_deleted", tKey: "settings.eventProjectDeleted" },
+  { key: "dependency_blocked", tKey: "settings.eventDependencyBlocked" },
+  { key: "milestone_due_soon", tKey: "settings.eventMilestoneDueSoon" },
+  { key: "project_at_risk", tKey: "settings.eventProjectAtRisk" },
 ];
 
 const PLATFORMS: { key: WebhookPlatform; label: string }[] = [
@@ -1839,8 +1847,10 @@ function ConnectedAppsBlock({
   const router = useRouter();
   const oauthToastHandled = useRef(false);
   const [connections, setConnections] = useState<AppConnectionSummary[]>([]);
+  const [slackStatus, setSlackStatus] = useState<SlackConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [slackTesting, setSlackTesting] = useState(false);
 
   const integrationActionBtn =
     "w-full rounded-md px-3 py-2 text-xs font-medium text-center border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/25 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors";
@@ -1853,8 +1863,12 @@ function ConnectedAppsBlock({
 
   const refresh = useCallback(async () => {
     try {
-      const list = await getConnections();
+      const [list, slack] = await Promise.all([
+        getConnections(),
+        getSlackStatus().catch(() => null),
+      ]);
       setConnections(list);
+      if (slack) setSlackStatus(slack);
     } catch {
       /* ignore */
     } finally {
@@ -1872,7 +1886,8 @@ function ConnectedAppsBlock({
     const params = new URLSearchParams(oauthQuery);
     const notionOk = params.get("notion") === "connected";
     const mondayOk = params.get("monday") === "connected";
-    if (!notionOk && !mondayOk) {
+    const slackOk = params.get("slack") === "connected";
+    if (!notionOk && !mondayOk && !slackOk) {
       oauthToastHandled.current = false;
       return;
     }
@@ -1881,10 +1896,12 @@ function ConnectedAppsBlock({
 
     if (notionOk) toast.success(t("settings.notionConnectedToast"));
     if (mondayOk) toast.success(t("settings.mondayConnectedToast"));
+    if (slackOk) toast.success(t("settings.slackConnectedToast"));
     void refresh();
 
     params.delete("notion");
     params.delete("monday");
+    params.delete("slack");
     const qs = params.toString();
     router.replace(qs ? `/settings?${qs}` : "/settings", { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2084,6 +2101,86 @@ function ConnectedAppsBlock({
               </div>
             );
           })}
+          {/* Slack OAuth (Lot 2) — separate from Notion/Monday sync providers */}
+          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5 flex flex-col min-h-[180px] hover:shadow-md dark:hover:border-slate-500 transition-[color,background-color,border-color,box-shadow] duration-200">
+            <div className="flex items-start gap-3 mb-3">
+              <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${integrationIconShell}`}>
+                <span className={`text-sm font-bold tracking-tight ${integrationIconLetter}`}>S</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionSlack")}</h5>
+                <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionSlackDesc")}</p>
+                <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-1">{t("settings.connectionSlackActionsHint")}</p>
+              </div>
+            </div>
+            {slackStatus?.connected ? (
+              <div className="mt-auto space-y-2">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  {t("settings.connectionSlackConnected")}
+                  {slackStatus.teamName ? ` · ${slackStatus.teamName}` : ""}
+                </p>
+                {slackStatus.channelName && (
+                  <p className="text-xs text-zinc-500 dark:text-slate-400">
+                    {t("settings.connectionSlackChannel")}: #{slackStatus.channelName.replace(/^#/, "")}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={!hasIntegrations || slackTesting}
+                  onClick={async () => {
+                    setSlackTesting(true);
+                    try {
+                      await testSlackConnection();
+                      toast.success(t("settings.connectionSlackTestOk"));
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
+                    } finally {
+                      setSlackTesting(false);
+                    }
+                  }}
+                  className={`${integrationSecondaryBtn} relative z-0`}
+                >
+                  {slackTesting ? "…" : t("settings.connectionSlackTest")}
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasIntegrations}
+                  onClick={() => connectSlackOAuth("/settings?tab=integrations")}
+                  className={`${integrationSecondaryBtn} relative z-0`}
+                >
+                  {t("settings.connectionSlackReconnect")}
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasIntegrations || disconnecting === "slack"}
+                  onClick={async () => {
+                    setDisconnecting("slack");
+                    try {
+                      await disconnectSlackConnection();
+                      await refresh();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
+                    } finally {
+                      setDisconnecting(null);
+                    }
+                  }}
+                  className="relative z-0 self-end rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-50 transition-colors"
+                >
+                  {t("settings.connectionDisconnect")}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={!hasIntegrations}
+                title={!hasIntegrations ? t("planRequired.small") : undefined}
+                onClick={() => connectSlackOAuth("/settings?tab=integrations")}
+                className={`${integrationConnectBtn} relative z-0 mt-auto disabled:opacity-50`}
+              >
+                {t("settings.connectionConnect")}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -2122,6 +2219,8 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
   const [url, setUrl] = useState("");
   const [platform, setPlatform] = useState<WebhookPlatform>("slack");
   const [events, setEvents] = useState<WebhookEvent[]>(["task_assigned", "task_completed"]);
+  const [projectIdsText, setProjectIdsText] = useState("");
+  const [teamIdsText, setTeamIdsText] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean } | null>(null);
@@ -2234,6 +2333,8 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     setUrl("");
     setPlatform("slack");
     setEvents(["task_assigned", "task_completed"]);
+    setProjectIdsText("");
+    setTeamIdsText("");
     setShowForm(false);
   };
 
@@ -2243,6 +2344,8 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     setUrl(wh.url);
     setPlatform(wh.platform);
     setEvents([...wh.events]);
+    setProjectIdsText((wh.projectIds ?? []).join(", "));
+    setTeamIdsText((wh.teamIds ?? []).join(", "));
     setShowForm(true);
   };
 
@@ -2256,6 +2359,11 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     if (!url.trim()) return;
     setSaving(true);
     try {
+      const parseIds = (raw: string) =>
+        raw
+          .split(/[,;\s]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
       const saved = await saveWebhook({
         id: editId,
         label: label.trim() || "Webhook",
@@ -2263,6 +2371,8 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
         platform,
         events,
         enabled: true,
+        projectIds: parseIds(projectIdsText),
+        teamIds: parseIds(teamIdsText),
       });
       if (editId) {
         setWebhooks((prev) => prev.map((w) => w.id === editId ? saved : w));
@@ -2295,14 +2405,50 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     setTesting(wh.id);
     setTestResult(null);
     try {
-      const ok = await testWebhookApi(wh.url, wh.platform);
+      const ok = await testWebhookApi(wh.url, wh.platform, wh.id);
       setTestResult({ id: wh.id, ok });
+      const list = await getWebhooks();
+      setWebhooks(list);
     } catch {
       setTestResult({ id: wh.id, ok: false });
     } finally {
       setTesting(null);
       setTimeout(() => setTestResult(null), 4000);
     }
+  };
+
+  const webhookHealthBadge = (wh: WebhookConfig) => {
+    const inBackoff = wh.backoffUntil && new Date(wh.backoffUntil).getTime() > Date.now();
+    if (inBackoff) {
+      return (
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          {t("settings.webhookHealthBackoff")}
+        </span>
+      );
+    }
+    if (wh.lastStatus === "ok") {
+      return (
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" title={wh.lastDeliveryAt}>
+          {t("settings.webhookHealthOk")}
+        </span>
+      );
+    }
+    if (wh.lastStatus === "error") {
+      return (
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+          title={wh.lastError ?? wh.lastDeliveryAt}
+        >
+          {t("settings.webhookHealthError")}
+          {wh.lastStatusCode ? ` (${wh.lastStatusCode})` : ""}
+        </span>
+      );
+    }
+    return (
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-zinc-100 text-zinc-400 dark:bg-slate-800 dark:text-slate-500">
+        {t("settings.webhookHealthNever")}
+      </span>
+    );
   };
 
   const inputCls = "w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 focus:border-slate-700 dark:focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-700 dark:focus:ring-slate-400";
@@ -2477,6 +2623,7 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
                   <p className="text-sm font-medium text-zinc-900 dark:text-slate-100 truncate">{wh.label}</p>
                   <p className="text-[10px] text-zinc-400 dark:text-slate-500 truncate">{wh.url}</p>
                 </div>
+                {webhookHealthBadge(wh)}
                 <button
                   type="button"
                   onClick={() => handleToggle(wh)}
@@ -2555,6 +2702,28 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookUrl")}</label>
             <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.webhookUrlPlaceholder")} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookProjectIds")}</label>
+            <input
+              type="text"
+              value={projectIdsText}
+              onChange={(e) => setProjectIdsText(e.target.value)}
+              placeholder="proj_…, …"
+              className={inputCls}
+            />
+            <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-1">{t("settings.webhookProjectIdsHint")}</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.webhookTeamIds")}</label>
+            <input
+              type="text"
+              value={teamIdsText}
+              onChange={(e) => setTeamIdsText(e.target.value)}
+              placeholder="team_…, …"
+              className={inputCls}
+            />
+            <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-1">{t("settings.webhookTeamIdsHint")}</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-2">{t("settings.webhookEvents")}</label>

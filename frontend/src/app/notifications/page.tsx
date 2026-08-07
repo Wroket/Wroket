@@ -28,6 +28,10 @@ const NOTIF_ICON: Record<string, { icon: string; bg: string }> = {
   deadline_today: { icon: "🔴", bg: "bg-red-100 dark:bg-red-900/30" },
   comment_mention: { icon: "💬", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
   note_mention: { icon: "📝", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
+  project_deleted: { icon: "🗑️", bg: "bg-zinc-200 dark:bg-slate-700/50" },
+  dependency_blocked: { icon: "🧱", bg: "bg-orange-100 dark:bg-orange-900/30" },
+  milestone_due_soon: { icon: "🏁", bg: "bg-amber-100 dark:bg-amber-900/30" },
+  project_at_risk: { icon: "⚠️", bg: "bg-red-100 dark:bg-red-900/30" },
 };
 
 function timeAgo(iso: string, t: (k: TranslationKey) => string): string {

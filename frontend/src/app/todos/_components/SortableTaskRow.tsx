@@ -284,7 +284,7 @@ export default function SortableTaskRow({
         return (
           <td
             key={col}
-            className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
+            className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
             onClick={(e) => e.stopPropagation()}
           >
             {isArchived || !onPriorityChange ? (
@@ -293,7 +293,7 @@ export default function SortableTaskRow({
               </span>
             ) : (
               <Menu
-                className={uiV2 ? undefined : "w-full"}
+                className="w-full"
                 label={t("a11y.changePriority")}
                 trigger={t(badge.tKey)}
                 triggerProps={{
@@ -316,17 +316,17 @@ export default function SortableTaskRow({
         return (
           <td
             key={col}
-            className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
+            className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`flex items-center gap-1 ${uiV2 ? "justify-center" : "flex-col items-stretch"}`}>
+            <div className="flex flex-col items-stretch gap-1">
               {isArchived || !onEffortChange ? (
                 <span className={`${metaTag} ${effortBadge.cls}`}>
                   {t(effortBadge.tKey)}
                 </span>
               ) : (
                 <Menu
-                  className={uiV2 ? undefined : "w-full"}
+                  className="w-full"
                   label={t("a11y.changeEffort")}
                   trigger={t(effortBadge.tKey)}
                   triggerProps={{
@@ -354,7 +354,7 @@ export default function SortableTaskRow({
         return (
           <td
             key={col}
-            className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
+            className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(todo, "planning");
@@ -371,7 +371,7 @@ export default function SortableTaskRow({
         return (
           <td
             key={col}
-            className={`${uiV2 ? "px-2 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
+            className={`${uiV2 ? "px-4 task-list-col-meta" : "px-4 w-24"} py-3 align-top text-center`}
           >
             <span className={`${metaTag} ${qBadge.cls}`}>
               {t(qBadge.tKey)}

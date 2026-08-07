@@ -18,6 +18,12 @@ function assertIntegrationsEntitled(uid: string, email: string): void {
   }
 }
 
+function parseIdList(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const ids = raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
+  return ids;
+}
+
 export async function getWebhooks(req: AuthenticatedRequest, res: Response) {
   assertIntegrationsEntitled(req.user!.uid, req.user!.email);
   const list = listWebhooks(req.user!.uid);
@@ -26,7 +32,7 @@ export async function getWebhooks(req: AuthenticatedRequest, res: Response) {
 
 export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response) {
   assertIntegrationsEntitled(req.user!.uid, req.user!.email);
-  const { id, label, url, platform, events, enabled } = req.body as Record<string, unknown>;
+  const { id, label, url, platform, events, enabled, projectIds, teamIds } = req.body as Record<string, unknown>;
 
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
     throw new ValidationError("URL de webhook invalide");
@@ -39,6 +45,8 @@ export async function postUpsertWebhook(req: AuthenticatedRequest, res: Response
     platform: (platform as string) || "custom",
     events: Array.isArray(events) ? events : [],
     enabled: typeof enabled === "boolean" ? enabled : true,
+    projectIds: parseIdList(projectIds),
+    teamIds: parseIdList(teamIds),
   } as Parameters<typeof upsertWebhook>[1]);
 
   res.status(200).json(config);
@@ -54,11 +62,14 @@ export async function postDeleteWebhook(req: AuthenticatedRequest, res: Response
 
 export async function postTestWebhook(req: AuthenticatedRequest, res: Response) {
   assertIntegrationsEntitled(req.user!.uid, req.user!.email);
-  const { url, platform } = req.body as { url?: string; platform?: string };
+  const { url, platform, webhookId } = req.body as { url?: string; platform?: string; webhookId?: string };
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
     throw new ValidationError("URL de webhook invalide");
   }
 
-  const success = await testWebhook(url, (platform as Parameters<typeof testWebhook>[1]) || "custom");
+  const success = await testWebhook(url, (platform as Parameters<typeof testWebhook>[1]) || "custom", {
+    uid: req.user!.uid,
+    webhookId: typeof webhookId === "string" ? webhookId : undefined,
+  });
   res.status(200).json({ success });
 }

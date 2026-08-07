@@ -21,9 +21,14 @@ export type WebhookEvent =
   | "deadline_approaching"
   | "deadline_today"
   | "comment_mention"
-  | "project_deleted";
+  | "project_deleted"
+  | "dependency_blocked"
+  | "milestone_due_soon"
+  | "project_at_risk";
 
 export type WebhookPlatform = "slack" | "discord" | "teams" | "google_chat" | "custom";
+
+export type WebhookDeliveryStatus = "ok" | "error";
 
 export interface WebhookConfig {
   id: string;
@@ -33,6 +38,17 @@ export interface WebhookConfig {
   events: WebhookEvent[];
   enabled: boolean;
   createdAt: string;
+  /** Empty / omitted = all projects. */
+  projectIds?: string[];
+  /** Empty / omitted = all teams. */
+  teamIds?: string[];
+  lastDeliveryAt?: string;
+  lastStatus?: WebhookDeliveryStatus;
+  lastStatusCode?: number;
+  lastError?: string;
+  consecutiveFailures?: number;
+  /** ISO — skip dispatch until this time after repeated failures. */
+  backoffUntil?: string;
 }
 
 const VALID_PLATFORMS = new Set<WebhookPlatform>(["slack", "discord", "teams", "google_chat", "custom"]);
@@ -53,7 +69,15 @@ const VALID_EVENTS: WebhookEvent[] = [
   "deadline_today",
   "comment_mention",
   "project_deleted",
+  "dependency_blocked",
+  "milestone_due_soon",
+  "project_at_risk",
 ];
+
+/** Failures before backoff starts. */
+export const WEBHOOK_BACKOFF_AFTER_FAILURES = 3;
+const BACKOFF_BASE_MS = 5 * 60_000;
+const BACKOFF_MAX_MS = 60 * 60_000;
 
 const webhooksByUser = new Map<string, WebhookConfig[]>();
 
@@ -84,17 +108,29 @@ function getUserWebhooks(uid: string): WebhookConfig[] {
   return list;
 }
 
+function normalizeIdList(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const ids = raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
+  return ids.length > 0 ? ids : undefined;
+}
+
 export function listWebhooks(uid: string): WebhookConfig[] {
   return getUserWebhooks(uid);
 }
 
-export async function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id" | "createdAt"> & { id?: string }): Promise<WebhookConfig> {
+export async function upsertWebhook(
+  uid: string,
+  input: Omit<WebhookConfig, "id" | "createdAt"> & { id?: string },
+): Promise<WebhookConfig> {
   const list = getUserWebhooks(uid);
 
   await validateWebhookUrl(input.url);
 
   const events = (input.events ?? []).filter((e) => VALID_EVENTS.includes(e));
   if (events.length === 0) events.push("task_assigned");
+
+  const projectIds = normalizeIdList(input.projectIds);
+  const teamIds = normalizeIdList(input.teamIds);
 
   if (input.id) {
     const existing = list.find((w) => w.id === input.id);
@@ -104,6 +140,8 @@ export async function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id"
       existing.platform = normalizePlatform(input.platform ?? existing.platform);
       existing.events = events;
       existing.enabled = input.enabled ?? existing.enabled;
+      existing.projectIds = projectIds;
+      existing.teamIds = teamIds;
       persist();
       return existing;
     }
@@ -117,6 +155,8 @@ export async function upsertWebhook(uid: string, input: Omit<WebhookConfig, "id"
     events,
     enabled: input.enabled ?? true,
     createdAt: new Date().toISOString(),
+    projectIds,
+    teamIds,
   };
   list.push(config);
   persist();
@@ -140,16 +180,170 @@ interface WebhookPayload {
   timestamp: string;
 }
 
+export interface FormatWebhookOptions {
+  /** Lot 3 interactive buttons — only for OAuth chat.postMessage, never Incoming Webhook. */
+  interactive?: boolean;
+  /** Wroket uid of the notification recipient (button target). */
+  actorUid?: string;
+}
+
+/**
+ * Build Slack actions block for Lot 3 (accept / decline / complete).
+ * Value format: `todoId|targetUid`
+ */
+export function buildSlackTaskActionBlocks(
+  event: WebhookEvent,
+  data: Record<string, string> | undefined,
+  actorUid: string | undefined,
+): Record<string, unknown>[] {
+  const todoId = data?.todoId?.trim();
+  if (!todoId || !actorUid) return [];
+
+  const value = `${todoId}|${actorUid}`;
+  const elements: Record<string, unknown>[] = [];
+
+  if (event === "task_assigned") {
+    const asg = (data?.assignmentStatus ?? "pending").toLowerCase();
+    if (asg === "pending" || !data?.assignmentStatus) {
+      elements.push({
+        type: "button",
+        action_id: "wroket_accept",
+        text: { type: "plain_text", text: "Accepter", emoji: true },
+        style: "primary",
+        value,
+      });
+      elements.push({
+        type: "button",
+        action_id: "wroket_decline",
+        text: { type: "plain_text", text: "Refuser", emoji: true },
+        style: "danger",
+        value,
+      });
+    }
+  }
+
+  const completeEvents = new Set<WebhookEvent>([
+    "deadline_approaching",
+    "deadline_today",
+    "task_accepted",
+    "dependency_blocked",
+  ]);
+  if (completeEvents.has(event) || (event === "task_assigned" && data?.assignmentStatus === "accepted")) {
+    elements.push({
+      type: "button",
+      action_id: "wroket_complete",
+      text: { type: "plain_text", text: "Terminer", emoji: true },
+      value,
+    });
+  }
+
+  // Always offer complete on plain task_assigned after accept/decline? Prefer: also on pending assigned for power users — plan says complete when active+assigned. Add complete on task_assigned always as third button.
+  if (event === "task_assigned" && !elements.some((e) => e.action_id === "wroket_complete")) {
+    elements.push({
+      type: "button",
+      action_id: "wroket_complete",
+      text: { type: "plain_text", text: "Terminer", emoji: true },
+      value,
+    });
+  }
+
+  if (elements.length === 0) return [];
+  return [
+    {
+      type: "actions",
+      block_id: "wroket_task_actions",
+      elements: elements.slice(0, 5),
+    },
+  ];
+}
+
 function truncateDiscord(s: string, max: number): string {
   if (s.length <= max) return s;
   return `${s.slice(0, max - 1)}…`;
 }
 
 /**
+ * Backoff duration after `failures` consecutive errors (0 when under threshold).
+ */
+export function computeBackoffMs(consecutiveFailures: number): number {
+  if (consecutiveFailures < WEBHOOK_BACKOFF_AFTER_FAILURES) return 0;
+  const exp = consecutiveFailures - WEBHOOK_BACKOFF_AFTER_FAILURES;
+  return Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** exp);
+}
+
+/** Whether dispatch should skip this webhook due to backoff window. */
+export function isWebhookInBackoff(webhook: WebhookConfig, now = new Date()): boolean {
+  if (!webhook.backoffUntil) return false;
+  const until = new Date(webhook.backoffUntil).getTime();
+  if (Number.isNaN(until)) return false;
+  return until > now.getTime();
+}
+
+/**
+ * Project/team filters: empty lists mean “all”.
+ * Notifications without projectId / teamId pass when a filter is set (avoid silent drops on global events).
+ */
+export function matchesWebhookFilters(
+  webhook: Pick<WebhookConfig, "projectIds" | "teamIds">,
+  data?: Record<string, string>,
+): boolean {
+  const projectIds = webhook.projectIds?.filter(Boolean) ?? [];
+  const teamIds = webhook.teamIds?.filter(Boolean) ?? [];
+  if (projectIds.length > 0) {
+    const pid = data?.projectId?.trim();
+    if (pid && !projectIds.includes(pid)) return false;
+  }
+  if (teamIds.length > 0) {
+    const tid = data?.teamId?.trim();
+    if (tid && !teamIds.includes(tid)) return false;
+  }
+  return true;
+}
+
+function findWebhook(uid: string, webhookId: string): WebhookConfig | undefined {
+  return getUserWebhooks(uid).find((w) => w.id === webhookId);
+}
+
+/**
+ * Persist delivery health after a POST attempt.
+ */
+export function recordWebhookDelivery(
+  uid: string,
+  webhookId: string,
+  result: { ok: boolean; statusCode?: number; error?: string },
+): void {
+  const webhook = findWebhook(uid, webhookId);
+  if (!webhook) return;
+
+  const now = new Date().toISOString();
+  webhook.lastDeliveryAt = now;
+  if (result.ok) {
+    webhook.lastStatus = "ok";
+    webhook.lastStatusCode = result.statusCode ?? 200;
+    webhook.lastError = undefined;
+    webhook.consecutiveFailures = 0;
+    webhook.backoffUntil = undefined;
+  } else {
+    const failures = (webhook.consecutiveFailures ?? 0) + 1;
+    webhook.consecutiveFailures = failures;
+    webhook.lastStatus = "error";
+    webhook.lastStatusCode = result.statusCode;
+    webhook.lastError = (result.error ?? "delivery failed").slice(0, 200);
+    const backoffMs = computeBackoffMs(failures);
+    webhook.backoffUntil = backoffMs > 0 ? new Date(Date.now() + backoffMs).toISOString() : undefined;
+  }
+  persist();
+}
+
+/**
  * Format a payload for the target platform.
  * Slack uses Block Kit, Discord uses embeds, Teams uses Adaptive Cards, Google Chat uses `text`.
  */
-function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unknown {
+export function formatWebhookPayload(
+  platform: WebhookPlatform,
+  payload: WebhookPayload,
+  options?: FormatWebhookOptions,
+): unknown {
   const color = {
     task_assigned: "#3B82F6",
     task_completed: "#10B981",
@@ -161,6 +355,9 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
     deadline_today: "#EF4444",
     comment_mention: "#6366F1",
     project_deleted: "#78716C",
+    dependency_blocked: "#F97316",
+    milestone_due_soon: "#F59E0B",
+    project_at_risk: "#EF4444",
   }[payload.event] ?? "#6B7280";
 
   const emoji = {
@@ -174,6 +371,9 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
     deadline_today: "📌",
     comment_mention: "💬",
     project_deleted: "🗑️",
+    dependency_blocked: "🧱",
+    milestone_due_soon: "🏁",
+    project_at_risk: "⚠️",
   }[payload.event] ?? "🔔";
 
   const ctx = normalizeNotificationData(payload.data);
@@ -182,8 +382,13 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
 
   switch (platform) {
     case "slack": {
+      const actionBlocks =
+        options?.interactive === true
+          ? buildSlackTaskActionBlocks(payload.event, payload.data, options.actorUid)
+          : [];
       if (!rich) {
         return {
+          text: `${emoji} ${payload.title}`,
           blocks: [
             {
               type: "section",
@@ -192,6 +397,7 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
                 text: `${emoji} *${escapeSlackMrkdwn(payload.title)}*\n${escapeSlackMrkdwn(payload.message)}`,
               },
             },
+            ...actionBlocks,
           ],
           attachments: [{ color, fallback: payload.message }],
         };
@@ -253,7 +459,9 @@ function formatPayload(platform: WebhookPlatform, payload: WebhookPayload): unkn
           },
         });
       }
+      blocks.push(...actionBlocks);
       return {
+        text: `${emoji} ${payload.title}`,
         blocks,
         attachments: [{ color, fallback: payload.message }],
       };
@@ -433,19 +641,75 @@ export async function validateWebhookUrl(raw: string): Promise<URL> {
 
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
+async function postWebhookBody(
+  uid: string,
+  webhook: WebhookConfig,
+  payload: WebhookPayload,
+): Promise<void> {
+  try {
+    // Soft prefer Slack Web API when OAuth is connected for Slack configs (with Lot 3 buttons).
+    if (webhook.platform === "slack") {
+      try {
+        const { tryPostViaSlackOAuth } = await import("./slackApiService");
+        const oauthBody = formatWebhookPayload(webhook.platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        });
+        const viaOAuth = await tryPostViaSlackOAuth(uid, oauthBody);
+        if (viaOAuth) {
+          recordWebhookDelivery(uid, webhook.id, { ok: true, statusCode: 200 });
+          return;
+        }
+      } catch (err) {
+        console.warn("[webhook] slack oauth post failed, falling back to URL: %s", (err as Error).message ?? err);
+      }
+    }
+
+    const body = formatWebhookPayload(webhook.platform, payload);
+    const validUrl = await validateWebhookUrl(webhook.url);
+    const res = await fetch(validUrl.href, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      recordWebhookDelivery(uid, webhook.id, { ok: true, statusCode: res.status });
+      return;
+    }
+    recordWebhookDelivery(uid, webhook.id, {
+      ok: false,
+      statusCode: res.status,
+      error: `HTTP ${res.status}`,
+    });
+  } catch (err) {
+    recordWebhookDelivery(uid, webhook.id, {
+      ok: false,
+      error: (err as Error).message ?? String(err),
+    });
+    console.warn("[webhook] dispatch failed for %s: %s", webhook.label, (err as Error).message ?? err);
+  }
+}
+
 /**
  * Fire webhook(s) for a given user + event.
- * Non-blocking — errors are logged and swallowed.
+ * Non-blocking — errors are logged and recorded on the config.
  */
 export function dispatchWebhooks(
   uid: string,
   event: WebhookEvent,
   title: string,
   message: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
 ): void {
   const list = getUserWebhooks(uid);
-  const matching = list.filter((w) => w.enabled && w.events.includes(event));
+  const matching = list.filter(
+    (w) =>
+      w.enabled &&
+      w.events.includes(event) &&
+      !isWebhookInBackoff(w) &&
+      matchesWebhookFilters(w, data),
+  );
   if (matching.length === 0) return;
 
   const payload: WebhookPayload = {
@@ -457,24 +721,19 @@ export function dispatchWebhooks(
   };
 
   for (const webhook of matching) {
-    validateWebhookUrl(webhook.url).then((validUrl) => {
-      const body = formatPayload(webhook.platform, payload);
-      return fetch(validUrl.href, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
-      });
-    }).catch((err) => {
-      console.warn("[webhook] dispatch failed for %s: %s", webhook.label, (err as Error).message ?? err);
-    });
+    void postWebhookBody(uid, webhook, payload);
   }
 }
 
 /**
  * Send a test payload to a webhook URL. Returns true if 2xx.
+ * When `uid` + `webhookId` are provided, also updates delivery health.
  */
-export async function testWebhook(url: string, platform: WebhookPlatform | string): Promise<boolean> {
+export async function testWebhook(
+  url: string,
+  platform: WebhookPlatform | string,
+  opts?: { uid?: string; webhookId?: string },
+): Promise<boolean> {
   const p = normalizePlatform(platform);
   const payload: WebhookPayload = {
     event: "task_assigned",
@@ -485,22 +744,35 @@ export async function testWebhook(url: string, platform: WebhookPlatform | strin
 
   try {
     await validateWebhookUrl(url);
-    const body = formatPayload(p, payload);
+    const body = formatWebhookPayload(p, payload);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
     });
+    if (opts?.uid && opts.webhookId) {
+      recordWebhookDelivery(opts.uid, opts.webhookId, {
+        ok: res.ok,
+        statusCode: res.status,
+        error: res.ok ? undefined : `HTTP ${res.status}`,
+      });
+    }
     return res.ok;
-  } catch {
+  } catch (err) {
+    if (opts?.uid && opts.webhookId) {
+      recordWebhookDelivery(opts.uid, opts.webhookId, {
+        ok: false,
+        error: (err as Error).message ?? String(err),
+      });
+    }
     return false;
   }
 }
 
 /**
  * Sends one notification to a user-configured Slack, Teams, or Google Chat URL (settings → delivery channel).
- * Fire-and-forget; errors are logged only.
+ * Fire-and-forget; errors are logged only. Prefers Slack OAuth when connected.
  */
 export function dispatchOutboundWebhook(
   url: string,
@@ -509,6 +781,7 @@ export function dispatchOutboundWebhook(
   title: string,
   message: string,
   data?: Record<string, string>,
+  uid?: string,
 ): void {
   const payload: WebhookPayload = {
     event,
@@ -517,19 +790,33 @@ export function dispatchOutboundWebhook(
     data,
     timestamp: new Date().toISOString(),
   };
-  validateWebhookUrl(url)
-    .then((validUrl) => {
-      const body = formatPayload(platform, payload);
-      return fetch(validUrl.href, {
+  const body = formatWebhookPayload(platform, payload);
+
+  void (async () => {
+    if (platform === "slack" && uid) {
+      try {
+        const { tryPostViaSlackOAuth } = await import("./slackApiService");
+        const oauthBody = formatWebhookPayload(platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        });
+        if (await tryPostViaSlackOAuth(uid, oauthBody)) return;
+      } catch (err) {
+        console.warn("[webhook] outbound slack oauth failed: %s", (err as Error).message ?? err);
+      }
+    }
+    try {
+      const validUrl = await validateWebhookUrl(url);
+      await fetch(validUrl.href, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       });
-    })
-    .catch((err) => {
+    } catch (err) {
       console.warn("[webhook] outbound delivery failed: %s", (err as Error).message ?? err);
-    });
+    }
+  })();
 }
 
 export function getWebhooksOverview(): { total: number; active: number; byPlatform: Record<string, number> } {
@@ -544,4 +831,10 @@ export function getWebhooksOverview(): { total: number; active: number; byPlatfo
     }
   }
   return { total, active, byPlatform };
+}
+
+/** Test helper — clears in-memory webhook configs. */
+export function _resetWebhooksForTests(): void {
+  webhooksByUser.clear();
+  getStore().webhooks = {};
 }

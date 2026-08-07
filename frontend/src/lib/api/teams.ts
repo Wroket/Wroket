@@ -472,7 +472,10 @@ export type NotificationType =
   | "deadline_today"
   | "comment_mention"
   | "note_mention"
-  | "project_deleted";
+  | "project_deleted"
+  | "dependency_blocked"
+  | "milestone_due_soon"
+  | "project_at_risk";
 
 export interface AppNotification {
   id: string;

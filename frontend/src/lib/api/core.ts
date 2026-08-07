@@ -82,7 +82,10 @@ export type NotificationType =
   | "deadline_approaching"
   | "deadline_today"
   | "comment_mention"
-  | "project_deleted";
+  | "project_deleted"
+  | "dependency_blocked"
+  | "milestone_due_soon"
+  | "project_at_risk";
 
 export type BillingPlan = "free" | "first" | "small" | "large";
 

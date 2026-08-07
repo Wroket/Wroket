@@ -2,10 +2,13 @@ import { getStore } from "../persistence";
 import { createNotification, listNotifications } from "./notificationService";
 import { flushHourlyDigests, flushDailyDigests } from "./digestService";
 import { runAutomationChecks } from "./automationService";
-import { listAllTodos } from "./todoService";
+import { listAllTodos, listProjectTodos } from "./todoService";
 import type { Todo } from "./todoService";
+import type { Project } from "./projectService";
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1h
+/** Overdue active tasks in a project before `project_at_risk`. */
+const PROJECT_AT_RISK_OVERDUE_THRESHOLD = 3;
 
 /**
  * Effective-due helpers (backend mirror of frontend effectiveDue.ts).
@@ -114,10 +117,105 @@ async function checkDeadlines(): Promise<void> {
   }
 }
 
+/**
+ * Scans project milestones due within the next 24h and notifies the project owner.
+ */
+function checkMilestonesDueSoon(): void {
+  const store = getStore();
+  const projects = (store.projects ?? {}) as Record<string, Project>;
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const todayStr = now.toISOString().split("T")[0];
+
+  for (const project of Object.values(projects)) {
+    if (!project?.id || project.status !== "active") continue;
+    const milestones = project.milestones ?? [];
+    if (milestones.length === 0) continue;
+
+    const ownerId = project.ownerUid;
+    if (!ownerId) continue;
+    const notifs = listNotifications(ownerId);
+    const sentToday = new Set(
+      notifs
+        .filter((n) => n.type === "milestone_due_soon" && n.createdAt.startsWith(todayStr) && n.data?.milestoneId)
+        .map((n) => n.data!.milestoneId),
+    );
+
+    for (const ms of milestones) {
+      if (!ms?.id || !ms.date) continue;
+      if (sentToday.has(ms.id)) continue;
+      const due = new Date(ms.date.includes("T") ? ms.date : `${ms.date}T12:00:00`);
+      if (Number.isNaN(due.getTime())) continue;
+      if (due.getTime() <= now.getTime() || due.getTime() > in24h.getTime()) continue;
+
+      createNotification(
+        ownerId,
+        "milestone_due_soon",
+        "Jalon proche",
+        `Le jalon « ${ms.title} » du projet « ${project.name} » arrive à échéance bientôt`,
+        {
+          projectId: project.id,
+          projectName: project.name,
+          milestoneId: ms.id,
+          milestoneTitle: ms.title,
+          ...(project.teamId ? { teamId: project.teamId } : {}),
+        },
+      );
+      sentToday.add(ms.id);
+    }
+  }
+}
+
+/**
+ * Heuristic: projects with many overdue active tasks → project_at_risk for the owner.
+ */
+async function checkProjectsAtRisk(): Promise<void> {
+  const store = getStore();
+  const projects = (store.projects ?? {}) as Record<string, Project>;
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+
+  for (const project of Object.values(projects)) {
+    if (!project?.id || project.status !== "active" || !project.ownerUid) continue;
+
+    const todos = await listProjectTodos(project.id);
+    const overdue = todos.filter((t) => {
+      if (t.status !== "active" || !t.deadline) return false;
+      const d = new Date(t.deadline);
+      return !Number.isNaN(d.getTime()) && d.getTime() < now.getTime();
+    });
+    if (overdue.length < PROJECT_AT_RISK_OVERDUE_THRESHOLD) continue;
+
+    const notifs = listNotifications(project.ownerUid);
+    const alreadyToday = notifs.some(
+      (n) =>
+        n.type === "project_at_risk" &&
+        n.data?.projectId === project.id &&
+        n.createdAt.startsWith(todayStr),
+    );
+    if (alreadyToday) continue;
+
+    createNotification(
+      project.ownerUid,
+      "project_at_risk",
+      "Projet à risque",
+      `Le projet « ${project.name} » a ${overdue.length} tâches en retard`,
+      {
+        projectId: project.id,
+        projectName: project.name,
+        overdueCount: String(overdue.length),
+        ...(project.teamId ? { teamId: project.teamId } : {}),
+      },
+    );
+  }
+}
+
 let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
 function runHourlyJobs(): void {
   void checkDeadlines().catch((err) => console.warn("[reminders] deadline check failed:", err));
+  try { checkMilestonesDueSoon(); } catch (err) { console.warn("[reminders] milestone check failed:", err); }
+  void checkProjectsAtRisk().catch((err) => console.warn("[reminders] project_at_risk check failed:", err));
   try { void runAutomationChecks().catch((err) => console.warn("[reminders] automation check failed:", err)); } catch (err) { console.warn("[reminders] automation check failed:", err); }
   try { flushHourlyDigests(); } catch (err) { console.warn("[reminders] hourly digest flush failed:", err); }
   try { flushDailyDigests(new Date()); } catch (err) { console.warn("[reminders] daily digest flush failed:", err); }

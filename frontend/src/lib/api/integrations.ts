@@ -64,3 +64,48 @@ export async function disconnectMondayConnection(): Promise<void> {
     throw await parseApiErrorResponse(res, "toast.genericError");
   }
 }
+
+export interface SlackConnectionStatus {
+  connected: boolean;
+  teamName: string | null;
+  channelName: string | null;
+  channelId: string | null;
+  installedAt: string | null;
+}
+
+export async function getSlackStatus(): Promise<SlackConnectionStatus> {
+  const res = await fetch(`${API_BASE_URL}/integrations/slack/status`, {
+    ...apiFetchDefaults,
+  });
+  if (!res.ok) {
+    throw await parseApiErrorResponse(res, "toast.genericError");
+  }
+  return res.json() as Promise<SlackConnectionStatus>;
+}
+
+export function connectSlackOAuth(returnTo?: string): void {
+  const qs = returnTo?.trim()
+    ? `?returnTo=${encodeURIComponent(returnTo.trim())}`
+    : "";
+  window.location.href = `${API_BASE_URL}/integrations/slack/connect${qs}`;
+}
+
+export async function disconnectSlackConnection(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/integrations/slack/connection`, {
+    ...apiFetchDefaults,
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw await parseApiErrorResponse(res, "toast.genericError");
+  }
+}
+
+export async function testSlackConnection(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/integrations/slack/test`, {
+    ...apiFetchDefaults,
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw await parseApiErrorResponse(res, "toast.genericError");
+  }
+}

@@ -26,6 +26,7 @@ import mondayImportRoutes from "./routes/mondayImportRoutes";
 import integrationRoutes from "./routes/integrationRoutes";
 import sharePublicRoutes from "./routes/sharePublicRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
+import { postSlackInteractions, postSlackCommands } from "./controllers/slackInteractController";
 import billingRoutes from "./routes/billingRoutes";
 import marketingRoutes from "./routes/marketingRoutes";
 import feedbackRoutes from "./routes/feedbackRoutes";
@@ -75,6 +76,22 @@ app.use(
 
 /** Stripe needs the raw body for signature verification — must run before `express.json`. */
 app.post("/billing/stripe-webhook", express.raw({ type: "application/json" }), postStripeWebhook);
+
+/** Slack interactivity + slash — form-urlencoded raw body for HMAC (Lot 3). */
+app.post(
+  "/integrations/slack/interactions",
+  express.raw({ type: "*/*" }),
+  (req, res, next) => {
+    void postSlackInteractions(req, res).catch(next);
+  },
+);
+app.post(
+  "/integrations/slack/commands",
+  express.raw({ type: "*/*" }),
+  (req, res, next) => {
+    void postSlackCommands(req, res).catch(next);
+  },
+);
 
 app.use(express.json({ limit: "128kb" }));
 
