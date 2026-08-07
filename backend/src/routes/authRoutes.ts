@@ -39,7 +39,9 @@ import {
   revokeMyOtherSessions,
 } from "../controllers/authController";
 import { globalSearch } from "../controllers/searchController";
+import { createApiKey, listApiKeys, revokeApiKey } from "../controllers/apiKeyController";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireProductAccess } from "../middlewares/requireProductAccess";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -106,6 +108,9 @@ authRoutes.get("/microsoft/url", authLimiter, microsoftSsoUrl);
 authRoutes.get("/microsoft/callback", authLimiter, microsoftSsoCallback);
 authRoutes.post("/share-invite", requireAuth, authLimiter, shareInvite);
 authRoutes.get("/me", requireAuth, getMe);
+authRoutes.get("/api-keys", requireAuth, requireProductAccess, listApiKeys);
+authRoutes.post("/api-keys", requireAuth, requireProductAccess, authLimiter, createApiKey);
+authRoutes.delete("/api-keys/:id", requireAuth, requireProductAccess, authLimiter, revokeApiKey);
 authRoutes.get("/sessions", requireAuth, listMySessions);
 authRoutes.delete("/sessions", requireAuth, revokeMyOtherSessions);
 authRoutes.delete("/sessions/:sessionId", requireAuth, revokeMySession);

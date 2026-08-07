@@ -72,6 +72,7 @@ import {
   subscriptionPlanTaglineTKey,
 } from "@/lib/billingPlanLabels";
 import { detectPushPlatformHint } from "@/lib/pushPlatform";
+import AgentConnectPanel from "./AgentConnectPanel";
 
 const DAY_KEYS: TranslationKey[] = [
   "settings.whMon",
@@ -2089,7 +2090,7 @@ function ConnectedAppsBlock({
   );
 }
 
-type IntegrationSubSection = "connections" | "data" | "webhooks" | "notifications" | null;
+type IntegrationSubSection = "connections" | "data" | "webhooks" | "notifications" | "agents" | null;
 
 function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) {
   const { t } = useLocale();
@@ -2674,6 +2675,18 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
       ),
       badge: deliverySummary ? t(deliverySummary.tKey) : t("settings.deliveryNone"),
     },
+    {
+      key: "agents",
+      titleKey: "settings.integrationsCardAgents",
+      descKey: "settings.integrationsCardAgentsDesc",
+      iconBg: "bg-violet-100 dark:bg-violet-900/30",
+      icon: (
+        <svg className="w-6 h-6 text-violet-700 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      badge: t("settings.integrationsCardAgentsBadge"),
+    },
   ];
 
   const subSectionTitle: Record<Exclude<IntegrationSubSection, null>, TranslationKey> = {
@@ -2681,6 +2694,7 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     data: "settings.integrationsCardData",
     webhooks: "settings.integrationsCardWebhooks",
     notifications: "settings.integrationsCardNotifications",
+    agents: "settings.integrationsCardAgents",
   };
 
   const subSectionDesc: Record<Exclude<IntegrationSubSection, null>, TranslationKey> = {
@@ -2688,6 +2702,7 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
     data: "settings.integrationsCardDataDesc",
     webhooks: "settings.integrationsCardWebhooksDesc",
     notifications: "settings.integrationsCardNotificationsDesc",
+    agents: "settings.integrationsCardAgentsDesc",
   };
 
   return (
@@ -2923,6 +2938,8 @@ function IntegrationsSection({ hasIntegrations }: { hasIntegrations: boolean }) 
               </SoftLock>
             </div>
           )}
+
+          {activeSubSection === "agents" && <AgentConnectPanel />}
         </>
       )}
     </div>

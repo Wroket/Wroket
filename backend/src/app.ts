@@ -34,6 +34,7 @@ import templateRoutes from "./routes/templateRoutes";
 import pushRoutes from "./routes/pushRoutes";
 import contactRoutes from "./routes/contactRoutes";
 import userDatabaseRoutes from "./routes/userDatabaseRoutes";
+import mcpRoutes from "./routes/mcpRoutes";
 
 dotenv.config();
 
@@ -99,6 +100,7 @@ app.use("/marketing", marketingRoutes);
 app.use("/feedback", apiLimiter, feedbackRoutes);
 app.use("/early-bird", apiLimiter, earlyBirdRoutes);
 app.use("/auth", authRoutes);
+app.use("/mcp", apiLimiter, mcpRoutes);
 app.use("/todos", apiLimiter, requireProductAccess, todoRoutes);
 app.use("/notifications", apiLimiter, notificationRoutes);
 app.use("/teams", apiLimiter, teamRoutes);

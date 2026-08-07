@@ -277,6 +277,14 @@ export type {
 } from "./webhooks";
 
 export {
+  listApiKeys,
+  createApiKey,
+  revokeApiKey,
+  mcpEndpointUrl,
+} from "./apiKeys";
+export type { ApiKeyPublic, CreateApiKeyResponse } from "./apiKeys";
+
+export {
   getAdminStats,
   getAdminUsers,
   getAdminInvites,
