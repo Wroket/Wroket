@@ -1,0 +1,47 @@
+# Create:
+#   gcloud monitoring policies create \
+#     --policy-from-file=infra/monitoring/alert-policy-api-memory.yaml \
+#     --project=involuted-reach-490718-h4
+
+displayName: "wroket-api-memory-high"
+combiner: OR
+enabled: true
+conditions:
+  - displayName: "wroket-api memory util p95 > 85% for 10min"
+    conditionThreshold:
+      filter: >
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "wroket-api"
+        AND metric.type = "run.googleapis.com/container/memory/utilizations"
+      comparison: COMPARISON_GT
+      thresholdValue: 0.85
+      duration: 600s
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_PERCENTILE_95
+          crossSeriesReducer: REDUCE_MAX
+          groupByFields:
+            - resource.label.service_name
+      trigger:
+        count: 1
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: WARNING
+
+documentation:
+  mimeType: text/markdown
+  subject: "wroket-api-memory-high"
+  content: |
+    ## wroket-api memory high
+
+    Container memory utilization p95 above **85%** for **10 minutes**
+    (service limited to 256Mi). Risk of OOM kills.
+
+    Check heap growth, large payloads, and store flush / activityLog size.
+
+alertStrategy:
+  autoClose: 3600s
+  notificationPrompts:
+    - OPENED

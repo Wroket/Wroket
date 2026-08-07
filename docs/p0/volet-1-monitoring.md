@@ -71,4 +71,4 @@ Objectif : alertes sur erreurs, latence et usage Firestore ; documentation dans 
 - [X] Alerte ou veille **Firestore** documentée.
 - [X] **Notification** testée (bouton « test » ou incident forcé en staging si possible).
 - [x] **`docs/monitoring.md`** à jour dans le repo.
-- [ ] **Uptime check** sur `/health` (recommandé) ; optionnel second sur `/health/ready`.
+- [x] **Uptime check** sur `/health` ; second sur `/health/ready` (voir `docs/monitoring.md`).

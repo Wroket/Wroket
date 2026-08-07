@@ -1,0 +1,45 @@
+# Update:
+#   gcloud monitoring policies update 10026712680771985574 \
+#     --policy-from-file=infra/monitoring/alert-policy-api-uptime.yaml \
+#     --project=involuted-reach-490718-h4
+
+displayName: "api-wroket-uptime uptime failure"
+combiner: OR
+enabled: true
+conditions:
+  - displayName: "Failure of uptime check_id api-wroket-uptime-hkzqZzc_Eu4"
+    conditionThreshold:
+      filter: >
+        metric.type="monitoring.googleapis.com/uptime_check/check_passed"
+        AND metric.label.check_id="api-wroket-uptime-hkzqZzc_Eu4"
+        AND resource.type="uptime_url"
+      comparison: COMPARISON_GT
+      thresholdValue: 1
+      duration: 60s
+      aggregations:
+        - alignmentPeriod: 1200s
+          perSeriesAligner: ALIGN_NEXT_OLDER
+          crossSeriesReducer: REDUCE_COUNT_FALSE
+          groupByFields:
+            - resource.label.*
+      trigger:
+        count: 1
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: CRITICAL
+
+documentation:
+  mimeType: text/markdown
+  subject: "api-wroket-uptime"
+  content: |
+    ## API uptime failure
+
+    Uptime check `api-wroket-uptime` failed (HTTPS GET `/health` on api.wroket.com).
+    Process may be down or not serving traffic.
+
+alertStrategy:
+  autoClose: 1800s
+  notificationPrompts:
+    - OPENED

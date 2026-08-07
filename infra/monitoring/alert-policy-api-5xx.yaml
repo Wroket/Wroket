@@ -1,0 +1,51 @@
+# Refined: absorb single blips; aggregate across revisions.
+# Update:
+#   gcloud monitoring policies update 13274497411039534632 \
+#     --policy-from-file=infra/monitoring/alert-policy-api-5xx.yaml \
+#     --project=involuted-reach-490718-h4
+
+displayName: "wroket-api-5xx"
+combiner: OR
+enabled: true
+conditions:
+  - displayName: "wroket-api 5xx count > 2 / 5min"
+    conditionThreshold:
+      filter: >
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "wroket-api"
+        AND metric.type = "run.googleapis.com/request_count"
+        AND metric.labels.response_code_class = "5xx"
+      comparison: COMPARISON_GT
+      thresholdValue: 2
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_SUM
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields:
+            - resource.label.service_name
+      trigger:
+        count: 1
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: ERROR
+
+documentation:
+  mimeType: text/markdown
+  subject: "wroket-api-5xx"
+  content: |
+    ## wroket-api 5xx
+
+    Cloud Run `wroket-api` returned more than **2** HTTP 5xx responses in 5 minutes.
+
+    **What to do**:
+    1. Cloud Logging → filter `resource.labels.service_name="wroket-api" severity>=ERROR`
+    2. Check recent deploys / Cloud Build
+    3. Verify `GET https://api.wroket.com/health` and `/health/ready`
+
+alertStrategy:
+  autoClose: 1800s
+  notificationPrompts:
+    - OPENED

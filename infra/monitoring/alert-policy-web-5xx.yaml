@@ -1,0 +1,48 @@
+# Already good in prod; versioned for re-apply.
+# Update:
+#   gcloud monitoring policies update 8336745397785806469 \
+#     --policy-from-file=infra/monitoring/alert-policy-web-5xx.yaml \
+#     --project=involuted-reach-490718-h4
+
+displayName: "wroket-web-5xx"
+combiner: OR
+enabled: true
+conditions:
+  - displayName: "wroket-web 5xx count > 3 / 5min"
+    conditionThreshold:
+      filter: >
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "wroket-web"
+        AND metric.type = "run.googleapis.com/request_count"
+        AND metric.labels.response_code_class = "5xx"
+      comparison: COMPARISON_GT
+      thresholdValue: 3
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_SUM
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields:
+            - resource.label.service_name
+      trigger:
+        count: 1
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: WARNING
+
+documentation:
+  mimeType: text/markdown
+  subject: "wroket-web-5xx"
+  content: |
+    ## wroket-web 5xx
+
+    Threshold **>3 / 5 min** absorbs bot probes on `/_next/static`.
+
+    Check Cloud Logging for `wroket-web` and the latest frontend deploy.
+
+alertStrategy:
+  autoClose: 1800s
+  notificationPrompts:
+    - OPENED

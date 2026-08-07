@@ -1,0 +1,21 @@
+# Target config for api-wroket-uptime (path must be /health, not /).
+# Applied via Monitoring API PATCH (see apply-alerts.ps1).
+
+displayName: "api-wroket-uptime"
+period: 300s
+timeout: 10s
+logCheckFailures: true
+checkerType: STATIC_IP_CHECKERS
+monitoredResource:
+  type: uptime_url
+  labels:
+    project_id: involuted-reach-490718-h4
+    host: api.wroket.com
+httpCheck:
+  useSsl: true
+  path: /health
+  port: 443
+  validateSsl: true
+  requestMethod: GET
+  acceptedResponseStatusCodes:
+    - statusClass: STATUS_CLASS_2XX

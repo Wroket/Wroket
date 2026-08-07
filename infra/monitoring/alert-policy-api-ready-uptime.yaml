@@ -1,0 +1,47 @@
+# Create after uptime check api-wroket-ready exists.
+#   gcloud monitoring policies create \
+#     --policy-from-file=infra/monitoring/alert-policy-api-ready-uptime.yaml \
+#     --project=involuted-reach-490718-h4
+#
+# NOTE: replace CHECK_ID below after creating the uptime check (or patch via apply script).
+
+displayName: "api-wroket-ready uptime failure"
+combiner: OR
+enabled: true
+conditions:
+  - displayName: "Failure of uptime check api-wroket-ready"
+    conditionThreshold:
+      filter: >
+        metric.type="monitoring.googleapis.com/uptime_check/check_passed"
+        AND metric.label.check_id="api-wroket-ready-cczQkYwsIps"
+        AND resource.type="uptime_url"
+      comparison: COMPARISON_GT
+      thresholdValue: 1
+      duration: 60s
+      aggregations:
+        - alignmentPeriod: 1200s
+          perSeriesAligner: ALIGN_NEXT_OLDER
+          crossSeriesReducer: REDUCE_COUNT_FALSE
+          groupByFields:
+            - resource.label.*
+      trigger:
+        count: 1
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: CRITICAL
+
+documentation:
+  mimeType: text/markdown
+  subject: "api-wroket-ready"
+  content: |
+    ## API readiness failure
+
+    `GET /health/ready` failed — process may be up but Firestore unreachable
+    or flush circuit open (`consecutiveFlushFailures > 0`).
+
+alertStrategy:
+  autoClose: 1800s
+  notificationPrompts:
+    - OPENED

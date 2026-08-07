@@ -1,0 +1,43 @@
+# Cloud Billing budget for project involuted-reach-490718-h4.
+# Currency: EUR (billing account 01AEE7-096FA9-3A56A3).
+#
+# Apply (Billing Budgets API must be enabled on the project):
+#   gcloud services enable billingbudgets.googleapis.com --project=involuted-reach-490718-h4
+#   gcloud billing budgets create \
+#     --billing-account=01AEE7-096FA9-3A56A3 \
+#     --display-name="Wroket prod monthly" \
+#     --budget-amount=15EUR \
+#     --calendar-period=month \
+#     --filter-projects=projects/involuted-reach-490718-h4 \
+#     --threshold-rule=percent=0.5 \
+#     --threshold-rule=percent=0.9 \
+#     --threshold-rule=percent=1.0 \
+#     --threshold-rule=percent=1.0,basis=forecasted-spend \
+#     --notifications-rule-monitoring-notification-channels=projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+#
+# List / update:
+#   gcloud billing budgets list --billing-account=01AEE7-096FA9-3A56A3
+#   gcloud billing budgets update BUDGET_ID --billing-account=01AEE7-096FA9-3A56A3 --budget-amount=20EUR
+
+displayName: "Wroket prod monthly"
+amount:
+  specifiedAmount:
+    currencyCode: EUR
+    units: "15"
+calendarPeriod: MONTH
+filter:
+  projects:
+    - projects/involuted-reach-490718-h4
+thresholdRules:
+  - thresholdPercent: 0.5
+    spendBasis: CURRENT_SPEND
+  - thresholdPercent: 0.9
+    spendBasis: CURRENT_SPEND
+  - thresholdPercent: 1.0
+    spendBasis: CURRENT_SPEND
+  - thresholdPercent: 1.0
+    spendBasis: FORECASTED_SPEND
+notificationsRule:
+  monitoringNotificationChannels:
+    - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+  disableDefaultIamRecipients: false

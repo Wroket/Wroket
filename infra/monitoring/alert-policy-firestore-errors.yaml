@@ -1,0 +1,49 @@
+# Create:
+#   gcloud monitoring policies create \
+#     --policy-from-file=infra/monitoring/alert-policy-firestore-errors.yaml \
+#     --project=involuted-reach-490718-h4
+
+displayName: "firestore-api-errors"
+combiner: OR
+enabled: true
+conditions:
+  - displayName: "Firestore unavailable/internal/exhausted > 5 / 5min"
+    conditionThreshold:
+      filter: >
+        resource.type = "datastore_request"
+        AND metric.type = "firestore.googleapis.com/api/request_count"
+        AND metric.labels.response_code = monitoring.regex.full_match("(?i)(unavailable|deadline_exceeded|internal|resource_exhausted|aborted)")
+      comparison: COMPARISON_GT
+      thresholdValue: 5
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_SUM
+          crossSeriesReducer: REDUCE_SUM
+      trigger:
+        count: 1
+
+notificationChannels:
+  - projects/involuted-reach-490718-h4/notificationChannels/12683066122650849013
+
+severity: ERROR
+
+documentation:
+  mimeType: text/markdown
+  subject: "firestore-api-errors"
+  content: |
+    ## Firestore API errors
+
+    More than **5** Firestore API calls with response codes
+    `unavailable` / `deadline_exceeded` / `internal` / `resource_exhausted` / `aborted`
+    in 5 minutes.
+
+    **What to do**:
+    1. Check `/health/ready` on api.wroket.com
+    2. Cloud Logging → `persistence-flush`, `todos-drift`, severity>=ERROR
+    3. Verify IAM for `wroket-run` and Firestore status in GCP Status
+
+alertStrategy:
+  autoClose: 1800s
+  notificationPrompts:
+    - OPENED
