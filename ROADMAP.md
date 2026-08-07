@@ -9,37 +9,39 @@
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
 | **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ (Android + desktop enrichi livré, E2E desktop §I-bis à valider) ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
-| **P3** | Intégrations & profondeur | **Slack+** (Webhook+ PMO, OAuth, actions bidirectionnelles), **Features Notion-Like** (dépendances, docs), **Features Monday-Like** (import board, automations, dashboard) |
+| **P3** | Intégrations & profondeur | **Slack+** Lots 1–3 code livré (ops E2E ouverte) ; Lot 4 Next ; **MCP** livré (gate ouverte) ; Features Notion/Monday MVP acquisition aboutis |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics, **IA intégrée minimale** (après socle agentique) |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause**. **P2 en cours** : PWA + **Web Push** livrés ; **Gantt interactif + quadrillage** livrés (2026-06-08). **Calendriers** : priorité FCFS Google/Outlook corrigée (2026-06-07).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause**. **P2 largement livré** : PWA + Web Push ; Gantt interactif ; UI V2 opt-in en prod (dual V1+V2). **P3 Slack+** : Lots 1–3 **code sur `main`** (2026-08-07, `882c6ca`) — finalisation ops Slack App / secrets / E2E workspace encore ouverte. **IA agentique** : serveur MCP distant + clés API **livrés** (PR #6, 2026-08-07) — gate go/no-go usage encore ouverte.
 
-**Arbitrage 2026-06-15** : priorité d’exécution **Slack puis IA** ; **Stripe Checkout reste en pause** tant que le MVP Slack+ (lots 1-2) et le cadrage IA agentique (go/no-go) ne sont pas validés.
+**Arbitrage 2026-06-15 (toujours valide)** : **Stripe Checkout reste en pause** jusqu’à finalisation ops Slack+ + gate IA agentique (go/no-go usage MCP).
 
 ### Trois priorités produit (arbitrage 2026-06-15)
 
-Exécution priorisée en séquence : **Slack+**, puis **IA agentique**, puis optimisation PMO continue.
+Exécution priorisée : **finaliser Slack+ en prod**, **valider MCP**, puis PMO / monétisation.
 
-| Priorité | Focus | Prochain livrable |
-|----------|--------|-------------------|
-| **A — Slack+** | Approfondir l’intégration Slack (au-delà du webhook entrant) | Lot 1 Webhook+ PMO + Lot 2 OAuth natif |
-| **B — IA agentique** | Rendre Wroket connectable aux agents (Cursor/Claude/...) | Action surface PMO + gate go/no-go (6–8 semaines) |
-| **C — PMO** | Stabilisation et valeur continue | Liens partageables/portfolio selon traction, hors migration Notion/Monday |
+| Priorité | Focus | Statut | Prochain livrable |
+|----------|--------|--------|-------------------|
+| **A — Slack+** | Webhook+ → OAuth → actions | Lots 1–3 **code livré** ; Lot 4 ouvert | Secrets Cloud Run + Slack App (Interactivity / slash) + smoke E2E workspace ; puis Lot 4 workflows managers |
+| **B — IA agentique** | Wroket connectable aux agents | MCP remote + API keys **livrés** | Adoption réelle (Cursor/Claude) + KPI go/no-go ; IA intégrée = Later |
+| **C — PMO** | Stabilisation continue | Socle solide | Liens partageables / portfolio selon traction |
 
 **Décisions produit associées :**
 - **Notion-Like** et **Monday-Like** sont considérés **aboutis en MVP acquisition** pour le besoin actuel.
 - **Import Notion ZIP** et imports **CSV** supplémentaires Notion/Monday sont **dépriorisés**.
 - **E2E Gantt §G.12** est considéré validé.
+- **Dual UI V1+V2** : observation prod en cours ; sunset V1 ~fin août / début septembre 2026 si feedback OK.
 
 ### Prochaine priorité (sprint)
 
-1. **Stabiliser le lot local** : découper / committer / valider le working tree (UI V2 + créneaux intelligents + colonnes TaskList) avant d’empiler Slack+.
-2. ~~**Sprint A — Qualité UI V2**~~ — **Fait** (2026-08-07) : E2E Playwright `tasklist.v2.spec.ts` (toggle V2, largeurs colonnes méta, prefs Actions → localStorage) ; unit `taskListVisibleActions` ; ESLint clean sur `todos/**` + `components/v2/**` + `UiVersionContext`.
-3. ~~**Sprint B — Extraire TaskEditModal**~~ — **Fait** (2026-08-07) : zones sous `frontend/src/components/taskEdit/` (types, tabs, essentials, planning, collab, advanced) ; orchestrateur ~660 lignes ; API publique inchangée (`TaskEditModal` + `TaskEditZone` re-exportés).
-4. **Dual UI V1+V2 (décision 2026-08-07)** : **garder les deux** pendant quelques semaines (toggle `wroket-ui-v2` / « Nouvelle interface »). Pas de suppression V1 ni V2-par-défaut forcé avant fin de période d’observation. **Sunset V1** = Later (après feedback prod + date à fixer, viser ~fin août / début septembre 2026).
-5. **Slack+ Lot 1** : Webhook+ PMO (events, delivery health, filtres projet/équipe).
-6. **Slack+ Lot 2** : connexion Slack OAuth native (workspace/channel).
-7. **IA agentique Phase 1** : cadrage action surface, sécurité, audit, KPI et seuils go/no-go.
+1. ~~**Stabiliser le lot local**~~ — **Fait** (2026-08-07) : UI V2 + créneaux intelligents + colonnes TaskList sur `main` (via `feat/ui-v2-lot` + polish tags méta pleine largeur taille V1 dans `882c6ca`).
+2. ~~**Sprint A — Qualité UI V2**~~ — **Fait** (2026-08-07) : E2E Playwright `tasklist.v2.spec.ts` ; unit `taskListVisibleActions` ; ESLint clean.
+3. ~~**Sprint B — Extraire TaskEditModal**~~ — **Fait** (2026-08-07) : zones sous `frontend/src/components/taskEdit/` ; API publique inchangée.
+4. **Dual UI V1+V2** : période d’observation (toggle « Nouvelle interface »). **Sunset V1** = Later (~fin août / début sept. 2026 après feedback).
+5. ~~**Slack+ Lots 1–3**~~ — **Code livré** (2026-08-07, `882c6ca`, doc [`docs/slack-plus.md`](docs/slack-plus.md)) : Webhook+ PMO, OAuth `chat.postMessage`, HMAC interactions + slash `/wroket`. **Reste ops** : secrets `SLACK_*` Cloud Run, URLs Slack App, reconnect OAuth, E2E boutons/slash dans un vrai workspace.
+6. **Slack+ Lot 4** (Next) : workflows managers (`my-week`, `team-risk`, `overdue`) — après smoke Lot 3 prod.
+7. ~~**IA agentique — MCP**~~ — **Code livré** (PR #6, [`docs/mcp-agents.md`](docs/mcp-agents.md)) : `/mcp`, clés API Paramètres, tools PMO. **Reste** : validation usage agents + gate go/no-go (KPI / sécurité).
+8. **P1 reprise (pause)** : Stripe Checkout self-service — après Slack+ ops + gate MCP.
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
@@ -72,40 +74,32 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ### Now (0-6 semaines)
 
-0. **Lot local à stabiliser (2026-08)** — Working tree ouvert : UI V2 + créneaux intelligents V2 + colonnes TaskList sync profil + polish cartes. **DoD** : commits découpés (ou PR), typecheck/lint verts, smoke E2E liste (drag colonnes + reload autre navigateur même compte) + SlotPicker ASAP/deadline, pas de wipe données.
-1. ~~**Reliability Pack — Calendar & Meeting**~~ — **Fait** (E2E prod 2026-06-07) : lifecycle Meet, compte prioritaire, Microsoft OAuth, conflit créneau dédup, sync Archives ; checklist complète §A–I.
-2. ~~**Reliability Pack — Todo Persistence**~~ — **Fait** (E2E prod 2026-06-07) : `todosDrift` horaire + `/health/ready`, mode `v2` + `attachLiveInvalidation` multi-replica, runbook [runbook-calendar-todos-reliability.md](docs/runbook-calendar-todos-reliability.md), persistance tâches/créneaux post-F5 et sync Archives cross-onglet validées §C.
-3. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
-   - **Fait** : gating par palier (`billingPlan` + `entitlements`), webhooks Stripe enrichis (customer + subscription), persistance champs billing sur l’utilisateur, portail client `POST /billing/create-portal-session`, page publique `/pricing` (comparatif, FAQ, modal contact prénom/nom/email + envoi serveur SMTP Nodemailer, accusé réception FR/EN, anti-doublon 7 jours), billing équipe (sièges, collaborateurs externes, entitlements effectifs, sync subscription → `Team`), admin — journal invitations avec statut conversion et relance à J+7.
-   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service).
-4. ~~**Polish Abonnement + tarifs**~~ — **Fait** (2026-06-07) : cards Abonnement, mapping Free/Pro/Team ↔ `free`/`first`/`small`/`large`, palier technique affiché, lien `/pricing` ; *reste Stripe Checkout self-service*.
-5. **Microsoft path (SSO + Outlook MVP)** — **Quasi terminé** (2026-06-07) : code livré, Azure/GCP configurés ([docs/microsoft-azure.md](docs/microsoft-azure.md)), connexion Outlook + booking Teams + **invités externes Teams** (invitation 2 temps avec `joinUrl`) validés ; checklist §D5 ; reste SSO login bout-en-bout documenté en §B Auth.
-   - DoD: OAuth Microsoft opérationnel + premier connecteur calendrier externe utilisable.
-6. ~~**Error UX Standard**~~ — **Fait** (2026-06-07) : `apiErrors.ts` (codes → i18n FR/EN) sur auth login, agenda, `agenda/manage`, meet todos, import CSV (`TaskImportModal`), collaboration ; backend `AUTH_EMAIL_NOT_VERIFIED`, `AUTH_INVALID_CREDENTIALS`, `IMPORT_CSV_INVALID`, quotas Free, `INTEGRATIONS_PLAN_REQUIRED`, `MEET_*` / `CALENDAR_*` ; fallback legacy meet conservé.
-7. **PWA (P2)** — **Fait** (2026-06-07) : `manifest.ts`, `sw.js` (cache assets + fallback offline), `PwaRegistration`, headers CSP `worker-src`, tests manifest ; déployé via `11d77f2`.
-8. ~~**Web Push (P2)**~~ — **Fait** (Android E2E 2026-06-07 ; desktop enrichi livré 2026-06-07) : VAPID GCP, opt-in **par appareil**, hints Windows/Mac, deep-link, actions Accepter/Refuser (mutation dans l’app), icône push carrée opaque, dédup alertes AppShell ; E2E desktop §I-bis checklist à valider.
-9. ~~**Gantt interactif (édition + resize)**~~ — **Fait + E2E prod** (2026-06-08, `d4d2aaa`) : clic tâche/phase → édition ; poignées resize ; drag avec preview live ; sous-tâches datées ; phases via `updatePhaseApi` ; checklist §G items 10–11 validés.
+0. ~~**Lot local à stabiliser (2026-08)**~~ — **Fait** (2026-08-07) : UI V2 + créneaux intelligents + colonnes TaskList + polish tags méta sur `main`.
+1. **Slack+ — finalisation ops Lots 1–3** — Code sur `main` (`882c6ca`). **À faire** : secrets Cloud Run (`SLACK_CLIENT_ID/SECRET`, `SLACK_SIGNING_SECRET`, redirect URI), config Slack App (Interactivity + slash `/wroket`), reconnect OAuth, smoke E2E workspace (boutons + slash). Doc : [`docs/slack-plus.md`](docs/slack-plus.md).
+2. **MCP / IA agentique — validation usage** — Serveur MCP + clés API livrés (PR #6). **À faire** : smoke Cursor/Claude Desktop contre `https://api.wroket.com/mcp`, mesurer adoption / incidents auth, décision go/no-go. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
+3. **Dual UI V1+V2 — observation** — Flag opt-in prod ; collecter feedback ; décider sunset V1 (~fin août / début sept. 2026).
+4. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
+   - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
+   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — après Slack ops + gate MCP.
+5. **Microsoft path (SSO + Outlook MVP)** — **Quasi terminé** (2026-06-07) : Outlook + Teams + invités externes OK ; reste SSO login Microsoft bout-en-bout (§B Auth checklist).
+6. ~~**Reliability / Error UX / PWA / Web Push / Gantt**~~ — **Fait** (juin 2026) ; Web Push desktop §I-bis encore à valider manuellement.
+7. **E2E smoke CI** — Surveiller les runs post-`882c6ca` (smoke E2E a échoué sur ce push ; CI lint OK) — diagnostiquer si régression ou flaky.
 
 ### Next (6-12 semaines)
 
-- [x] **Workspace admin hors siège (Small/Large)** — Rôle `workspace-admin` distinct du rôle équipe `admin` existant :
-  - Gestion roster (inviter/retirer membres, rôles), collaborateurs externes, billing équipe (portail Stripe délégué), visibilité plan/sièges/entitlements
-  - **Aucun accès** Tâches / Projets / Agenda / Notes (enforcement API, pas UI seule)
-  - **Non compté** dans `seatCount` / quantité Stripe (cap ex. 2 workspace-admins / équipe)
-  - Spec : `docs/workspace-admin.md` + endpoints `GET/POST/DELETE /teams/:teamId/workspace-admins`
-  - Phasage : P1 RBAC+guards → P2 console UI → P3 Stripe équipe → P4 toggles features
-  - Prérequis : équipe `billingPlan` ∈ { small, large } ; Checkout équipe optionnel pour P3 si subscription déjà active
-- **Slack+ (MVP lots 1-2)** : Webhook+ PMO (events, delivery health) puis connexion Slack OAuth native (workspace/channel)
-- **IA agentique (phase 1)** : Wroket connectable aux agents (action surface PMO, sécurité, audit, go/no-go 6-8 semaines)
-- **PMO ciblé** : liens partageables lecture seule + portfolio équipe selon traction terrain
-- **P1 (reprise, en pause)** : Stripe Checkout self-service (reprendre après validation Slack+ MVP + gate IA)
+- [x] **Workspace admin hors siège (Small/Large)** — Livré (spec [`docs/workspace-admin.md`](docs/workspace-admin.md)).
+- [ ] **Slack+ Lot 4 — Workflows PMO managers** — `/wroket my-week`, `team-risk`, `overdue`, digest équipe, recap steering (après smoke Lot 3 prod).
+- [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
+- [ ] **PMO ciblé** : liens partageables lecture seule + portfolio équipe selon traction terrain.
+- [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service.
+- [ ] **Sunset UI V1** — si feedback V2 positif (cible ~fin août / début sept. 2026).
 
 ### Later (12+ semaines)
 
-- Slack+ lots 3-4 : actions bidirectionnelles Slack + workflows PMO managers (`my-week`, `team-risk`, `overdue`).
-- IA : couche intégrée minimale (2-3 commandes natives) sur primitives agentiques validées.
+- IA intégrée minimale (2-3 commandes natives) sur primitives MCP validées.
 - Notes collaboratives temps réel (chantier lourd).
 - Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
+- OAuth GitHub SSO ; CalDAV / multi-calendriers slots approfondi.
 
 ## Retour E2E prod
 
@@ -308,6 +302,9 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Nouvellement implémenté
 
+- [x] **Slack+ Lots 1–3 (2026-08-07)** — Webhook+ PMO (events, filtres, delivery health), OAuth Slack + `chat.postMessage`, interactions HMAC + slash `/wroket` ; Settings Slack ; doc [`docs/slack-plus.md`](docs/slack-plus.md) (`882c6ca`). *Ops Slack App / secrets prod encore à brancher.*
+- [x] **MCP agent connect (2026-08-07)** — Serveur MCP distant + clés API + tools PMO ; doc [`docs/mcp-agents.md`](docs/mcp-agents.md) (PR #6). *Gate go/no-go usage ouverte.*
+- [x] **UI V2 TaskList + SoftLock + extract TaskEdit (2026-08)** — Dual V1/V2 opt-in ; polish tags méta pleine largeur taille V1 (`882c6ca`).
 - [x] **P1 — Pricing, billing équipe, admin invitations (2026-05)** — `/pricing` : modal contact (prénom, nom, email) + `POST /marketing/pricing-contact` (SMTP, accusé réception, dédup 7 j), cartes alignées, sous-titre sans mention « tarifs indicatifs » ; landing + pricing : navbar responsive mobile, footer `LandingFooter`, logo `rounded-md` ; **billing workspace** : sièges, collaborateurs externes, entitlements effectifs, sync Stripe subscription → `Team` ; **admin** : journal invitations avec statut (conversion / en attente / compte existant) et relance unique à partir de J+7 (`POST /admin/invites/remind`).
 - [x] **Repositionnement marketing & SEO (2026-05)** — Metadata recentrée (tagline, agenda, collaboration) ; 3 pages satellites indexables (`/agenda-taches`, `/gestion-taches-equipe`, `/matrice-eisenhower`) avec `MarketingPageShell`, `buildPageMetadata`, JSON-LD BreadcrumbList ; sitemap `lastModified` stable, `robots.ts`, maillage interne footer/pricing ; redirect canonique `www`→`wroket.com` (301) ; CTA « Voir les tarifs » sur toutes les pages SEO ; post-deploy : demandes indexation GSC à lancer manuellement pour `/pricing`, `/terms` et les 3 nouvelles pages
 - [x] **Agenda — drag-and-drop créneaux Wroket** — Glisser-déposer des blocs Wroket (jour/semaine), snap 15 min, validation bornes phase (client + serveur UTC), modal conflit 409 avec forçage, sync `/todos` via broadcast ; helper partagé `phaseSlotBounds`
@@ -371,11 +368,10 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Expérience utilisateur & attractivité
 
-- [ ] **Refonte UI V2 (flag local)** — Track parallèle (hors deploy prod par défaut) : design system léger + AppShell + menu ⋯ tâches + polish Projets/Agenda/Notes ; flag `wroket-ui-v2` + toggle Paramètres › Apparence ; doc [`docs/refonte-ui-ideas.md`](docs/refonte-ui-ideas.md). *Ne remplace pas la priorité Slack+/IA en prod.*
-  - **Fait local (working tree, à committer)** : primitives `ui/*` (Menu, Modal, EmptyState, IconButton, Select) ; `TaskRowActionsV2` ; radar / constellation ; polish TodoCard (tag projet, toolbar) ; typo headers TaskList ; tooltip « Plus / More » sur le menu ⋯.
-  - **Reste** : découpage commits/PR ; revue visuelle dark/mobile ; décision go flag default en prod ; E2E parcours liste/cartes avec UI V2.
-- [x] **Vue Liste — colonnes réordonnables (sync profil)** — Drag des en-têtes (Actions, Title, Priority, Effort, Deadline, Classification) ; poignée + Sel. fixes ; persistance `taskListColumnOrder` via `PUT /auth/me` (multi-appareils, par compte) — *code local, à committer / déployer*.
-- [x] **Créneaux intelligents V2** — Suggestions deadline-aware (fenêtre différée / ASAP, scoring effort×heure, max 1 slot/jour, `todayAvailability` / `before_start_date`) ; SlotPicker modal centré + libellés justes — *code local, à committer / déployer*.
+- [x] **Refonte UI V2 (flag opt-in)** — Sur `main` / prod (2026-08, `feat/ui-v2-lot` + polish) : design system léger + AppShell + menu ⋯ + TaskList V2 + extract TaskEdit ; flag `wroket-ui-v2` / toggle « Nouvelle interface » ; doc [`docs/refonte-ui-ideas.md`](docs/refonte-ui-ideas.md). Tags méta Priorité/Effort/Focus/Échéance : pleine largeur colonne, largeur colonnes alignée V1 (`6rem`).
+  - **Reste** : période dual V1+V2 ; feedback prod ; sunset V1 ; éventuel V2-by-default ; a11y / dark-mobile revue continue.
+- [x] **Vue Liste — colonnes réordonnables (sync profil)** — Drag des en-têtes ; persistance `taskListColumnOrder` via `PUT /auth/me` (multi-appareils).
+- [x] **Créneaux intelligents V2** — Suggestions deadline-aware ; SlotPicker modal centré.
 - [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).
 - [x] **Notifications push (Web Push)** — Service worker + abonnement push **par appareil** pour assignations et événements clés **hors onglet / app fermée** ; actions Accepter/Refuser (`task_assigned` → deep-link app + mutation) ; icône 512×512 opaque ; complète in-app + email + webhooks — E2E Android 2026-06-07 ; desktop §I-bis à valider.
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + cloche ; alerte desktop détaillée avec deep-link si push locale inactive ; lien « Notifications système » → Paramètres ; skip doublon si Web Push locale active ; E2E §I validé.
@@ -386,7 +382,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Intégrations & Connecteurs
 
-*Niveau 1 livré ; priorité d’exécution 2026-06 : **Slack+ MVP (lots 1-2)** puis **Slack actions (lots 3-4)**. Les autres connecteurs restent en backlog.*
+*Niveau 1 livré ; **Slack+ Lots 1–3 code sur `main`** (2026-08-07) — finalisation ops Slack App encore ouverte. Lot 4 = Next. Doc : [`docs/slack-plus.md`](docs/slack-plus.md).*
 
 - [x] **Webhooks sortants (Niveau 1)** — Notifications Wroket vers Slack, Discord, Microsoft Teams
   - Configuration par utilisateur dans Paramètres > Intégrations
@@ -394,9 +390,9 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - Support multi-webhooks (un par channel/plateforme)
   - Bouton "Tester" pour valider la configuration
   - Payloads formatés par plateforme (Slack Block Kit, Discord Embeds, Teams Adaptive Cards)
-- [ ] **Slack+ Lot 1 — Webhook+ PMO** — enrichir les événements (`project_at_risk`, `milestone_due_soon`, `dependency_blocked`), filtrage projet/équipe, observabilité de livraison (dernier statut, erreurs successives, backoff 429/5xx)
-- [ ] **Slack+ Lot 2 — Connexion native OAuth** — connect/disconnect Slack dans le hub intégrations, stockage workspace/channel, scopes minimaux notifications puis actions
-- [ ] **Slack+ Lot 3 — Actions bidirectionnelles** — actions Slack vers Wroket (accepter/refuser, marquer terminé, ouvrir tâche), vérification signature Slack, idempotence retries, audit
+- [x] **Slack+ Lot 1 — Webhook+ PMO** — events `project_at_risk`, `milestone_due_soon`, `dependency_blocked` ; filtres projet/équipe ; delivery health + backoff 429/5xx (`882c6ca`)
+- [x] **Slack+ Lot 2 — Connexion native OAuth** — connect/disconnect Slack (Paramètres), `chat.postMessage` préféré si OAuth+channel, scopes notifications + actions (`882c6ca`)
+- [x] **Slack+ Lot 3 — Actions bidirectionnelles (code)** — HMAC `SLACK_SIGNING_SECRET`, boutons Block Kit (accept/decline/complete), slash `/wroket` (help/tasks/open/accept/decline/complete), mapping email Slack→Wroket ; smoke HMAC local OK — **E2E Slack workspace + secrets prod = reste ops**
 - [ ] **Slack+ Lot 4 — Workflows PMO managers** — commandes `/wroket my-week`, `/wroket team-risk`, `/wroket overdue`, digest équipe, recap steering
 - [ ] **Autres connecteurs interactifs (backlog)** — bots Discord, sync bidirectionnelle multi-plateformes, commentaires/threads unifiés
 
@@ -423,10 +419,10 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 *Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
 
-- [ ] **IA agentique connectable (Phase 1 prioritaire)** — Wroket comme système d’actions pour agents (Cursor, Claude, etc.) : action surface PMO (8-12 actions), scopes/permissions, idempotence, audit, quotas ; packaging Small/Large ; gate go/no-go en 6-8 semaines
-- [ ] **IA intégrée minimale (Phase 2)** — 2-3 commandes natives à forte valeur (`prépare mon comité`, `planifie ma semaine`, `résume les risques`) réutilisant les primitives phase 1
+- [x] **IA agentique connectable — MCP (Phase 1 code)** — Serveur MCP distant `POST /mcp`, clés API (`wrk_live_…`), scopes todos/projects/notes/calendar, rate limit, UI Paramètres « Connecter votre agent » (PR #6, 2026-08-07) ; doc [`docs/mcp-agents.md`](docs/mcp-agents.md). **Reste** : smoke agents réels en prod + gate go/no-go (KPI / sécurité) — pas encore « Phase 1 validée produit ».
+- [ ] **IA intégrée minimale (Phase 2)** — 2-3 commandes natives à forte valeur (`prépare mon comité`, `planifie ma semaine`, `résume les risques`) réutilisant les primitives MCP — *après gate Phase 1*
 - [ ] **IA orchestrateur (Phase 3)** — workflows multi-outils Notion/Monday/Calendar/Webhooks, différenciation \"orchestrateur fiable\" (après validation usage phase 1/2)
-- [ ] **Cadre décisionnel IA** — KPI adoption/ROI, seuils de sécurité (zéro incident critique d’autorisation), politique RGPD et conservation des traces
+- [ ] **Cadre décisionnel IA / gate go-no-go** — KPI adoption/ROI MCP, seuils de sécurité (zéro incident critique d’autorisation), politique RGPD et conservation des traces
 - [x] **Paramètres — panneau Abonnement (lisibilité)** — Cards (palier marketing Pro/Team, code technique, entitlements, Stripe) + mapping terminologie + lien `/pricing` (2026-06-07).
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
@@ -491,7 +487,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
   - Free : 25 tâches actives, pas d'archives (purge auto 7j), 3 notes, pas de récurrence, pas de pièces jointes, Google Calendar en lecture seule, planification manuelle uniquement
   - Pro ($9/mois ou $89/an) : tâches illimitées, archives complètes, planification intelligente + détection de conflits, récurrence + jours ouvrés, notes et pièces jointes illimitées, Google Calendar lecture/écriture (multi-comptes), import/export CSV, webhooks
   - Team ($12/utilisateur/mois ou $119/utilisateur/an, min 2 sièges) : tout Pro + équipes, assignation de tâches, projets/phases/Kanban/Gantt, notes partagées, dashboard équipe, rôles RBAC
-- [ ] **Stripe Checkout (en pause)** — Intégration paiement self-service ; reprise après Slack+ MVP (lots 1-2) et cadrage IA agentique validé ; complète les webhooks + portail déjà en place
+- [ ] **Stripe Checkout (en pause)** — Intégration paiement self-service ; reprise après **finalisation ops Slack+ Lots 1–3** + **gate MCP** ; complète les webhooks + portail déjà en place
 
 ## Fonctionnalités Premium (Business tier — $20-25/utilisateur/mois)
 

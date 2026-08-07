@@ -25,7 +25,7 @@ test.describe("TaskList UI V2", () => {
     await expect(table).toHaveClass(/task-list-v2/);
     await expect(page.getByText(title)).toBeVisible({ timeout: 15_000 });
 
-    // Meta headers must keep a usable width (not crushed by Intitulé).
+    // Meta headers match V1 `w-24` (6rem ≈ 96px) — full-width tags, not crushed by Intitulé.
     for (const id of [
       "task-list-col-priority",
       "task-list-col-effort",
@@ -34,7 +34,8 @@ test.describe("TaskList UI V2", () => {
     ]) {
       const box = await page.getByTestId(id).boundingBox();
       expect(box, id).toBeTruthy();
-      expect(box!.width, `${id} width`).toBeGreaterThanOrEqual(120);
+      expect(box!.width, `${id} width`).toBeGreaterThanOrEqual(90);
+      expect(box!.width, `${id} width`).toBeLessThanOrEqual(110);
     }
 
     // Focus header label (FR/EN) is fully visible — not clipped to "Class…".
