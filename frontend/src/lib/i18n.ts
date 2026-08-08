@@ -1741,6 +1741,16 @@ const translations = {
   "gantt.clickToEditPhase": { fr: "Cliquer pour modifier la phase", en: "Click to edit phase" },
   "gantt.resizeStart": { fr: "Ajuster la date de début", en: "Adjust start date" },
   "gantt.resizeEnd": { fr: "Ajuster la date de fin", en: "Adjust end date" },
+  "gantt.sortByDates": { fr: "Trier par dates", en: "Sort by dates" },
+  "gantt.sortManual": { fr: "Ordre manuel", en: "Manual order" },
+  "gantt.orderDiffersFromDates": {
+    fr: "L’ordre de la liste ne suit pas les dates de début.",
+    en: "List order does not follow start dates.",
+  },
+  "gantt.sortByDatesHint": {
+    fr: "Affichage seulement — l’ordre Tableau / drag-and-drop n’est pas modifié.",
+    en: "Display only — Tableau / drag-and-drop order is unchanged.",
+  },
   "projects.moveConstraint.dateTitle": { fr: "Dates hors phase", en: "Dates outside phase" },
   "projects.moveConstraint.dateBody": {
     fr: "Les dates de la tâche ne correspondent pas à la phase cible. Choisissez une action :",

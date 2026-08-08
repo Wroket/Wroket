@@ -61,11 +61,38 @@ function addDaysYmd(ymd: string, days: number): string {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 
-function sortTasksByOrder(a: Todo, b: Todo): number {
+type GanttListSortMode = "manual" | "byStartDate";
+
+function sortTasksByOrder(a: Todo, b: Todo, locale = "en"): number {
   const oa = a.sortOrder ?? Number.POSITIVE_INFINITY;
   const ob = b.sortOrder ?? Number.POSITIVE_INFINITY;
   if (oa !== ob) return oa - ob;
-  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  const ta = new Date(a.createdAt).getTime();
+  const tb = new Date(b.createdAt).getTime();
+  if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+  return a.title.localeCompare(b.title, locale === "fr" ? "fr" : "en", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+/** Schedule key for display-only chrono sort: startDate, else deadline; undated last. */
+function taskScheduleKey(task: Todo): number {
+  const d = task.startDate || task.deadline;
+  if (!d) return Number.POSITIVE_INFINITY;
+  return parseDate(d).getTime();
+}
+
+function sortTasksByStartDate(a: Todo, b: Todo, locale = "en"): number {
+  const ka = taskScheduleKey(a);
+  const kb = taskScheduleKey(b);
+  if (ka !== kb) return ka - kb;
+  return sortTasksByOrder(a, b, locale);
+}
+
+function sameTodoOrder(a: Todo[], b: Todo[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((td, i) => td.id === b[i]?.id);
 }
 
 function normalizeRange(start: string | null, end: string | null): { start: string | null; end: string | null } {
@@ -143,6 +170,10 @@ interface GanttChartBodyProps {
   locale: string;
   isExport: boolean;
   isReadonly?: boolean;
+  /** Display-only list order; does not mutate sortOrder. */
+  listSortMode?: GanttListSortMode;
+  /** When true, skip sortable wrappers (chrono mode or export). */
+  disableListDnd?: boolean;
   onTaskClick?: (task: Todo) => void;
   onPhaseClick?: (phase: ProjectPhase) => void;
   onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
@@ -236,6 +267,8 @@ function GanttChartBody({
   locale,
   isExport,
   isReadonly = false,
+  listSortMode = "manual",
+  disableListDnd = false,
   onTaskClick,
   onPhaseClick,
   onBarDateMove,
@@ -245,6 +278,14 @@ function GanttChartBody({
 }: GanttChartBodyProps) {
   const barDragRef = useRef<BarDragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+
+  const listComparator = useCallback(
+    (a: Todo, b: Todo) =>
+      listSortMode === "byStartDate"
+        ? sortTasksByStartDate(a, b, locale)
+        : sortTasksByOrder(a, b, locale),
+    [listSortMode, locale],
+  );
 
   const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const subtasksByParent = useMemo(() => {
@@ -256,8 +297,9 @@ function GanttChartBody({
         map.set(td.parentId, list);
       }
     }
+    for (const [, list] of map) list.sort(listComparator);
     return map;
-  }, [tasks]);
+  }, [tasks, listComparator]);
 
   const tasksById = useMemo(() => new Map(tasks.map((td) => [td.id, td])), [tasks]);
   const isTaskBlocked = useCallback(
@@ -294,12 +336,11 @@ function GanttChartBody({
         unassigned.push(task);
       }
     }
-    const chronoSort = sortTasksByOrder;
-    for (const [, list] of map) list.sort(chronoSort);
-    unassigned.sort(chronoSort);
+    for (const [, list] of map) list.sort(listComparator);
+    unassigned.sort(listComparator);
     map.set("__none__", unassigned);
     return map;
-  }, [phases, parentTasks]);
+  }, [phases, parentTasks, listComparator]);
 
   const { minDate, totalDays, months, phaseBarData } = useMemo(() => {
     const allDates: Date[] = [];
@@ -616,7 +657,7 @@ function GanttChartBody({
           {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`, phaseColor, true))}
         </>
       );
-      if (isExport) {
+      if (isExport || disableListDnd) {
         return <div key={task.id}>{rows}</div>;
       }
       return (
@@ -695,7 +736,7 @@ function GanttChartBody({
           </div>
         </div>
 
-        {isExport ? (
+        {isExport || disableListDnd ? (
           <div>{taskList}</div>
         ) : (
           <SortablePhaseContainer id={phaseId} items={phaseTasks.map((td) => td.id)}>
@@ -833,6 +874,8 @@ export default function GanttChart({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const isExport = variant === "export";
   const isReadonly = variant === "readonly";
+  const [listSortMode, setListSortMode] = useState<GanttListSortMode>("manual");
+  const disableListDnd = listSortMode === "byStartDate";
 
   const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const hasData = parentTasks.length > 0;
@@ -848,12 +891,38 @@ export default function GanttChart({
         unassigned.push(task);
       }
     }
-    const chronoSort = sortTasksByOrder;
-    for (const [, list] of map) list.sort(chronoSort);
-    unassigned.sort(chronoSort);
+    const manualSort = (a: Todo, b: Todo) => sortTasksByOrder(a, b, locale);
+    for (const [, list] of map) list.sort(manualSort);
+    unassigned.sort(manualSort);
     map.set("__none__", unassigned);
     return map;
-  }, [phases, parentTasks]);
+  }, [phases, parentTasks, locale]);
+
+  /** True when manual WBS order differs from start-date order (hint only). */
+  const orderDivergesFromDates = useMemo(() => {
+    const byManual = (a: Todo, b: Todo) => sortTasksByOrder(a, b, locale);
+    const byDate = (a: Todo, b: Todo) => sortTasksByStartDate(a, b, locale);
+
+    for (const [, parents] of tasksByPhase) {
+      const manual = [...parents].sort(byManual);
+      const chrono = [...parents].sort(byDate);
+      if (!sameTodoOrder(manual, chrono)) return true;
+    }
+
+    const childrenByParent = new Map<string, Todo[]>();
+    for (const td of tasks) {
+      if (!td.parentId) continue;
+      const list = childrenByParent.get(td.parentId) ?? [];
+      list.push(td);
+      childrenByParent.set(td.parentId, list);
+    }
+    for (const [, kids] of childrenByParent) {
+      const manual = [...kids].sort(byManual);
+      const chrono = [...kids].sort(byDate);
+      if (!sameTodoOrder(manual, chrono)) return true;
+    }
+    return false;
+  }, [tasksByPhase, tasks, locale]);
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
@@ -870,7 +939,7 @@ export default function GanttChart({
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggedId(null);
-    if (!onMoveTask) return;
+    if (!onMoveTask || listSortMode === "byStartDate") return;
     const { active, over } = event;
     if (!over) return;
 
@@ -897,7 +966,7 @@ export default function GanttChart({
       }
       onMoveTask(activeId, targetPhase === "__none__" ? null : targetPhase, insertIndex);
     }
-  }, [onMoveTask, findPhaseForTask, phases, tasksByPhase]);
+  }, [onMoveTask, findPhaseForTask, phases, tasksByPhase, listSortMode]);
 
   const draggedTask = useMemo(
     () => (draggedId ? parentTasks.find((td) => td.id === draggedId) ?? null : null),
@@ -921,6 +990,8 @@ export default function GanttChart({
       locale={locale}
       isExport={isExport}
       isReadonly={isReadonly}
+      listSortMode={listSortMode}
+      disableListDnd={disableListDnd || isExport || isReadonly}
       onTaskClick={onTaskClick}
       onPhaseClick={onPhaseClick}
       onBarDateMove={onBarDateMove}
@@ -930,23 +1001,62 @@ export default function GanttChart({
     />
   );
 
+  const sortToolbar =
+    !isExport && !isReadonly ? (
+      <div className="mb-2 flex flex-wrap items-center gap-2 px-0.5">
+        <button
+          type="button"
+          onClick={() =>
+            setListSortMode((m) => (m === "manual" ? "byStartDate" : "manual"))
+          }
+          className="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          {listSortMode === "manual" ? t("gantt.sortByDates") : t("gantt.sortManual")}
+        </button>
+        {listSortMode === "manual" && orderDivergesFromDates ? (
+          <span className="text-[10px] text-zinc-400 dark:text-slate-500">
+            {t("gantt.orderDiffersFromDates")}
+          </span>
+        ) : null}
+        {listSortMode === "byStartDate" ? (
+          <span className="text-[10px] text-zinc-400 dark:text-slate-500">
+            {t("gantt.sortByDatesHint")}
+          </span>
+        ) : null}
+      </div>
+    ) : null;
+
   if (isExport || isReadonly) {
     return <div className="overflow-x-auto">{body}</div>;
   }
 
-  return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="overflow-x-auto" ref={containerRef}>
-        {body}
+  if (disableListDnd) {
+    return (
+      <div>
+        {sortToolbar}
+        <div className="overflow-x-auto" ref={containerRef}>
+          {body}
+        </div>
       </div>
-      <DragOverlay>
-        {draggedTask ? (
-          <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 px-3 py-1.5 shadow-xl rotate-1 opacity-90 max-w-[240px]">
-            <span className="text-xs font-medium text-zinc-800 dark:text-slate-200 truncate block">{draggedTask.title}</span>
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+    );
+  }
+
+  return (
+    <div>
+      {sortToolbar}
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="overflow-x-auto" ref={containerRef}>
+          {body}
+        </div>
+        <DragOverlay>
+          {draggedTask ? (
+            <div className="bg-white dark:bg-slate-900 rounded-md border-2 border-blue-400 dark:border-blue-500 px-3 py-1.5 shadow-xl rotate-1 opacity-90 max-w-[240px]">
+              <span className="text-xs font-medium text-zinc-800 dark:text-slate-200 truncate block">{draggedTask.title}</span>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }
 
