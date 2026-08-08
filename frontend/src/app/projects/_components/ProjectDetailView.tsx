@@ -90,7 +90,7 @@ import ProjectCustomFieldsPanel from "./ProjectCustomFieldsPanel";
 import ProjectDocsTab from "./ProjectDocsTab";
 import { captureElementToPng, downloadSteeringPdf } from "@/lib/steeringPdfExport";
 import { computeProjectSteering } from "@/lib/projectSteering";
-import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
+import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableSubtaskList, SortableSubtaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
 import { formatMins } from "./types";
 import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab, Team } from "./types";
 
@@ -292,6 +292,8 @@ export default function ProjectDetailView({
   const [roleDraft, setRoleDraft] = useState<Record<string, string>>({});
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessSaving, setAccessSaving] = useState(false);
+  /** Collapsible: sous-projets, accès, pilotage, partage, jalons, champs perso. Default closed. */
+  const [projectOrgOpen, setProjectOrgOpen] = useState(false);
 
   const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
   const [boardDraggedId, setBoardDraggedId] = useState<string | null>(null);
@@ -754,6 +756,43 @@ export default function ProjectDetailView({
       return;
     }
 
+    const activeTodo = projectTodos.find((td) => td.id === activeId);
+    const activeParentId =
+      (active.data?.current?.parentId as string | undefined) ?? activeTodo?.parentId ?? undefined;
+    if (active.data?.current?.type === "subtask" || activeParentId) {
+      const parentId = activeParentId ?? activeTodo?.parentId;
+      if (!parentId) {
+        toast.error(t("subtask.dndKeepUnderParent"));
+        return;
+      }
+      const overTodo = projectTodos.find((td) => td.id === overId);
+      const overParentId =
+        (over.data?.current?.parentId as string | undefined) ?? overTodo?.parentId ?? undefined;
+      if (!overTodo || overParentId !== parentId) {
+        toast.error(t("subtask.dndKeepUnderParent"));
+        return;
+      }
+      const siblings = getSubtasks(parentId);
+      const oldIndex = siblings.findIndex((td) => td.id === activeId);
+      const newIndex = siblings.findIndex((td) => td.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const orderedIds = arrayMove(siblings, oldIndex, newIndex).map((td) => td.id);
+      setProjectTodos((prev) => {
+        const updated = [...prev];
+        orderedIds.forEach((id, idx) => {
+          const i = updated.findIndex((td) => td.id === id);
+          if (i !== -1) updated[i] = { ...updated[i], sortOrder: idx };
+        });
+        return updated;
+      });
+      try {
+        await reorderTodosApi(orderedIds);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error");
+      }
+      return;
+    }
+
     const sourcePhase = findPhaseForTask(activeId);
 
     const allPhaseIds = [...orderedPhases.map((p) => p.id), "__none__"];
@@ -776,7 +815,7 @@ export default function ProjectDetailView({
       }
       runPhaseTaskMove(activeId, newPhaseId, insertIndex);
     }
-  }, [findPhaseForTask, orderedPhases, tasksByPhase, runPhaseTaskMove, selectedProject, setSelectedProject, toast]);
+  }, [findPhaseForTask, orderedPhases, tasksByPhase, runPhaseTaskMove, selectedProject, setSelectedProject, toast, canEditProjectContent, projectTodos, getSubtasks, t]);
 
   const openEdit = (todo: Todo) => {
     setEditingTodo(todo);
@@ -1622,9 +1661,39 @@ export default function ProjectDetailView({
           </div>
         )}
 
+        {/* Organisation & pilotage — collapsible (sous-projets → jalons / champs) */}
+        <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setProjectOrgOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-slate-800/80 transition-colors"
+            aria-expanded={projectOrgOpen}
+          >
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-zinc-800 dark:text-slate-100">
+                {t("projects.orgPanelTitle")}
+              </span>
+              <p className="text-[11px] text-zinc-500 dark:text-slate-400 mt-0.5 leading-snug">
+                {t("projects.orgPanelHint")}
+              </p>
+            </div>
+            <svg
+              className={`w-5 h-5 shrink-0 text-zinc-400 transition-transform ${projectOrgOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {projectOrgOpen && (
+            <div className="space-y-4 border-t border-zinc-200 dark:border-slate-700 p-4">
         {/* Sub-projects — only root projects (not sub-projects) can have children */}
         {!selectedProject.parentProjectId && (subProjects.length > 0 || selectedProject.status === "active") && (
-          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
+          <div className="bg-zinc-50/80 dark:bg-slate-800/40 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider">{t("projects.subProjects")} ({subProjects.length})</h4>
               {selectedProject.status === "active" && !showCreateSub && (
@@ -1668,7 +1737,7 @@ export default function ProjectDetailView({
         )}
 
         {selectedProject.teamId && accessPanel && (
-          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
+          <div className="bg-zinc-50/80 dark:bg-slate-800/40 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-1">{t("projects.projectAccess")}</h4>
             <p className="text-[11px] text-zinc-400 dark:text-slate-500 mb-3">{t("projects.projectAccessDesc")}</p>
             {accessLoading ? (
@@ -1746,6 +1815,10 @@ export default function ProjectDetailView({
             />
           </div>
         )}
+
+            </div>
+          )}
+        </div>
 
         {!loadingTodos && hasGanttExportData(projectTodos) && (
           <div aria-hidden className="fixed left-[-10000px] top-0 pointer-events-none">
@@ -1875,14 +1948,20 @@ export default function ProjectDetailView({
                           const parentNum = String(taskCounter);
                           const subs = getSubtasks(todo.id);
                           return (
-                            <SortableBoardTaskRow key={todo.id} id={todo.id}>
-                              {renderTaskRow(todo, parentNum)}
+                            <div key={todo.id}>
+                              <SortableBoardTaskRow id={todo.id}>
+                                {renderTaskRow(todo, parentNum)}
+                              </SortableBoardTaskRow>
                               {subs.length > 0 && (
-                                <div className="ml-6 pl-3 border-l-2 border-zinc-200 dark:border-slate-700 space-y-1 mt-1 mb-1">
-                                  {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`))}
-                                </div>
+                                <SortableSubtaskList parentId={todo.id} items={subs.map((s) => s.id)}>
+                                  {subs.map((sub, si) => (
+                                    <SortableSubtaskRow key={sub.id} id={sub.id} parentId={todo.id}>
+                                      {renderTaskRow(sub, `${parentNum}.${si + 1}`)}
+                                    </SortableSubtaskRow>
+                                  ))}
+                                </SortableSubtaskList>
                               )}
-                            </SortableBoardTaskRow>
+                            </div>
                           );
                         })
                       )}
@@ -1921,14 +2000,20 @@ export default function ProjectDetailView({
                           const parentNum = String(taskCounter);
                           const subs = getSubtasks(todo.id);
                           return (
-                            <SortableBoardTaskRow key={todo.id} id={todo.id}>
-                              {renderTaskRow(todo, parentNum)}
+                            <div key={todo.id}>
+                              <SortableBoardTaskRow id={todo.id}>
+                                {renderTaskRow(todo, parentNum)}
+                              </SortableBoardTaskRow>
                               {subs.length > 0 && (
-                                <div className="ml-6 pl-3 border-l-2 border-zinc-200 dark:border-slate-700 space-y-1 mt-1 mb-1">
-                                  {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`))}
-                                </div>
+                                <SortableSubtaskList parentId={todo.id} items={subs.map((s) => s.id)}>
+                                  {subs.map((sub, si) => (
+                                    <SortableSubtaskRow key={sub.id} id={sub.id} parentId={todo.id}>
+                                      {renderTaskRow(sub, `${parentNum}.${si + 1}`)}
+                                    </SortableSubtaskRow>
+                                  ))}
+                                </SortableSubtaskList>
                               )}
-                            </SortableBoardTaskRow>
+                            </div>
                           );
                         })
                       )}
@@ -2267,6 +2352,8 @@ export default function ProjectDetailView({
               onMoveTask={(taskId, newPhaseId, newIndex) => {
                 runPhaseTaskMove(taskId, newPhaseId, newIndex);
               }}
+              onReorderSubtasks={handleReorderSubtasks}
+              onSubtaskDragBlocked={() => toast.error(t("subtask.dndKeepUnderParent"))}
               onTaskClick={(task) => openEdit(task)}
               onPhaseClick={openPhaseEdit}
               onBarDateMove={(taskId, startDate, deadline) => {

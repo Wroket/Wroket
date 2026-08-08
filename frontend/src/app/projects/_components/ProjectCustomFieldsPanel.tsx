@@ -82,6 +82,9 @@ export default function ProjectCustomFieldsPanel({
           </h4>
         }
       >
+        <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-3 leading-snug">
+          {t("projects.customFieldsHint")}
+        </p>
         {sorted.length > 0 && (
           <ul className="space-y-1 mb-3">
             {sorted.map((f) => (

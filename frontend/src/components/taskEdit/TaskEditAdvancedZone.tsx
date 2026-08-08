@@ -305,7 +305,9 @@ export default function TaskEditAdvancedZone({
           }
         >
           {customFieldDefs.length === 0 ? (
-            <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("projects.customFieldsPlanRequired")}</p>
+            canUseCustomFields ? (
+              <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("projects.customFieldsEmpty")}</p>
+            ) : null
           ) : (
             <div className="space-y-2">
               {[...customFieldDefs].sort((a, b) => a.order - b.order).map((def) => {

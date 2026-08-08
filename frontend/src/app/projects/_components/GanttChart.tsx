@@ -11,7 +11,8 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { SortablePhaseContainer, SortableBoardTaskRow } from "./DndWrappers";
+import { SortablePhaseContainer, SortableBoardTaskRow, SortableSubtaskList, SortableSubtaskRow } from "./DndWrappers";
+import { arrayMove } from "@dnd-kit/sortable";
 import type { ProjectPhase, ProjectMilestone, Todo, TranslationKey } from "./types";
 
 const COL_W = 28;
@@ -154,6 +155,10 @@ interface GanttChartProps {
   locale: string;
   variant?: "interactive" | "export" | "readonly";
   onMoveTask?: (taskId: string, newPhaseId: string | null, newIndex: number) => void;
+  /** Sibling-only subtask reorder (same parent). */
+  onReorderSubtasks?: (orderedIds: string[]) => void;
+  /** Fired when user tries to drag a subtask out of its parent. */
+  onSubtaskDragBlocked?: () => void;
   onTaskClick?: (task: Todo) => void;
   onPhaseClick?: (phase: ProjectPhase) => void;
   onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
@@ -174,6 +179,7 @@ interface GanttChartBodyProps {
   listSortMode?: GanttListSortMode;
   /** When true, skip sortable wrappers (chrono mode or export). */
   disableListDnd?: boolean;
+  onReorderSubtasks?: (orderedIds: string[]) => void;
   onTaskClick?: (task: Todo) => void;
   onPhaseClick?: (phase: ProjectPhase) => void;
   onBarDateMove?: (taskId: string, startDate: string | null, deadline: string | null) => void;
@@ -269,6 +275,7 @@ function GanttChartBody({
   isReadonly = false,
   listSortMode = "manual",
   disableListDnd = false,
+  onReorderSubtasks,
   onTaskClick,
   onPhaseClick,
   onBarDateMove,
@@ -651,19 +658,36 @@ function GanttChartBody({
       counter++;
       const parentNum = String(counter);
       const subs = subtasksByParent.get(task.id) ?? [];
-      const rows = (
-        <>
-          {renderTaskRow(task, parentNum, phaseColor, false)}
-          {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`, phaseColor, true))}
-        </>
-      );
+
+      const parentRow = renderTaskRow(task, parentNum, phaseColor, false);
+      const subRows =
+        subs.length === 0 ? null : isExport || disableListDnd || !onReorderSubtasks ? (
+          <div className="contents">
+            {subs.map((sub, si) => renderTaskRow(sub, `${parentNum}.${si + 1}`, phaseColor, true))}
+          </div>
+        ) : (
+          <SortableSubtaskList parentId={task.id} items={subs.map((s) => s.id)} className="">
+            {subs.map((sub, si) => (
+              <SortableSubtaskRow key={sub.id} id={sub.id} parentId={task.id}>
+                {renderTaskRow(sub, `${parentNum}.${si + 1}`, phaseColor, true)}
+              </SortableSubtaskRow>
+            ))}
+          </SortableSubtaskList>
+        );
+
       if (isExport || disableListDnd) {
-        return <div key={task.id}>{rows}</div>;
+        return (
+          <div key={task.id}>
+            {parentRow}
+            {subRows}
+          </div>
+        );
       }
       return (
-        <SortableBoardTaskRow key={task.id} id={task.id}>
-          {rows}
-        </SortableBoardTaskRow>
+        <div key={task.id}>
+          <SortableBoardTaskRow id={task.id}>{parentRow}</SortableBoardTaskRow>
+          {subRows}
+        </div>
       );
     });
   };
@@ -863,6 +887,8 @@ export default function GanttChart({
   locale,
   variant = "interactive",
   onMoveTask,
+  onReorderSubtasks,
+  onSubtaskDragBlocked,
   onTaskClick,
   onPhaseClick,
   onBarDateMove,
@@ -879,6 +905,7 @@ export default function GanttChart({
 
   const parentTasks = useMemo(() => tasks.filter((td) => !td.parentId), [tasks]);
   const hasData = parentTasks.length > 0;
+  const tasksById = useMemo(() => new Map(tasks.map((td) => [td.id, td])), [tasks]);
 
   const tasksByPhase = useMemo(() => {
     const map = new Map<string, Todo[]>();
@@ -939,13 +966,44 @@ export default function GanttChart({
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggedId(null);
-    if (!onMoveTask || listSortMode === "byStartDate") return;
+    if (listSortMode === "byStartDate") return;
     const { active, over } = event;
     if (!over) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
     if (activeId === overId) return;
+
+    const activeType = active.data?.current?.type as string | undefined;
+    const activeParentId =
+      (active.data?.current?.parentId as string | undefined) ??
+      tasksById.get(activeId)?.parentId ??
+      undefined;
+
+    if (activeType === "subtask" || activeParentId) {
+      const parentId = activeParentId ?? tasksById.get(activeId)?.parentId;
+      if (!parentId || !onReorderSubtasks) {
+        onSubtaskDragBlocked?.();
+        return;
+      }
+      const overTodo = tasksById.get(overId);
+      const overParentId =
+        (over.data?.current?.parentId as string | undefined) ?? overTodo?.parentId ?? undefined;
+      if (!overTodo || overParentId !== parentId) {
+        onSubtaskDragBlocked?.();
+        return;
+      }
+      const siblings = tasks
+        .filter((td) => td.parentId === parentId)
+        .sort((a, b) => sortTasksByOrder(a, b, locale));
+      const oldIndex = siblings.findIndex((td) => td.id === activeId);
+      const newIndex = siblings.findIndex((td) => td.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      onReorderSubtasks(arrayMove(siblings, oldIndex, newIndex).map((td) => td.id));
+      return;
+    }
+
+    if (!onMoveTask) return;
 
     const sourcePhase = findPhaseForTask(activeId);
     const allPhaseIds = [...phases.map((p) => p.id), "__none__"];
@@ -966,11 +1024,22 @@ export default function GanttChart({
       }
       onMoveTask(activeId, targetPhase === "__none__" ? null : targetPhase, insertIndex);
     }
-  }, [onMoveTask, findPhaseForTask, phases, tasksByPhase, listSortMode]);
+  }, [
+    onMoveTask,
+    onReorderSubtasks,
+    onSubtaskDragBlocked,
+    findPhaseForTask,
+    phases,
+    tasksByPhase,
+    listSortMode,
+    tasksById,
+    tasks,
+    locale,
+  ]);
 
   const draggedTask = useMemo(
-    () => (draggedId ? parentTasks.find((td) => td.id === draggedId) ?? null : null),
-    [draggedId, parentTasks],
+    () => (draggedId ? tasksById.get(draggedId) ?? null : null),
+    [draggedId, tasksById],
   );
 
   if (!hasData) {
@@ -992,6 +1061,7 @@ export default function GanttChart({
       isReadonly={isReadonly}
       listSortMode={listSortMode}
       disableListDnd={disableListDnd || isExport || isReadonly}
+      onReorderSubtasks={onReorderSubtasks}
       onTaskClick={onTaskClick}
       onPhaseClick={onPhaseClick}
       onBarDateMove={onBarDateMove}

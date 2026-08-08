@@ -1705,6 +1705,10 @@ const translations = {
   "subtask.cancel": { fr: "Annuler", en: "Cancel" },
   "subtask.done": { fr: "Terminé", en: "Done" },
   "subtask.promote": { fr: "Détacher", en: "Detach" },
+  "subtask.dndKeepUnderParent": {
+    fr: "Une sous-tâche ne peut pas quitter sa tâche parente. Utilisez « Détacher » pour la promouvoir.",
+    en: "A subtask cannot leave its parent. Use “Detach” to promote it.",
+  },
 
   // ── Phases & Gantt ──
   "phase.add": { fr: "Ajouter une phase", en: "Add a phase" },
@@ -1770,6 +1774,10 @@ const translations = {
   "projects.kanban": { fr: "Kanban", en: "Kanban" },
   "projects.docs": { fr: "Docs", en: "Docs" },
   "projects.milestonesTitle": { fr: "Jalons", en: "Milestones" },
+  "projects.milestonesHint": {
+    fr: "Repères de date du projet. Ils s’affichent sur le diagramme de Gantt (pastilles sur la timeline), pas dans la liste des tâches.",
+    en: "Project date markers. They appear on the Gantt chart (timeline diamonds), not in the task list.",
+  },
   "projects.milestonesEmpty": { fr: "Aucun jalon défini.", en: "No milestones defined." },
   "projects.milestoneTitlePlaceholder": { fr: "Libellé du jalon", en: "Milestone label" },
   "projects.milestoneNoPhase": { fr: "Sans phase", en: "No phase" },
@@ -1778,7 +1786,15 @@ const translations = {
   "projects.milestoneDeleted": { fr: "Jalon supprimé", en: "Milestone removed" },
   "projects.milestoneError": { fr: "Erreur jalon", en: "Milestone error" },
   "projects.customFieldsTitle": { fr: "Champs personnalisés", en: "Custom fields" },
+  "projects.customFieldsHint": {
+    fr: "Définissez ici le schéma du projet. Les valeurs se saisissent ensuite sur chaque tâche (modifier la tâche → Avancé).",
+    en: "Define the project schema here. Fill in values on each task (edit task → Advanced).",
+  },
   "projects.customFieldsPlanRequired": { fr: "Champs personnalisés — palier Small teams requis.", en: "Custom fields require Small teams plan." },
+  "projects.customFieldsEmpty": {
+    fr: "Aucun champ sur ce projet. Ajoutez-en dans la section Champs personnalisés du projet.",
+    en: "No fields on this project yet. Add some in the project Custom fields section.",
+  },
   "projects.customFieldNamePlaceholder": { fr: "Nom du champ", en: "Field name" },
   "projects.customFieldOptionsPlaceholder": { fr: "Options (séparées par des virgules)", en: "Options (comma-separated)" },
   "projects.customFieldAdd": { fr: "Ajouter", en: "Add" },
@@ -1835,6 +1851,11 @@ const translations = {
   "projects.totalTime": { fr: "Total projet", en: "Project total" },
   "projects.unassignedPhase": { fr: "Sans phase", en: "Unassigned" },
   "projects.subProjects": { fr: "Sous-projets", en: "Sub-projects" },
+  "projects.orgPanelTitle": { fr: "Organisation & pilotage", en: "Organization & steering" },
+  "projects.orgPanelHint": {
+    fr: "Sous-projets, accès, pilotage, partage, jalons et champs personnalisés.",
+    en: "Sub-projects, access, steering, sharing, milestones, and custom fields.",
+  },
   "projects.projectAccess": { fr: "Accès au projet", en: "Project access" },
   "projects.projectAccessDesc": {
     fr: "Rôles par membre de l’équipe (lecture, édition du contenu, ou administration du projet). Les administrateurs d’équipe conservent un accès complet.",

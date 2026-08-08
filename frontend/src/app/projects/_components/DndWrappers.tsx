@@ -183,6 +183,67 @@ export function SortableBoardTaskRow({ id, children }: { id: string; children: R
   );
 }
 
+/** Nested list of sibling subtasks under one parent (own SortableContext). */
+export function SortableSubtaskList({
+  parentId,
+  items,
+  children,
+  className = "ml-6 pl-3 border-l-2 border-zinc-200 dark:border-slate-700 space-y-1 mt-1 mb-1",
+}: {
+  parentId: string;
+  items: string[];
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <SortableContext id={`subs-${parentId}`} items={items} strategy={verticalListSortingStrategy}>
+      <div className={className} data-subtask-parent={parentId}>
+        {children}
+      </div>
+    </SortableContext>
+  );
+}
+
+export function SortableSubtaskRow({
+  id,
+  parentId,
+  children,
+}: {
+  id: string;
+  parentId: string;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, data: { type: "subtask", parentId } });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-0.5">
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-0.5"
+        aria-label="Reorder subtask"
+        {...attributes}
+        {...listeners}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+        </svg>
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
 /* ─── Draggable Sub-project Card wrapper ─── */
 
 export function DraggableSubProjectCard({ id, children }: { id: string; children: React.ReactNode }) {

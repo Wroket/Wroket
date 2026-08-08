@@ -519,7 +519,7 @@ export default function TaskEditModal({
         {uiV2 && (
           <TaskEditZoneTabs editZone={editZone} onEditZoneChange={setEditZone} />
         )}
-        <div className={uiV2 ? "flex-1 min-h-0 overflow-hidden" : undefined}>
+        <div className={uiV2 ? "flex-1 min-h-0 overflow-y-auto" : undefined}>
         <TaskEditEssentialsZone
           className={zoneCls("essentials")}
           todo={todo}

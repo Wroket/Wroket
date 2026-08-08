@@ -68,9 +68,12 @@ export default function ProjectMilestonesPanel({
 
   return (
     <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-      <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+      <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-1">
         {t("projects.milestonesTitle")}
       </h4>
+      <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-3 leading-snug">
+        {t("projects.milestonesHint")}
+      </p>
       {sorted.length === 0 && !canEdit && (
         <p className="text-xs text-zinc-500 dark:text-slate-400">{t("projects.milestonesEmpty")}</p>
       )}
