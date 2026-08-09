@@ -55,8 +55,8 @@ test.describe("Collab Path to 9 smoke", () => {
     await page.waitForURL(/\/(dashboard|notes|todos|projects)/, { timeout: 30_000 });
 
     await page.goto("/todos");
-    // Prefer the TaskList row (avoid off-screen / hidden duplicates matching getByText).
-    const taskRow = page.locator(".group\\/task").filter({ hasText: taskTitle }).first();
+    // TaskList is a table (data-testid=task-list) — not project board `.group/task`.
+    const taskRow = page.getByTestId("task-list").locator("tbody tr").filter({ hasText: taskTitle }).first();
     await expect(taskRow).toBeVisible({ timeout: 25_000 });
     await expect(
       taskRow.getByText(/En attente d'acceptation|Pending acceptance|En attente|Pending/i).first(),
