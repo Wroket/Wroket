@@ -756,13 +756,6 @@ const translations = {
   "settings.langLabel": { fr: "Langue de l'interface", en: "Interface language" },
   "settings.langHint": { fr: "La modification de la langue sera appliquée à l'ensemble de l'interface.", en: "Changing the language will apply to the entire interface." },
   "settings.appearance": { fr: "Apparence", en: "Appearance" },
-  "settings.uiV2": { fr: "Nouvelle interface", en: "New interface" },
-  "settings.uiV2Desc": {
-    fr: "Active la refonte visuelle (local uniquement). Vous pouvez revenir à l'interface actuelle à tout moment.",
-    en: "Enable the visual redesign (local only). You can switch back to the current interface anytime.",
-  },
-  "settings.uiV2On": { fr: "Activée", en: "On" },
-  "settings.uiV2Off": { fr: "Désactivée", en: "Off" },
   "uiV2.create": { fr: "Créer", en: "Create" },
   "uiV2.createTask": { fr: "Nouvelle tâche", en: "New task" },
   "uiV2.createProject": { fr: "Nouveau projet", en: "New project" },

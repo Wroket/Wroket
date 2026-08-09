@@ -72,9 +72,7 @@ import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
-  // Path to 9 B1: critical agenda path is V2-only (no legacy chrome polish).
-  const uiV2 = true;
-  useUiV2();
+  const { uiV2 } = useUiV2();
   const router = useRouter();
   const { user, refresh } = useAuth();
   const { toast } = useToast();

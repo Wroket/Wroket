@@ -17,7 +17,6 @@ import type { TaskEditZone } from "@/components/TaskEditModal";
 import { toolbarCompleteButton } from "@/components/taskToolbarStyles";
 
 import { QUADRANT_BADGES } from "./sortUtils";
-import TaskIconToolbar from "@/components/TaskIconToolbar";
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { useUiV2 } from "@/lib/UiVersionContext";
 import SubtaskSortableRows from "./SubtaskSortableRows";
@@ -156,7 +155,7 @@ export default function SortableTaskRow({
                 </svg>
                 {t("todos.reactivate")}
               </button>
-            ) : uiV2 ? (
+            ) : (
               <TaskRowActionsV2
                 todo={todo}
                 meUid={meUid}
@@ -180,29 +179,6 @@ export default function SortableTaskRow({
                 suggestedSlot={todo.suggestedSlot}
                 hideCompleteButton
                 visibleActions={visibleActions}
-              />
-            ) : (
-              <TaskIconToolbar
-                todo={todo}
-                meUid={meUid}
-                projects={projects}
-                commentCount={commentCounts[todo.id] ?? 0}
-                subtaskCount={subs.length}
-                attachmentCount={attachmentCounts[todo.id] ?? 0}
-                onComplete={onComplete}
-                onSubtask={onSubtask}
-                onScheduleUpdate={onScheduleUpdate}
-                onMeet={onMeet}
-                meetLoading={meetLoadingId === todo.id}
-                onCancel={onCancel}
-                onDecline={onDecline}
-                onAccept={onAccept}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onCreateNote={onCreateNote}
-                hasLinkedNote={hasLinkedNote}
-                justCreatedId={justCreatedId}
-                isolatePointerEvents
               />
             )}
           </td>

@@ -1,17 +1,14 @@
 import { test, expect } from "@playwright/test";
 
 import { apiBase } from "../helpers/apiBase";
-import { enableUiV2, loginAsFreshUser } from "../helpers/uiAuth";
+import { prepareFreshSession, loginAsFreshUser } from "../helpers/uiAuth";
 
 test.describe("TaskList UI V2", () => {
   test.use({ viewport: { width: 1400, height: 900 } });
   test.setTimeout(45_000);
 
-  test("meta columns readable, actions prefs persist, settings hosts V2 toggle", async ({
-    page,
-    request,
-  }) => {
-    await enableUiV2(page);
+  test("meta columns readable and actions prefs persist", async ({ page, request }) => {
+    await prepareFreshSession(page);
     await loginAsFreshUser(page, request);
 
     const title = `E2E V2 task ${Date.now()}`;
@@ -56,11 +53,5 @@ test.describe("TaskList UI V2", () => {
     const stored = await page.evaluate(() => localStorage.getItem("wroket-ui-v2-task-actions"));
     expect(stored).toBeTruthy();
     expect(JSON.parse(stored!) as string[]).toContain("delete");
-
-    // Path to 9: opt-out toggle lives in Settings (Languages), not the Todos header.
-    await page.goto("/settings?tab=languages");
-    const toggle = page.getByTestId("ui-v2-toggle");
-    await expect(toggle).toBeVisible({ timeout: 15_000 });
-    await expect(toggle).toHaveAttribute("aria-checked", "true");
   });
 });

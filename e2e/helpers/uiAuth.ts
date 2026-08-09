@@ -18,14 +18,16 @@ export async function loginAsFreshUser(
   return creds;
 }
 
-/** Enable UI V2 (and skip first-run tutorial) before the first document load. */
-export async function enableUiV2(page: Page): Promise<void> {
+/** Skip first-run tutorial before the first document load (UI V2 is permanent). */
+export async function prepareFreshSession(page: Page): Promise<void> {
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("wroket-ui-v2", "1");
       localStorage.setItem("wroket-tutorial-v4-seen", "1");
     } catch {
       /* ignore */
     }
   });
 }
+
+/** @deprecated Use prepareFreshSession — V1 sunset made the UI V2 flag obsolete. */
+export const enableUiV2 = prepareFreshSession;

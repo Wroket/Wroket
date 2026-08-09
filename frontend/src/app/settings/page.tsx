@@ -11,7 +11,6 @@ import PageHelpButton from "@/components/PageHelpButton";
 import TaskImportModal from "@/components/TaskImportModal";
 import { SoftLock, SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
-import { useUiV2 } from "@/lib/UiVersionContext";
 import {
   downloadProjectImportTemplateCsv,
   downloadTaskImportTemplateCsv,
@@ -1103,7 +1102,6 @@ function SecuritySection() {
 
 function LanguagesSection() {
   const { t, locale, setLocale: changeLocale } = useLocale();
-  const { uiV2, setUiV2 } = useUiV2();
 
   return (
     <div className="space-y-6">
@@ -1120,39 +1118,6 @@ function LanguagesSection() {
         </select>
       </div>
       <p className="text-xs text-zinc-400 dark:text-slate-500">{t("settings.langHint")}</p>
-
-      <div className="border-t border-zinc-200 dark:border-slate-700 pt-6 space-y-3">
-        <h4 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.uiV2")}</h4>
-        <p className="text-xs text-zinc-500 dark:text-slate-400">{t("settings.uiV2Desc")}</p>
-        <button
-          type="button"
-          role="switch"
-          data-testid="ui-v2-toggle"
-          aria-checked={uiV2}
-          aria-label={t("settings.uiV2")}
-          onClick={() => setUiV2(!uiV2)}
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors ${
-            uiV2
-              ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20"
-              : "border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/60"
-          }`}
-        >
-          <span
-            className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${
-              uiV2 ? "bg-emerald-600 dark:bg-emerald-500" : "bg-zinc-300 dark:bg-slate-600"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${
-                uiV2 ? "translate-x-4" : "translate-x-0"
-              }`}
-            />
-          </span>
-          <span className="text-xs font-semibold text-zinc-700 dark:text-slate-200">
-            {uiV2 ? t("settings.uiV2On") : t("settings.uiV2Off")}
-          </span>
-        </button>
-      </div>
     </div>
   );
 }

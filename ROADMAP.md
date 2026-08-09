@@ -30,14 +30,14 @@ Exécution priorisée : **finaliser Slack+ / canaux chat en prod**, **valider MC
 - **Notion-Like** et **Monday-Like** sont considérés **aboutis en MVP acquisition** pour le besoin actuel.
 - **Import Notion ZIP** et imports **CSV** supplémentaires Notion/Monday sont **dépriorisés**.
 - **E2E Gantt §G.12** est considéré validé.
-- **Dual UI V1+V2** : observation prod en cours ; sunset V1 ~fin août / début septembre 2026 si feedback OK.
+- **Dual UI V1+V2** : **sunset V1 fait** (2026-08-09) — interface V2 permanente.
 
 ### Prochaine priorité (sprint)
 
 1. ~~**Stabiliser le lot local**~~ — **Fait** (2026-08-07) : UI V2 + créneaux intelligents + colonnes TaskList sur `main` (via `feat/ui-v2-lot` + polish tags méta pleine largeur taille V1 dans `882c6ca`).
 2. ~~**Sprint A — Qualité UI V2**~~ — **Fait** (2026-08-07) : E2E Playwright `tasklist.v2.spec.ts` ; unit `taskListVisibleActions` ; ESLint clean.
 3. ~~**Sprint B — Extraire TaskEditModal**~~ — **Fait** (2026-08-07) : zones sous `frontend/src/components/taskEdit/` ; API publique inchangée.
-4. **Dual UI V1+V2** : période d’observation (toggle « Nouvelle interface »). **Sunset V1** = Later (~fin août / début sept. 2026 après feedback).
+4. ~~**Dual UI V1+V2**~~ — **Sunset V1 fait** (2026-08-09) : V2 permanente, toggle retiré.
 5. ~~**Slack+ Lots 1–3**~~ — **Code livré** (2026-08-07, `882c6ca`, doc [`docs/slack-plus.md`](docs/slack-plus.md)) : Webhook+ PMO, OAuth `chat.postMessage`, HMAC interactions + slash `/wroket`. **Reste ops** : secrets `SLACK_*` Cloud Run, URLs Slack App, reconnect OAuth, E2E boutons/slash dans un vrai workspace.
 6. ~~**Slack+ Lot 4**~~ — **Code livré** : `/wroket my-week|overdue|team-risk` via [`pmoDigestService`](backend/src/services/pmoDigestService.ts). **Reste ops** : smoke Lot 3+4 workspace.
 7. **Teams+ / Google Chat+ / Discord+** — **Code parité 1A** (OAuth, actions, slash/PMO, Settings, docs). **Reste ops** : Azure Bot / GCP Chat app / Discord Portal + secrets Cloud Run (voir [`docs/teams-plus.md`](docs/teams-plus.md), [`docs/google-chat-plus.md`](docs/google-chat-plus.md), [`docs/discord-plus.md`](docs/discord-plus.md)).
@@ -80,7 +80,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 1. **Slack+ — finalisation ops Lots 1–4** — Code (Lots 1–3 `882c6ca` + Lot 4 digests). **À faire** : secrets Cloud Run (`SLACK_*`), config Slack App, smoke E2E workspace (boutons + slash + my-week). Doc : [`docs/slack-plus.md`](docs/slack-plus.md).
 2. **Teams+ / Chat+ / Discord+ — ops consoles** — Code parité livré. **À faire** : Azure Bot, Google Chat app, Discord Application + secrets `TEAMS_BOT_*` / `GOOGLE_CHAT_*` / `DISCORD_*` (noms dans `cloudbuild.yaml`, valeurs Secret Manager). Docs ops ci-dessus.
 3. **MCP / IA agentique — validation usage** — Serveur MCP + clés API livrés (PR #6). **À faire** : smoke Cursor/Claude Desktop contre `https://api.wroket.com/mcp`, mesurer adoption / incidents auth, décision go/no-go. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
-4. **Dual UI V1+V2 — observation** — V2 forcé sur Todos/Agenda critiques (Path to 9 B1) ; flag Settings encore présent pour opt-out legacy hors parcours critiques ; sunset total V1 reste Next.
+4. ~~**Dual UI V1+V2 — observation**~~ — **Sunset V1** (2026-08-09) : V2 permanent ; toggle Settings retiré ; opt-out localStorage ignoré/effacé.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
    - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — après Slack/canaux ops + gate MCP.
@@ -96,7 +96,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
 - [ ] **PMO ciblé** : liens partageables lecture seule + portfolio équipe selon traction terrain.
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
-- [ ] **Sunset UI V1** — si feedback V2 positif (cible ~fin août / début sept. 2026).
+- [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 
 ### Later (12+ semaines)
 

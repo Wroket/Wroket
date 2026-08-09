@@ -10,20 +10,9 @@ import {
   type ReactNode,
 } from "react";
 
+/** @deprecated Removed with V1 sunset — kept only so old localStorage keys are cleared. */
 export const UI_V2_STORAGE_KEY = "wroket-ui-v2";
 export const SIDEBAR_COLLAPSED_KEY = "wroket-sidebar-collapsed";
-
-/** UI V2 defaults on for new sessions; explicit `"0"` keeps legacy UI. */
-function readUiV2Flag(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    const v = localStorage.getItem(UI_V2_STORAGE_KEY);
-    if (v === null) return true;
-    return v === "1";
-  } catch {
-    return true;
-  }
-}
 
 function readStorageFlag(key: string): boolean {
   if (typeof window === "undefined") return false;
@@ -35,11 +24,13 @@ function readStorageFlag(key: string): boolean {
 }
 
 interface UiVersionContextValue {
-  /** True when the local "Nouvelle interface" flag is on. */
+  /** Always true — UI V1 has been sunset. */
   uiV2: boolean;
+  /** No-op — V2 is permanent. */
   setUiV2: (enabled: boolean) => void;
+  /** No-op — V2 is permanent. */
   toggleUiV2: () => void;
-  /** False until localStorage has been read (avoids hydration flash). */
+  /** False until localStorage has been read (avoids hydration flash for sidebar). */
   ready: boolean;
   /**
    * V2 desktop sidebar icon rail. Lives in this provider so it survives
@@ -61,44 +52,39 @@ const UiVersionContext = createContext<UiVersionContextValue>({
 });
 
 /**
- * Client-only UI version flag (localStorage). Default on = Nouvelle interface.
+ * App chrome prefs (sidebar). UI version is permanently V2.
  */
 export function UiVersionProvider({ children }: { children: ReactNode }) {
-  const [uiV2, setUiV2State] = useState(() => readUiV2Flag());
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(() =>
     readStorageFlag(SIDEBAR_COLLAPSED_KEY),
   );
   const [ready, setReady] = useState(false);
 
-  // Hydration gate: re-read localStorage after mount (SSR has no window).
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- intentional client hydration sync */
-    setUiV2State(readUiV2Flag());
     setSidebarCollapsedState(readStorageFlag(SIDEBAR_COLLAPSED_KEY));
     setReady(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, []);
-
-  const setUiV2 = useCallback((enabled: boolean) => {
-    setUiV2State(enabled);
     try {
-      localStorage.setItem(UI_V2_STORAGE_KEY, enabled ? "1" : "0");
+      localStorage.removeItem(UI_V2_STORAGE_KEY);
     } catch {
       /* ignore */
     }
-    if (typeof document !== "undefined") {
-      document.documentElement.classList.toggle("ui-v2", enabled);
-    }
+    document.documentElement.classList.add("ui-v2");
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   useEffect(() => {
     if (!ready) return;
-    document.documentElement.classList.toggle("ui-v2", uiV2);
-  }, [ready, uiV2]);
+    document.documentElement.classList.add("ui-v2");
+  }, [ready]);
+
+  const setUiV2 = useCallback((_enabled: boolean) => {
+    /* V1 sunset — ignore */
+  }, []);
 
   const toggleUiV2 = useCallback(() => {
-    setUiV2(!uiV2);
-  }, [setUiV2, uiV2]);
+    /* V1 sunset — ignore */
+  }, []);
 
   const setSidebarCollapsed = useCallback((collapsed: boolean) => {
     setSidebarCollapsedState(collapsed);
@@ -125,7 +111,7 @@ export function UiVersionProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      uiV2,
+      uiV2: true as const,
       setUiV2,
       toggleUiV2,
       ready,
@@ -133,7 +119,7 @@ export function UiVersionProvider({ children }: { children: ReactNode }) {
       setSidebarCollapsed,
       toggleSidebarCollapsed,
     }),
-    [uiV2, setUiV2, toggleUiV2, ready, sidebarCollapsed, setSidebarCollapsed, toggleSidebarCollapsed],
+    [setUiV2, toggleUiV2, ready, sidebarCollapsed, setSidebarCollapsed, toggleSidebarCollapsed],
   );
 
   return (

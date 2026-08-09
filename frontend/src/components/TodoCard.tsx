@@ -11,10 +11,8 @@ import {
   QUADRANT_CONFIG,
   SUBTASK_BADGE_CLS,
 } from "@/lib/todoConstants";
-import TaskIconToolbar from "@/components/TaskIconToolbar";
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { ScheduledSlotBadge } from "@/components/SlotPicker";
-import { useUiV2 } from "@/lib/UiVersionContext";
 
 interface TodoCardProps {
   todo: Todo;
@@ -66,7 +64,6 @@ export default function TodoCard({
   nowMs,
 }: TodoCardProps) {
   const { t } = useLocale();
-  const { uiV2 } = useUiV2();
   const badge = PRIORITY_BADGES[todo.priority];
   const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
   const project = todo.projectId ? projects.find((p) => p.id === todo.projectId) : undefined;
@@ -95,31 +92,8 @@ export default function TodoCard({
         onCancel &&
         onSubtask &&
         onEdit && (
-          uiV2 ? (
-            <div className="shrink-0 self-start flex items-center h-6">
-              <TaskRowActionsV2
-                todo={todo}
-                meUid={meUid ?? null}
-                projects={projects}
-                commentCount={commentCount}
-                subtaskCount={subtaskCount}
-                attachmentCount={attachmentCount}
-                onComplete={onComplete}
-                onSubtask={onSubtask}
-                onScheduleUpdate={onScheduleUpdate}
-                onCancel={onCancel}
-                onDecline={onDecline}
-                onAccept={onAccept}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onCreateNote={onCreateNote}
-                hasLinkedNote={hasLinkedNote}
-                justCreatedId={justCreatedId}
-                suggestedSlot={todo.suggestedSlot}
-              />
-            </div>
-          ) : (
-            <TaskIconToolbar
+          <div className="shrink-0 self-start flex items-center h-6">
+            <TaskRowActionsV2
               todo={todo}
               meUid={meUid ?? null}
               projects={projects}
@@ -138,10 +112,8 @@ export default function TodoCard({
               hasLinkedNote={hasLinkedNote}
               justCreatedId={justCreatedId}
               suggestedSlot={todo.suggestedSlot}
-              isolatePointerEvents
-              className="mt-0.5"
             />
-          )
+          </div>
         )
       )}
       <div className="flex-1 min-w-0">

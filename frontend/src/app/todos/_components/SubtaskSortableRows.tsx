@@ -11,7 +11,6 @@ import { classify } from "@/lib/classify";
 import type { Effort, Priority, Project, Todo } from "@/lib/api";
 import type { TaskEditZone } from "@/components/TaskEditModal";
 import Menu from "@/components/ui/Menu";
-import TaskIconToolbar from "@/components/TaskIconToolbar";
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { toolbarCompleteButton } from "@/components/taskToolbarStyles";
 import { useUiV2 } from "@/lib/UiVersionContext";
@@ -100,53 +99,29 @@ export default function SubtaskSortableRows({
                   key={col}
                   className={`py-2 pl-8 pr-0.5 align-top ${uiV2 ? "task-list-col-actions" : ""}`}
                 >
-                  {uiV2 ? (
-                    <TaskRowActionsV2
-                      todo={sub}
-                      meUid={meUid}
-                      projects={projects}
-                      commentCount={commentCounts[sub.id] ?? 0}
-                      subtaskCount={0}
-                      attachmentCount={attachmentCounts[sub.id] ?? 0}
-                      onComplete={onComplete}
-                      onSubtask={() => {}}
-                      onScheduleUpdate={onScheduleUpdate}
-                      onMeet={onMeet}
-                      meetLoading={meetLoadingId === sub.id}
-                      onCancel={onCancel}
-                      onDecline={onDecline}
-                      onAccept={onAccept}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
-                      onCreateNote={onCreateNote}
-                      hasLinkedNote={!!hasLinkedNoteById[sub.id]}
-                      suggestedSlot={sub.suggestedSlot}
-                      hideCompleteButton
-                      visibleActions={visibleActions}
-                    />
-                  ) : (
-                    <TaskIconToolbar
-                      todo={sub}
-                      meUid={meUid}
-                      projects={projects}
-                      commentCount={commentCounts[sub.id] ?? 0}
-                      subtaskCount={0}
-                      attachmentCount={attachmentCounts[sub.id] ?? 0}
-                      onComplete={onComplete}
-                      onSubtask={() => {}}
-                      onScheduleUpdate={onScheduleUpdate}
-                      onMeet={onMeet}
-                      meetLoading={meetLoadingId === sub.id}
-                      onCancel={onCancel}
-                      onDecline={onDecline}
-                      onAccept={onAccept}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
-                      onCreateNote={onCreateNote}
-                      hasLinkedNote={!!hasLinkedNoteById[sub.id]}
-                      isolatePointerEvents
-                    />
-                  )}
+                  <TaskRowActionsV2
+                    todo={sub}
+                    meUid={meUid}
+                    projects={projects}
+                    commentCount={commentCounts[sub.id] ?? 0}
+                    subtaskCount={0}
+                    attachmentCount={attachmentCounts[sub.id] ?? 0}
+                    onComplete={onComplete}
+                    onSubtask={() => {}}
+                    onScheduleUpdate={onScheduleUpdate}
+                    onMeet={onMeet}
+                    meetLoading={meetLoadingId === sub.id}
+                    onCancel={onCancel}
+                    onDecline={onDecline}
+                    onAccept={onAccept}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onCreateNote={onCreateNote}
+                    hasLinkedNote={!!hasLinkedNoteById[sub.id]}
+                    suggestedSlot={sub.suggestedSlot}
+                    hideCompleteButton
+                    visibleActions={visibleActions}
+                  />
                 </td>
               );
             case "title": {
