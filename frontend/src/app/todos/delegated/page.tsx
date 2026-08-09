@@ -24,6 +24,8 @@ import {
   snapshotAffectedTodos,
 } from "@/lib/optimisticTaskDelete";
 import { useUserLookup } from "@/lib/userUtils";
+import AssignmentStatusBadge from "@/components/AssignmentStatusBadge";
+import Link from "next/link";
 
 export default function DelegatedPage() {
   const { t } = useLocale();
@@ -183,8 +185,15 @@ export default function DelegatedPage() {
             <tbody>
               {todos.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-zinc-400 italic">
-                    {t("todos.delegatedEmpty")}
+                  <td colSpan={6} className="text-center py-10">
+                    <p className="text-sm text-zinc-500 dark:text-slate-400 mb-3">{t("todos.delegatedEmpty")}</p>
+                    <p className="text-xs text-zinc-500 dark:text-slate-400 mb-4">{t("todos.delegatedEmptyHint")}</p>
+                    <Link
+                      href="/todos"
+                      className="inline-flex items-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                    >
+                      {t("todos.delegatedEmptyCta")}
+                    </Link>
                   </td>
                 </tr>
               ) : (
@@ -214,15 +223,8 @@ export default function DelegatedPage() {
                               </svg>
                               {displayName(todo.assignedTo)}
                             </span>
-                            {todo.assignmentStatus === "declined" && (
-                              <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
-                                {t("assign.declined")}
-                              </span>
-                            )}
-                            {todo.assignmentStatus === "accepted" && (
-                              <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                {t("assign.accepted")}
-                              </span>
+                            {todo.assignmentStatus && (
+                              <AssignmentStatusBadge status={todo.assignmentStatus} />
                             )}
                           </div>
                         )}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import EmptyState from "@/components/EmptyState";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import TaskImportModal from "@/components/TaskImportModal";
 import { useToast } from "@/components/Toast";
@@ -339,11 +340,8 @@ export default function ArchivedTasksPanel() {
       </div>
 
       {filteredTasks.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-10 text-center">
-          <svg className="w-10 h-10 mx-auto text-zinc-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
-          </svg>
-          <p className="text-sm text-zinc-400 dark:text-slate-500 italic">{t("archives.empty")}</p>
+        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700">
+          <EmptyState title={t("archives.empty")} hint={t("archives.emptyHint")} />
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 overflow-x-auto">

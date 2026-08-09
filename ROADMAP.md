@@ -79,6 +79,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 0b. **UX Path to 9** — Continuité prioriser→créneau (`?schedule=` + SlotPicker + rail Agenda), sunset V1 critiques, chrome header/nav, SoftLock dur, empty states, funnel analytics (`signup_ok` → `first_slot_booked`). Checklist terrain : [`docs/cold-path-first-slot.md`](docs/cold-path-first-slot.md). **Seuil 9/10** = 5 cold paths Free chronométrés (pas seulement tsc).
 0c. **UX Projets Path to 9** — Continuité schedule toutes vues (Board/Kanban/Gantt + prompt post-create), SoftLock quotas, permissions `moveTodo` collab, empty states V2, analytics `project_*` / `first_slot_booked` source=`project`. Checklist : [`docs/cold-path-projects.md`](docs/cold-path-projects.md) ; revue mensuelle : [`docs/funnel-projects-monthly.md`](docs/funnel-projects-monthly.md). **Seuil 9/10 Projets** = 3 cold paths + collab move OK (pas seulement tsc).
 0d. **UX Données Path to 9** — Continuité notes import/export UI, SoftLock quota notes, Compte & données ↔ hub, SoftLock/Early Bird migrate OAuth, RGPD purge/export complets, privacy/pricing alignés. Checklist : [`docs/cold-path-donnees.md`](docs/cold-path-donnees.md) ; revue : [`docs/funnel-donnees-monthly.md`](docs/funnel-donnees-monthly.md). **Seuil 9/10** = 3 cold paths terrain (pas seulement tsc).
+0e. **UX Path to 9 transversal** — Collab (UX-4), a11y modales, chrome EmptyState Archives/Settings, share projet smoke, docs SSO/Push. Checklists : [`docs/cold-path-collab.md`](docs/cold-path-collab.md) + §I-bis / Microsoft SSO. **Seuil 9/10 transversal** = cold paths collab + validations Push/SSO (pas seulement tsc). Client Portal = Later.
 1. **Slack+ — finalisation ops Lots 1–4** — Code (Lots 1–3 `882c6ca` + Lot 4 digests). **À faire** : secrets Cloud Run (`SLACK_*`), config Slack App, smoke E2E workspace (boutons + slash + my-week). Doc : [`docs/slack-plus.md`](docs/slack-plus.md).
 2. **Teams+ / Chat+ / Discord+ — ops consoles** — Code parité livré. **À faire** : Azure Bot, Google Chat app, Discord Application + secrets `TEAMS_BOT_*` / `GOOGLE_CHAT_*` / `DISCORD_*` (noms dans `cloudbuild.yaml`, valeurs Secret Manager). Docs ops ci-dessus.
 3. **MCP / IA agentique — validation usage** — Serveur MCP + clés API livrés (PR #6). **À faire** : smoke Cursor/Claude Desktop contre `https://api.wroket.com/mcp`, mesurer adoption / incidents auth, décision go/no-go. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
@@ -86,7 +87,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
    - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — après Slack/canaux ops + gate MCP.
-5. **Microsoft path (SSO + Outlook MVP)** — **Quasi terminé** (2026-06-07) : Outlook + Teams + invités externes OK ; reste SSO login Microsoft bout-en-bout (§B Auth checklist).
+5. **Microsoft path (SSO + Outlook MVP)** — **Quasi terminé** (2026-06-07) : Outlook + Teams + invités externes OK ; **SSO login Microsoft** : checklist §B items 5–7 à cocher (Path to 9 transversal).
 6. ~~**Reliability / Error UX / PWA / Web Push / Gantt**~~ — **Fait** (juin 2026) ; Web Push desktop §I-bis encore à valider manuellement.
 7. **E2E smoke CI** — Surveiller les runs post-`882c6ca` (smoke E2E a échoué sur ce push ; CI lint OK) — diagnostiquer si régression ou flaky.
 
@@ -96,15 +97,16 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Slack+ Lot 4 — Workflows PMO managers** — `/wroket my-week`, `team-risk`, `overdue` via `pmoDigestService` (code) ; smoke workspace = reste ops.
 - [ ] **Teams+ / Google Chat+ / Discord+ — ops E2E** — Code parité 1A livré ; brancher consoles + secrets + smoke.
 - [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
-- [ ] **PMO ciblé** : liens partageables lecture seule + portfolio équipe selon traction terrain.
+- [ ] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe selon traction terrain — *pas* le Client Portal (voir Later).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 
 ### Later (12+ semaines)
 
+- [ ] **Client Portal** — Vue externe structurée pour parties prenantes (clients, managers) : espace multi-projets, progression / jalons / commentaires filtrés, invité read-only optionnel, au-delà du lien token `/share/project/:token`. **Après** validation share projet (Path to 9 transversal Phase D) + signal traction clients externes. Spec PMO : [`docs/project-roadmap-pmo.md`](docs/project-roadmap-pmo.md) §6.1. Détail Premium ci-dessous.
 - IA intégrée minimale (2-3 commandes natives) sur primitives MCP validées.
 - Notes collaboratives temps réel (chantier lourd).
-- Premium business tier (analytics, capacity, automation, API publique, client portal, OKR).
+- Premium business tier (analytics, capacity, automation, API publique, OKR) — Client Portal listé ci-dessus.
 - OAuth GitHub SSO ; CalDAV / multi-calendriers slots approfondi.
 
 ## Retour E2E prod
@@ -191,11 +193,11 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
    - Charge: **6-7 jours**  
    - Deadline: **2026-06-20**
 
-4. **UX-4 — Refonte Collaboration (équipes, assignations, notifications)**  
+4. **UX-4 — Refonte Collaboration (équipes, assignations, notifications)** — **Livré Path to 9 transversal (2026-08-09)**  
    - Prérequis: Error UX Standard  
-   - Livrables: notifications plus actionnables, statuts d'assignation explicites, cohérence équipe/projet/tâches  
+   - Livrables: notifications Accept/Decline (`task_assigned`), badges pending/accepted/declined hors modal, deep-links unifiés, empty CTAs équipes, cold-path [`docs/cold-path-collab.md`](docs/cold-path-collab.md)  
    - Charge: **5-6 jours**  
-   - Deadline: **2026-07-04**
+   - Deadline: **2026-07-04** — *code + E2E smoke ; cold paths terrain = gate 9/10*
 
 ### Definition of Done UX
 
@@ -383,8 +385,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + cloche ; alerte desktop détaillée avec deep-link si push locale inactive ; lien « Notifications système » → Paramètres ; skip doublon si Web Push locale active ; E2E §I validé.
 - [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.
 - [x] **Templates & checklists de tâches** — `TaskTemplatePicker` + templates système + CRUD perso (`/templates`) ; application priorité/effort/tags/sous-tâches à la création ; E2E §I validé.
-- [ ] **Liens partageables en lecture seule** — URL signée ou token limité dans le temps pour consulter une tâche ou la vue d’un projet sans compte Wroket (socle léger avant un client portal complet — voir *Fonctionnalités Premium*).
-- [ ] **Accessibilité (a11y) ciblée** — Focus trap des modales, contrastes WCAG sur les flux critiques, labels et annonces pour lecteurs d’écran sur Tâches, Agenda, Paramètres.
+- [x] **Liens partageables en lecture seule** — URL token projet (`/share/project/:token`, expiration / révocation) sans compte Wroket — socle PMO léger livré + smoke Path to 9. Lien **par tâche** = hors scope. **Ensuite** : Client Portal (Later / Premium).
+- [x] **Accessibilité (a11y) ciblée** — Focus trap sur `Modal` + dialogs Agenda/move ; contraste empty/hints Archives/Settings/Notifs ; labels boutons critiques. Pas d’audit WCAG exhaustif.
 
 ## Intégrations & Connecteurs
 
@@ -506,7 +508,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [ ] **Automation rules** — Règles conditionnelles avancées (réassignation, planification auto) — *socle livré en Monday-Like vague 3 (recettes fixes) ; builder personnalisable = évolution P4+*
 - [ ] **Custom fields** — Champs personnalisés sur les tâches (texte, nombre, date, dropdown, checkbox), configurables par projet, filtrables et triables — *voir aussi section Acquisition Notion-Like (vague 5)*
 - [ ] **AI scheduling** — Planification automatique de la semaine : analyse des priorités, deadlines, effort estimé et disponibilités pour proposer un planning optimal, bouton "Planifier ma semaine"
-- [ ] **Client portal** — Vue externe en lecture seule pour les parties prenantes (clients, managers), progression projet, jalons, commentaires filtrés, lien partageable avec token
+- [ ] **Client Portal** — Vue externe en lecture seule pour parties prenantes (clients, managers) : progression projet, jalons, commentaires filtrés, multi-projets / branding éventuel, lien ou invité read-only. **À traiter après** le share projet tokenisé validé + traction clients externes (pas dans Path to 9 transversal). Voir aussi *Later* ci-dessus et [`docs/project-roadmap-pmo.md`](docs/project-roadmap-pmo.md) §6.1.
 - [ ] **API publique** — REST API documentée (OpenAPI/Swagger) avec clés API par utilisateur, rate limiting par plan, endpoints CRUD tâches/projets/notes pour intégrations tierces
 - [ ] **OKR & objectifs** — Définition d'objectifs (Objectives & Key Results) liés aux projets et tâches, suivi de progression, alignement équipe, tableau de bord OKR
 

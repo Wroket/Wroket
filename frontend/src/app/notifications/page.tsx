@@ -4,14 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
+import { useToast } from "@/components/Toast";
 import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
   acceptCollaboration,
   declineCollaboration,
+  updateTodo,
   type AppNotification,
 } from "@/lib/api";
+import { formatUserFacingError } from "@/lib/apiErrors";
+import { notificationOpenHref } from "@/lib/notificationDeepLink";
 import { useLocale } from "@/lib/LocaleContext";
 import type { TranslationKey } from "@/lib/i18n";
 
@@ -55,45 +59,13 @@ function formatDate(iso: string, locale: string): string {
   });
 }
 
-function notifHref(notif: AppNotification): string | null {
-  // note_mention: deep-link to the note (if still accessible)
-  if (notif.type === "note_mention") {
-    if (notif.data?.noteAccessible === "false") return null;
-    return notif.data?.noteId ? `/notes?id=${encodeURIComponent(notif.data.noteId)}` : "/notes";
-  }
-  const taskId = notif.data?.todoId;
-  if (
-    taskId &&
-    (notif.type === "task_assigned" ||
-      notif.type === "task_completed" ||
-      notif.type === "task_cancelled" ||
-      notif.type === "task_declined" ||
-      notif.type === "task_accepted" ||
-      notif.type === "comment_mention" ||
-      notif.type === "deadline_approaching" ||
-      notif.type === "deadline_today")
-  ) {
-    return `/todos?task=${encodeURIComponent(taskId)}`;
-  }
-  if (
-    notif.type === "task_assigned" ||
-    notif.type === "task_completed" ||
-    notif.type === "task_cancelled" ||
-    notif.type === "task_declined" ||
-    notif.type === "task_accepted" ||
-    notif.type === "comment_mention"
-  ) {
-    return "/todos";
-  }
-  if (notif.type === "team_invite") return "/teams";
-  return "/dashboard";
-}
-
 export default function NotificationsPage() {
   const { t, locale } = useLocale();
+  const { toast } = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,25 +74,91 @@ export default function NotificationsPage() {
       try {
         const list = await getNotifications();
         if (!cancelled) setNotifications(list);
-      } catch { /* ignore */ }
-      finally { if (!cancelled) setLoading(false); }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(formatUserFacingError(err, "toast.loadError", locale));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-    return () => { cancelled = true; };
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [locale, toast]);
 
-  const handleMarkRead = useCallback(async (id: string) => {
-    try {
-      await markNotificationRead(id);
-      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-    } catch { /* ignore */ }
-  }, []);
+  const handleMarkRead = useCallback(
+    async (id: string) => {
+      try {
+        await markNotificationRead(id);
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      } catch (err) {
+        toast.error(formatUserFacingError(err, "toast.genericError", locale));
+      }
+    },
+    [locale, toast],
+  );
 
   const handleMarkAllRead = useCallback(async () => {
     try {
       await markAllNotificationsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch { /* ignore */ }
-  }, []);
+    } catch (err) {
+      toast.error(formatUserFacingError(err, "toast.genericError", locale));
+    }
+  }, [locale, toast]);
+
+  const handleInviteAction = useCallback(
+    async (notif: AppNotification, action: "accept" | "decline") => {
+      const email = notif.data?.inviterEmail;
+      if (!email) return;
+      setActionBusyId(notif.id);
+      try {
+        if (action === "accept") await acceptCollaboration(email);
+        else await declineCollaboration(email);
+        await handleMarkRead(notif.id);
+        window.dispatchEvent(new Event("collaborators-updated"));
+        toast.success(t(action === "accept" ? "notif.accepted" : "notif.declined"));
+      } catch (err) {
+        toast.error(
+          formatUserFacingError(
+            err,
+            action === "accept" ? "toast.acceptError" : "toast.declineError",
+            locale,
+          ),
+        );
+      } finally {
+        setActionBusyId(null);
+      }
+    },
+    [handleMarkRead, locale, t, toast],
+  );
+
+  const handleAssignmentAction = useCallback(
+    async (notif: AppNotification, status: "accepted" | "declined") => {
+      const todoId = notif.data?.todoId;
+      if (!todoId) return;
+      setActionBusyId(notif.id);
+      try {
+        await updateTodo(todoId, { assignmentStatus: status });
+        await handleMarkRead(notif.id);
+        toast.success(
+          t(status === "accepted" ? "assign.acceptedFromPush" : "assign.declinedFromPush"),
+        );
+      } catch (err) {
+        toast.error(
+          formatUserFacingError(
+            err,
+            status === "accepted" ? "toast.acceptError" : "toast.declineError",
+            locale,
+          ),
+        );
+      } finally {
+        setActionBusyId(null);
+      }
+    },
+    [handleMarkRead, locale, t, toast],
+  );
 
   const filtered = notifications.filter((n) => {
     if (filter === "unread") return !n.read;
@@ -168,7 +206,6 @@ export default function NotificationsPage() {
           )}
         </div>
 
-        {/* Filter tabs */}
         <div className="flex gap-1 mb-4 bg-zinc-100 dark:bg-slate-800 rounded-lg p-1">
           {tabs.map((tab) => (
             <button
@@ -183,11 +220,13 @@ export default function NotificationsPage() {
             >
               {t(tab.tKey)}
               {tab.count != null && tab.count > 0 && (
-                <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  tab.key === "unread" && tab.count > 0
-                    ? "bg-blue-500 text-white"
-                    : "bg-zinc-200 dark:bg-slate-600 text-zinc-600 dark:text-slate-300"
-                }`}>
+                <span
+                  className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    tab.key === "unread" && tab.count > 0
+                      ? "bg-blue-500 text-white"
+                      : "bg-zinc-200 dark:bg-slate-600 text-zinc-600 dark:text-slate-300"
+                  }`}
+                >
                   {tab.count}
                 </span>
               )}
@@ -195,20 +234,28 @@ export default function NotificationsPage() {
           ))}
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {/* Notification list */}
         {!loading && filtered.length === 0 && (
           <div className="text-center py-16">
-            <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            <svg
+              className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              />
             </svg>
-            <p className="text-sm text-zinc-400 dark:text-slate-500">{emptyMessage()}</p>
+            <p className="text-sm text-zinc-500 dark:text-slate-400">{emptyMessage()}</p>
           </div>
         )}
 
@@ -216,6 +263,14 @@ export default function NotificationsPage() {
           <div className="space-y-2">
             {filtered.map((notif) => {
               const meta = NOTIF_ICON[notif.type] ?? { icon: "🔔", bg: "bg-zinc-100 dark:bg-slate-800" };
+              const href = notificationOpenHref(notif);
+              const busy = actionBusyId === notif.id;
+              const showInviteActions =
+                notif.type === "team_invite" && !notif.read && !!notif.data?.inviterEmail;
+              const showAssignActions =
+                notif.type === "task_assigned" && !notif.read && !!notif.data?.todoId;
+              const hideOpenWhileActions = showInviteActions;
+
               return (
                 <div
                   key={notif.id}
@@ -225,47 +280,65 @@ export default function NotificationsPage() {
                       : "bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
                   }`}
                 >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-base ${meta.bg}`}>
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-base ${meta.bg}`}
+                  >
                     {meta.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-snug ${notif.read ? "text-zinc-600 dark:text-slate-400" : "text-zinc-900 dark:text-slate-100 font-medium"}`}>
+                    <p
+                      className={`text-sm leading-snug ${
+                        notif.read
+                          ? "text-zinc-600 dark:text-slate-400"
+                          : "text-zinc-900 dark:text-slate-100 font-medium"
+                      }`}
+                    >
                       {notif.message}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[11px] text-zinc-400 dark:text-slate-500">
+                      <span className="text-[11px] text-zinc-500 dark:text-slate-400">
                         {timeAgo(notif.createdAt, t)}
                       </span>
-                      <span className="text-[11px] text-zinc-300 dark:text-slate-600">·</span>
-                      <span className="text-[11px] text-zinc-400 dark:text-slate-500">
+                      <span className="text-[11px] text-zinc-400 dark:text-slate-500">·</span>
+                      <span className="text-[11px] text-zinc-500 dark:text-slate-400">
                         {formatDate(notif.createdAt, locale)}
                       </span>
                     </div>
-                    {notif.type === "team_invite" && !notif.read && notif.data?.inviterEmail && (
+                    {showInviteActions && (
                       <div className="flex gap-2 mt-2">
                         <button
                           type="button"
-                          onClick={async () => {
-                            try {
-                              await acceptCollaboration(notif.data!.inviterEmail);
-                              await handleMarkRead(notif.id);
-                              window.dispatchEvent(new Event("collaborators-updated"));
-                            } catch { /* ignore */ }
-                          }}
-                          className="rounded px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                          disabled={busy}
+                          onClick={() => void handleInviteAction(notif, "accept")}
+                          className="rounded px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
                         >
                           {t("notif.accept")}
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
-                            try {
-                              await declineCollaboration(notif.data!.inviterEmail);
-                              await handleMarkRead(notif.id);
-                              window.dispatchEvent(new Event("collaborators-updated"));
-                            } catch { /* ignore */ }
-                          }}
-                          className="rounded px-3 py-1.5 text-xs font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                          disabled={busy}
+                          onClick={() => void handleInviteAction(notif, "decline")}
+                          className="rounded px-3 py-1.5 text-xs font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                        >
+                          {t("notif.decline")}
+                        </button>
+                      </div>
+                    )}
+                    {showAssignActions && (
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleAssignmentAction(notif, "accepted")}
+                          className="rounded px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                        >
+                          {t("notif.accept")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleAssignmentAction(notif, "declined")}
+                          className="rounded px-3 py-1.5 text-xs font-medium border border-zinc-300 dark:border-slate-600 text-zinc-600 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
                         >
                           {t("notif.decline")}
                         </button>
@@ -273,10 +346,10 @@ export default function NotificationsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {!notif.read && notif.type !== "team_invite" && (
+                    {!notif.read && !showInviteActions && !showAssignActions && (
                       <button
                         type="button"
-                        onClick={() => handleMarkRead(notif.id)}
+                        onClick={() => void handleMarkRead(notif.id)}
                         title={t("notif.markAllRead")}
                         className="rounded p-1.5 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                       >
@@ -285,21 +358,20 @@ export default function NotificationsPage() {
                         </svg>
                       </button>
                     )}
-                    {notif.type !== "team_invite" && (() => {
-                      const href = notifHref(notif);
-                      if (!href) return null;
-                      return (
-                        <Link
-                          href={href}
-                          onClick={() => { if (!notif.read) handleMarkRead(notif.id); }}
-                          className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                          </svg>
-                        </Link>
-                      );
-                    })()}
+                    {!hideOpenWhileActions && (
+                      <Link
+                        href={href}
+                        onClick={() => {
+                          if (!notif.read) void handleMarkRead(notif.id);
+                        }}
+                        aria-label={t("notif.open")}
+                        className="rounded p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </Link>
+                    )}
                   </div>
                 </div>
               );

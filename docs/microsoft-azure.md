@@ -70,15 +70,15 @@ Messaging endpoint Bot : `https://api.wroket.com/integrations/teams/interactions
 ## Checklist opérationnelle
 
 - [x] Application **Wroket** enregistrée — Client ID `e75f60be-547f-40fe-b910-5feb59a600bc`
-- [ ] Client ID copié dans Secret Manager `MICROSOFT_CLIENT_ID` (+ IAM `wroket-run`)
-- [ ] Secret client créé — **Value** dans Secret Manager `MICROSOFT_CLIENT_SECRET`
-- [ ] 4 redirect URIs + ID tokens
-- [ ] Permissions Graph + consentement admin sur le tenant `4d7ec8e5-e09d-439d-8954-0f90454b1b28`
+- [x] Client ID / secret montés via Cloud Build (`MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` → `wroket-api`)
+- [x] Redirect SSO + Graph dans `cloudbuild.yaml` (`MICROSOFT_SSO_REDIRECT_URI`, `MICROSOFT_GRAPH_REDIRECT_URI`)
+- [ ] Vérifier en Azure : 4 redirect URIs Web + ID tokens (si login SSO échoue)
+- [ ] Permissions Graph + consentement admin sur le tenant `4d7ec8e5-e09d-439d-8954-0f90454b1b28` (si calendrier Outlook)
 - [x] Domaine `wroket.com` vérifié dans Entra ID
-- [ ] Deploy `wroket-api` avec secrets montés
+- [ ] **E2E humain** : checklist [`checklist-e2e-prod.md`](./checklist-e2e-prod.md) §B items 5–7 (Microsoft SSO)
 
 ## Liens
 
 - [backend/.env.example](../backend/.env.example)
 - [cloudbuild.yaml](../cloudbuild.yaml)
-- Checklist E2E : [checklist-e2e-prod.md](./checklist-e2e-prod.md) §D (agenda / Microsoft)
+- Checklist E2E : [checklist-e2e-prod.md](./checklist-e2e-prod.md) §B (SSO) + §D (agenda / Microsoft)

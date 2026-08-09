@@ -37,5 +37,12 @@ export function notificationOpenHref(notif: NotifDeepLinkInput): string {
   if (notif.type === "team_invite") return "/teams";
   if (notif.type === "project_deleted") return "/projects";
 
+  const projectId = notif.data?.projectId;
+  const pmoTypes = ["project_at_risk", "milestone_due_soon", "dependency_blocked"];
+  if (pmoTypes.includes(notif.type)) {
+    if (projectId) return `/projects?project=${encodeURIComponent(projectId)}`;
+    return "/projects";
+  }
+
   return "/notifications";
 }

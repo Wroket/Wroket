@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import ConfirmDialog from "@/components/ConfirmDialog";
+import EmptyState from "@/components/EmptyState";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import { useToast } from "@/components/Toast";
 import {
@@ -266,8 +267,8 @@ export default function ArchivedProjectsPanel() {
       </div>
 
       {archivedRootProjects.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-8 text-center">
-          <p className="text-sm text-zinc-400 dark:text-slate-500 italic">{t("archives.projectsEmpty")}</p>
+        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700">
+          <EmptyState title={t("archives.projectsEmpty")} hint={t("archives.projectsEmptyHint")} />
         </div>
       ) : (
         <div className="space-y-3">

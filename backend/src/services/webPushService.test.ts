@@ -94,6 +94,11 @@ describe("web push payload", () => {
     expect(url).toBe("https://wroket.com/todos?task=todo-42");
   });
 
+  it("builds deep link for PMO project_at_risk", () => {
+    const url = notifOpenUrl("project_at_risk", { projectId: "proj-1" });
+    expect(url).toBe("https://wroket.com/projects?project=proj-1");
+  });
+
   it("shapes notification payload", () => {
     const notif: Notification = {
       id: "n1",

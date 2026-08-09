@@ -16,6 +16,7 @@ import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal, { type TaskEditZone } from "@/components/TaskEditModal";
 import TaskNoteModal from "@/components/TaskNoteModal";
 import TodoCard from "@/components/TodoCard";
+import AssignmentStatusBadge from "@/components/AssignmentStatusBadge";
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { useToast } from "@/components/Toast";
 import { useUiV2 } from "@/lib/UiVersionContext";
@@ -1973,21 +1974,14 @@ export default function TodosPage() {
                                     → {userDisplayName(todo.assignedTo)}
                                   </span>
                                 )}
-                                {todo.assignmentStatus === "declined" && (
-                                  <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
-                                    {t("assign.declined")}
-                                  </span>
+                                {todo.assignmentStatus && (
+                                  <AssignmentStatusBadge status={todo.assignmentStatus} />
                                 )}
                                 {(todo.tags ?? []).map((tag) => (
                                   <span key={tag} className={`text-[10px] font-medium px-1.5 py-0.5 ${TAG_AUX.userTag} shrink-0 whitespace-nowrap`}>
                                     {tag}
                                   </span>
                                 ))}
-                                {todo.assignmentStatus === "accepted" && (
-                                  <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                    {t("assign.accepted")}
-                                  </span>
-                                )}
                               </div>
                             </div>
                             <div className="shrink-0 self-start pt-0.5">

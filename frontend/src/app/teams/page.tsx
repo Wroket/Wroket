@@ -577,9 +577,17 @@ function TeamsPageContent() {
                   </p>
                 )}
                 {activeCollabs.length === 0 && pendingSent.length === 0 && receivedInvites.length === 0 ? (
-                  <p className="text-sm text-zinc-400 dark:text-slate-500 italic text-center py-6">
-                    {t("teams.collaboratorsEmpty")}
-                  </p>
+                  <div className="text-center py-6 space-y-3">
+                    <p className="text-sm text-zinc-500 dark:text-slate-400">{t("teams.collaboratorsEmpty")}</p>
+                    <p className="text-xs text-zinc-500 dark:text-slate-400">{t("teams.collaboratorsEmptyHint")}</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowInvite(true)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-500"
+                    >
+                      {t("teams.invite")}
+                    </button>
+                  </div>
                 ) : activeCollabs.length === 0 ? null : (
                   <ul className="divide-y divide-zinc-100 dark:divide-slate-800">
                     {activeCollabs.map((collab) => (
@@ -658,11 +666,19 @@ function TeamsPageContent() {
             </div>
 
             {teams.length === 0 ? (
-              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-10 text-center">
-                <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+              <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-10 text-center space-y-3">
+                <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                 </svg>
-                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("teams.teamsEmpty")}</p>
+                <p className="text-sm text-zinc-500 dark:text-slate-400">{t("teams.teamsEmpty")}</p>
+                <p className="text-xs text-zinc-500 dark:text-slate-400">{t("teams.teamsEmptyHint")}</p>
+                <button
+                  type="button"
+                  onClick={openCreateTeam}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                >
+                  {t("teams.createTeam")}
+                </button>
               </div>
             ) : (
               <div className="space-y-3">

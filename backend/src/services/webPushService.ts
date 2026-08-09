@@ -110,6 +110,13 @@ export function notifOpenUrl(type: NotificationType, data?: Record<string, strin
   if (type === "team_invite") return `${base}/teams`;
   if (type === "project_deleted") return `${base}/projects`;
 
+  const projectId = data?.projectId;
+  const pmoTypes: NotificationType[] = ["project_at_risk", "milestone_due_soon", "dependency_blocked"];
+  if (pmoTypes.includes(type)) {
+    if (projectId) return `${base}/projects?project=${encodeURIComponent(projectId)}`;
+    return `${base}/projects`;
+  }
+
   return `${base}/notifications`;
 }
 

@@ -51,6 +51,11 @@ Checklist pas à pas pour valider les parcours critiques sur **production** apr�
 2. [x] Connexion compte principal → redirection dashboard, pas d’erreur bloquante
 3. [x] Déconnexion / reconnexion → session OK
 4. [x] (Optionnel) 2FA si activé → parcours complet
+5. [ ] **Microsoft SSO** — bouton « Continuer avec Microsoft » sur `/login` → compte Microsoft **nouveau** (email pas encore Wroket) → session dashboard
+6. [ ] **Microsoft SSO** — même flux avec email **déjà** lié à un compte Wroket (liaison / login sans doublon destructif)
+7. [ ] Erreur SSO (refus consentement / cancel) → retour login avec message actionnable
+
+> Path to 9 transversal : cocher 5–7 en prod avant de déclarer le 9/10 transversal. Doc ops : [`docs/microsoft-azure.md`](microsoft-azure.md).
 
 ---
 
@@ -224,30 +229,30 @@ Les codes `CALENDAR_`* sont visibles dans DevTools → Network ; l’utilisateur
 
 ### Activation par appareil
 
-1. [x ] Paramètres → Intégrations → **Activer les notifications push** sur le **laptop** (même si déjà activé sur téléphone)
-2. [x ] Statut affiche **« Push activé sur cet appareil »** (pas seulement un flag compte global)
-3. [x ] Permission OS : notifications autorisées pour Wroket / Chrome dans Réglages système
+1. [ ] Paramètres → Intégrations → **Activer les notifications push** sur le **laptop** (même si déjà activé sur téléphone)
+2. [ ] Statut affiche **« Push activé sur cet appareil »** (pas seulement un flag compte global)
+3. [ ] Permission OS : notifications autorisées pour Wroket / Chrome dans Réglages système
 
 ### Réception et deep-link
 
-1. [x ] Depuis un **autre compte**, assigner une tâche au testeur
-2. [x ] Toast système **Wroket** (nom PWA si installée) avec **titre + message détaillés** — pas seulement « Google Chrome » + « 1 nouvelle notification »
-3. [x ] **Onglet en arrière-plan** : clic sur le toast → `/todos?task=…` → modal tâche
-4. [x ] **Onglet fermé** (PWA installée) : même deep-link au clic
-5. x ] Si Web Push active sur cet appareil : **pas de doublon** toast générique AppShell + toast détaillé SW
+1. [ ] Depuis un **autre compte**, assigner une tâche au testeur
+2. [ ] Toast système **Wroket** (nom PWA si installée) avec **titre + message détaillés** — pas seulement « Google Chrome » + « 1 nouvelle notification »
+3. [ ] **Onglet en arrière-plan** : clic sur le toast → `/todos?task=…` → modal tâche
+4. [ ] **Onglet fermé** (PWA installée) : même deep-link au clic
+5. [ ] Si Web Push active sur cet appareil : **pas de doublon** toast générique AppShell + toast détaillé SW
 
 ### Actions Accepter / Refuser (Windows PWA)
 
-1. [x ] Toast `task_assigned` affiche boutons **Accepter** / **Refuser** (Windows Chrome/Edge PWA ; macOS souvent sans boutons)
-2. [x ] Clic **Accepter** sans ouvrir l’app → statut assignation `accepted` (vérifier dans l’app ou côté assigneur)
-3. [x ] Clic **Refuser** → statut `declined` ; erreur 401 → redirection login avec `?redirect=`
+1. [ ] Toast `task_assigned` affiche boutons **Accepter** / **Refuser** (Windows Chrome/Edge PWA ; macOS souvent sans boutons)
+2. [ ] Clic **Accepter** sans ouvrir l’app → statut assignation `accepted` (vérifier dans l’app ou côté assigneur)
+3. [ ] Clic **Refuser** → statut `declined` ; erreur 401 → redirection login avec `?redirect=`
 
 ### Cloche in-app (sans push local)
 
 1. [ ] Permission navigateur `granted` mais push **non** activé localement : alerte desktop **détaillée** (titre/message) avec clic → deep-link
 2. [ ] Cloche → **Notifications système** pointe vers Paramètres → Intégrations
 
----
+> Path to 9 transversal : code Push desktop livré ; **§I-bis reste validation humaine** Windows/Mac PWA avant 9/10.
 
 ## J. Go / No-go
 

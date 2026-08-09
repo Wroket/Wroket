@@ -1,6 +1,7 @@
 "use client";
 
 import type { MoveTodoStrategy } from "@/lib/api/todos";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { TranslationKey } from "./types";
 
 export type TaskMoveModalVariant = "light" | "dates";
@@ -26,6 +27,8 @@ interface TaskMoveConstraintModalProps {
 }
 
 export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveConstraintModalProps) {
+  const trapRef = useFocusTrap(!!state);
+
   if (!state) return null;
 
   if (state.variant === "conflict") {
@@ -36,13 +39,18 @@ export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveC
         aria-modal="true"
         aria-labelledby="task-move-conflict-title"
       >
-        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+        <div
+          ref={trapRef}
+          className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+        >
           <h2 id="task-move-conflict-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
             {t("schedule.conflictTitle")}
           </h2>
           <ul className="mt-2 max-h-40 overflow-y-auto text-xs text-zinc-600 dark:text-slate-300 space-y-1">
             {state.conflicts.map((c) => (
-              <li key={c.id} className="truncate">{c.title}</li>
+              <li key={c.id} className="truncate">
+                {c.title}
+              </li>
             ))}
           </ul>
           <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -75,7 +83,10 @@ export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveC
       aria-modal="true"
       aria-labelledby="task-move-constraint-title"
     >
-      <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+      <div
+        ref={trapRef}
+        className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+      >
         <h2 id="task-move-constraint-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
           {isSlot ? t("projects.moveConstraint.slotTitle") : t("projects.moveConstraint.dateTitle")}
         </h2>
@@ -86,7 +97,7 @@ export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveC
           <p className="mt-1 text-xs text-zinc-500 dark:text-slate-400">
             {state.phaseStart && state.phaseEnd
               ? `${state.phaseStart} → ${state.phaseEnd}`
-              : state.phaseStart ?? state.phaseEnd}
+              : (state.phaseStart ?? state.phaseEnd)}
           </p>
         )}
         <div className="mt-4 flex flex-col gap-2">

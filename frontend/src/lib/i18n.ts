@@ -98,6 +98,18 @@ const translations = {
     en: "Completed, cancelled, or trashed tasks. They are permanently removed after the retention period set under Settings → Tasks.",
   },
   "archives.empty": { fr: "Aucune tâche archivée", en: "No archived tasks" },
+  "archives.emptyHint": {
+    fr: "Les tâches terminées ou annulées que vous archivez apparaîtront ici.",
+    en: "Completed or cancelled tasks you archive will show up here.",
+  },
+  "archives.projectsEmptyHint": {
+    fr: "Archivez un projet depuis Projets pour le retrouver ici.",
+    en: "Archive a project from Projects to find it here.",
+  },
+  "archives.data.emptyHint": {
+    fr: "Rien d’archivé pour le moment dans cette section.",
+    en: "Nothing archived in this section yet.",
+  },
   "archives.completedOn": { fr: "Complétée", en: "Completed" },
   "archives.cancelledOn": { fr: "Annulée", en: "Cancelled" },
   "archives.deletedOn": { fr: "Supprimée", en: "Deleted" },
@@ -537,6 +549,11 @@ const translations = {
   "todos.matrixTitle": { fr: "Vue Radar", en: "Radar view" },
   "todos.delegatedTitle": { fr: "Déléguées", en: "Assigned out" },
   "todos.delegatedEmpty": { fr: "Aucune tâche déléguée", en: "No tasks assigned out yet" },
+  "todos.delegatedEmptyHint": {
+    fr: "Assignez une tâche depuis la liste pour la suivre ici.",
+    en: "Assign a task from your list to track it here.",
+  },
+  "todos.delegatedEmptyCta": { fr: "Aller aux tâches", en: "Go to tasks" },
   "todos.delegatedDesc": {
     fr: "Uniquement les tâches que vous avez créées et déléguées (pas les tâches reçues — voir Mes tâches > Reçues).",
     en: "Only tasks you created and assigned out (not tasks assigned to you — use My tasks > Assigned).",
@@ -1038,6 +1055,10 @@ const translations = {
   "settings.webhookTestOk": { fr: "Connexion réussie !", en: "Connection successful!" },
   "settings.webhookTestFail": { fr: "Échec de connexion", en: "Connection failed" },
   "settings.webhookNone": { fr: "Aucun webhook configuré", en: "No webhooks configured" },
+  "settings.webhookNoneHint": {
+    fr: "Les webhooks sortants (Slack, Discord, Teams) se configurent ici une fois les intégrations débloquées.",
+    en: "Outbound webhooks (Slack, Discord, Teams) are configured here once integrations are unlocked.",
+  },
   "settings.webhookEnabled": { fr: "Actif", en: "Enabled" },
   "settings.webhookDisabled": { fr: "Désactivé", en: "Disabled" },
   "settings.eventTaskAssigned": { fr: "Tâche assignée", en: "Task assigned" },
@@ -1273,6 +1294,15 @@ const translations = {
   "teams.send": { fr: "Envoyer", en: "Send" },
   "teams.collaborators": { fr: "Collaborateurs", en: "Collaborators" },
   "teams.collaboratorsEmpty": { fr: "Aucun collaborateur pour le moment", en: "No collaborators yet" },
+  "teams.collaboratorsEmptyHint": {
+    fr: "Invitez quelqu’un par email pour partager des tâches.",
+    en: "Invite someone by email to share tasks.",
+  },
+  "teams.teamsEmpty": { fr: "Aucune équipe pour le moment", en: "No teams yet" },
+  "teams.teamsEmptyHint": {
+    fr: "Créez une équipe pour organiser projets et membres.",
+    en: "Create a team to organize projects and members.",
+  },
   "teams.activeCollabs": { fr: "Actifs", en: "Active" },
   "teams.sentInvites": { fr: "Invitations envoyées", en: "Sent invitations" },
   "teams.receivedInvites": { fr: "Invitations reçues", en: "Received invitations" },
@@ -1281,7 +1311,6 @@ const translations = {
   "teams.noReceivedInvites": { fr: "Aucune invitation reçue", en: "No received invitations" },
   "teams.receivedInviteDesc": { fr: "Cet utilisateur souhaite collaborer avec vous.", en: "This user wants to collaborate with you." },
   "teams.teamsList": { fr: "Équipes", en: "Teams" },
-  "teams.teamsEmpty": { fr: "Aucune équipe pour le moment", en: "No teams yet" },
   "teams.createTeam": { fr: "Créer une équipe", en: "Create a team" },
   "teams.pendingInvite": { fr: "En attente", en: "Pending" },
   "teams.resendInvite": { fr: "Renvoyer", en: "Resend" },

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 
 interface ModalProps {
@@ -35,7 +36,7 @@ export default function Modal({
   footer,
   titleId = "ui-modal-title",
 }: ModalProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
+  const trapRef = useFocusTrap(open);
 
   useModalCloseKeys(open, onClose);
 
@@ -46,10 +47,6 @@ export default function Modal({
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
-
-  useEffect(() => {
-    if (open) panelRef.current?.querySelector<HTMLElement>("input,textarea,button")?.focus();
   }, [open]);
 
   if (!open) return null;
@@ -68,7 +65,7 @@ export default function Modal({
         onClick={onClose}
       />
       <div
-        ref={panelRef}
+        ref={trapRef}
         className={`relative w-full ${SIZE_CLS[size]} bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90vh] flex flex-col`}
       >
         {title && (

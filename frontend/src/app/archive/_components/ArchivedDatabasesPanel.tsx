@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import ConfirmDialog from "@/components/ConfirmDialog";
+import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/components/Toast";
 import {
   getArchivedUserDatabases,
@@ -94,8 +95,8 @@ export default function ArchivedDatabasesPanel() {
       </div>
 
       {databases.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-8 text-center">
-          <p className="text-sm text-zinc-400 dark:text-slate-500">{t("archives.data.databasesEmpty")}</p>
+        <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700">
+          <EmptyState title={t("archives.data.databasesEmpty")} hint={t("archives.data.emptyHint")} />
         </div>
       ) : (
         <ul className="space-y-2">

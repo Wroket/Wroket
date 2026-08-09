@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskImportModal from "@/components/TaskImportModal";
 import { SoftLock, SoftLockHint, PlanBadge } from "@/components/SoftLock";
+import EmptyState from "@/components/EmptyState";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import {
   downloadProjectImportTemplateCsv,
@@ -2850,7 +2851,7 @@ function IntegrationsSection({
     <SoftLock locked={!hasIntegrations} tier="small">
       {!hasIntegrations ? (
         <>
-          <p className="text-sm text-zinc-400 dark:text-slate-500 italic py-4">{t("settings.webhookNone")}</p>
+          <EmptyState title={t("settings.webhookNone")} hint={t("settings.webhookNoneHint")} />
           <button
             type="button"
             disabled
@@ -2869,7 +2870,7 @@ function IntegrationsSection({
       ) : (
     <>
       {webhooks.length === 0 && !showForm && (
-        <p className="text-sm text-zinc-400 dark:text-slate-500 italic py-4">{t("settings.webhookNone")}</p>
+        <EmptyState title={t("settings.webhookNone")} hint={t("settings.webhookNoneHint")} />
       )}
       {webhooks.length > 0 && (
         <div className="space-y-3">

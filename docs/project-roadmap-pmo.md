@@ -108,10 +108,10 @@ Objectif **PMO** : permettre au porteur de projet de donner de la **visibilité*
 ### 6.1 Partage de projet en lecture seule
 
 - [x] **Partage intra-équipe** — accès projet via équipe / RBAC (existant ; hors périmètre « client externe »)
-- [ ] **Lien signé** (token) — accès sans compte, révocation, expiration (ROADMAP `[ ]` Liens partageables lecture seule, P2 Next)
+- [x] **Lien signé** (token) — accès sans compte, révocation, expiration (`/share/project/:token`) — code livré ; smoke Path to 9 transversal. Lien **par tâche** = hors scope.
 - [ ] **Invité read-only** — compte restreint sur périmètre projet
 - [ ] **Périmètre affichable + masquage** — tâches, commentaires, PJ, emails (RGPD / secrets commerciaux)
-- [ ] **Client portal** — vue externe structurée (ROADMAP `[ ]` Fonctionnalités Premium)
+- [ ] **Client portal** — vue externe structurée (ROADMAP Later / Premium) — **après** share projet + traction clients externes
 
 **Ordre produit** : cadrer **qui lit quoi** (§6.1) **avant** d’enrichir les exports V2 — les KPIs client doivent refléter les mêmes règles que la vue partagée.
 
@@ -126,7 +126,7 @@ Objectif **PMO** : permettre au porteur de projet de donner de la **visibilité*
 Tout partage externe ou export doit passer la grille [`feature-completeness-gate`](../.cursor/rules/feature-completeness-gate.mdc) : **révocation**, message d’erreur clair, cohérence UI, et [`data-safety`](../.cursor/rules/data-safety.mdc) pour les jetons, journaux d’accès si pertinent.
 
 - [x] Exports steering actuels — erreurs toast (`toast.steeringPdfError`), pas de fuite de données hors périmètre utilisateur connecté
-- [ ] Partage externe — non applicable tant que §6.1 non engagé
+- [x] Partage externe lien token — révocation + page publique ; Client Portal = Later
 
 ---
 

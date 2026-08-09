@@ -14,6 +14,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import AgendaUnscheduledRail from "@/components/AgendaUnscheduledRail";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useUiV2 } from "@/lib/UiVersionContext";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
 import {
@@ -167,6 +168,7 @@ export default function AgendaPage() {
     end: string;
     conflicts: SlotConflict[];
   } | null>(null);
+  const dragConflictTrapRef = useFocusTrap(!!dragConflict);
 
   const dragSessionRef = useRef<{
     todoId: string;
@@ -1673,7 +1675,10 @@ export default function AgendaPage() {
             aria-modal="true"
             aria-labelledby="agenda-drag-conflict-title"
           >
-            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+            <div
+              ref={dragConflictTrapRef}
+              className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+            >
               <h2 id="agenda-drag-conflict-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
                 {t("schedule.conflictTitle")}
               </h2>
