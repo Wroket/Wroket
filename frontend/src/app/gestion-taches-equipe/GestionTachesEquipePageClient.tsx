@@ -1,6 +1,8 @@
 "use client";
 
-import { MarketingArticle, MarketingPageShell } from "@/components/marketing/MarketingPageShell";
+import { MarketingPageShell } from "@/components/marketing/MarketingPageShell";
+import { TeamProductMock } from "@/components/marketing/MarketingProductMocks";
+import { useLocale } from "@/lib/LocaleContext";
 
 const SECTIONS = [
   {
@@ -22,18 +24,17 @@ const SECTIONS = [
 ];
 
 export default function GestionTachesEquipePageClient() {
+  const { locale } = useLocale();
   return (
     <MarketingPageShell
+      h1Key="marketing.team.h1"
+      introKey="marketing.team.intro"
+      sections={SECTIONS}
+      visual={<TeamProductMock fr={locale === "fr"} />}
       relatedLinks={[
         { href: "/agenda-taches", labelKey: "landing.footerAgendaTasks" },
         { href: "/matrice-eisenhower", labelKey: "landing.footerEisenhower" },
       ]}
-    >
-      <MarketingArticle
-        h1Key="marketing.team.h1"
-        introKey="marketing.team.intro"
-        sections={SECTIONS}
-      />
-    </MarketingPageShell>
+    />
   );
 }

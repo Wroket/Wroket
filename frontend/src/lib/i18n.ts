@@ -2518,8 +2518,8 @@ const translations = {
   "landing.heroBadge": { fr: "Wroket travaille pour vous", en: "Wroket works for you" },
   "landing.heroTitle": { fr: "Organisez, planifiez,\ncollaborez.", en: "Organize, schedule,\ncollaborate." },
   "landing.heroSub": {
-    fr: "Wroket priorise pour vous et vous aide \u00e0 bloquer vos t\u00e2ches dans l\u2019agenda. Google Calendar et Outlook : Early Bird ou palier Team.",
-    en: "Wroket prioritizes for you and helps you block tasks on the calendar. Google Calendar and Outlook: Early Bird or Team plan.",
+    fr: "Wroket priorise pour vous et vous aide \u00e0 bloquer vos t\u00e2ches dans l\u2019agenda. Synchronisez Google Calendar ou Outlook quand vous \u00eates pr\u00eat.",
+    en: "Wroket prioritizes for you and helps you block tasks on the calendar. Sync Google Calendar or Outlook when you\u2019re ready.",
   },
   "landing.howItWorks.title": { fr: "Comment Wroket vous aide", en: "How Wroket helps you" },
   "landing.howItWorks.step1.title": { fr: "Cr\u00e9ez ou recevez des t\u00e2ches", en: "Create or receive tasks" },
@@ -2534,8 +2534,8 @@ const translations = {
   },
   "landing.howItWorks.step3.title": { fr: "Bloquez le cr\u00e9neau dans l\u2019agenda", en: "Block time on your calendar" },
   "landing.howItWorks.step3.desc": {
-    fr: "R\u00e9servez d\u2019abord un cr\u00e9neau dans Wroket ; synchronisez Google ou Outlook avec Early Bird ou le palier Team.",
-    en: "First reserve a slot in Wroket; sync Google or Outlook with Early Bird or the Team plan.",
+    fr: "R\u00e9servez d\u2019abord un cr\u00e9neau dans Wroket, puis synchronisez Google ou Outlook pour le retrouver dans votre agenda.",
+    en: "First reserve a slot in Wroket, then sync Google or Outlook to see it on your calendar.",
   },
   "landing.howItWorks.step4.title": { fr: "Collaborez en \u00e9quipe", en: "Collaborate as a team" },
   "landing.howItWorks.step4.desc": {
@@ -2558,13 +2558,13 @@ const translations = {
   },
   "landing.f2.title": { fr: "Agenda intelligent", en: "Smart calendar" },
   "landing.f2.desc": {
-    fr: "Bloquez des créneaux dans Wroket ; synchronisez Google ou Outlook (Early Bird ou Team).",
-    en: "Block slots in Wroket; sync Google or Outlook (Early Bird or Team).",
+    fr: "Bloquez des créneaux dans Wroket, puis synchronisez Google ou Outlook.",
+    en: "Block slots in Wroket, then sync Google or Outlook.",
   },
   "landing.f3.title": { fr: "Connectez vos apps préférées", en: "Connect your favorite apps" },
   "landing.f3.desc": {
-    fr: "Importez depuis Notion ou Monday. Calendriers externes, Slack et Teams : Early Bird ou palier Team.",
-    en: "Import from Notion or Monday. External calendars, Slack, and Teams: Early Bird or Team plan.",
+    fr: "Importez depuis Notion ou Monday. Reliez calendriers externes, Slack et Microsoft Teams.",
+    en: "Import from Notion or Monday. Connect external calendars, Slack, and Microsoft Teams.",
   },
   "landing.f4.title": { fr: "Gérez vos projets", en: "Manage your projects" },
   "landing.f4.desc": {
@@ -2581,12 +2581,23 @@ const translations = {
   "landing.footerEisenhower": { fr: "Matrice Eisenhower", en: "Eisenhower matrix" },
   "landing.f6.title": { fr: "Notifications & rappels", en: "Notifications & reminders" },
   "landing.f6.desc": {
-    fr: "Rappels deadline et alertes d'assignation dans l'app ; Slack/Discord/Teams sur le palier Team.",
-    en: "In-app deadline reminders and assignment alerts; Slack/Discord/Teams on the Team plan.",
+    fr: "Rappels deadline et alertes d'assignation dans l'app ; relais possibles vers Slack, Discord ou Teams.",
+    en: "In-app deadline reminders and assignment alerts; optional Slack, Discord, or Teams delivery.",
   },
   "landing.flipHint": { fr: "Survolez pour un aperçu", en: "Hover for a preview" },
   "landing.footerTag": { fr: "Vos projets méritent mieux qu'une to-do list.", en: "Your projects deserve more than a to-do list." },
-
+  "landing.preview.openApp": { fr: "Ouvrir l'app", en: "Open the app" },
+  "landing.preview.label": { fr: "Aperçu produit", en: "Product preview" },
+  "landing.preview.chrome": { fr: "wroket.com", en: "wroket.com" },
+  "landing.preview.task1": { fr: "Lancer la campagne marketing", en: "Launch marketing campaign" },
+  "landing.preview.task2": { fr: "Préparer la démo client", en: "Prepare client demo" },
+  "landing.preview.task3": { fr: "Refactorer le module auth", en: "Refactor auth module" },
+  "landing.preview.task4": { fr: "Mettre à jour la documentation", en: "Update documentation" },
+  "landing.preview.prioHigh": { fr: "Haute", en: "High" },
+  "landing.preview.prioMed": { fr: "Moyenne", en: "Medium" },
+  "landing.preview.prioLow": { fr: "Basse", en: "Low" },
+  "landing.preview.slot1": { fr: "Lun 09:00", en: "Mon 09:00" },
+  "landing.preview.slot2": { fr: "Mar 14:00", en: "Tue 14:00" },
   "marketing.shell.start": { fr: "Commencer maintenant", en: "Get started" },
   "marketing.shell.viewPricing": { fr: "Voir les tarifs", en: "View pricing" },
   "marketing.shell.related": { fr: "Voir aussi", en: "See also" },
@@ -2594,8 +2605,8 @@ const translations = {
   "marketing.agenda.metaTitle": { fr: "T\u00e2ches et agenda", en: "Tasks and calendar" },
   "marketing.agenda.h1": { fr: "Planifiez vos t\u00e2ches directement dans votre agenda", en: "Schedule your tasks directly in your calendar" },
   "marketing.agenda.intro": {
-    fr: "Une to-do list sans agenda, c\u2019est une liste de souhaits. Wroket relie vos t\u00e2ches \u00e0 Google Calendar pour que la priorit\u00e9 devienne un cr\u00e9neau r\u00e9serv\u00e9.",
-    en: "A to-do list without a calendar is a wish list. Wroket connects your tasks to Google Calendar so priority becomes a reserved slot.",
+    fr: "Une to-do list sans agenda reste une liste de souhaits. Wroket relie priorit\u00e9 et cr\u00e9neau : vous bloquez le temps dans l\u2019app, puis synchronisez Google Calendar ou Outlook.",
+    en: "A to-do list without a calendar stays a wish list. Wroket links priority to time: block the slot in the app, then sync Google Calendar or Outlook.",
   },
   "marketing.agenda.s1.title": { fr: "Le probl\u00e8me des listes d\u00e9connect\u00e9es", en: "The disconnected-list problem" },
   "marketing.agenda.s1.p1": {
@@ -2636,20 +2647,20 @@ const translations = {
   },
   "marketing.team.s3.title": { fr: "Slack, Teams, Discord", en: "Slack, Teams, Discord" },
   "marketing.team.s3.p1": {
-    fr: "Webhooks vers Slack, Microsoft Teams et Discord (palier Small teams). Recevez les assignations et rappels l\u00e0 o\u00f9 votre \u00e9quipe travaille d\u00e9j\u00e0.",
-    en: "Webhooks to Slack, Microsoft Teams, and Discord (Small teams tier). Get assignments and reminders where your team already works.",
+    fr: "Webhooks vers Slack, Microsoft Teams et Discord. Recevez les assignations et rappels l\u00e0 o\u00f9 votre \u00e9quipe travaille d\u00e9j\u00e0.",
+    en: "Webhooks to Slack, Microsoft Teams, and Discord. Get assignments and reminders where your team already works.",
   },
-  "marketing.team.s4.title": { fr: "Passer en \u00e9quipe", en: "Go team" },
+  "marketing.team.s4.title": { fr: "Grandir avec votre \u00e9quipe", en: "Grow with your team" },
   "marketing.team.s4.p1": {
-    fr: "Commencez seul sur le palier Free, puis activez les int\u00e9grations et la collaboration quand votre \u00e9quipe grandit. Consultez nos tarifs pour Small teams et Large orgs.",
-    en: "Start solo on Free, then enable integrations and collaboration as your team grows. See pricing for Small teams and Large orgs.",
+    fr: "Commencez seul, puis activez collaboration et int\u00e9grations quand votre \u00e9quipe grandit. Les options sont d\u00e9taill\u00e9es sur la page Tarifs.",
+    en: "Start solo, then turn on collaboration and integrations as your team grows. Options are detailed on the Pricing page.",
   },
 
   "marketing.eisenhower.metaTitle": { fr: "Matrice d\u2019Eisenhower automatique", en: "Automatic Eisenhower matrix" },
   "marketing.eisenhower.h1": { fr: "La matrice d\u2019Eisenhower, calcul\u00e9e pour vous", en: "The Eisenhower matrix, computed for you" },
   "marketing.eisenhower.intro": {
-    fr: "La matrice urgent / important est un classique de la productivit\u00e9. Wroket l\u2019automatise : Wroket priorise pour vous \u2014 vous n\u2019avez pas \u00e0 remplir les quadrants \u00e0 la main.",
-    en: "The urgent / important matrix is a productivity classic. Wroket automates it: Wroket prioritizes for you \u2014 no manual quadrant sorting.",
+    fr: "La matrice urgent / important est un classique. Wroket l\u2019automatise via la Vue Radar : chaque t\u00e2che se place sans glisser-d\u00e9poser dans une grille.",
+    en: "The urgent / important matrix is a classic. Wroket automates it with Radar view: every task lands without drag-and-drop into a grid.",
   },
   "marketing.eisenhower.s1.title": { fr: "Les quatre quadrants", en: "The four quadrants" },
   "marketing.eisenhower.s1.p1": {

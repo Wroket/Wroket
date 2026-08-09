@@ -73,7 +73,7 @@ function FlipCard({
   return (
     <div
       tabIndex={0}
-      className="h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 rounded-2xl"
+      className="h-[240px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 rounded-2xl"
       style={{ perspective: "1000px" }}
       onMouseEnter={() => setFlipped(true)}
       onMouseLeave={() => setFlipped(false)}
@@ -91,27 +91,35 @@ function FlipCard({
         }}
       >
         <div
-          className="p-6 rounded-2xl bg-white/90 border border-stone-200/80 flex flex-col"
+          className="p-6 rounded-2xl bg-white border border-stone-200/90 shadow-[0_1px_0_rgba(28,25,23,0.04)] dark:bg-stone-700/80 dark:border-stone-500/40 flex flex-col"
           style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
         >
-          <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center mb-4">{icon}</div>
-          <h3 className="text-base font-semibold mb-2 text-stone-900">{t(titleKey)}</h3>
-          <p className="text-sm text-stone-600 leading-relaxed flex-1">{t(descKey)}</p>
+          <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-800 dark:bg-teal-800/40 dark:text-teal-200 flex items-center justify-center mb-4 ring-1 ring-teal-900/10 dark:ring-teal-400/25">
+            {icon}
+          </div>
+          <h3 className="text-base font-semibold mb-2 text-stone-900 dark:text-stone-50">{t(titleKey)}</h3>
+          <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed flex-1">{t(descKey)}</p>
         </div>
         <div
-          className="p-5 rounded-2xl bg-white border border-teal-200 shadow-lg flex flex-col"
+          className="p-4 rounded-2xl bg-stone-900 text-stone-100 border border-stone-700/80 shadow-[0_18px_40px_-24px_rgba(15,118,110,0.55)] flex flex-col overflow-hidden"
           style={{
             position: "absolute",
             inset: 0,
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
+            backgroundImage:
+              "radial-gradient(ellipse 90% 70% at 100% 0%, rgba(15,118,110,0.28), transparent 55%), linear-gradient(165deg, #1c1917 0%, #0f172a 55%, #134e4a 140%)",
           }}
         >
-          <h3 className="text-xs font-semibold text-teal-700 mb-3 flex items-center gap-1.5">
-            <span className="text-teal-600">{icon}</span> {t(titleKey)}
-          </h3>
-          <div className="flex-1 flex items-center">{preview}</div>
+          <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+            <h3 className="text-[11px] font-semibold tracking-wide uppercase text-teal-200/90 flex items-center gap-1.5">
+              <span className="text-teal-300 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
+              {t(titleKey)}
+            </h3>
+            <span className="text-[9px] font-medium text-stone-500 tabular-nums">live</span>
+          </div>
+          <div className="flex-1 flex items-stretch min-h-0">{preview}</div>
         </div>
       </div>
     </div>
@@ -122,14 +130,17 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
   switch (id) {
     case "eisenhower":
       return (
-        <div className="grid grid-cols-2 gap-1.5 w-full">
+        <div className="grid grid-cols-2 gap-1.5 w-full self-center">
           {[
-            { label: fr ? "Urgent + Important" : "Urgent + Important", bg: "bg-red-100", text: "text-red-700" },
-            { label: "Important", bg: "bg-amber-100", text: "text-amber-700" },
-            { label: fr ? "Urgent" : "Urgent", bg: "bg-sky-100", text: "text-sky-700" },
-            { label: fr ? "Planifier" : "Schedule", bg: "bg-stone-100", text: "text-stone-600" },
+            { label: fr ? "Urgent + Important" : "Urgent + Important", bg: "bg-red-500/20", text: "text-red-200", ring: "ring-red-400/30" },
+            { label: "Important", bg: "bg-amber-500/20", text: "text-amber-200", ring: "ring-amber-400/30" },
+            { label: fr ? "Urgent" : "Urgent", bg: "bg-sky-500/20", text: "text-sky-200", ring: "ring-sky-400/30" },
+            { label: fr ? "Planifier" : "Schedule", bg: "bg-stone-500/20", text: "text-stone-300", ring: "ring-stone-400/20" },
           ].map((q) => (
-            <div key={q.label} className={`${q.bg} rounded-lg p-2 flex flex-col items-center justify-center min-h-[52px]`}>
+            <div
+              key={q.label}
+              className={`${q.bg} ring-1 ${q.ring} rounded-lg p-2 flex flex-col items-center justify-center min-h-[56px]`}
+            >
               <span className={`text-[10px] font-semibold ${q.text} text-center leading-tight`}>{q.label}</span>
             </div>
           ))}
@@ -137,16 +148,16 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
       );
     case "calendar":
       return (
-        <div className="w-full space-y-1.5">
+        <div className="w-full space-y-1.5 self-center rounded-xl bg-stone-950/50 ring-1 ring-white/10 p-2.5">
           {["09:00", "10:00", "11:00"].map((h, i) => (
             <div key={h} className="flex items-center gap-2">
-              <span className="text-[10px] text-stone-400 w-8 shrink-0 font-mono">{h}</span>
+              <span className="text-[10px] text-stone-500 w-8 shrink-0 font-mono">{h}</span>
               {i === 1 ? (
-                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-teal-50 text-teal-800 border-l-2 border-teal-600">
+                <div className="flex-1 rounded-md px-2 py-1.5 text-[10px] font-medium bg-teal-500/20 text-teal-100 ring-1 ring-teal-400/40 border-l-2 border-teal-400">
                   {fr ? "Focus deep work" : "Deep work block"}
                 </div>
               ) : (
-                <div className="flex-1 rounded border border-dashed border-stone-200 h-6" />
+                <div className="flex-1 rounded-md border border-dashed border-stone-600/80 h-7" />
               )}
             </div>
           ))}
@@ -154,37 +165,172 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
       );
     case "integrations":
       return (
-        <div className="w-full grid grid-cols-2 gap-2">
-          {["Notion", "Monday", "Google", "Outlook"].map((label) => (
-            <div key={label} className="rounded-lg px-2.5 py-2 bg-stone-900 text-white">
-              <span className="text-[10px] font-bold">{label}</span>
-            </div>
-          ))}
+        <div className="w-full flex flex-col gap-2 self-center min-h-0">
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: "Notion", status: fr ? "Importé" : "Synced", on: true },
+              { label: "Monday", status: fr ? "Prêt" : "Ready", on: true },
+              { label: "Google", status: "Calendar", on: true },
+              { label: "Outlook", status: "Calendar", on: true },
+            ].map(({ label, status, on }) => (
+              <div
+                key={label}
+                className="rounded-lg px-2 py-2 bg-stone-950/55 text-stone-100 ring-1 ring-white/10 flex items-center gap-2 min-w-0"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? "bg-teal-400" : "bg-stone-500"}`}
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-semibold tracking-wide truncate">{label}</div>
+                  <div className={`text-[8px] truncate ${on ? "text-teal-300/80" : "text-stone-500"}`}>{status}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg bg-stone-950/55 ring-1 ring-white/10 px-2.5 py-2 flex items-center gap-2">
+            <span className="text-[9px] font-semibold text-stone-400 uppercase tracking-wide shrink-0">
+              {fr ? "Notifs" : "Alerts"}
+            </span>
+            <span className="text-[10px] text-stone-200 truncate">Slack · Discord · Teams</span>
+          </div>
         </div>
       );
     case "kanban":
       return (
-        <div className="w-full flex gap-2">
-          {["Design", "Dev", "Done"].map((phase) => (
-            <div key={phase} className="flex-1 min-w-0">
-              <span className="text-[9px] font-bold text-stone-600 uppercase tracking-wide">{phase}</span>
-              <div className="mt-1 bg-stone-50 rounded px-2 py-1.5 text-[9px] border border-stone-100">…</div>
+        <div className="w-full flex flex-col gap-2 self-center min-h-0">
+          <div className="flex gap-1.5 flex-1 min-h-0">
+            {[
+              {
+                phase: "Design",
+                count: 2,
+                tasks: [
+                  { label: fr ? "Moodboard" : "Moodboard", accent: "bg-amber-400/80" },
+                  { label: fr ? "Wireframes" : "Wireframes", accent: "bg-amber-400/40" },
+                ],
+              },
+              {
+                phase: "Dev",
+                count: 1,
+                tasks: [{ label: fr ? "API auth" : "Auth API", accent: "bg-teal-400" }],
+              },
+              {
+                phase: "Done",
+                count: 1,
+                tasks: [{ label: "CI ✓", accent: "bg-emerald-400/80" }],
+              },
+            ].map(({ phase, count, tasks }) => (
+              <div key={phase} className="flex-1 min-w-0 rounded-lg bg-stone-950/55 ring-1 ring-white/10 p-1.5 flex flex-col">
+                <div className="flex items-center justify-between gap-1 px-0.5 mb-1">
+                  <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wide truncate">{phase}</span>
+                  <span className="text-[9px] font-medium text-stone-500 tabular-nums">{count}</span>
+                </div>
+                {tasks.map((task) => (
+                  <div
+                    key={task.label}
+                    className="mt-1 rounded-md bg-stone-800/95 pl-1.5 pr-2 py-1.5 text-[9px] text-stone-200 ring-1 ring-white/5 flex items-center gap-1.5 min-w-0"
+                  >
+                    <span className={`w-0.5 self-stretch rounded-full shrink-0 ${task.accent}`} aria-hidden />
+                    <span className="truncate">{task.label}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg bg-stone-950/55 ring-1 ring-white/10 px-2 py-1.5 shrink-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[8px] font-semibold uppercase tracking-wider text-stone-500">Gantt</span>
+              <span className="text-[8px] text-stone-600">{fr ? "Sem. 12–14" : "Wk 12–14"}</span>
             </div>
-          ))}
+            <div className="space-y-1">
+              <div className="h-1.5 rounded-full bg-stone-800 overflow-hidden">
+                <div className="h-full w-[72%] rounded-full bg-teal-500/90" />
+              </div>
+              <div className="h-1.5 rounded-full bg-stone-800 overflow-hidden">
+                <div className="h-full w-[38%] ml-[20%] rounded-full bg-amber-400/80" />
+              </div>
+            </div>
+          </div>
         </div>
       );
     case "collab":
       return (
-        <div className="w-full space-y-2 text-[10px] text-stone-700">
-          <p>{fr ? "Julie vous a assigné une tâche" : "Julie assigned you a task"}</p>
-          <p className="text-teal-700 font-medium">@Marc — {fr ? "OK, je m'en occupe" : "On it"}</p>
+        <div className="w-full flex flex-col gap-2 self-center">
+          <div className="flex items-start gap-2.5 rounded-xl bg-stone-950/55 ring-1 ring-white/10 px-2.5 py-2">
+            <span
+              className="w-7 h-7 rounded-full bg-teal-700 text-[10px] font-bold text-white flex items-center justify-center shrink-0"
+              aria-hidden
+            >
+              J
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] font-semibold text-stone-100">Julie</span>
+                <span className="text-[9px] text-stone-500">2m</span>
+              </div>
+              <p className="text-[10px] text-stone-300 leading-snug mt-0.5">
+                {fr ? "vous a assigné « Revue brief client »" : "assigned you “Client brief review”"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5 rounded-xl bg-teal-950/40 ring-1 ring-teal-500/30 px-2.5 py-2 ml-4">
+            <span
+              className="w-7 h-7 rounded-full bg-stone-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0"
+              aria-hidden
+            >
+              M
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] font-semibold text-teal-100">Marc</span>
+                <span className="text-[9px] text-stone-500">now</span>
+              </div>
+              <p className="text-[10px] text-teal-50/90 leading-snug mt-0.5">
+                {fr ? "OK, je m’en occupe avant 16h." : "On it — done before 4pm."}
+              </p>
+            </div>
+          </div>
         </div>
       );
     case "notifs":
       return (
-        <div className="w-full space-y-1.5 text-[10px] text-stone-700">
-          <p>{fr ? "Deadline dans 1h" : "Deadline in 1h"}</p>
-          <p>{fr ? "Nouveau commentaire" : "New comment"}</p>
+        <div className="w-full flex flex-col gap-2 self-center min-h-0">
+          <div className="space-y-1.5">
+            {[
+              {
+                label: fr ? "Deadline dans 1h" : "Deadline in 1h",
+                meta: fr ? "Revue brief" : "Brief review",
+                tone: "urgent" as const,
+              },
+              {
+                label: fr ? "Nouvelle assignation" : "New assignment",
+                meta: "Julie → vous",
+                tone: "info" as const,
+              },
+              {
+                label: fr ? "Nouveau commentaire" : "New comment",
+                meta: "Marc",
+                tone: "info" as const,
+              },
+            ].map((n) => (
+              <div
+                key={n.label}
+                className="flex items-center gap-2.5 rounded-lg bg-stone-950/55 ring-1 ring-white/10 px-2.5 py-1.5"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${n.tone === "urgent" ? "bg-amber-400" : "bg-teal-400"}`}
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] text-stone-100 font-medium truncate">{n.label}</div>
+                  <div className="text-[8px] text-stone-500 truncate">{n.meta}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg bg-stone-950/55 ring-1 ring-white/10 px-2.5 py-2 flex items-center gap-2">
+            <span className="text-[10px] text-stone-300 truncate">Slack · Discord · Teams</span>
+          </div>
         </div>
       );
     default:
@@ -222,7 +368,7 @@ export default function LandingPage() {
 
   return (
     <div
-      className="landing-manrope min-h-screen text-stone-900 dark:text-stone-100 transition-colors"
+      className="landing-manrope min-h-screen text-stone-900 dark:text-stone-100 dark:bg-[#2a2826] transition-colors"
       style={
         {
           ["--landing-ink" as string]: "#1c1917",
@@ -231,7 +377,7 @@ export default function LandingPage() {
         } as CSSProperties
       }
     >
-      <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#fafaf9]/85 dark:bg-stone-950/85 border-b border-stone-200/70 dark:border-stone-800">
+      <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#fafaf9]/85 dark:bg-[#2a2826]/90 border-b border-stone-200/70 dark:border-stone-600/40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 min-w-0">
           <Link href="/" className="flex items-center gap-2.5 shrink-0 min-w-0">
             <WroketLockup theme="auto" />
@@ -240,14 +386,14 @@ export default function LandingPage() {
             <button
               type="button"
               onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
-              className="text-xs font-medium text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 px-2 py-1 rounded"
+              className="text-xs font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 px-2 py-1 rounded"
             >
               {locale === "fr" ? "EN" : "FR"}
             </button>
             <button
               type="button"
               onClick={toggleDark}
-              className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-700/60"
               aria-label={dark ? t("a11y.toggleLightMode") : t("a11y.toggleDarkMode")}
             >
               {!themeMounted ? (
@@ -281,7 +427,7 @@ export default function LandingPage() {
       {/* Hero: brand + one headline + one line + CTA — contrast tied to theme */}
       <section
         className={`relative min-h-[88vh] flex flex-col overflow-hidden ${
-          dark ? "bg-stone-950" : "bg-[#fafaf9]"
+          dark ? "bg-[#2a2826]" : "bg-[#fafaf9]"
         }`}
       >
         <div
@@ -289,12 +435,12 @@ export default function LandingPage() {
           aria-hidden
           style={{
             background: dark
-              ? "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(15,118,110,0.35), transparent 55%), radial-gradient(ellipse 50% 40% at 20% 70%, rgba(45,212,191,0.08), transparent 50%), linear-gradient(165deg, #0c0a09 0%, #134e4a 42%, #1c1917 100%)"
+              ? "radial-gradient(ellipse 85% 65% at 75% 35%, rgba(45,212,191,0.22), transparent 55%), radial-gradient(ellipse 55% 45% at 15% 75%, rgba(15,118,110,0.28), transparent 50%), linear-gradient(165deg, #353230 0%, #1f4a45 48%, #3f3a36 100%)"
               : "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(15,118,110,0.22), transparent 55%), radial-gradient(ellipse 50% 40% at 15% 80%, rgba(28,25,23,0.08), transparent 50%), linear-gradient(165deg, #fafaf9 0%, #ecfdf5 45%, #e7e5e4 100%)",
           }}
         />
         <div
-          className={`absolute inset-0 ${dark ? "opacity-15" : "opacity-[0.35]"}`}
+          className={`absolute inset-0 ${dark ? "opacity-25" : "opacity-[0.35]"}`}
           aria-hidden
           style={{
             backgroundImage:
@@ -322,14 +468,20 @@ export default function LandingPage() {
             {t("landing.heroTitle").split("\n").map((line, i) => (
               <span key={i}>
                 {i > 0 && <br />}
-                {line}
+                {i === 0 ? (
+                  line
+                ) : (
+                  <span className="bg-gradient-to-r from-teal-600 to-emerald-400 bg-clip-text text-transparent">
+                    {line}
+                  </span>
+                )}
               </span>
             ))}
           </h1>
 
           <p
             className={`mt-5 text-lg sm:text-xl max-w-xl leading-relaxed transition-all duration-700 delay-300 ease-out ${
-              dark ? "text-stone-300" : "text-stone-700"
+              dark ? "text-stone-200" : "text-stone-700"
             } ${entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             {t("landing.heroSub")}
@@ -360,34 +512,142 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Full-bleed product strip (edge-to-edge, not a floating card) */}
+        {/* Full-bleed product preview (edge-to-edge mock UI) */}
         <div
-          className={`relative w-full border-t border-stone-200/80 dark:border-stone-800 bg-stone-900 text-stone-100 transition-opacity duration-1000 delay-700 ${
+          className={`relative w-full border-t border-stone-200/80 dark:border-stone-600/35 transition-opacity duration-1000 delay-700 ${
             entered ? "opacity-100" : "opacity-0"
           }`}
-          aria-hidden
         >
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-wrap gap-3 justify-between items-center text-sm">
-            <span className="font-mono text-teal-300/90 text-xs tracking-wide">wroket · tasks · calendar · notes</span>
-            <div className="flex flex-wrap gap-2">
-              {(locale === "fr"
-                ? ["Prioriser", "Planifier", "Livrer"]
-                : ["Prioritize", "Schedule", "Ship"]
-              ).map((label) => (
-                <span key={label} className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium">
-                  {label}
-                </span>
-              ))}
+          <div
+            className="absolute inset-0 bg-[#1c1917] dark:bg-[#1a1816]"
+            aria-hidden
+            style={{
+              backgroundImage:
+                "radial-gradient(ellipse 70% 80% at 50% 0%, rgba(15,118,110,0.35), transparent 60%)",
+            }}
+          />
+          <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-10 sm:pb-12">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <p className="text-[11px] sm:text-xs font-medium tracking-wide text-teal-200/90 uppercase">
+                {t("landing.preview.label")}
+              </p>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-teal-200 hover:text-white transition-colors"
+              >
+                {t("landing.preview.openApp")}
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            </div>
+
+            <div
+              className="rounded-t-2xl border border-b-0 border-stone-600/50 bg-stone-50 dark:bg-stone-800 overflow-hidden shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.45)]"
+              role="img"
+              aria-label={locale === "fr" ? "Aperçu de la liste de tâches Wroket" : "Wroket task list preview"}
+            >
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200 dark:border-stone-700 bg-stone-100/90 dark:bg-stone-900/80">
+                <div className="flex gap-1.5" aria-hidden>
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400/90" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400/90" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/90" />
+                </div>
+                <span className="text-[11px] text-stone-500 dark:text-stone-400 ml-1 font-mono">{t("landing.preview.chrome")}</span>
+              </div>
+              <div className="p-4 sm:p-5 space-y-2.5 bg-white dark:bg-stone-900">
+                {(
+                  [
+                    {
+                      labelKey: "landing.preview.task1" as const,
+                      prioKey: "landing.preview.prioHigh" as const,
+                      color: "bg-red-100 dark:bg-red-900/35 text-red-700 dark:text-red-300",
+                      check: true,
+                      tag: "marketing",
+                      slotKey: "landing.preview.slot1" as const,
+                    },
+                    {
+                      labelKey: "landing.preview.task2" as const,
+                      prioKey: "landing.preview.prioHigh" as const,
+                      color: "bg-amber-100 dark:bg-amber-900/35 text-amber-800 dark:text-amber-300",
+                      check: false,
+                      tag: null,
+                      slotKey: "landing.preview.slot2" as const,
+                    },
+                    {
+                      labelKey: "landing.preview.task3" as const,
+                      prioKey: "landing.preview.prioMed" as const,
+                      color: "bg-sky-100 dark:bg-sky-900/35 text-sky-800 dark:text-sky-300",
+                      check: false,
+                      tag: "tech",
+                      slotKey: null,
+                    },
+                    {
+                      labelKey: "landing.preview.task4" as const,
+                      prioKey: "landing.preview.prioLow" as const,
+                      color: "bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300",
+                      check: false,
+                      tag: null,
+                      slotKey: null,
+                    },
+                  ] as const
+                ).map((task) => (
+                  <div
+                    key={task.labelKey}
+                    className="flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-stone-50 dark:bg-stone-800/70 border border-stone-100 dark:border-stone-700/60"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                        task.check
+                          ? "bg-teal-600 border-teal-600"
+                          : "border-stone-300 dark:border-stone-500"
+                      }`}
+                      aria-hidden
+                    >
+                      {task.check && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span
+                      className={`text-sm flex-1 min-w-0 truncate text-left ${
+                        task.check
+                          ? "line-through text-stone-400 dark:text-stone-500"
+                          : "text-stone-800 dark:text-stone-100"
+                      }`}
+                    >
+                      {t(task.labelKey)}
+                    </span>
+                    {task.tag && (
+                      <span className="hidden sm:inline text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300 shrink-0">
+                        {task.tag}
+                      </span>
+                    )}
+                    {task.slotKey && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 shrink-0">
+                        {t(task.slotKey)}
+                      </span>
+                    )}
+                    <span
+                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 min-w-[4.5rem] text-center ${task.color}`}
+                    >
+                      {t(task.prioKey)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="py-20 bg-[#fafaf9] dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800">
+      <section className="py-20 bg-[#fafaf9] dark:bg-[#2f2c2a] border-b border-stone-200 dark:border-stone-600/30">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12 text-stone-900 dark:text-stone-50">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4 text-stone-900 dark:text-stone-50">
             {t("landing.howItWorks.title")}
           </h2>
+          <div className="w-16 h-1 bg-teal-700 rounded-full mx-auto mb-12" />
           <ol className="grid sm:grid-cols-2 gap-10">
             {HOW_IT_WORKS_STEPS.map((step, i) => (
               <li key={step.titleKey} className="flex gap-4">
@@ -396,7 +656,7 @@ export default function LandingPage() {
                 </span>
                 <div>
                   <h3 className="font-semibold mb-1">{t(step.titleKey)}</h3>
-                  <p className="text-sm text-stone-600 dark:text-stone-400 leading-relaxed">{t(step.descKey)}</p>
+                  <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">{t(step.descKey)}</p>
                 </div>
               </li>
             ))}
@@ -404,7 +664,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-stone-100/80 dark:bg-stone-900/40">
+      <section className="py-24 bg-stone-100/80 dark:bg-[#383430]">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">{t("landing.featuresTitle")}</h2>
           <div className="w-16 h-1 bg-teal-700 rounded-full mx-auto mb-16" />
@@ -423,9 +683,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-[#fafaf9] dark:bg-stone-950">
+      <section className="py-24 bg-[#fafaf9] dark:bg-[#2f2c2a]">
         <div className="max-w-2xl mx-auto px-6 text-center">
-          <div className="wroket-mark-tile w-16 h-16 bg-stone-800 flex items-center justify-center mx-auto mb-6">
+          <div className="wroket-mark-tile w-16 h-16 bg-stone-800 dark:bg-stone-700 flex items-center justify-center mx-auto mb-6">
             <WroketMark />
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t("landing.footerTag")}</h2>
@@ -436,14 +696,14 @@ export default function LandingPage() {
             >
               {t("landing.cta")}
             </Link>
-            <Link href="/login" className="text-sm font-medium text-stone-600 hover:text-teal-800 underline-offset-2 hover:underline">
+            <Link href="/login" className="text-sm font-medium text-stone-600 dark:text-stone-300 dark:hover:text-teal-300 hover:text-teal-800 underline-offset-2 hover:underline">
               {t("landing.ctaLogin")}
             </Link>
           </div>
         </div>
       </section>
 
-      <LandingFooter />
+      <LandingFooter className="dark:border-stone-600/30" />
 
       <style jsx global>{`
         @keyframes landing-drift {

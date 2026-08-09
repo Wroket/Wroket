@@ -21,8 +21,9 @@ interface WroketLockupProps {
 }
 
 function wordmarkThemeClasses(theme: BrandTheme): { wro: string; ket: string } {
-  if (theme === "light") return { wro: "text-slate-100", ket: "text-emerald-400" };
-  if (theme === "dark") return { wro: "text-slate-800", ket: "text-emerald-500" };
+  // theme = ambient page theme (not glyph brightness)
+  if (theme === "light") return { wro: "text-slate-800", ket: "text-emerald-500" };
+  if (theme === "dark") return { wro: "text-slate-100", ket: "text-emerald-400" };
   return { wro: "text-slate-800 dark:text-slate-100", ket: "text-emerald-500 dark:text-emerald-400" };
 }
 

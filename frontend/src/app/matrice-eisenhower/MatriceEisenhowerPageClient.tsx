@@ -1,6 +1,8 @@
 "use client";
 
-import { MarketingArticle, MarketingPageShell } from "@/components/marketing/MarketingPageShell";
+import { MarketingPageShell } from "@/components/marketing/MarketingPageShell";
+import { EisenhowerProductMock } from "@/components/marketing/MarketingProductMocks";
+import { useLocale } from "@/lib/LocaleContext";
 
 const SECTIONS = [
   {
@@ -22,18 +24,17 @@ const SECTIONS = [
 ];
 
 export default function MatriceEisenhowerPageClient() {
+  const { locale } = useLocale();
   return (
     <MarketingPageShell
+      h1Key="marketing.eisenhower.h1"
+      introKey="marketing.eisenhower.intro"
+      sections={SECTIONS}
+      visual={<EisenhowerProductMock fr={locale === "fr"} />}
       relatedLinks={[
         { href: "/agenda-taches", labelKey: "landing.footerAgendaTasks" },
         { href: "/gestion-taches-equipe", labelKey: "landing.footerTeamTasks" },
       ]}
-    >
-      <MarketingArticle
-        h1Key="marketing.eisenhower.h1"
-        introKey="marketing.eisenhower.intro"
-        sections={SECTIONS}
-      />
-    </MarketingPageShell>
+    />
   );
 }
