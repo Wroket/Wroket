@@ -56,7 +56,7 @@ const PRODUCT_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.premiersPas.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     prerequisiteKeys: ["docs.premiersPas.prereq1"],
     sections: [
       {
@@ -103,7 +103,7 @@ const PRODUCT_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.projects.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     prerequisiteKeys: ["docs.projects.prereq1"],
     sections: [
       {
@@ -147,7 +147,7 @@ const PRODUCT_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.donnees.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     prerequisiteKeys: ["docs.donnees.prereq1"],
     sections: [
       {
@@ -194,7 +194,7 @@ const PRODUCT_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.settingsGuide.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     benefitKeys: [
       "docs.settingsGuide.benefit1",
       "docs.settingsGuide.benefit2",
@@ -257,7 +257,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.notion.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     benefitKeys: [
       "docs.notion.benefit1",
       "docs.notion.benefit2",
@@ -306,7 +306,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.monday.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     benefitKeys: [
       "docs.monday.benefit1",
       "docs.monday.benefit2",
@@ -335,7 +335,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.calendar.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-06-17",
+    lastUpdated: "2026-08-09",
     benefitKeys: [
       "docs.calendar.benefit1",
       "docs.calendar.benefit2",
@@ -365,7 +365,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.slack.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-08-07",
+    lastUpdated: "2026-08-09",
     benefitKeys: ["docs.slack.benefit1", "docs.slack.benefit2", "docs.slack.benefit3", "docs.slack.benefit4"],
     prerequisiteKeys: ["docs.slack.prereq1", "docs.slack.prereq2"],
     sections: [
@@ -391,7 +391,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.mcp.summary",
     access: "public",
     publicTeaser: true,
-    lastUpdated: "2026-08-07",
+    lastUpdated: "2026-08-09",
     benefitKeys: ["docs.mcp.benefit1", "docs.mcp.benefit2", "docs.mcp.benefit3"],
     prerequisiteKeys: ["docs.mcp.prereq1", "docs.mcp.prereq2"],
     sections: [
@@ -416,7 +416,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.teams.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-08-07",
+    lastUpdated: "2026-08-09",
     benefitKeys: ["docs.teams.benefit1", "docs.teams.benefit2", "docs.teams.benefit3", "docs.teams.benefit4"],
     prerequisiteKeys: ["docs.teams.prereq1", "docs.teams.prereq2"],
     sections: [
@@ -442,7 +442,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.googleChat.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-08-07",
+    lastUpdated: "2026-08-09",
     benefitKeys: ["docs.googleChat.benefit1", "docs.googleChat.benefit2", "docs.googleChat.benefit3"],
     prerequisiteKeys: ["docs.googleChat.prereq1", "docs.googleChat.prereq2"],
     sections: [
@@ -467,7 +467,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.discord.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-08-07",
+    lastUpdated: "2026-08-09",
     benefitKeys: ["docs.discord.benefit1", "docs.discord.benefit2", "docs.discord.benefit3", "docs.discord.benefit4"],
     prerequisiteKeys: ["docs.discord.prereq1", "docs.discord.prereq2"],
     sections: [

@@ -28,20 +28,20 @@ export function DocsPrerequisiteBanner({ access }: DocsPrerequisiteBannerProps) 
     return (
       <div
         role="status"
-        className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 px-4 py-4 sm:px-5"
+        className="rounded-xl border border-teal-200/80 dark:border-teal-800/50 bg-teal-50/80 dark:bg-teal-950/30 px-4 py-4 sm:px-5"
       >
-        <p className="font-semibold text-indigo-950 dark:text-indigo-100">{t("docs.banner.loginTitle")}</p>
-        <p className="mt-1 text-sm text-indigo-900/90 dark:text-indigo-200/90">{t("docs.banner.loginBody")}</p>
+        <p className="font-semibold text-teal-950 dark:text-teal-100">{t("docs.banner.loginTitle")}</p>
+        <p className="mt-1 text-sm text-teal-900/90 dark:text-teal-200/90">{t("docs.banner.loginBody")}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
             href="/login"
-            className="inline-flex rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+            className="inline-flex rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium px-4 py-2 transition-colors"
           >
             {t("docs.banner.ctaLogin")}
           </Link>
           <Link
             href="/login?mode=register"
-            className="inline-flex rounded-lg border border-indigo-300 dark:border-indigo-700 text-sm font-medium px-4 py-2 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/40 transition-colors"
+            className="inline-flex rounded-lg border border-teal-300 dark:border-teal-700 text-sm font-medium px-4 py-2 text-teal-900 dark:text-teal-200 hover:bg-teal-100/50 dark:hover:bg-teal-900/40 transition-colors"
           >
             {t("docs.banner.ctaRegister")}
           </Link>
@@ -53,7 +53,7 @@ export function DocsPrerequisiteBanner({ access }: DocsPrerequisiteBannerProps) 
   return (
     <div
       role="status"
-      className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-4 sm:px-5"
+      className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-4 sm:px-5"
     >
       <p className="font-semibold text-amber-950 dark:text-amber-100">{t("docs.banner.tierTitle")}</p>
       <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">{t("docs.banner.tierBody")}</p>
@@ -76,7 +76,7 @@ export function DocsCtaRow({ items }: { items: Array<{ labelKey: TranslationKey;
         <Link
           key={item.href + item.labelKey}
           href={item.href}
-          className="inline-flex rounded-lg bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white text-sm font-medium px-4 py-2 transition-colors"
+          className="inline-flex rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium px-4 py-2 transition-colors"
         >
           {t(item.labelKey)}
         </Link>
@@ -104,15 +104,15 @@ export function DocsHubCard({
 }) {
   const { t } = useLocale();
   return (
-    <article className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-900/40 p-5 flex flex-col h-full hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t(titleKey)}</h2>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400 flex-1 leading-relaxed">{t(summaryKey)}</p>
-      <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-slate-500">
+    <article className="rounded-xl border border-stone-200 dark:border-stone-600/40 bg-white/80 dark:bg-stone-800/40 p-5 flex flex-col h-full hover:border-teal-600/50 dark:hover:border-teal-500/40 transition-colors shadow-[0_1px_0_rgba(28,25,23,0.04)]">
+      <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">{t(titleKey)}</h2>
+      <p className="mt-2 text-sm text-stone-600 dark:text-stone-300 flex-1 leading-relaxed">{t(summaryKey)}</p>
+      <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
         {t(tierLabelKey(access))}
       </p>
       <Link
         href={href}
-        className="mt-4 inline-flex text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+        className="mt-4 inline-flex text-sm font-medium text-teal-700 dark:text-teal-300 hover:underline"
       >
         {t("docs.readGuide")} →
       </Link>

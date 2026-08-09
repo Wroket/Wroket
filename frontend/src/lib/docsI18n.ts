@@ -10,8 +10,8 @@ export const docsTranslations = {
     en: "Product guides to get started with Wroket, plus Notion, Monday, Slack, calendars, MCP, and notification integrations.",
   },
   "docs.metaDescription": {
-    fr: "Documentation Wroket : premiers pas, projets, notes, Slack+, agents MCP, Notion, Monday, Google Calendar et Microsoft Outlook.",
-    en: "Wroket documentation: getting started, projects, notes, Slack+, MCP agents, Notion, Monday, Google Calendar and Microsoft Outlook.",
+    fr: "Documentation Wroket : Mes tâches (tableau), projets, notes, Agenda, Slack+, agents MCP, Notion, Monday, Google Calendar et Outlook.",
+    en: "Wroket documentation: My tasks (table), projects, notes, Agenda, Slack+, MCP agents, Notion, Monday, Google Calendar and Outlook.",
   },
   "docs.backToHub": { fr: "← Tous les guides", en: "← All guides" },
   "docs.lastUpdated": { fr: "Dernière mise à jour", en: "Last updated" },
@@ -56,13 +56,13 @@ export const docsTranslations = {
 
   "docs.hub.premiersPas.title": { fr: "Premiers pas", en: "Getting started" },
   "docs.hub.premiersPas.summary": {
-    fr: "Créer une tâche, réserver un créneau, planifier une réunion et lier une note — le parcours essentiel.",
-    en: "Create a task, book a slot, schedule a meeting, and link a note — the essential workflow.",
+    fr: "Créer une tâche dans le tableau Mes tâches, réserver un créneau dans Wroket, puis documenter le contexte.",
+    en: "Create a task in the My tasks table, book a slot in Wroket, then capture context in a note.",
   },
   "docs.hub.projects.title": { fr: "Projets", en: "Projects" },
   "docs.hub.projects.summary": {
-    fr: "Structurer un portefeuille, phases, vues Board/Kanban/Gantt et suivi d'avancement.",
-    en: "Structure a portfolio, phases, Board/Kanban/Gantt views, and progress tracking.",
+    fr: "Portefeuille, phases, vues Board / Kanban / Gantt et suivi d'avancement.",
+    en: "Portfolio, phases, Board / Kanban / Gantt views, and progress tracking.",
   },
   "docs.hub.donnees.title": { fr: "Notes, Bases et Données", en: "Notes, Databases & data" },
   "docs.hub.donnees.summary": {
@@ -71,29 +71,29 @@ export const docsTranslations = {
   },
   "docs.hub.settings.title": { fr: "Paramètres", en: "Settings" },
   "docs.hub.settings.summary": {
-    fr: "Profil, sécurité, tâches, intégrations, notifications et gestion du compte — tour d'horizon.",
-    en: "Profile, security, tasks, integrations, notifications, and account management — overview.",
+    fr: "Profil, sécurité, tâches, intégrations (Small teams), notifications et compte.",
+    en: "Profile, security, tasks, integrations (Small teams), notifications, and account.",
   },
 
   "docs.hub.notion.title": { fr: "Notion", en: "Notion" },
   "docs.hub.notion.summary": {
-    fr: "Migrer projets, contacts et bases sans ressaisie — lien conservé avec Notion.",
-    en: "Migrate projects, contacts, and databases without re-entry — link kept with Notion.",
+    fr: "Migrer projets, contacts et bases sans ressaisie — lien conservé avec Notion (Small teams).",
+    en: "Migrate projects, contacts, and databases without re-entry — link kept with Notion (Small teams).",
   },
   "docs.hub.monday.title": { fr: "Monday.com", en: "Monday.com" },
   "docs.hub.monday.summary": {
-    fr: "Reprendre boards, tableaux et docs Monday dans Projets, Bases et Notes Wroket.",
-    en: "Bring Monday boards, tables, and docs into Wroket Projects, Databases, and Notes.",
+    fr: "Boards, tableaux et docs Monday vers Projets, Bases et Notes (Small teams).",
+    en: "Monday boards, tables, and docs into Projects, Databases, and Notes (Small teams).",
   },
   "docs.hub.calendar.title": { fr: "Calendrier Google & Outlook", en: "Google Calendar & Outlook" },
   "docs.hub.calendar.summary": {
-    fr: "Bloquer du temps réel sur votre agenda, détecter les conflits et ajouter Meet ou Teams.",
-    en: "Block real time on your calendar, detect conflicts, and add Meet or Teams.",
+    fr: "Réservez d'abord dans Wroket ; poussez explicitement vers Google ou Outlook (pas de sync auto à la connexion).",
+    en: "Book in Wroket first; push explicitly to Google or Outlook (no auto-sync on connect).",
   },
   "docs.hub.slack.title": { fr: "Slack", en: "Slack" },
   "docs.hub.slack.summary": {
-    fr: "OAuth Slack+, webhooks, boutons d’action et commande /wroket.",
-    en: "Slack+ OAuth, webhooks, action buttons, and /wroket slash command.",
+    fr: "OAuth Slack+, webhooks, boutons d’action et commande /wroket (Small teams).",
+    en: "Slack+ OAuth, webhooks, action buttons, and /wroket slash (Small teams).",
   },
   "docs.hub.mcp.title": { fr: "Agents MCP", en: "MCP agents" },
   "docs.hub.mcp.summary": {
@@ -102,58 +102,58 @@ export const docsTranslations = {
   },
   "docs.hub.teams.title": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "docs.hub.teams.summary": {
-    fr: "Bot Teams + Adaptive Cards : actions et commandes /wroket (parité Slack+).",
-    en: "Teams bot + Adaptive Cards: actions and /wroket commands (Slack+ parity).",
+    fr: "Bot Teams + Adaptive Cards : actions et /wroket (parité Slack+, Small teams).",
+    en: "Teams bot + Adaptive Cards: actions and /wroket (Slack+ parity, Small teams).",
   },
   "docs.hub.googleChat.title": { fr: "Google Chat", en: "Google Chat" },
   "docs.hub.googleChat.summary": {
-    fr: "App Chat + cartes v2 : actions et commandes @Wroket.",
-    en: "Chat app + cards v2: actions and @Wroket commands.",
+    fr: "App Chat + cartes v2 : actions et commandes @Wroket (Small teams).",
+    en: "Chat app + cards v2: actions and @Wroket commands (Small teams).",
   },
   "docs.hub.discord.title": { fr: "Discord", en: "Discord" },
   "docs.hub.discord.summary": {
-    fr: "Bot Discord + slash /wroket et liaison de compte si besoin.",
-    en: "Discord bot + /wroket slash and optional account link.",
+    fr: "Bot Discord + slash /wroket et liaison de compte si besoin (Small teams).",
+    en: "Discord bot + /wroket slash and optional account link (Small teams).",
   },
 
   // ── Product guides ──
   "docs.premiersPas.metaTitle": { fr: "Premiers pas sur Wroket", en: "Getting started with Wroket" },
   "docs.premiersPas.summary": {
-    fr: "Le parcours type : capturer une tâche, la positionner dans le Radar, bloquer un créneau et documenter le contexte dans une note.",
-    en: "The typical flow: capture a task, place it on the Radar, block a slot, and document context in a note.",
+    fr: "Parcours type : capturer une tâche dans le tableau Mes tâches, lire le Focus / Radar, bloquer un créneau dans Wroket, puis documenter dans une note.",
+    en: "Typical flow: capture a task in the My tasks table, read Focus / Radar, book a slot in Wroket, then document in a note.",
   },
   "docs.premiersPas.prereq1": { fr: "Un compte Wroket (gratuit ou payant).", en: "A Wroket account (free or paid)." },
   "docs.premiersPas.step1.title": { fr: "Créer une tâche avec les bons attributs", en: "Create a task with the right attributes" },
   "docs.premiersPas.step1.p1": {
-    fr: "Depuis Mes tâches, saisissez un titre clair puis ouvrez l'édition (double-clic) pour définir priorité, effort, échéance, projet et assignation.",
-    en: "From My tasks, enter a clear title then open edit (double-click) to set priority, effort, deadline, project, and assignee.",
+    fr: "Dans Mes tâches, la liste est un tableau : colonnes Priorité, Effort, Focus et Échéance. Saisissez un titre, puis éditez (double-clic) ou ouvrez le menu ⋯ de la ligne pour les actions (planifier, note, réunion, etc.).",
+    en: "In My tasks, the list is a table with Priority, Effort, Focus, and Deadline columns. Enter a title, then edit (double-click) or open the row ⋯ menu for actions (schedule, note, meeting, etc.).",
   },
   "docs.premiersPas.step1.p2": {
-    fr: "Ces champs alimentent le Radar : Wroket calcule urgence et importance sans classement manuel.",
-    en: "These fields feed the Radar: Wroket computes urgency and importance without manual sorting.",
+    fr: "Priorité, effort et échéance alimentent le Focus (colonne) et le Radar : Wroket calcule urgence et importance sans classement manuel.",
+    en: "Priority, effort, and deadline feed the Focus column and the Radar: Wroket computes urgency and importance without manual sorting.",
   },
   "docs.premiersPas.step2.title": { fr: "Réserver un créneau dans l'Agenda", en: "Book a slot in the Agenda" },
   "docs.premiersPas.step2.p1": {
-    fr: "Ouvrez l'Agenda, glissez la tâche sur un créneau libre ou double-cliquez un créneau vide pour une création rapide.",
-    en: "Open Agenda, drag the task onto a free slot, or double-click an empty slot for quick creation.",
+    fr: "Ouvrez l'Agenda, glissez la tâche sur un créneau libre, ou planifiez depuis le menu ⋯ / le sélecteur de créneau. La réservation se fait d'abord dans Wroket — Google ou Outlook n'est pas requis.",
+    en: "Open Agenda, drag the task onto a free slot, or schedule from the ⋯ menu / slot picker. Booking happens in Wroket first — Google or Outlook is not required.",
   },
   "docs.premiersPas.step2.p2": {
-    fr: "Avec un calendrier connecté (palier Small teams), l'événement est créé sur Google ou Outlook et les conflits sont signalés.",
-    en: "With a connected calendar (Small teams plan), the event is created on Google or Outlook and conflicts are flagged.",
+    fr: "Pour apparaître sur Google ou Outlook (palier Small teams), poussez explicitement : bannière Agenda « Synchroniser », page Mes agendas, ou « Pousser dans mon agenda » sur la tâche. La connexion OAuth ne synchronise pas automatiquement.",
+    en: "To appear on Google or Outlook (Small teams plan), push explicitly: Agenda banner Sync, Manage calendars, or Push to my calendar on the task. OAuth connect does not sync automatically.",
   },
   "docs.premiersPas.step3.title": { fr: "Planifier une réunion (Meet ou Teams)", en: "Schedule a meeting (Meet or Teams)" },
   "docs.premiersPas.step3.p1": {
-    fr: "Lors de la réservation, activez l'option visioconférence si votre compte Google ou Microsoft le permet.",
-    en: "When booking, enable the video conference option if your Google or Microsoft account supports it.",
+    fr: "Avec un compte Google ou Microsoft connecté, utilisez l'action réunion (menu ⋯ ou édition) pour ajouter Meet ou Teams au créneau poussé vers l'agenda externe.",
+    en: "With a connected Google or Microsoft account, use the meeting action (⋯ menu or edit) to add Meet or Teams to the slot pushed to your external calendar.",
   },
   "docs.premiersPas.step3.p2": {
-    fr: "Le lien Meet ou Teams est ajouté à l'événement externe ; l'invitation part depuis votre calendrier connecté.",
-    en: "The Meet or Teams link is added to the external event; the invite goes out from your connected calendar.",
+    fr: "Le lien visioconférence est ajouté à l'événement externe ; l'invitation part depuis votre calendrier connecté après le push.",
+    en: "The video link is added to the external event; the invite goes out from your connected calendar after the push.",
   },
   "docs.premiersPas.step4.title": { fr: "Ajouter une note de contexte", en: "Add a context note" },
   "docs.premiersPas.step4.p1": {
-    fr: "Depuis une tâche ou Notes, créez une note liée : spécifications, compte-rendu, liens utiles.",
-    en: "From a task or Notes, create a linked note: specs, meeting notes, useful links.",
+    fr: "Depuis le menu ⋯ d'une tâche ou depuis Notes, créez une note liée : spécifications, compte-rendu, liens utiles.",
+    en: "From a task ⋯ menu or from Notes, create a linked note: specs, meeting notes, useful links.",
   },
   "docs.premiersPas.step4.p2": {
     fr: "La commande / dans l'éditeur permet d'insérer une tâche, une date ou un bloc structuré sans quitter la note.",
@@ -161,8 +161,8 @@ export const docsTranslations = {
   },
   "docs.premiersPas.step5.title": { fr: "Lire le Radar", en: "Read the Radar" },
   "docs.premiersPas.step5.p1": {
-    fr: "Prioriser (urgent + important), Planifier, Faire et Différer : même logique sur le Radar, les filtres et l'Agenda.",
-    en: "Prioritize (urgent + important), Schedule, Do, and Defer: same logic on Radar, filters, and Agenda.",
+    fr: "Prioriser, Planifier, Faire et Différer : même logique sur la colonne Focus, le Radar, les filtres et l'Agenda.",
+    en: "Prioritize, Schedule, Do, and Defer: same logic on the Focus column, Radar, filters, and Agenda.",
   },
   "docs.premiersPas.trouble1.title": { fr: "La tâche n'apparaît pas au bon endroit sur le Radar", en: "Task appears in the wrong Radar zone" },
   "docs.premiersPas.trouble1.body": {
@@ -187,8 +187,8 @@ export const docsTranslations = {
   },
   "docs.projects.step2.title": { fr: "Board, Kanban et Gantt", en: "Board, Kanban, and Gantt" },
   "docs.projects.step2.p1": {
-    fr: "Board : tableau par phase avec glisser-déposer. Kanban : colonnes de phases. Gantt : timeline et jalons.",
-    en: "Board: table by phase with drag and drop. Kanban: phase columns. Gantt: timeline and milestones.",
+    fr: "Board : tableau par phase avec glisser-déposer. Kanban : colonnes de phases. Gantt : timeline et jalons. Les actions de ligne suivent le même menu ⋯ que Mes tâches.",
+    en: "Board: table by phase with drag and drop. Kanban: phase columns. Gantt: timeline and milestones. Row actions use the same ⋯ menu as My tasks.",
   },
   "docs.projects.step2.p2": {
     fr: "La vue active est mémorisée par projet ; les mêmes tâches sous-jacentes alimentent les trois lectures.",
@@ -196,8 +196,8 @@ export const docsTranslations = {
   },
   "docs.projects.step3.title": { fr: "Déplacer les tâches et gérer les contraintes", en: "Move tasks and handle constraints" },
   "docs.projects.step3.p1": {
-    fr: "Un changement de phase peut déclencher une modale si dates ou créneau ne correspondent plus — comme sur l'Agenda.",
-    en: "A phase change may open a modal if dates or slot no longer match — same pattern as Agenda.",
+    fr: "Un changement de phase peut ouvrir une modale si dates ou créneau ne correspondent plus — même pattern que l'Agenda (choix explicites + Annuler).",
+    en: "A phase change may open a modal if dates or slot no longer match — same pattern as Agenda (explicit choices + Cancel).",
   },
   "docs.projects.step3.p2": {
     fr: "L'endpoint de déplacement atomique évite les mises à jour en chaîne fragiles côté interface.",
@@ -225,8 +225,8 @@ export const docsTranslations = {
 
   "docs.donnees.metaTitle": { fr: "Notes, Bases et Données", en: "Notes, Databases & data" },
   "docs.donnees.summary": {
-    fr: "Notes pour le récit et le contexte ; Bases pour les tableaux structurés — deux compléments dans le même espace Données.",
-    en: "Notes for narrative and context; Databases for structured tables — two complements in the same Data space.",
+    fr: "Notes pour le récit et le contexte ; Bases pour les tableaux structurés — même espace Données, distinct de Mes tâches et des Projets.",
+    en: "Notes for narrative and context; Databases for structured tables — same Data space, distinct from My tasks and Projects.",
   },
   "docs.donnees.prereq1": { fr: "Compte Wroket. Les Bases nécessitent une connexion en ligne.", en: "Wroket account. Databases require an online connection." },
   "docs.donnees.step1.title": { fr: "Qu'est-ce qu'une Base ?", en: "What is a Database?" },
@@ -326,8 +326,8 @@ export const docsTranslations = {
   },
   "docs.settingsGuide.step3.title": { fr: "Tâches", en: "Tasks" },
   "docs.settingsGuide.step3.p1": {
-    fr: "Durées par défaut selon l'effort (léger, moyen, lourd) : accélère la création et l'estimation dans les projets.",
-    en: "Default durations by effort (light, medium, heavy): speeds up creation and estimation in projects.",
+    fr: "Durées par défaut selon l'effort (léger, moyen, lourd) : accélère la création et l'estimation dans le tableau Mes tâches et les projets.",
+    en: "Default durations by effort (light, medium, heavy): speeds up creation and estimation in the My tasks table and projects.",
   },
   "docs.settingsGuide.step3.p2": {
     fr: "Heures et jours de travail + fuseau : utilisés pour proposer des créneaux et ignorer les week-ends si vous l'activez.",
@@ -339,8 +339,8 @@ export const docsTranslations = {
   },
   "docs.settingsGuide.step4.title": { fr: "Intégrations", en: "Integrations" },
   "docs.settingsGuide.step4.p1": {
-    fr: "Connexions applicatives (palier Small teams) : Notion et Monday pour migrer sans ressaisie ; calendriers Google et Microsoft pour le time-blocking réel.",
-    en: "App connections (Small teams plan): Notion and Monday to migrate without re-entry; Google and Microsoft calendars for real time-blocking.",
+    fr: "Connexions applicatives (palier Small teams, SoftLock sur Free) : Notion et Monday pour migrer ; Google et Microsoft pour afficher les agendas et pousser des créneaux — la connexion OAuth ne pousse rien toute seule.",
+    en: "App connections (Small teams plan, SoftLock on Free): Notion and Monday to migrate; Google and Microsoft to show calendars and push slots — OAuth connect does not push by itself.",
   },
   "docs.settingsGuide.step4.p2": {
     fr: "Notifications : choisissez e-mail ou webhook (Slack, Teams, Discord) pour assignations, commentaires, échéances et digests — moins d'oublis, moins de friction pour l'équipe.",
@@ -356,8 +356,8 @@ export const docsTranslations = {
   },
   "docs.settingsGuide.step5.title": { fr: "Abonnement", en: "Subscription" },
   "docs.settingsGuide.step5.p1": {
-    fr: "Palier actuel, limites du quota gratuit et passage au palier Small teams ou supérieur pour intégrations, reporting équipe et Early Bird.",
-    en: "Current tier, free quota limits, and upgrade to Small teams or higher for integrations, team reporting, and Early Bird.",
+    fr: "Palier actuel, limites du quota gratuit et passage au palier Small teams ou supérieur pour intégrations externes et reporting équipe.",
+    en: "Current tier, free quota limits, and upgrade to Small teams or higher for external integrations and team reporting.",
   },
   "docs.settingsGuide.step6.title": { fr: "Historique", en: "History" },
   "docs.settingsGuide.step6.p1": {
@@ -370,8 +370,8 @@ export const docsTranslations = {
   },
   "docs.settingsGuide.trouble1.title": { fr: "Intégrations grisées ou verrouillées", en: "Integrations greyed out or locked" },
   "docs.settingsGuide.trouble1.body": {
-    fr: "Vérifiez votre palier dans Abonnement. Les intégrations externes nécessitent Small teams ou supérieur ; reconnectez OAuth si un token a expiré.",
-    en: "Check your tier under Subscription. External integrations require Small teams or higher; reconnect OAuth if a token expired.",
+    fr: "Vérifiez votre palier dans Abonnement. Les intégrations externes sont SoftLock jusqu'à Small teams ; reconnectez OAuth si un token a expiré.",
+    en: "Check your tier under Subscription. External integrations are SoftLocked until Small teams; reconnect OAuth if a token expired.",
   },
 
   "docs.notion.metaTitle": { fr: "Guide Notion", en: "Notion guide" },
@@ -395,7 +395,7 @@ export const docsTranslations = {
     fr: "Trois destinations explicites (projet, contacts, données) — pas de devinette automatique risquée.",
     en: "Three explicit destinations (project, contacts, data) — no risky automatic guessing.",
   },
-  "docs.notion.prereq1": { fr: "Palier Small teams ou supérieur (intégrations externes).", en: "Small teams plan or higher (external integrations)." },
+  "docs.notion.prereq1": { fr: "Palier Small teams ou supérieur (intégrations externes ; SoftLock sur Free).", en: "Small teams plan or higher (external integrations; SoftLock on Free)." },
   "docs.notion.prereq2": { fr: "Compte Notion avec droits de lecture sur les bases à importer.", en: "Notion account with read access to databases to import." },
   "docs.notion.prereq3": { fr: "Partager chaque base avec l'intégration Wroket dans Notion (voir dépannage).", en: "Share each database with the Wroket integration in Notion (see troubleshooting)." },
   "docs.notion.step1.title": { fr: "Connecter Notion", en: "Connect Notion" },
@@ -458,7 +458,7 @@ export const docsTranslations = {
     fr: "Complète le Radar Wroket pour prioriser ce qui vient d'être migré.",
     en: "Complements Wroket Radar to prioritize what you just migrated.",
   },
-  "docs.monday.prereq1": { fr: "Palier Small teams ou supérieur.", en: "Small teams plan or higher." },
+  "docs.monday.prereq1": { fr: "Palier Small teams ou supérieur (SoftLock sur Free).", en: "Small teams plan or higher (SoftLock on Free)." },
   "docs.monday.prereq2": { fr: "Application Monday autorisée (scopes boards:read et docs:read).", en: "Monday app authorized (boards:read and docs:read scopes)." },
   "docs.monday.step1.title": { fr: "Connecter Monday", en: "Connect Monday" },
   "docs.monday.step1.p1": {
@@ -483,51 +483,54 @@ export const docsTranslations = {
 
   "docs.calendar.metaTitle": { fr: "Guide Calendrier", en: "Calendar guide" },
   "docs.calendar.summary": {
-    fr: "Synchronisez Google Calendar et Microsoft Outlook pour réserver des créneaux depuis l'Agenda Wroket.",
-    en: "Sync Google Calendar and Microsoft Outlook to book slots from the Wroket Agenda.",
+    fr: "Réservez vos créneaux dans l'Agenda Wroket, puis poussez-les explicitement vers Google Calendar ou Outlook lorsque vous le choisissez.",
+    en: "Book slots in the Wroket Agenda, then push them explicitly to Google Calendar or Outlook when you choose.",
   },
   "docs.calendar.benefit1": {
-    fr: "Time-blocking réel : les tâches deviennent des événements sur votre agenda professionnel.",
-    en: "Real time-blocking: tasks become events on your work calendar.",
+    fr: "Time-blocking dans Wroket d'abord : les créneaux fonctionnent sans Google ni Outlook.",
+    en: "Time-blocking in Wroket first: slots work without Google or Outlook.",
   },
   "docs.calendar.benefit2": {
-    fr: "Détection des conflits avant validation — avec option de forcer si vous choisissez.",
-    en: "Conflict detection before confirm — with override if you choose.",
+    fr: "Push explicite vers l'agenda connecté (bannière Agenda, Mes agendas, ou « Pousser dans mon agenda » sur la tâche).",
+    en: "Explicit push to the connected calendar (Agenda banner, Manage calendars, or Push to my calendar on the task).",
   },
   "docs.calendar.benefit3": {
-    fr: "Plusieurs comptes Google ou Microsoft, couleurs par compte, calendrier prioritaire pour les réservations.",
-    en: "Multiple Google or Microsoft accounts, color per account, preferred calendar for bookings.",
+    fr: "Plusieurs comptes Google ou Microsoft, couleurs par compte, calendrier prioritaire pour les pushes.",
+    en: "Multiple Google or Microsoft accounts, color per account, preferred calendar for pushes.",
   },
   "docs.calendar.benefit4": {
-    fr: "Liens Meet ou Teams ajoutés automatiquement à l'événement créé.",
-    en: "Meet or Teams links added automatically to the created event.",
+    fr: "Détection des conflits avant push — avec option de forcer si vous acceptez le chevauchement.",
+    en: "Conflict detection before push — with override if you accept overlapping events.",
   },
-  "docs.calendar.prereq1": { fr: "Palier Small teams pour la réservation sur calendrier externe et la sync complète.", en: "Small teams plan for external calendar booking and full sync." },
+  "docs.calendar.prereq1": {
+    fr: "Palier Small teams pour connecter Google/Outlook et pousser vers l'agenda externe (SoftLock sur Free). La réservation dans Wroket reste disponible sans calendrier connecté.",
+    en: "Small teams plan to connect Google/Outlook and push to an external calendar (SoftLock on Free). Booking in Wroket remains available without a connected calendar.",
+  },
   "docs.calendar.prereq2": { fr: "Compte Google ou Microsoft autorisé à gérer au moins un agenda.", en: "Google or Microsoft account allowed to manage at least one calendar." },
   "docs.calendar.step1.title": { fr: "Connecter un compte", en: "Connect an account" },
   "docs.calendar.step1.p1": {
-    fr: "Agenda › Gérer les calendriers (ou Paramètres). Connectez Google et/ou Microsoft — plusieurs comptes sont possibles.",
-    en: "Agenda › Manage calendars (or Settings). Connect Google and/or Microsoft — multiple accounts are supported.",
+    fr: "Agenda › Mes agendas (ou Paramètres › Intégrations). Connectez Google et/ou Microsoft — plusieurs comptes sont possibles. La connexion OAuth n'envoie aucun créneau Wroket automatiquement.",
+    en: "Agenda › Manage calendars (or Settings › Integrations). Connect Google and/or Microsoft — multiple accounts are supported. OAuth connect does not push any Wroket slots automatically.",
   },
   "docs.calendar.step2.title": { fr: "Choisir les agendas visibles", en: "Choose visible calendars" },
   "docs.calendar.step2.p1": {
-    fr: "Activez les agendas à afficher et personnalisez les couleurs. Les créneaux occupés servent à détecter les conflits.",
-    en: "Enable calendars to display and customize colors. Busy slots are used for conflict detection.",
+    fr: "Activez les agendas à afficher dans l'Agenda Wroket et personnalisez les couleurs. Les créneaux occupés aident à détecter les conflits avant un push.",
+    en: "Enable calendars to display in the Wroket Agenda and customize colors. Busy slots help detect conflicts before a push.",
   },
   "docs.calendar.step3.title": { fr: "Compte prioritaire et visioconférence", en: "Preferred account and video" },
   "docs.calendar.step3.p1": {
-    fr: "Si Google et Microsoft sont connectés, définissez le compte prioritaire pour les réservations. Meet (Google) ou Teams (Microsoft) peut être ajouté à l'événement.",
-    en: "If both Google and Microsoft are connected, set the preferred account for bookings. Meet (Google) or Teams (Microsoft) can be added to the event.",
+    fr: "Si Google et Microsoft sont connectés, définissez le compte prioritaire pour les pushes. Meet (Google) ou Teams (Microsoft) peut être ajouté à l'événement créé lors du push.",
+    en: "If both Google and Microsoft are connected, set the preferred account for pushes. Meet (Google) or Teams (Microsoft) can be added to the event created on push.",
   },
-  "docs.calendar.step4.title": { fr: "Réserver depuis l'Agenda", en: "Book from Agenda" },
+  "docs.calendar.step4.title": { fr: "Réserver puis pousser", en: "Book, then push" },
   "docs.calendar.step4.p1": {
-    fr: "Glissez une tâche sur un créneau. En cas de conflit, Wroket propose de forcer ou d'ajuster — comme pour les contraintes de projet.",
-    en: "Drag a task onto a slot. On conflict, Wroket offers to force or adjust — same pattern as project constraints.",
+    fr: "Glissez une tâche sur un créneau : le créneau est réservé dans Wroket. Pour le créer sur Google/Outlook, utilisez Synchroniser (bannière Agenda), Mes agendas, ou Pousser dans mon agenda sur la tâche. En cas de conflit, Wroket propose d'ignorer ou de forcer.",
+    en: "Drag a task onto a slot: the slot is reserved in Wroket. To create it on Google/Outlook, use Sync (Agenda banner), Manage calendars, or Push to my calendar on the task. On conflict, Wroket offers to skip or force.",
   },
-  "docs.calendar.trouble1.title": { fr: "Connexion refusée ou expirée", en: "Connection denied or expired" },
+  "docs.calendar.trouble1.title": { fr: "Connexion refusée ou créneau absent de Google/Outlook", en: "Connection denied or slot missing on Google/Outlook" },
   "docs.calendar.trouble1.body": {
-    fr: "Reconnectez le compte depuis Gérer les calendriers. Vérifiez que l'URL de redirection OAuth prod est bien configurée (api.wroket.com).",
-    en: "Reconnect the account from Manage calendars. Ensure prod OAuth redirect URL is configured (api.wroket.com).",
+    fr: "Reconnectez le compte depuis Mes agendas. Si le créneau n'est que dans Wroket, lancez un push explicite — la connexion seule ne synchronise pas. Vérifiez aussi le palier Small teams et l'URL de redirection OAuth (api.wroket.com).",
+    en: "Reconnect the account from Manage calendars. If the slot is only in Wroket, run an explicit push — connect alone does not sync. Also check Small teams entitlement and the OAuth redirect URL (api.wroket.com).",
   },
 
   "docs.slack.metaTitle": { fr: "Guide Slack+", en: "Slack+ guide" },
@@ -552,8 +555,8 @@ export const docsTranslations = {
     en: "Project/team filters and delivery health (OK, error, backoff).",
   },
   "docs.slack.prereq1": {
-    fr: "Palier Small teams (ou entitlements Intégrations) et droits d’installer une app Slack sur le workspace.",
-    en: "Small teams plan (or Integrations entitlements) and permission to install a Slack app on the workspace.",
+    fr: "Palier Small teams (ou entitlements Intégrations ; SoftLock sur Free) et droits d’installer une app Slack sur le workspace.",
+    en: "Small teams plan (or Integrations entitlements; SoftLock on Free) and permission to install a Slack app on the workspace.",
   },
   "docs.slack.prereq2": {
     fr: "Même adresse e-mail sur Slack et Wroket pour les actions (boutons et slash).",
@@ -653,8 +656,8 @@ export const docsTranslations = {
     en: "Settings › Integrations › Connect your agent. Enter a label (e.g. “Cursor laptop”), create the key, then copy the secret immediately — it is never shown again.",
   },
   "docs.mcp.stepKeys.p2": {
-    fr: "Limites : Free = 1 clé active ; Small teams+ / early bird = jusqu’à 5. Seul le hash SHA-256 est stocké côté serveur.",
-    en: "Limits: Free = 1 active key; Small teams+ / early bird = up to 5. Only a SHA-256 hash is stored server-side.",
+    fr: "Limites : Free = 1 clé active ; Small teams ou supérieur = jusqu’à 5. Seul le hash SHA-256 est stocké côté serveur.",
+    en: "Limits: Free = 1 active key; Small teams or higher = up to 5. Only a SHA-256 hash is stored server-side.",
   },
   "docs.mcp.stepCursor.title": { fr: "Configurer Cursor ou Claude", en: "Configure Cursor or Claude" },
   "docs.mcp.stepCursor.p1": {
@@ -672,8 +675,8 @@ export const docsTranslations = {
   },
   "docs.mcp.stepLimits.title": { fr: "Limites et hors périmètre", en: "Limits and out of scope" },
   "docs.mcp.stepLimits.p1": {
-    fr: "Rate limit : 60 requêtes / minute / clé. Hors v1 : chat intégré Wroket, pièces jointes, sync Notion/Monday, billing/admin. Révoquez une clé dès qu’elle n’est plus utile.",
-    en: "Rate limit: 60 requests / minute / key. Out of v1: in-app Wroket chat, attachments, Notion/Monday sync, billing/admin. Revoke a key as soon as you no longer need it.",
+    fr: "Rate limit : 60 requêtes / minute / clé. Hors périmètre actuel : chat intégré Wroket, pièces jointes, sync Notion/Monday, billing/admin. Révoquez une clé dès qu’elle n’est plus utile.",
+    en: "Rate limit: 60 requests / minute / key. Out of current scope: in-app Wroket chat, attachments, Notion/Monday sync, billing/admin. Revoke a key as soon as you no longer need it.",
   },
   "docs.mcp.trouble1.title": { fr: "L’agent reçoit 401", en: "The agent gets 401" },
   "docs.mcp.trouble1.body": {
@@ -707,7 +710,7 @@ export const docsTranslations = {
     fr: "Incoming Webhook reste disponible en repli.",
     en: "Incoming Webhook remains available as fallback.",
   },
-  "docs.teams.prereq1": { fr: "Palier Small teams (ou entitlements Intégrations).", en: "Small teams plan (or Integrations entitlements)." },
+  "docs.teams.prereq1": { fr: "Palier Small teams (ou entitlements Intégrations ; SoftLock sur Free).", en: "Small teams plan (or Integrations entitlements; SoftLock on Free)." },
   "docs.teams.prereq2": { fr: "Bot Azure / Entra enregistré (voir docs/microsoft-azure.md + docs/teams-plus.md).", en: "Azure / Entra bot registered (see docs/microsoft-azure.md + docs/teams-plus.md)." },
   "docs.teams.stepOauth.title": { fr: "Connecter Teams (OAuth / Bot)", en: "Connect Teams (OAuth / Bot)" },
   "docs.teams.stepOauth.p1": {
@@ -766,7 +769,7 @@ export const docsTranslations = {
     fr: "Digests PMO : my-week, overdue, team-risk.",
     en: "PMO digests: my-week, overdue, team-risk.",
   },
-  "docs.googleChat.prereq1": { fr: "Palier Small teams.", en: "Small teams plan." },
+  "docs.googleChat.prereq1": { fr: "Palier Small teams (SoftLock sur Free).", en: "Small teams plan (SoftLock on Free)." },
   "docs.googleChat.prereq2": { fr: "App Chat configurée dans Google Cloud (voir docs/google-chat-plus.md).", en: "Chat app configured in Google Cloud (see docs/google-chat-plus.md)." },
   "docs.googleChat.stepOauth.title": { fr: "Connecter Google Chat", en: "Connect Google Chat" },
   "docs.googleChat.stepOauth.p1": {
@@ -820,7 +823,7 @@ export const docsTranslations = {
     fr: "Webhook de salon toujours disponible en repli.",
     en: "Channel webhook still available as fallback.",
   },
-  "docs.discord.prereq1": { fr: "Palier Small teams.", en: "Small teams plan." },
+  "docs.discord.prereq1": { fr: "Palier Small teams (SoftLock sur Free).", en: "Small teams plan (SoftLock on Free)." },
   "docs.discord.prereq2": { fr: "Application Discord + Public Key (voir docs/discord-plus.md).", en: "Discord Application + Public Key (see docs/discord-plus.md)." },
   "docs.discord.stepOauth.title": { fr: "Installer le bot", en: "Install the bot" },
   "docs.discord.stepOauth.p1": {

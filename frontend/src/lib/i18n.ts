@@ -2534,8 +2534,8 @@ const translations = {
   },
   "landing.howItWorks.step3.title": { fr: "Bloquez le cr\u00e9neau dans l\u2019agenda", en: "Block time on your calendar" },
   "landing.howItWorks.step3.desc": {
-    fr: "R\u00e9servez d\u2019abord un cr\u00e9neau dans Wroket, puis synchronisez Google ou Outlook pour le retrouver dans votre agenda.",
-    en: "First reserve a slot in Wroket, then sync Google or Outlook to see it on your calendar.",
+    fr: "R\u00e9servez un cr\u00e9neau dans Wroket, puis synchronisez Google ou Outlook pour le retrouver dans votre agenda.",
+    en: "Reserve a slot in Wroket, then sync Google or Outlook to see it on your calendar.",
   },
   "landing.howItWorks.step4.title": { fr: "Collaborez en \u00e9quipe", en: "Collaborate as a team" },
   "landing.howItWorks.step4.desc": {
@@ -2586,8 +2586,6 @@ const translations = {
   },
   "landing.flipHint": { fr: "Survolez pour un aperçu", en: "Hover for a preview" },
   "landing.footerTag": { fr: "Vos projets méritent mieux qu'une to-do list.", en: "Your projects deserve more than a to-do list." },
-  "landing.preview.openApp": { fr: "Ouvrir l'app", en: "Open the app" },
-  "landing.preview.label": { fr: "Aperçu produit", en: "Product preview" },
   "landing.preview.chrome": { fr: "wroket.com", en: "wroket.com" },
   "landing.preview.task1": { fr: "Lancer la campagne marketing", en: "Launch marketing campaign" },
   "landing.preview.task2": { fr: "Préparer la démo client", en: "Prepare client demo" },

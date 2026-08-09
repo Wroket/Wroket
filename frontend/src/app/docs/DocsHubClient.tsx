@@ -30,23 +30,24 @@ export function DocsHubClient() {
   return (
     <DocsShell>
       <header className="mb-10">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-slate-50">
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
           {t("docs.title")}
         </h1>
-        <p className="mt-3 text-lg text-zinc-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+        <p className="mt-3 text-lg text-stone-600 dark:text-stone-300 max-w-2xl leading-relaxed">
           {t("docs.subtitle")}
         </p>
+        <div className="w-16 h-1 bg-teal-700 rounded-full mt-6" />
       </header>
 
       <section className="mb-12" aria-labelledby="docs-hub-product">
-        <h2 id="docs-hub-product" className="text-xl font-semibold text-zinc-900 dark:text-slate-100 mb-4">
+        <h2 id="docs-hub-product" className="text-xl font-semibold text-stone-900 dark:text-stone-50 mb-4">
           {t("docs.hub.section.product")}
         </h2>
         <GuideGrid guides={productGuides} />
       </section>
 
       <section aria-labelledby="docs-hub-integrations">
-        <h2 id="docs-hub-integrations" className="text-xl font-semibold text-zinc-900 dark:text-slate-100 mb-4">
+        <h2 id="docs-hub-integrations" className="text-xl font-semibold text-stone-900 dark:text-stone-50 mb-4">
           {t("docs.hub.section.integrations")}
         </h2>
         <GuideGrid guides={integrationGuides} />

@@ -527,21 +527,6 @@ export default function LandingPage() {
             }}
           />
           <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-10 sm:pb-12">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <p className="text-[11px] sm:text-xs font-medium tracking-wide text-teal-200/90 uppercase">
-                {t("landing.preview.label")}
-              </p>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-teal-200 hover:text-white transition-colors"
-              >
-                {t("landing.preview.openApp")}
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
-            </div>
-
             <div
               className="rounded-t-2xl border border-b-0 border-stone-600/50 bg-stone-50 dark:bg-stone-800 overflow-hidden shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.45)]"
               role="img"
