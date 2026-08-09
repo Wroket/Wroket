@@ -38,9 +38,11 @@ import { SortableProjectCard, DraggableSubProjectCard } from "./DndWrappers";
 import { formatMins, getHealthConfig, PROJECT_TEMPLATES, getProjectTemplateStats, buildSeedTemplatePayload } from "./types";
 import type { Project, Team, Todo, TranslationKey, ProjectHealth } from "./types";
 import type { AuthMeResponse } from "@/lib/api";
+import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import { personalProjectsCreateBlocked, getFreeQuotas, fillQuotaTemplate, getProjectTemplateAvailability, firstSelectableTemplateId, FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL } from "@/lib/freeQuota";
 import { getImportSourceBadge } from "@/lib/importSourceBadge";
-import { useUiV2 } from "@/lib/UiVersionContext";
+import { formatUserFacingError } from "@/lib/apiErrors";
+import { trackFunnelEvent } from "@/lib/productAnalytics";
 
 type ProjectUndoAction =
   | { type: "archive"; projectId: string; previousStatus: "active" | "archived" }
@@ -75,14 +77,13 @@ export default function ProjectListView({
   const router = useRouter();
   const { toast } = useToast();
   const { refresh } = useAuth();
-  const { uiV2 } = useUiV2();
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createMoreOpen, setCreateMoreOpen] = useState(false);
   const [createTeamId, setCreateTeamId] = useState<string | null>(null);
-  const [templateId, setTemplateId] = useState<string>("quick-start");
+  const [templateId, setTemplateId] = useState<string>("none");
   const [creating, setCreating] = useState(false);
   const [seedApplying, setSeedApplying] = useState(false);
 
@@ -330,14 +331,20 @@ export default function ProjectListView({
     setCreateDesc("");
     setCreateTeamId(null);
     setCreateMoreOpen(false);
-    setTemplateId(uiV2 ? "none" : "quick-start");
-  }, [createName, createDesc, creating, seedApplying, t, uiV2]);
+    setTemplateId("none");
+  }, [createName, createDesc, creating, seedApplying, t]);
+
+  const openCreateForm = useCallback((opts?: { withTemplatePicker?: boolean }) => {
+    setTemplateId("none");
+    setCreateMoreOpen(!!opts?.withTemplatePicker);
+    setShowCreate(true);
+  }, []);
 
   const resetCreateForm = useCallback(() => {
     setCreateName("");
     setCreateDesc("");
     setCreateTeamId(null);
-    setTemplateId("quick-start");
+    setTemplateId("none");
   }, []);
 
   const handleCreate = async () => {
@@ -354,6 +361,7 @@ export default function ProjectListView({
     try {
       const created = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
       setProjects((prev) => [created, ...prev]);
+      trackFunnelEvent("project_created", { source: createTeamId ? "project_team" : "project_personal" });
 
       if (template) {
         setSeedApplying(true);
@@ -380,7 +388,7 @@ export default function ProjectListView({
       void refresh();
       void loadProjects();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setCreating(false);
       setSeedApplying(false);
@@ -398,7 +406,7 @@ export default function ProjectListView({
           setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           setLastAction({ type: "archive", projectId: project.id, previousStatus: "active" });
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Error");
+          toast.error(formatUserFacingError(err, "toast.genericError"));
         }
       },
     });
@@ -471,7 +479,7 @@ export default function ProjectListView({
       try {
         await updateProject(activeId, { parentProjectId: null });
         setLastAction({ type: "nest", projectId: activeId, previousParentId });
-      } catch (err) { toast.error(err instanceof Error ? err.message : "Error"); loadProjects(); }
+      } catch (err) { toast.error(formatUserFacingError(err, "toast.genericError")); loadProjects(); }
       return;
     }
 
@@ -489,7 +497,7 @@ export default function ProjectListView({
       try {
         await updateProject(activeId, { parentProjectId: overId });
         setLastAction({ type: "nest", projectId: activeId, previousParentId });
-      } catch (err) { toast.error(err instanceof Error ? err.message : "Error"); loadProjects(); }
+      } catch (err) { toast.error(formatUserFacingError(err, "toast.genericError")); loadProjects(); }
       return;
     }
 
@@ -555,16 +563,8 @@ export default function ProjectListView({
               {t("dashboard.importData")}
             </button>
             <button
-              onClick={() => {
-                setTemplateId(uiV2 ? "none" : "quick-start");
-                setCreateMoreOpen(false);
-                setShowCreate(true);
-              }}
-              className={`rounded px-4 py-2 text-sm font-medium text-white transition-colors ${
-                uiV2
-                  ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400"
-                  : "bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 dark:text-slate-100"
-              }`}
+              onClick={() => openCreateForm()}
+              className="rounded px-4 py-2 text-sm font-medium text-white transition-colors bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400"
             >
               {t("projects.create")}
             </button>
@@ -572,11 +572,35 @@ export default function ProjectListView({
         </div>
 
         {projects.length === 0 && !showCreate ? (
-          <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-10 text-center">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-10 text-center">
             <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <p className="text-sm text-zinc-500 dark:text-slate-400">{t("projects.empty")}</p>
+            <p className="text-sm font-medium text-zinc-700 dark:text-slate-200 mb-1">{t("projects.empty")}</p>
+            <p className="text-sm text-zinc-500 dark:text-slate-400 mb-5">{t("projects.emptyHint")}</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => openCreateForm()}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400 transition-colors"
+              >
+                {t("uiV2.create")}
+              </button>
+              <button
+                type="button"
+                onClick={() => openCreateForm({ withTemplatePicker: true })}
+                className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                {t("projects.emptyUseTemplate")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportChoiceOpen(true)}
+                className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                {t("dashboard.importData")}
+              </button>
+            </div>
           </div>
         ) : (
           <DndContext sensors={projectSensors} collisionDetection={closestCenter} onDragStart={handleProjectDragStart} onDragOver={handleProjectDragOver} onDragEnd={handleProjectDragEnd} onDragCancel={handleProjectDragCancel}>
@@ -785,8 +809,16 @@ export default function ProjectListView({
         {/* Create project modal */}
         {showCreate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeCreateModal}>
-            <div className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 ${uiV2 ? "rounded-xl" : "rounded-lg"}`} onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 rounded-xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.create")}</h3>
+              {!createTeamId && personalProjectsCreateBlocked(user) && (
+                <div className="mb-3 space-y-1 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <PlanBadge tier="freeQuota" />
+                  </div>
+                  <SoftLockHint tier="freeQuota" hintKey="quota.free.projectLimitHint" />
+                </div>
+              )}
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.name")}</label>
@@ -795,20 +827,18 @@ export default function ProjectListView({
                     onChange={(e) => setCreateName(e.target.value)}
                     placeholder={t("projects.namePlaceholder")}
                     autoFocus
-                    onKeyDown={(e) => { if (e.key === "Enter" && uiV2 && !createMoreOpen) void handleCreate(); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !createMoreOpen) void handleCreate(); }}
                     className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
-                {uiV2 && (
-                  <button
-                    type="button"
-                    onClick={() => setCreateMoreOpen((v) => !v)}
-                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    {createMoreOpen ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
-                  </button>
-                )}
-                {(!uiV2 || createMoreOpen) && (
+                <button
+                  type="button"
+                  onClick={() => setCreateMoreOpen((v) => !v)}
+                  className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {createMoreOpen ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
+                </button>
+                {createMoreOpen && (
                   <>
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("projects.description")}</label>
@@ -924,7 +954,7 @@ export default function ProjectListView({
                 >
                   {t("projects.cancel")}
                 </button>
-                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating || seedApplying || (!createTeamId && personalProjectsCreateBlocked(user))} className={`rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors ${uiV2 ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400" : "bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 dark:text-slate-100"}`}>
+                <button type="button" onClick={handleCreate} disabled={!createName.trim() || creating || seedApplying || (!createTeamId && personalProjectsCreateBlocked(user))} className="rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400">
                   {seedApplying ? t("projects.templateApplying") : creating ? t("edit.saving") : t("projects.save")}
                 </button>
               </div>

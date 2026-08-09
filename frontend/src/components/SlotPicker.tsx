@@ -33,9 +33,11 @@ export interface SlotPickerProps {
   openSignal?: number;
   dateMin?: string;
   dateMax?: string;
+  /** Analytics source for first_slot_booked (e.g. "project"). */
+  analyticsSource?: string;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker" }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -182,7 +184,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
         setConflicts([]);
         setPendingSlot(null);
         setOpen(false);
-        trackFunnelEvent("first_slot_booked", { todoId, source: "slot_picker" });
+        trackFunnelEvent("first_slot_booked", { todoId, source: analyticsSource });
         onBooked(result.todo);
         toast.success(t("schedule.booked"));
       }

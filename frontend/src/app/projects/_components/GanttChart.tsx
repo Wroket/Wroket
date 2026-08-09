@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { SortablePhaseContainer, SortableBoardTaskRow, SortableSubtaskList, SortableSubtaskRow } from "./DndWrappers";
 import { arrayMove } from "@dnd-kit/sortable";
+import SlotPicker from "@/components/SlotPicker";
 import type { ProjectPhase, ProjectMilestone, Todo, TranslationKey } from "./types";
 
 const COL_W = 28;
@@ -165,6 +166,11 @@ interface GanttChartProps {
   onPhaseDateChange?: (phaseId: string, startDate: string | null, endDate: string | null) => void;
   canConvertPhaseToSubproject?: boolean;
   onConvertPhase?: (phaseId: string) => void;
+  /** Current user uid — used to show SlotPicker on own / assigned tasks. */
+  currentUserId?: string | null;
+  /** When set, parent task rows show SlotPicker in the label column. */
+  onScheduleBooked?: (todo: Todo) => void;
+  onScheduleCleared?: (todo: Todo) => void;
 }
 
 interface GanttChartBodyProps {
@@ -186,6 +192,10 @@ interface GanttChartBodyProps {
   onPhaseDateChange?: (phaseId: string, startDate: string | null, endDate: string | null) => void;
   canConvertPhaseToSubproject?: boolean;
   onConvertPhase?: (phaseId: string) => void;
+  currentUserId?: string | null;
+  /** When set, parent task rows show SlotPicker in the label column. */
+  onScheduleBooked?: (todo: Todo) => void;
+  onScheduleCleared?: (todo: Todo) => void;
 }
 
 interface WeekTick {
@@ -282,6 +292,9 @@ function GanttChartBody({
   onPhaseDateChange,
   canConvertPhaseToSubproject,
   onConvertPhase,
+  currentUserId,
+  onScheduleBooked,
+  onScheduleCleared,
 }: GanttChartBodyProps) {
   const barDragRef = useRef<BarDragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
@@ -532,7 +545,7 @@ function GanttChartBody({
 
   const todayOffset = daysBetween(minDate, new Date());
   const chartWidth = totalDays * COL_W;
-  const labelW = 240;
+  const labelW = onScheduleBooked ? 280 : 240;
   const totalWidth = chartWidth + labelW;
 
   const timelineStyle = isExport ? { width: chartWidth, flexShrink: 0 as const } : undefined;
@@ -613,25 +626,55 @@ function GanttChartBody({
     const rowInteractive = !isExport && !isReadonly && onTaskClick;
     const barInteractive = !isExport && !isReadonly && !!(onBarDateMove || onTaskClick);
     const isPreview = dragPreview?.kind === "task" && dragPreview.id === task.id;
+    const canSchedule =
+      !isExport &&
+      !isReadonly &&
+      !isSubtask &&
+      !!onScheduleBooked &&
+      task.status === "active" &&
+      !!currentUserId &&
+      (!task.assignedTo || task.assignedTo === currentUserId);
 
     return (
       <div className={`flex items-center border-b ${borderCls}`} style={{ height: rowHeight }}>
-        <button
-          type="button"
-          className={`shrink-0 px-3 truncate text-xs text-left ${textMuted} ${labelPl} ${rowInteractive ? "hover:bg-zinc-50 dark:hover:bg-slate-800/50 cursor-pointer" : ""}`}
+        <div
+          className={`shrink-0 px-2 flex items-center gap-1 min-w-0 ${labelPl}`}
           style={{ width: labelW }}
-          onClick={rowInteractive ? () => onTaskClick!(task) : undefined}
-          title={rowInteractive ? t("gantt.clickToEdit") : undefined}
         >
-          {numbering && (
-            <span className={`text-[10px] font-mono font-semibold mr-1.5 ${isExport ? "text-zinc-400" : "text-zinc-400 dark:text-slate-500"}`}>{numbering}</span>
+          <button
+            type="button"
+            className={`min-w-0 flex-1 truncate text-xs text-left ${textMuted} ${rowInteractive ? "hover:bg-zinc-50 dark:hover:bg-slate-800/50 cursor-pointer rounded px-1 -mx-1" : ""}`}
+            onClick={rowInteractive ? () => onTaskClick!(task) : undefined}
+            title={rowInteractive ? t("gantt.clickToEdit") : undefined}
+          >
+            {numbering && (
+              <span className={`text-[10px] font-mono font-semibold mr-1.5 ${isExport ? "text-zinc-400" : "text-zinc-400 dark:text-slate-500"}`}>{numbering}</span>
+            )}
+            {isSubtask && <span className={`mr-1 ${isExport ? "text-zinc-300" : "text-zinc-300 dark:text-slate-600"}`}>↳</span>}
+            {isTaskBlocked(task) && (
+              <span className="mr-1 text-amber-500" title={t("dependencies.blockedBadge")}>⛔</span>
+            )}
+            <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
+          </button>
+          {canSchedule && (
+            <span
+              className="shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <SlotPicker
+                todoId={task.id}
+                scheduledSlot={task.scheduledSlot}
+                suggestedSlot={task.suggestedSlot}
+                onBooked={onScheduleBooked!}
+                onCleared={onScheduleCleared ?? onScheduleBooked!}
+                analyticsSource="project"
+                dateMin={phaseById.get(task.phaseId ?? "")?.startDate ?? undefined}
+                dateMax={phaseById.get(task.phaseId ?? "")?.endDate ?? undefined}
+              />
+            </span>
           )}
-          {isSubtask && <span className={`mr-1 ${isExport ? "text-zinc-300" : "text-zinc-300 dark:text-slate-600"}`}>↳</span>}
-          {isTaskBlocked(task) && (
-            <span className="mr-1 text-amber-500" title={t("dependencies.blockedBadge")}>⛔</span>
-          )}
-          <span className={`${task.status === "completed" ? "line-through opacity-60" : ""} ${isSubtask ? "text-[11px]" : ""}`}>{task.title}</span>
-        </button>
+        </div>
         <div className={`${timelineClass} relative`} style={{ ...timelineStyle, height: "100%" }}>
           {hasBar && renderBar(
             bar.startDay,
@@ -895,6 +938,9 @@ export default function GanttChart({
   onPhaseDateChange,
   canConvertPhaseToSubproject,
   onConvertPhase,
+  currentUserId,
+  onScheduleBooked,
+  onScheduleCleared,
 }: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -1068,6 +1114,9 @@ export default function GanttChart({
       onPhaseDateChange={onPhaseDateChange}
       canConvertPhaseToSubproject={canConvertPhaseToSubproject}
       onConvertPhase={onConvertPhase}
+      currentUserId={currentUserId}
+      onScheduleBooked={onScheduleBooked}
+      onScheduleCleared={onScheduleCleared}
     />
   );
 

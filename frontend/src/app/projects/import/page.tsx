@@ -9,6 +9,7 @@ import AppShell from "@/components/AppShell";
 import { uploadCsvPreview, confirmCsvImport, getTeams } from "@/lib/api";
 import type { ImportPreview, Team } from "@/lib/api";
 import { downloadProjectImportTemplateCsv } from "@/lib/importTemplates";
+import { formatUserFacingError } from "@/lib/apiErrors";
 
 export default function ImportPage() {
   const { t } = useLocale();
@@ -50,7 +51,7 @@ export default function ImportPage() {
       const p = await uploadCsvPreview(file, projectName.trim());
       setPreview(p);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
     setLoading(false);
   };
@@ -63,7 +64,7 @@ export default function ImportPage() {
       toast.success(`${t("import.success")} — ${result.taskCount} ${t("import.tasks")}`);
       router.push("/projects");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
     setImporting(false);
   };
@@ -195,13 +196,13 @@ export default function ImportPage() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-zinc-200 dark:border-slate-700">
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Phase</th>
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Titre</th>
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Priorité</th>
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Effort</th>
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Deadline</th>
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Assigné</th>
-                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">Tags</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colPhase")}</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colTitle")}</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colPriority")}</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colEffort")}</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colDeadline")}</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colAssignee")}</th>
+                    <th className="text-left py-2 px-2 text-zinc-500 dark:text-slate-400 font-medium">{t("import.colTags")}</th>
                   </tr>
                 </thead>
                 <tbody>

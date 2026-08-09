@@ -8,7 +8,9 @@ export type FunnelAnalyticsEvent =
   | "signup_ok"
   | "early_bird_or_calendar"
   | "first_slot_booked"
-  | "slot_synced_external";
+  | "slot_synced_external"
+  | "project_created"
+  | "project_task_created";
 
 export type ProductAnalyticsEvent = RadarAnalyticsEvent | FunnelAnalyticsEvent;
 

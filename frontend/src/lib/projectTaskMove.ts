@@ -1,6 +1,7 @@
 import type { MoveTodoPayload, MoveTodoStrategy, Todo } from "@/lib/api/todos";
 import { moveTodoApi } from "@/lib/api/todos";
 import type { Project } from "@/lib/api";
+import { formatUserFacingError } from "@/lib/apiErrors";
 import { analyzeMoveConstraints } from "@/lib/analyzeMoveConstraints";
 import type { TaskMoveModalState } from "@/app/projects/_components/TaskMoveConstraintModal";
 
@@ -117,6 +118,6 @@ export async function executeTaskMove({
       return;
     }
   } catch (err) {
-    onError(err instanceof Error ? err.message : "Error");
+    onError(formatUserFacingError(err, "toast.genericError"));
   }
 }

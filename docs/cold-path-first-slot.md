@@ -44,3 +44,5 @@ Lister ici uniquement les bugs terrain bloquants découverts en C4, puis cocher 
 4. `slot_synced_external`
 
 Revue mensuelle : taux `first_slot_booked` / `signup_ok` à 48 h.
+
+Complément projets : [`docs/cold-path-projects.md`](cold-path-projects.md) · revue funnel : [`docs/funnel-projects-monthly.md`](funnel-projects-monthly.md).

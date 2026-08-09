@@ -12,6 +12,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { useLocale } from "@/lib/LocaleContext";
+
 /* ─── Kanban DnD wrappers ─── */
 
 export function DroppablePhaseColumn({ id, children }: { id: string; children: React.ReactNode }) {
@@ -24,9 +26,10 @@ export function DroppablePhaseColumn({ id, children }: { id: string; children: R
 }
 
 export function DraggableKanbanCard({ id, children }: { id: string; children: React.ReactNode }) {
+  const { t } = useLocale();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} className={`touch-none ${isDragging ? "opacity-30" : ""}`}>
+    <div ref={setNodeRef} {...listeners} {...attributes} aria-label={t("a11y.dragKanbanCard")} className={`touch-none ${isDragging ? "opacity-30" : ""}`}>
       {children}
     </div>
   );
@@ -35,6 +38,7 @@ export function DraggableKanbanCard({ id, children }: { id: string; children: Re
 /* ─── Sortable Kanban Phase Column ─── */
 
 export function SortableKanbanPhaseColumn({ id, children, dragHandle }: { id: string; children: React.ReactNode; dragHandle: React.ReactNode }) {
+  const { t } = useLocale();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, data: { type: "phase" } });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
@@ -43,7 +47,7 @@ export function SortableKanbanPhaseColumn({ id, children, dragHandle }: { id: st
   };
   return (
     <div ref={setNodeRef} style={style} className="flex-shrink-0 w-full md:w-[280px] bg-zinc-50 dark:bg-slate-800/50 rounded-lg border border-zinc-200 dark:border-slate-700 flex flex-col md:max-h-[calc(100vh-280px)]">
-      <div className="cursor-grab active:cursor-grabbing touch-none" {...attributes} {...listeners}>
+      <div className="cursor-grab active:cursor-grabbing touch-none" aria-label={t("a11y.dragPhaseColumn")} {...attributes} {...listeners}>
         {dragHandle}
       </div>
       {children}
@@ -68,6 +72,7 @@ interface SortableProjectCardProps {
 }
 
 export function SortableProjectCard({ id, isNesting, children }: SortableProjectCardProps) {
+  const { t } = useLocale();
   const {
     attributes,
     listeners,
@@ -90,6 +95,7 @@ export function SortableProjectCard({ id, isNesting, children }: SortableProject
         <button
           type="button"
           className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none"
+          aria-label={t("a11y.reorderProject")}
           {...attributes}
           {...listeners}
         >
@@ -106,6 +112,7 @@ export function SortableProjectCard({ id, isNesting, children }: SortableProject
 /* ─── Sortable Board Phase Section (reorder phases in table view) ─── */
 
 export function SortableBoardPhaseSection({ id, children }: { id: string; children: React.ReactNode }) {
+  const { t } = useLocale();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, data: { type: "phase" } });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
@@ -118,6 +125,7 @@ export function SortableBoardPhaseSection({ id, children }: { id: string; childr
         <button
           type="button"
           className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-1"
+          aria-label={t("a11y.reorderPhase")}
           {...attributes}
           {...listeners}
         >
@@ -153,6 +161,7 @@ export function SortablePhaseContainer({ id, items, children }: { id: string; it
 }
 
 export function SortableBoardTaskRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { t } = useLocale();
   const {
     attributes,
     listeners,
@@ -171,6 +180,7 @@ export function SortableBoardTaskRow({ id, children }: { id: string; children: R
       <button
         type="button"
         className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-0.5"
+        aria-label={t("a11y.reorderTask")}
         {...attributes}
         {...listeners}
       >
@@ -213,6 +223,7 @@ export function SortableSubtaskRow({
   parentId: string;
   children: React.ReactNode;
 }) {
+  const { t } = useLocale();
   const {
     attributes,
     listeners,
@@ -231,7 +242,7 @@ export function SortableSubtaskRow({
       <button
         type="button"
         className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none shrink-0 p-0.5"
-        aria-label="Reorder subtask"
+        aria-label={t("a11y.reorderSubtask")}
         {...attributes}
         {...listeners}
       >
@@ -247,6 +258,7 @@ export function SortableSubtaskRow({
 /* ─── Draggable Sub-project Card wrapper ─── */
 
 export function DraggableSubProjectCard({ id, children }: { id: string; children: React.ReactNode }) {
+  const { t } = useLocale();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   return (
     <div ref={setNodeRef} className={`relative ${isDragging ? "opacity-30" : ""}`}>
@@ -254,6 +266,7 @@ export function DraggableSubProjectCard({ id, children }: { id: string; children
         <button
           type="button"
           className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none"
+          aria-label={t("a11y.dragSubproject")}
           {...attributes}
           {...listeners}
         >

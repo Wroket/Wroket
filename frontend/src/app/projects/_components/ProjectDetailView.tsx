@@ -21,13 +21,14 @@ import ExportImportDropdown from "@/components/ExportImportDropdown";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
+import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
+import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
 import TaskNoteModal from "@/components/TaskNoteModal";
 import TaskBlockedModal, { type TaskBlockerInfo } from "@/components/TaskBlockedModal";
 import { useToast } from "@/components/Toast";
-import { useUiV2 } from "@/lib/UiVersionContext";
 import {
   affectedIdsForDelete,
   applyOptimisticDeleteToList,
@@ -71,8 +72,10 @@ import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
 import { useUserLookup } from "@/lib/userUtils";
 import { useTaskEditAutoSave } from "@/lib/useTaskEditAutoSave";
-import { personalProjectsCreateBlocked } from "@/lib/freeQuota";
+import { personalProjectsCreateBlocked, personalTaskCreateBlocked } from "@/lib/freeQuota";
+import { formatUserFacingError } from "@/lib/apiErrors";
 import { newClientEntityId } from "@/lib/newClientId";
+import { trackFunnelEvent } from "@/lib/productAnalytics";
 
 import PageHelpButton from "@/components/PageHelpButton";
 import DashboardImportModal from "@/components/DashboardImportModal";
@@ -126,7 +129,6 @@ export default function ProjectDetailView({
   onTaskImportSuccess,
 }: ProjectDetailViewProps) {
   const { toast } = useToast();
-  const { uiV2 } = useUiV2();
   const { refresh } = useAuth();
   const router = useRouter();
   const { resolveUser, displayName, cacheRef } = useUserLookup();
@@ -257,6 +259,7 @@ export default function ProjectDetailView({
   const newTaskAssignTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [addingTask, setAddingTask] = useState(false);
   const addTaskInFlightRef = useRef(false);
+  const [schedulePromptId, setSchedulePromptId] = useState<string | null>(null);
 
   const [convertModal, setConvertModal] = useState<{ phaseId: string; phaseName: string } | null>(null);
   const [convertStep, setConvertStep] = useState<1 | 2>(1);
@@ -302,21 +305,38 @@ export default function ProjectDetailView({
   const [exportingSteeringPdf, setExportingSteeringPdf] = useState(false);
   const [moveModal, setMoveModal] = useState<TaskMoveModalState | null>(null);
 
-  const canManageProject = useMemo(
-    () =>
-      selectedProject.ownerUid === meUid ||
-      (accessPanel?.access.some(
-        (e) => e.email.toLowerCase() === (user?.email ?? "").toLowerCase() && e.role === "admin",
-      ) ?? false),
-    [selectedProject.ownerUid, meUid, accessPanel, user?.email],
-  );
+  const canManageProject = useMemo(() => {
+    if (selectedProject.ownerUid === meUid) return true;
+    const email = (user?.email ?? "").toLowerCase();
+    if (selectedProject.teamId) {
+      const team = teams.find((tm) => tm.id === selectedProject.teamId);
+      if (team) {
+        if (team.ownerUid === meUid) return true;
+        const member = team.members.find((m) => m.email.toLowerCase() === email);
+        if (member && (member.role === "co-owner" || member.role === "admin")) return true;
+      }
+    }
+    return (
+      accessPanel?.access.some(
+        (e) => e.email.toLowerCase() === email && e.role === "admin",
+      ) ?? false
+    );
+  }, [selectedProject.ownerUid, selectedProject.teamId, meUid, accessPanel, user?.email, teams]);
 
   const canEditProjectContent = useMemo(() => {
     if (selectedProject.ownerUid === meUid) return true;
     const email = (user?.email ?? "").toLowerCase();
+    if (selectedProject.teamId) {
+      const team = teams.find((tm) => tm.id === selectedProject.teamId);
+      if (team) {
+        if (team.ownerUid === meUid) return true;
+        const member = team.members.find((m) => m.email.toLowerCase() === email);
+        if (member && (member.role === "co-owner" || member.role === "admin")) return true;
+      }
+    }
     const entry = accessPanel?.access.find((e) => e.email.toLowerCase() === email);
     return entry?.role === "editor" || entry?.role === "admin";
-  }, [selectedProject.ownerUid, meUid, accessPanel, user?.email]);
+  }, [selectedProject.ownerUid, selectedProject.teamId, meUid, accessPanel, user?.email, teams]);
 
   const refreshProjectMeta = useCallback(async () => {
     try {
@@ -477,7 +497,7 @@ export default function ProjectDetailView({
       setProjectTodos(todos);
       setProjects((prev) => prev.map((p) => (p.id === proj.id ? proj : p)));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -501,7 +521,7 @@ export default function ProjectDetailView({
       setEditing(false);
       toast.success(t("toast.taskUpdated"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -514,7 +534,7 @@ export default function ProjectDetailView({
       await refreshProject(project.id);
       onTaskImportSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -533,7 +553,7 @@ export default function ProjectDetailView({
       setShowAddPhase(false);
       toast.success(t("toast.taskUpdated"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -548,7 +568,7 @@ export default function ProjectDetailView({
       await refreshProject(selectedProject.id);
       setEditingPhaseId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -571,7 +591,7 @@ export default function ProjectDetailView({
       await deletePhaseApi(selectedProject.id, phaseId);
       await refreshProject(selectedProject.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -652,7 +672,7 @@ export default function ProjectDetailView({
       await updatePhaseApi(selectedProject.id, phaseId, { startDate, endDate });
       await refreshProject(selectedProject.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   }, [selectedProject.id, refreshProject, toast]);
 
@@ -692,7 +712,7 @@ export default function ProjectDetailView({
       try {
         await Promise.all(reordered.map((p, i) => updatePhaseApi(selectedProject.id, p.id, { order: i })));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error");
+        toast.error(formatUserFacingError(err, "toast.genericError"));
         const fresh = await fetchProject(selectedProject.id);
         setSelectedProject(fresh);
       }
@@ -749,7 +769,7 @@ export default function ProjectDetailView({
       try {
         await Promise.all(reordered.map((p, i) => updatePhaseApi(selectedProject.id, p.id, { order: i })));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error");
+        toast.error(formatUserFacingError(err, "toast.genericError"));
         const fresh = await fetchProject(selectedProject.id);
         setSelectedProject(fresh);
       }
@@ -788,7 +808,7 @@ export default function ProjectDetailView({
       try {
         await reorderTodosApi(orderedIds);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error");
+        toast.error(formatUserFacingError(err, "toast.genericError"));
       }
       return;
     }
@@ -930,7 +950,7 @@ export default function ProjectDetailView({
       setAssignedUser(null);
       setAssignError(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setAssignSubmitting(false);
     }
@@ -957,7 +977,7 @@ export default function ProjectDetailView({
       });
       setProjectTodos((prev) => [...prev, todo]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       subtaskCreateInFlightRef.current = false;
       setSubtaskSubmitting(false);
@@ -983,6 +1003,10 @@ export default function ProjectDetailView({
 
   const handleAddTask = async (phaseIdOverride?: string | null) => {
     if (addTaskInFlightRef.current || !newTaskTitle.trim()) return;
+    if (personalTaskCreateBlocked(user, selectedProject.id, projects)) {
+      toast.error(t("quota.free.taskLimitHint"));
+      return;
+    }
     addTaskInFlightRef.current = true;
     setAddingTask(true);
     const clientId = newClientEntityId();
@@ -1012,9 +1036,11 @@ export default function ProjectDetailView({
       setAddTaskPhaseId(null);
       setInlineAddPhaseId(null);
       setAddTaskMoreOpen(false);
-      toast.success(uiV2 ? t("uiV2.taskCreated") : t("agenda.taskCreated"));
+      toast.success(t("uiV2.taskCreated"));
+      trackFunnelEvent("project_task_created", { todoId: todo.id, source: "project" });
+      setSchedulePromptId(todo.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       addTaskInFlightRef.current = false;
       setAddingTask(false);
@@ -1051,7 +1077,7 @@ export default function ProjectDetailView({
       setConvertModal(null);
       toast.success(t("projects.convertSuccess"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setConvertSubmitting(false);
     }
@@ -1069,7 +1095,7 @@ export default function ProjectDetailView({
       await loadProjects();
       toast.success(t("projects.mergeSubSuccess"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setMergingSubId(null);
     }
@@ -1080,7 +1106,7 @@ export default function ProjectDetailView({
       await updateTodo(todo.id, { projectId: null, phaseId: null });
       setProjectTodos((prev) => prev.filter((td) => td.id !== todo.id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1098,7 +1124,7 @@ export default function ProjectDetailView({
       }
       setProjectTodos((prev) => prev.map((td) => (td.id === result.todo.id ? result.todo : td)));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1143,7 +1169,7 @@ export default function ProjectDetailView({
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
       if (editingTodo?.id === todo.id) setEditingTodo(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1198,7 +1224,7 @@ export default function ProjectDetailView({
       const updated = await updateTodo(sub.id, { parentId: null });
       setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1214,7 +1240,7 @@ export default function ProjectDetailView({
     try {
       await reorderTodosApi(orderedIds);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1233,7 +1259,7 @@ export default function ProjectDetailView({
       toast.success(t("projects.addSubProject"));
       void refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setCreatingSub(false);
     }
@@ -1267,7 +1293,7 @@ export default function ProjectDetailView({
       setRoleDraft(draft);
       toast.success(t("projects.accessSaved"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setAccessSaving(false);
     }
@@ -1284,7 +1310,7 @@ export default function ProjectDetailView({
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       setNewTag("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1295,7 +1321,7 @@ export default function ProjectDetailView({
       setSelectedProject(updated);
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
 
@@ -1433,6 +1459,7 @@ export default function ProjectDetailView({
               suggestedSlot={todo.suggestedSlot}
               onBooked={handleScheduleUpdate}
               onCleared={handleScheduleUpdate}
+              analyticsSource="project"
               dateMin={phase?.startDate ?? undefined}
               dateMax={phase?.endDate ?? undefined}
             />
@@ -1515,7 +1542,7 @@ export default function ProjectDetailView({
             </svg>
             {t("dashboard.importData")}
           </button>
-          <button type="button" onClick={() => setFullScreen((f) => !f)} className="text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-slate-800" title={fullScreen ? "Normal" : "Full screen"}>
+          <button type="button" onClick={() => setFullScreen((f) => !f)} className="text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-slate-800" title={fullScreen ? t("projects.exitFullscreen") : t("projects.fullscreen")} aria-label={fullScreen ? t("projects.exitFullscreen") : t("projects.fullscreen")}>
             {fullScreen ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
             ) : (
@@ -1595,7 +1622,7 @@ export default function ProjectDetailView({
                               await refreshProject(id);
                               onTaskImportSuccess?.();
                             } catch (err) {
-                              toast.error(err instanceof Error ? err.message : "Error");
+                              toast.error(formatUserFacingError(err, "toast.genericError"));
                             }
                           })();
                         },
@@ -1870,11 +1897,15 @@ export default function ProjectDetailView({
         {/* Tab bar */}
         <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-1">
           {(["board", "kanban", "gantt", "docs"] as DetailTab[]).map((tab) => (
-            <button key={tab} onClick={() => setDetailTab(tab)} className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}>
+            <button key={tab} onClick={() => setDetailTab(tab)} className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-emerald-600 dark:bg-emerald-500 text-white" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}>
               {t(`projects.${tab}`)}
             </button>
           ))}
         </div>
+
+        {!user?.entitlements?.integrations && !user?.earlyBird && (detailTab === "board" || detailTab === "kanban" || detailTab === "gantt") && (
+          <EarlyBirdUnlockCard variant="compact" onEnrolled={async () => { await refresh(); }} className="mt-1" />
+        )}
 
         {loadingTodos ? (
           <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
@@ -2094,7 +2125,30 @@ export default function ProjectDetailView({
                           <SortableKanbanPhaseColumn key={phase.id} id={phase.id} dragHandle={phaseHeader}>
                             <DroppablePhaseColumn id={phase.id}>
                               {active.length === 0 && completed.length === 0 && other.length === 0 && (
-                                <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("phase.empty")}</p>
+                                canEditProjectContent ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (isReal) {
+                                        setInlineAddPhaseId(phase.id);
+                                        setNewTaskTitle("");
+                                        setAddTaskPhaseId(phase.id);
+                                      } else {
+                                        setAddTaskPhaseId(null);
+                                        setShowAddTask(true);
+                                      }
+                                    }}
+                                    className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/20 rounded-lg px-2 py-4 transition-colors flex flex-col items-center justify-center gap-1"
+                                  >
+                                    <span className="italic">{t("projects.phaseColumnEmpty")}</span>
+                                    <span className="inline-flex items-center gap-1 font-medium not-italic text-emerald-600 dark:text-emerald-400">
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                      {t("projects.addTask")}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <p className="text-xs text-zinc-400 dark:text-slate-500 italic text-center py-4">{t("projects.phaseColumnEmpty")}</p>
+                                )
                               )}
                               {active.map((todo) => {
                                 const dl = deadlineLabel(todo.deadline, t);
@@ -2154,6 +2208,27 @@ export default function ProjectDetailView({
                                           </svg>
                                         </button>
                                         {todo.scheduledSlot && <ScheduledSlotBadge slot={todo.scheduledSlot} />}
+                                        {todo.status === "active" && (!todo.assignedTo || todo.assignedTo === meUid) && (() => {
+                                          const phase = todo.phaseId ? orderedPhases.find((p) => p.id === todo.phaseId) : undefined;
+                                          return (
+                                            <span
+                                              className="inline-flex"
+                                              onClick={(e) => e.stopPropagation()}
+                                              onPointerDown={(e) => e.stopPropagation()}
+                                            >
+                                              <SlotPicker
+                                                todoId={todo.id}
+                                                scheduledSlot={todo.scheduledSlot}
+                                                suggestedSlot={todo.suggestedSlot}
+                                                onBooked={handleScheduleUpdate}
+                                                onCleared={handleScheduleUpdate}
+                                                analyticsSource="project"
+                                                dateMin={phase?.startDate ?? undefined}
+                                                dateMax={phase?.endDate ?? undefined}
+                                              />
+                                            </span>
+                                          );
+                                        })()}
                                         {todo.assignedTo && todo.assignedTo !== meUid && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 truncate max-w-[100px]">← {displayName(todo.userId)}</span>}
                                         {todo.assignedTo && todo.assignedTo !== todo.userId && todo.userId === meUid && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 truncate max-w-[100px]">→ {displayName(todo.assignedTo)}</span>}
                                         {todo.assignmentStatus && todo.assignedTo && (
@@ -2232,9 +2307,8 @@ export default function ProjectDetailView({
                                 </div>
                               )}
                             </DroppablePhaseColumn>
-                            {isReal && (
-                              <div className="px-2 py-2 border-t border-zinc-200 dark:border-slate-700 shrink-0">
-                                {uiV2 && inlineAddPhaseId === phase.id ? (
+                            <div className="px-2 py-2 border-t border-zinc-200 dark:border-slate-700 shrink-0">
+                                {inlineAddPhaseId === phase.id ? (
                                   <form
                                     className="flex gap-1"
                                     onSubmit={(e) => {
@@ -2256,7 +2330,7 @@ export default function ProjectDetailView({
                                       type="button"
                                       title={t("uiV2.moreOptions")}
                                       onClick={() => {
-                                        setAddTaskPhaseId(phase.id);
+                                        setAddTaskPhaseId(isReal ? phase.id : null);
                                         setShowAddTask(true);
                                         setAddTaskMoreOpen(true);
                                         setInlineAddPhaseId(null);
@@ -2266,17 +2340,17 @@ export default function ProjectDetailView({
                                       ⋯
                                     </button>
                                   </form>
-                                ) : (
+                                ) : canEditProjectContent ? (
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      if (uiV2) {
+                                      if (isReal) {
                                         setInlineAddPhaseId(phase.id);
                                         setNewTaskTitle("");
                                         setAddTaskPhaseId(phase.id);
                                       } else {
+                                        setAddTaskPhaseId(null);
                                         setShowAddTask(true);
-                                        setAddTaskPhaseId(phase.id);
                                       }
                                     }}
                                     className="w-full text-xs text-zinc-400 dark:text-slate-500 hover:text-zinc-600 dark:hover:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-700 rounded px-2 py-1.5 transition-colors flex items-center justify-center gap-1"
@@ -2284,9 +2358,8 @@ export default function ProjectDetailView({
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                                     {t("projects.addTask")}
                                   </button>
-                                )}
+                                ) : null}
                               </div>
-                            )}
                           </SortableKanbanPhaseColumn>
                         );
                       })}
@@ -2349,6 +2422,9 @@ export default function ProjectDetailView({
               locale={locale}
               canConvertPhaseToSubproject={canConvertToSubproject}
               onConvertPhase={openConvertPhase}
+              currentUserId={meUid}
+              onScheduleBooked={handleScheduleUpdate}
+              onScheduleCleared={handleScheduleUpdate}
               onMoveTask={(taskId, newPhaseId, newIndex) => {
                 runPhaseTaskMove(taskId, newPhaseId, newIndex);
               }}
@@ -2389,16 +2465,20 @@ export default function ProjectDetailView({
         {/* Add task modal */}
         {showAddTask && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); setAddTaskMoreOpen(false); }}>
-            <div className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 ${uiV2 ? "rounded-xl" : "rounded-lg"}`} onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 rounded-xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.addTask")}</h3>
+              {personalTaskCreateBlocked(user, selectedProject.id, projects) && (
+                <div className="mb-3 space-y-1 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2">
+                  <PlanBadge tier="freeQuota" />
+                  <SoftLockHint tier="freeQuota" hintKey="quota.free.taskLimitHint" />
+                </div>
+              )}
               <div className="space-y-3">
-                <input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t("todos.addPlaceholder")} className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" autoFocus onKeyDown={(e) => { if (e.key === "Enter" && uiV2 && !addTaskMoreOpen) void handleAddTask(); }} />
-                {uiV2 && (
-                  <button type="button" onClick={() => setAddTaskMoreOpen((v) => !v)} className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                <input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder={t("todos.addPlaceholder")} className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" autoFocus onKeyDown={(e) => { if (e.key === "Enter" && !addTaskMoreOpen) void handleAddTask(); }} />
+                <button type="button" onClick={() => setAddTaskMoreOpen((v) => !v)} className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
                     {addTaskMoreOpen ? t("uiV2.lessOptions") : t("uiV2.moreOptions")}
                   </button>
-                )}
-                {(!uiV2 || addTaskMoreOpen) && (
+                {addTaskMoreOpen && (
                   <>
                 <div className="flex gap-3">
                   <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as Priority)} className="flex-1 rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100">
@@ -2468,7 +2548,7 @@ export default function ProjectDetailView({
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); setAddTaskMoreOpen(false); }} className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors">{t("projects.cancel")}</button>
-                <button onClick={() => void handleAddTask()} disabled={addingTask || !newTaskTitle.trim()} className={`rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors ${uiV2 ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700" : "bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:text-slate-100"}`}>{addingTask ? t("todos.adding") : t("projects.save")}</button>
+                <button onClick={() => void handleAddTask()} disabled={addingTask || !newTaskTitle.trim() || personalTaskCreateBlocked(user, selectedProject.id, projects)} className="rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700">{addingTask ? t("todos.adding") : t("projects.save")}</button>
               </div>
             </div>
           </div>
@@ -2600,7 +2680,7 @@ export default function ProjectDetailView({
                       setAssignedUser(null);
                       setAssignError(null);
                     } catch (err) {
-                      toast.error(err instanceof Error ? err.message : "Error");
+                      toast.error(formatUserFacingError(err, "toast.genericError"));
                     } finally {
                       setAssignSubmitting(false);
                     }
@@ -2789,6 +2869,22 @@ export default function ProjectDetailView({
           onCancel={() => setProjectArchiveConfirm(null)}
           variant="warning"
           confirmLabel={t("projects.archive")}
+        />
+
+        <ConfirmDialog
+          open={schedulePromptId !== null}
+          title={t("schedule.promptTitle")}
+          message={t("schedule.promptBody")}
+          variant="primary"
+          confirmLabel={t("schedule.promptConfirm")}
+          cancelLabel={t("schedule.notNow")}
+          onCancel={() => setSchedulePromptId(null)}
+          onConfirm={() => {
+            if (schedulePromptId) {
+              router.push(`/agenda?schedule=${encodeURIComponent(schedulePromptId)}`);
+            }
+            setSchedulePromptId(null);
+          }}
         />
 
         <DeleteTaskDialog

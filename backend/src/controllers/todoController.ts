@@ -719,6 +719,6 @@ export async function taskActivity(req: AuthenticatedRequest, res: Response) {
 export async function reorderTodos(req: AuthenticatedRequest, res: Response) {
   const { todoIds } = req.body as { todoIds?: string[] };
   if (!Array.isArray(todoIds)) throw new ValidationError("todoIds requis");
-  const updated = await batchReorder(req.user!.uid, todoIds);
+  const updated = await batchReorder(req.user!.uid, req.user!.email ?? "", todoIds);
   res.status(200).json({ message: "OK", updated });
 }

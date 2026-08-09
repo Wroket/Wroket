@@ -1348,7 +1348,7 @@ export async function listArchivedTodosAssignedToMe(userId: string, userEmail: s
  *   3. They can view the linked project (team teammate / ACL)
  */
 export async function canAccessTodo(userId: string, userEmail: string, todoId: string): Promise<boolean> {
-  const found = await findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId, userEmail);
   if (found) return true;
   const row = await getTodoV2ById(todoId);
   if (!row?.projectId || typeof row.projectId !== "string") return false;
@@ -1360,21 +1360,31 @@ export async function canAccessTodo(userId: string, userEmail: string, todoId: s
 const MAX_REORDER_SIZE = 200;
 
 /**
- * Updates sortOrder for a batch of owned todos in a single persist.
+ * Updates sortOrder for todos the user owns or can edit via project content role.
  * Returns the count of successfully updated items.
  */
-export async function batchReorder(userId: string, todoIds: string[]): Promise<number> {
+export async function batchReorder(userId: string, userEmail: string, todoIds: string[]): Promise<number> {
   const capped = todoIds.slice(0, MAX_REORDER_SIZE);
+  const ownersToPersist = new Set<string>();
   let updated = 0;
+  const email = normalizeUserEmail(userEmail);
   for (let i = 0; i < capped.length; i++) {
-    const found = await findTodoForUser(userId, capped[i]);
-    if (found && found.isOwner) {
-      found.todo.sortOrder = i;
-      found.todo.updatedAt = new Date().toISOString();
-      updated++;
+    const found = await findTodoForUser(userId, capped[i], userEmail);
+    if (!found) continue;
+    let allowed = found.isOwner;
+    if (!allowed && found.todo.projectId) {
+      const project = getProjectById(found.todo.projectId);
+      allowed = !!project && canEditProjectContent(userId, email, project);
     }
+    if (!allowed) continue;
+    found.todo.sortOrder = i;
+    found.todo.updatedAt = new Date().toISOString();
+    ownersToPersist.add(found.todo.userId);
+    updated++;
   }
-  if (updated > 0) await persistTodos(userId);
+  for (const ownerUid of ownersToPersist) {
+    await persistTodos(ownerUid);
+  }
   return updated;
 }
 
@@ -1550,7 +1560,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 /**
  * RAM-only lookup — use {@link findTodoForUser} for cross-replica reads.
  */
-function findTodoForUserFromRam(userId: string, todoId: string): TodoLookup | null {
+function findTodoForUserFromRam(userId: string, todoId: string, userEmail?: string): TodoLookup | null {
   const own = getUserTodos(userId);
   const ownTodo = own.get(todoId);
   if (ownTodo) return { todo: ownTodo, ownerMap: own, isOwner: true };
@@ -1560,20 +1570,28 @@ function findTodoForUserFromRam(userId: string, todoId: string): TodoLookup | nu
     const ownerMap = todosByUser.get(ownerId);
     const t = ownerMap?.get(todoId);
     if (t && t.assignedTo === userId) return { todo: t, ownerMap: ownerMap!, isOwner: false };
+    if (t && userEmail && t.projectId) {
+      const project = getProjectById(t.projectId);
+      if (project && canEditProjectContent(userId, normalizeUserEmail(userEmail), project)) {
+        return { todo: t, ownerMap: ownerMap!, isOwner: false };
+      }
+    }
   }
   return null;
 }
 
 /** Synchronous RAM-only lookup (background jobs / display filters). */
-export function findTodoForUserInRam(userId: string, todoId: string): TodoLookup | null {
-  return findTodoForUserFromRam(userId, todoId);
+export function findTodoForUserInRam(userId: string, todoId: string, userEmail?: string): TodoLookup | null {
+  return findTodoForUserFromRam(userId, todoId, userEmail);
 }
 
 /**
  * Finds a todo by id — first in RAM, then Firestore `todos_v2` on cold replicas.
+ * When `userEmail` is provided, project content editors (ACL / team governance) can resolve
+ * teammates' tasks for move/planning updates — not only owner/assignee.
  */
-export async function findTodoForUser(userId: string, todoId: string): Promise<TodoLookup | null> {
-  const ram = findTodoForUserFromRam(userId, todoId);
+export async function findTodoForUser(userId: string, todoId: string, userEmail?: string): Promise<TodoLookup | null> {
+  const ram = findTodoForUserFromRam(userId, todoId, userEmail);
   if (ram) return ram;
 
   if (TODOS_STORAGE_MODE !== "v2" || USE_LOCAL_TODOS) return null;
@@ -1589,15 +1607,41 @@ export async function findTodoForUser(userId: string, todoId: string): Promise<T
 
   const isOwner = ownerUid === userId;
   const isAssignee = todo.assignedTo === userId;
-  if (!isOwner && !isAssignee) return null;
+  if (!isOwner && !isAssignee) {
+    if (!userEmail || !todo.projectId) return null;
+    const project = getProjectById(todo.projectId);
+    if (!project || !canEditProjectContent(userId, normalizeUserEmail(userEmail), project)) return null;
+  }
 
   return { todo, ownerMap: getUserTodos(ownerUid), isOwner };
 }
 
 export async function updateTodo(userId: string, userEmail: string, todoId: string, input: UpdateTodoInput): Promise<Todo> {
-  const found = await findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId, userEmail);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, ownerMap: todos, isOwner } = found;
+  const emailNorm = normalizeUserEmail(userEmail);
+
+  /** Owner, or team project editor/admin/governance — for phase/dates/sort/slot moves. */
+  const canEditPlanning = (() => {
+    if (isOwner) return true;
+    if (!todo.projectId) return false;
+    const project = getProjectById(todo.projectId);
+    return !!project && canEditProjectContent(userId, emailNorm, project);
+  })();
+
+  const isAssignee = !isOwner && todo.assignedTo === userId;
+  if (!isOwner && !isAssignee) {
+    if (!canEditPlanning) {
+      throw new ForbiddenError("Accès refusé à cette tâche");
+    }
+    const planningKeys = new Set(["deadline", "phaseId", "startDate", "scheduledSlot", "sortOrder"]);
+    for (const key of Object.keys(input) as (keyof UpdateTodoInput)[]) {
+      if (input[key] !== undefined && !planningKeys.has(key)) {
+        throw new ForbiddenError("Seul le propriétaire ou l'assigné peut modifier ce champ");
+      }
+    }
+  }
 
   if (isOwner && shouldApplyFreeTierVolumeQuotas(todo.userId)) {
     const nextStatus = (input.status !== undefined ? input.status : todo.status) as TodoStatus;
@@ -1651,7 +1695,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     todo.estimatedMinutes = input.estimatedMinutes;
   }
   if (input.deadline !== undefined) {
-    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier l'échéance");
+    if (!canEditPlanning) throw new ForbiddenError("Seul le propriétaire ou un éditeur du projet peut modifier l'échéance");
     if (input.deadline !== null) {
       const d = new Date(input.deadline);
       if (isNaN(d.getTime())) throw new ValidationError("Date deadline invalide");
@@ -1717,7 +1761,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     }
   }
   if (input.phaseId !== undefined) {
-    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut modifier la phase");
+    if (!canEditPlanning) throw new ForbiddenError("Seul le propriétaire ou un éditeur du projet peut modifier la phase");
     if (input.phaseId) {
       const phase = findPhaseById(input.phaseId);
       if (!phase) throw new NotFoundError("Phase introuvable");
@@ -1730,6 +1774,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
     todo.phaseId = input.phaseId;
   }
   if (input.startDate !== undefined) {
+    if (!canEditPlanning) throw new ForbiddenError("Seul le propriétaire ou un éditeur du projet peut modifier la date de début");
     if (input.startDate !== null) {
       const d = new Date(input.startDate);
       if (isNaN(d.getTime())) throw new ValidationError("Date de début invalide");
@@ -1923,7 +1968,7 @@ export async function moveTodo(
   todoId: string,
   input: MoveTodoInput,
 ): Promise<Todo> {
-  const found = await findTodoForUser(userId, todoId);
+  const found = await findTodoForUser(userId, todoId, userEmail);
   if (!found) throw new NotFoundError("Tâche introuvable");
   const { todo, isOwner } = found;
   if (!isOwner) {
@@ -1948,8 +1993,8 @@ export async function moveTodo(
     input.deadline === undefined &&
     input.sortOrder === undefined
   ) {
-    await batchReorder(userId, input.reorderIds);
-    const after = await findTodoForUser(userId, todoId);
+    await batchReorder(userId, userEmail, input.reorderIds);
+    const after = await findTodoForUser(userId, todoId, userEmail);
     if (!after) throw new NotFoundError("Tâche introuvable");
     return after.todo;
   }
@@ -2038,8 +2083,8 @@ export async function moveTodo(
   const updated = await updateTodo(userId, userEmail, todoId, updateInput);
 
   if (input.reorderIds && input.reorderIds.length > 0) {
-    await batchReorder(userId, input.reorderIds);
-    const after = await findTodoForUser(userId, todoId);
+    await batchReorder(userId, userEmail, input.reorderIds);
+    const after = await findTodoForUser(userId, todoId, userEmail);
     if (after) return after.todo;
   }
 

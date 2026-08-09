@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
-import { useUiV2 } from "@/lib/UiVersionContext";
 import { getProjectNotesApi } from "@/lib/api/projects";
 import { createNoteApi, type Note } from "@/lib/api/notes";
 
@@ -18,14 +17,11 @@ interface Props {
 
 export default function ProjectDocsTab({ projectId, projectName, canEdit }: Props) {
   const { t } = useLocale();
-  const { uiV2 } = useUiV2();
   const { toast } = useToast();
   const router = useRouter();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createTitle, setCreateTitle] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,17 +41,15 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
 
   const defaultTitleSuggestion = `${projectName} — ${t("projects.docsNewNote")}`;
 
-  const createNote = async (title?: string) => {
+  const createNote = async () => {
     setCreating(true);
     try {
       const note = await createNoteApi({
-        title: title?.trim() || defaultTitleSuggestion,
+        title: defaultTitleSuggestion,
         content: "",
         projectId,
       });
       setNotes((prev) => [note, ...prev]);
-      setCreateModalOpen(false);
-      setCreateTitle("");
       toast.success(t("projects.docsCreated"));
       router.push(`/notes?id=${encodeURIComponent(note.id)}`);
     } catch (err) {
@@ -63,24 +57,6 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
     } finally {
       setCreating(false);
     }
-  };
-
-  const openCreate = () => {
-    if (uiV2) {
-      void createNote();
-      return;
-    }
-    setCreateTitle("");
-    setCreateModalOpen(true);
-  };
-
-  const handleCreate = async () => {
-    const title = createTitle.trim();
-    if (!title) {
-      toast.error(t("projects.docsCreateNameRequired"));
-      return;
-    }
-    await createNote(title);
   };
 
   if (loading) {
@@ -95,23 +71,31 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-600 dark:text-slate-400">{t("projects.docsHint")}</p>
-        {canEdit && (
+        {canEdit && notes.length > 0 && (
           <button
             type="button"
-            onClick={openCreate}
+            onClick={() => void createNote()}
             disabled={creating}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 ${
-              uiV2
-                ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700"
-                : "bg-slate-700 dark:bg-slate-600"
-            }`}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700"
           >
             {creating ? "…" : t("projects.docsAdd")}
           </button>
         )}
       </div>
       {notes.length === 0 ? (
-        <p className="text-sm text-zinc-500 dark:text-slate-400 py-8 text-center">{t("projects.docsEmpty")}</p>
+        <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-10 px-4 text-center">
+          <p className="text-sm text-zinc-500 dark:text-slate-400 mb-4">{t("projects.docsEmpty")}</p>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => void createNote()}
+              disabled={creating}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 transition-colors"
+            >
+              {creating ? "…" : t("projects.docsAdd")}
+            </button>
+          )}
+        </div>
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-slate-800 rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           {notes.map((note) => (
@@ -128,59 +112,6 @@ export default function ProjectDocsTab({ projectId, projectName, canEdit }: Prop
             </li>
           ))}
         </ul>
-      )}
-      {createModalOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          role="presentation"
-          onClick={() => !creating && setCreateModalOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="project-doc-create-title"
-            className="w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="project-doc-create-title" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
-              {t("projects.docsCreateTitle")}
-            </h2>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400" htmlFor="project-doc-name">
-              {t("projects.docsCreateNameLabel")}
-            </label>
-            <input
-              id="project-doc-name"
-              type="text"
-              value={createTitle}
-              onChange={(e) => setCreateTitle(e.target.value.slice(0, 200))}
-              maxLength={200}
-              placeholder={defaultTitleSuggestion}
-              className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-zinc-900 dark:text-slate-100"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreate();
-              }}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setCreateModalOpen(false)}
-                disabled={creating}
-                className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-300 disabled:opacity-50"
-              >
-                {t("projects.cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCreate()}
-                disabled={creating || !createTitle.trim()}
-                className="rounded-lg bg-slate-700 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {creating ? "…" : t("projects.docsCreateConfirm")}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
