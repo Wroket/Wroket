@@ -88,6 +88,8 @@ import { broadcastResourceChange } from "@/lib/useResourceSync";
 import type { MoveTodoPayload, MoveTodoStrategy } from "@/lib/api/todos";
 import ProjectSteeringPanel from "./ProjectSteeringPanel";
 import ProjectShareLinksPanel from "@/components/ProjectShareLinksPanel";
+import ClientPortalPanel from "@/components/ClientPortalPanel";
+import ProjectTimesheetPanel from "@/components/ProjectTimesheetPanel";
 import ProjectMilestonesPanel from "./ProjectMilestonesPanel";
 import ProjectCustomFieldsPanel from "./ProjectCustomFieldsPanel";
 import ProjectDocsTab from "./ProjectDocsTab";
@@ -1822,6 +1824,12 @@ export default function ProjectDetailView({
             projectId={selectedProject.id}
             canManage={canManageProject}
           />
+        )}
+
+        {!loadingTodos && canManageProject && <ClientPortalPanel />}
+
+        {!loadingTodos && (
+          <ProjectTimesheetPanel projectId={selectedProject.id} />
         )}
 
         {!loadingTodos && (

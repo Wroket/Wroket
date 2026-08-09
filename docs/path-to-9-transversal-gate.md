@@ -17,12 +17,12 @@ Code livré (collab, a11y, EmptyState, share smoke, docs). **Ne pas déclarer 9/
 |-----------|---------|
 | [`cold-path-collab.md`](cold-path-collab.md) | 3/3 |
 | [`checklist-e2e-prod.md`](checklist-e2e-prod.md) §I-bis | Push desktop PWA |
-| [`checklist-e2e-prod.md`](checklist-e2e-prod.md) §B 5–7 | Microsoft SSO |
+| [`checklist-e2e-prod.md`](checklist-e2e-prod.md) §B 5–7 | Microsoft SSO — **validé terrain** |
 | first-slot / projects / données | Déjà documentés ; à cocher si pas encore faits |
 
 ## Hors scope (Later)
 
-- Client Portal (ROADMAP Later / Premium)
-- Liens partage par tâche
-- Rewrite landing
+- ~~Client Portal~~ — livré (programme multi-epic)
+- ~~Liens partage par tâche~~ — livré
+- ~~Rewrite landing~~ — livré
 - Portfolio équipe selon traction

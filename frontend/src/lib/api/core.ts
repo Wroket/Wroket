@@ -92,6 +92,7 @@ export type BillingPlan = "free" | "first" | "small" | "large";
 export interface Entitlements {
   integrations: boolean;
   teamReporting: boolean;
+  clientPortal: boolean;
 }
 
 export interface FreeQuotaSnapshot {

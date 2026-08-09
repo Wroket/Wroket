@@ -16,6 +16,8 @@ export interface Note {
   sharedWithUid?: string;
   /** Resolved email of the collaborator (for display). */
   sharedWithEmail?: string;
+  /** Allow the direct collaborator to edit title/content. */
+  collaboratorWrite?: boolean;
   /** Email of the note owner — populated by the server for shared notes (display only). */
   ownerEmail?: string;
   createdAt: string;
@@ -127,6 +129,7 @@ export async function updateNoteApi(id: string, input: {
   shared?: boolean;
   teamId?: string;
   sharedWithEmail?: string | null;
+  collaboratorWrite?: boolean;
 }): Promise<Note> {
   const res = await fetch(`${API_BASE_URL}/notes/${id}`, {
     method: "PUT",

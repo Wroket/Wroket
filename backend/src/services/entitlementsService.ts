@@ -11,6 +11,8 @@ export interface Entitlements {
   integrations: boolean;
   /** GET /teams/:teamId/reporting — Large+, ou early bird (admin). */
   teamReporting: boolean;
+  /** Client Portal multi-projets — Large+, ou early bird. */
+  clientPortal: boolean;
 }
 
 const DEFAULT_PLAN_FOR_LEGACY_USER: BillingPlan = "first";
@@ -31,7 +33,8 @@ export function resolveBillingPlan(stored: unknown): BillingPlan {
 export function getEntitlements(plan: BillingPlan): Entitlements {
   const integrations = plan === "small" || plan === "large";
   const teamReporting = plan === "large";
-  return { integrations, teamReporting };
+  const clientPortal = plan === "large";
+  return { integrations, teamReporting, clientPortal };
 }
 
 /**
@@ -40,7 +43,7 @@ export function getEntitlements(plan: BillingPlan): Entitlements {
  */
 export function resolveEntitlements(plan: BillingPlan, earlyBird: boolean): Entitlements {
   if (earlyBird) {
-    return { integrations: true, teamReporting: true };
+    return { integrations: true, teamReporting: true, clientPortal: true };
   }
   return getEntitlements(plan);
 }
@@ -58,5 +61,6 @@ export function resolveEffectiveEntitlements(
   return {
     integrations: personal.integrations || team.integrations,
     teamReporting: personal.teamReporting || team.teamReporting,
+    clientPortal: personal.clientPortal || team.clientPortal,
   };
 }

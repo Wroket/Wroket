@@ -97,6 +97,7 @@ import {
 } from "@/lib/billingPlanLabels";
 import { detectPushPlatformHint } from "@/lib/pushPlatform";
 import AgentConnectPanel from "./AgentConnectPanel";
+import AutomationRulesPanel from "@/components/AutomationRulesPanel";
 
 const DAY_KEYS: TranslationKey[] = [
   "settings.whMon",
@@ -1516,6 +1517,9 @@ function AutomationSettingsBlock({
           {saving ? t("settings.saving") : t("settings.automationSave")}
         </button>
         {saved && <span className="text-xs text-green-600 dark:text-green-400">{t("settings.automationSaved")}</span>}
+      </div>
+      <div className="pt-4 border-t border-zinc-200 dark:border-slate-700">
+        <AutomationRulesPanel />
       </div>
     </div>
   );

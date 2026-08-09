@@ -250,6 +250,7 @@ describe("externalSyncService", () => {
     const entSpy = vi.spyOn(authService, "getEntitlementsForUid").mockReturnValue({
       integrations: true,
       teamReporting: false,
+      clientPortal: false,
     });
 
     const owner = uid("owner");

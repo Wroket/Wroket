@@ -1554,6 +1554,21 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
   getUserTodos(userId).set(todo.id, todo);
   ownerIndex.set(todo.id, userId);
   await persistTodos(userId);
+  try {
+    const { evaluateAutomationRules } = await import("./projectAutomationService");
+    const hits = evaluateAutomationRules(userId, "todo_created", todo);
+    if (hits.length > 0) {
+      for (const { patch } of hits) {
+        if (patch.tags) todo.tags = patch.tags;
+        if (patch.priority) todo.priority = patch.priority;
+        if (patch.assignedTo !== undefined) todo.assignedTo = patch.assignedTo;
+      }
+      getUserTodos(userId).set(todo.id, todo);
+      await persistTodos(userId);
+    }
+  } catch (err) {
+    console.warn("[todos] automation todo_created failed:", err);
+  }
   return todo;
 }
 
@@ -1949,6 +1964,25 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   }
 
   await persistTodos(todo.userId);
+
+  if (input.status === "completed") {
+    try {
+      const { evaluateAutomationRules } = await import("./projectAutomationService");
+      const hits = evaluateAutomationRules(todo.userId, "todo_completed", todo);
+      if (hits.length > 0) {
+        for (const { patch } of hits) {
+          if (patch.tags) todo.tags = patch.tags;
+          if (patch.priority) todo.priority = patch.priority;
+          if (patch.assignedTo !== undefined) todo.assignedTo = patch.assignedTo;
+        }
+        todos.set(todoId, todo);
+        await persistTodos(todo.userId);
+      }
+    } catch (err) {
+      console.warn("[todos] automation todo_completed failed:", err);
+    }
+  }
+
   return todo;
 }
 

@@ -515,6 +515,54 @@ export async function getSteering(req: AuthenticatedRequest, res: Response) {
   res.status(200).json(computeProjectSteeringSnapshot(project, todos));
 }
 
+export async function getProjectTimesheet(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const project = getProjectById(id);
+  if (!project) throw new NotFoundError("Projet introuvable");
+  if (!canAccessProject(req.user!.uid, req.user!.email ?? "", project)) {
+    throw new ForbiddenError("Accès refusé");
+  }
+  const { getEntitlementsForUid } = await import("../services/authService");
+  if (!getEntitlementsForUid(req.user!.uid).integrations) {
+    throw new ForbiddenError(
+      "Le suivi du temps nécessite le palier Small teams ou supérieur.",
+      "TIME_TRACKING_PLAN_REQUIRED",
+    );
+  }
+
+  const to = typeof req.query.to === "string" ? req.query.to : new Date().toISOString();
+  const fromDefault = new Date();
+  fromDefault.setUTCDate(fromDefault.getUTCDate() - 7);
+  const from = typeof req.query.from === "string" ? req.query.from : fromDefault.toISOString();
+  const memberUserId = typeof req.query.memberUserId === "string" ? req.query.memberUserId : null;
+  const format = typeof req.query.format === "string" ? req.query.format : "json";
+
+  const todos = await listProjectTodos(project.id);
+  const {
+    buildTimesheetForTodos,
+    timesheetToCsv,
+  } = await import("../services/timeSessionService");
+  const report = buildTimesheetForTodos(
+    todos.map((t) => ({
+      id: t.id,
+      title: t.title,
+      projectId: t.projectId,
+      userId: t.userId,
+    })),
+    from,
+    to,
+    memberUserId,
+  );
+
+  if (format === "csv") {
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="timesheet-${project.id}.csv"`);
+    res.status(200).send(timesheetToCsv(report));
+    return;
+  }
+  res.status(200).json(report);
+}
+
 export async function exportSteering(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const project = getProjectById(id);

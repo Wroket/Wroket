@@ -301,6 +301,7 @@ export function useOfflineNotes() {
     shared?: boolean;
     teamId?: string | null;
     sharedWithEmail?: string | null;
+    collaboratorWrite?: boolean;
   }) => {
     const now = new Date().toISOString();
 

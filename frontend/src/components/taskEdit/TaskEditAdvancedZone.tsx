@@ -13,6 +13,7 @@ import type {
 } from "@/lib/api";
 import type { TimeSession } from "@/lib/api/timeSessions";
 import type { TaskEditZone, TaskEditModalProps } from "./types";
+import TaskShareLinksPanel from "@/components/TaskShareLinksPanel";
 
 const REACTION_EMOJIS = ["\u{1F44D}", "\u{1F44E}", "\u2764\uFE0F", "\u{1F604}", "\u{1F680}", "\u2705"];
 
@@ -580,6 +581,12 @@ export default function TaskEditAdvancedZone({
               {subtaskCount} {t("subtask.title").toLowerCase()}
             </p>
           )}
+        </div>
+      )}
+
+      {todo?.id && isTaskOwner && (
+        <div className={`${uiV2 && editZone !== "advanced" ? "hidden " : ""}mt-4 pt-4 border-t border-zinc-200 dark:border-slate-700`}>
+          <TaskShareLinksPanel todoId={todo.id} canManage={isTaskOwner} />
         </div>
       )}
     </div>

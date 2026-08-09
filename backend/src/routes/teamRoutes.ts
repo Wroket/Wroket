@@ -21,6 +21,7 @@ import {
   getTeamDashboard,
   getTeamPortfolio,
   getTeamReporting,
+  getTeamCapacity,
   getTeamCollaborators,
   postAddTeamCollaborator,
   deleteTeamCollaborator,
@@ -52,6 +53,7 @@ teamRoutes.get("/:teamId/role", getMyTeamRole);
 teamRoutes.get("/:teamId/dashboard", getTeamDashboard);
 teamRoutes.get("/:teamId/portfolio", getTeamPortfolio);
 teamRoutes.get("/:teamId/reporting", getTeamReporting);
+teamRoutes.get("/:teamId/capacity", getTeamCapacity);
 teamRoutes.post("/:teamId/members", postAddMember);
 teamRoutes.patch("/:teamId/members/role", postUpdateMemberRole);
 teamRoutes.delete("/:teamId/members/:email", postRemoveMember);

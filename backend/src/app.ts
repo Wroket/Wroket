@@ -25,6 +25,9 @@ import notionImportRoutes from "./routes/notionImportRoutes";
 import mondayImportRoutes from "./routes/mondayImportRoutes";
 import integrationRoutes from "./routes/integrationRoutes";
 import sharePublicRoutes from "./routes/sharePublicRoutes";
+import clientPortalRoutes from "./routes/clientPortalRoutes";
+import okrRoutes from "./routes/okrRoutes";
+import automationRoutes from "./routes/automationRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
 import { postSlackInteractions, postSlackCommands } from "./controllers/slackInteractController";
 import { postTeamsInteractions } from "./controllers/teamsInteractController";
@@ -155,6 +158,9 @@ app.use("/import", requireProductAccess, notionImportRoutes);
 app.use("/import", requireProductAccess, mondayImportRoutes);
 app.use("/integrations", apiLimiter, requireProductAccess, integrationRoutes);
 app.use("/share", sharePublicRoutes);
+app.use("/portals", apiLimiter, clientPortalRoutes);
+app.use("/okr", apiLimiter, requireProductAccess, okrRoutes);
+app.use("/automations", apiLimiter, requireProductAccess, automationRoutes);
 /** SSE spike: long-lived connections — not counted by per-minute REST limiter. */
 app.use("/sync", syncEventsRoutes);
 

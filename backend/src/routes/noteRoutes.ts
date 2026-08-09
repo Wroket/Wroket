@@ -19,6 +19,8 @@ import {
   listFolders,
   createFolder,
   removeFolder,
+  getNoteLive,
+  postNotePresence,
 } from "../controllers/noteController";
 import {
   uploadNoteAttachment,
@@ -58,6 +60,8 @@ noteRoutes.delete("/:noteId/attachments/:attachmentId", removeNoteAttachment);
 // Task-attachment access via note context (note must be linked to the task).
 noteRoutes.get("/:noteId/task-attachments/:todoId/:attachmentId", downloadTaskAttachmentViaNote);
 
+noteRoutes.get("/:id/live", getNoteLive);
+noteRoutes.post("/:id/presence", postNotePresence);
 noteRoutes.get("/:id", get);
 noteRoutes.put("/:id", update);
 noteRoutes.delete("/:id", remove);

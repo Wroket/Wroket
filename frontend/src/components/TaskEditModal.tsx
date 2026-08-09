@@ -6,6 +6,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useToast } from "@/components/Toast";
+import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   getComments,
@@ -87,6 +88,10 @@ export default function TaskEditModal({
   const { t } = useLocale();
   const { uiV2 } = useUiV2();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const integrationsEntitled = !!user?.entitlements?.integrations || !!user?.earlyBird;
+  const effectiveCanUseTimeTracking = canUseTimeTracking || integrationsEntitled;
+  const effectiveCanUseCustomFields = canUseCustomFields || integrationsEntitled;
   const trapRef = useFocusTrap(!!todo);
   useModalCloseKeys(!!todo, onClose);
   const [editZone, setEditZone] = useState<TaskEditZone>(initialZone);
@@ -193,7 +198,7 @@ export default function TaskEditModal({
     let cancelled = false;
     getComments(openTodoId).then((c) => { if (!cancelled) setComments(c); }).catch(() => {});
     getAttachments(openTodoId).then((a) => { if (!cancelled) setAttachments(a); }).catch(() => {});
-    if (canUseTimeTracking) {
+    if (effectiveCanUseTimeTracking) {
       setTimeLoading(true);
       getTodoTimeSessions(openTodoId)
         .then((data) => {
@@ -206,7 +211,7 @@ export default function TaskEditModal({
         .finally(() => { if (!cancelled) setTimeLoading(false); });
     }
     return () => { cancelled = true; };
-  }, [openTodoId, openNonce, canUseTimeTracking]);
+  }, [openTodoId, openNonce, effectiveCanUseTimeTracking]);
 
   const formatLoggedMins = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -591,8 +596,8 @@ export default function TaskEditModal({
           currentUserUid={currentUserUid}
           projectTasks={projectTasks}
           canUseDependencies={canUseDependencies}
-          canUseTimeTracking={canUseTimeTracking}
-          canUseCustomFields={canUseCustomFields}
+          canUseTimeTracking={effectiveCanUseTimeTracking}
+          canUseCustomFields={effectiveCanUseCustomFields}
           customFieldDefs={customFieldDefs}
           tagInput={tagInput}
           onTagInputChange={setTagInput}

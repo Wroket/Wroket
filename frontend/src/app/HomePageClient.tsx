@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
 import { LandingFooter } from "@/components/marketing/LandingFooter";
@@ -24,7 +24,6 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
     </svg>
   ),
   calendar: <SvgIcon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
-  notepad: <SvgIcon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />,
   integrations: (
     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
       <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -57,7 +56,13 @@ const HOW_IT_WORKS_STEPS = [
   { titleKey: "landing.howItWorks.step4.title", descKey: "landing.howItWorks.step4.desc" },
 ] as const;
 
-function FlipCard({ icon, titleKey, descKey, preview, t }: {
+function FlipCard({
+  icon,
+  titleKey,
+  descKey,
+  preview,
+  t,
+}: {
   icon: ReactNode;
   titleKey: TranslationKey;
   descKey: TranslationKey;
@@ -65,11 +70,10 @@ function FlipCard({ icon, titleKey, descKey, preview, t }: {
   t: (k: TranslationKey) => string;
 }) {
   const [flipped, setFlipped] = useState(false);
-
   return (
     <div
       tabIndex={0}
-      className="h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 rounded-2xl"
+      className="h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 rounded-2xl"
       style={{ perspective: "1000px" }}
       onMouseEnter={() => setFlipped(true)}
       onMouseLeave={() => setFlipped(false)}
@@ -86,24 +90,26 @@ function FlipCard({ icon, titleKey, descKey, preview, t }: {
           transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
         }}
       >
-        {/* Front */}
         <div
-          className="p-6 rounded-2xl bg-white dark:bg-slate-800/50 border border-zinc-100 dark:border-slate-700/50 flex flex-col"
+          className="p-6 rounded-2xl bg-white/90 border border-stone-200/80 flex flex-col"
           style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
         >
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
-            {icon}
-          </div>
-          <h3 className="text-base font-semibold mb-2">{t(titleKey)}</h3>
-          <p className="text-sm text-zinc-500 dark:text-slate-400 leading-relaxed flex-1">{t(descKey)}</p>
+          <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center mb-4">{icon}</div>
+          <h3 className="text-base font-semibold mb-2 text-stone-900">{t(titleKey)}</h3>
+          <p className="text-sm text-stone-600 leading-relaxed flex-1">{t(descKey)}</p>
         </div>
-        {/* Back */}
         <div
-          className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-700 shadow-lg flex flex-col"
-          style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+          className="p-5 rounded-2xl bg-white border border-teal-200 shadow-lg flex flex-col"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+          }}
         >
-          <h3 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-3 flex items-center gap-1.5">
-            <span className="text-emerald-500 dark:text-emerald-400">{icon}</span> {t(titleKey)}
+          <h3 className="text-xs font-semibold text-teal-700 mb-3 flex items-center gap-1.5">
+            <span className="text-teal-600">{icon}</span> {t(titleKey)}
           </h3>
           <div className="flex-1 flex items-center">{preview}</div>
         </div>
@@ -118,17 +124,13 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
       return (
         <div className="grid grid-cols-2 gap-1.5 w-full">
           {[
-            { label: fr ? "Urgent + Important" : "Urgent + Important", bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300" },
-            { label: "Important", bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300" },
-            { label: fr ? "Urgent" : "Urgent", bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300" },
-            { label: fr ? "Planifier" : "Schedule", bg: "bg-zinc-100 dark:bg-slate-700", text: "text-zinc-600 dark:text-slate-300" },
+            { label: fr ? "Urgent + Important" : "Urgent + Important", bg: "bg-red-100", text: "text-red-700" },
+            { label: "Important", bg: "bg-amber-100", text: "text-amber-700" },
+            { label: fr ? "Urgent" : "Urgent", bg: "bg-sky-100", text: "text-sky-700" },
+            { label: fr ? "Planifier" : "Schedule", bg: "bg-stone-100", text: "text-stone-600" },
           ].map((q) => (
             <div key={q.label} className={`${q.bg} rounded-lg p-2 flex flex-col items-center justify-center min-h-[52px]`}>
               <span className={`text-[10px] font-semibold ${q.text} text-center leading-tight`}>{q.label}</span>
-              <div className="flex gap-0.5 mt-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${q.bg.replace("100", "400").replace("/40", "")}`} />
-                <div className={`w-1.5 h-1.5 rounded-full ${q.bg.replace("100", "300").replace("/40", "")}`} />
-              </div>
             </div>
           ))}
         </div>
@@ -136,23 +138,15 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
     case "calendar":
       return (
         <div className="w-full space-y-1.5">
-          {["09:00", "09:30", "10:00", "10:30", "11:00"].map((h, i) => (
+          {["09:00", "10:00", "11:00"].map((h, i) => (
             <div key={h} className="flex items-center gap-2">
-              <span className="text-[10px] text-zinc-400 dark:text-slate-500 w-8 shrink-0 font-mono">{h}</span>
+              <span className="text-[10px] text-stone-400 w-8 shrink-0 font-mono">{h}</span>
               {i === 1 ? (
-                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-l-2 border-red-500">
-                  {fr ? "Urgent : Démo client" : "Urgent: Client demo"}
-                </div>
-              ) : i === 2 ? (
-                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-l-2 border-emerald-500">
-                  perso@gmail.com
-                </div>
-              ) : i === 3 ? (
-                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-l-2 border-violet-500">
-                  pro@company.com
+                <div className="flex-1 rounded px-2 py-1 text-[10px] font-medium bg-teal-50 text-teal-800 border-l-2 border-teal-600">
+                  {fr ? "Focus deep work" : "Deep work block"}
                 </div>
               ) : (
-                <div className="flex-1 rounded border border-dashed border-zinc-200 dark:border-slate-700 h-6" />
+                <div className="flex-1 rounded border border-dashed border-stone-200 h-6" />
               )}
             </div>
           ))}
@@ -161,110 +155,36 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
     case "integrations":
       return (
         <div className="w-full grid grid-cols-2 gap-2">
-          {[
-            { label: "Notion", sub: fr ? "Import projets & bases" : "Import projects & DBs", shell: "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900", badge: fr ? "Dispo" : "Ready" },
-            { label: "Monday", sub: fr ? "Import boards" : "Import boards", shell: "bg-violet-600 text-white", badge: fr ? "Dispo" : "Ready" },
-            { label: "Google", sub: "Calendar", shell: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50", badge: "Early Bird" },
-            { label: "Outlook", sub: "Calendar", shell: "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800/50", badge: "Early Bird" },
-          ].map((app) => (
-            <div key={app.label} className={`rounded-lg px-2.5 py-2 ${app.shell}`}>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold">{app.label}</span>
-                <span className="text-[8px] font-semibold uppercase tracking-wide opacity-80">{app.badge}</span>
-              </div>
-              <p className="text-[9px] mt-0.5 opacity-80">{app.sub}</p>
+          {["Notion", "Monday", "Google", "Outlook"].map((label) => (
+            <div key={label} className="rounded-lg px-2.5 py-2 bg-stone-900 text-white">
+              <span className="text-[10px] font-bold">{label}</span>
             </div>
           ))}
-        </div>
-      );
-    case "notepad":
-      return (
-        <div className="w-full bg-zinc-50 dark:bg-slate-800 rounded-lg p-3 space-y-1.5 text-left font-mono">
-          <p className="text-[10px] text-zinc-700 dark:text-slate-200">{fr ? "Idées pour la V2 :" : "V2 ideas:"}</p>
-          <p className="text-[10px] text-zinc-500 dark:text-slate-400">- {fr ? "Revoir le onboarding" : "Revamp onboarding"}</p>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-zinc-500 dark:text-slate-400">-</span>
-            <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1 rounded font-semibold">/task</span>
-            <span className="text-[10px] text-zinc-600 dark:text-slate-300">{fr ? "Refactorer l'auth" : "Refactor auth"}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-zinc-500 dark:text-slate-400">-</span>
-            <span className="text-[10px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 px-1 rounded font-semibold">/deadline</span>
-            <span className="text-[10px] text-zinc-600 dark:text-slate-300">{fr ? "15 avril" : "April 15"}</span>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400">
-            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-            {fr ? "Synchronisé" : "Synced"}
-          </div>
         </div>
       );
     case "kanban":
       return (
         <div className="w-full flex gap-2">
-          {[
-            { phase: "Design", items: [fr ? "Maquettes" : "Mockups", "Review"], color: "bg-violet-400" },
-            { phase: "Dev", items: ["Auth API", "Tests"], color: "bg-emerald-400" },
-            { phase: "Deploy", items: ["CI/CD"], color: "bg-sky-400" },
-          ].map((col) => (
-            <div key={col.phase} className="flex-1 min-w-0">
-              <div className="flex items-center gap-1 mb-1.5">
-                <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                <span className="text-[9px] font-bold text-zinc-600 dark:text-slate-300 uppercase tracking-wide">{col.phase}</span>
-              </div>
-              <div className="space-y-1">
-                {col.items.map((item) => (
-                  <div key={item} className="bg-white dark:bg-slate-700 rounded px-2 py-1.5 text-[9px] text-zinc-700 dark:text-slate-200 border border-zinc-100 dark:border-slate-600 shadow-sm">
-                    {item}
-                  </div>
-                ))}
-              </div>
+          {["Design", "Dev", "Done"].map((phase) => (
+            <div key={phase} className="flex-1 min-w-0">
+              <span className="text-[9px] font-bold text-stone-600 uppercase tracking-wide">{phase}</span>
+              <div className="mt-1 bg-stone-50 rounded px-2 py-1.5 text-[9px] border border-stone-100">…</div>
             </div>
           ))}
         </div>
       );
     case "collab":
       return (
-        <div className="w-full space-y-2">
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-slate-800">
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-[7px] text-white font-bold shrink-0">J</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] text-zinc-700 dark:text-slate-200">{fr ? "Julie a assigné" : "Julie assigned"} <span className="font-semibold">{fr ? "Refactorer l'auth" : "Refactor auth"}</span></p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[8px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1.5 rounded-full font-medium">{fr ? "Accepter" : "Accept"}</span>
-                <span className="text-[8px] bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 rounded-full font-medium">{fr ? "Refuser" : "Decline"}</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-slate-800">
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-rose-500 flex items-center justify-center text-[7px] text-white font-bold shrink-0">M</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] text-zinc-700 dark:text-slate-200"><span className="text-indigo-600 dark:text-indigo-400 font-medium">@Marc</span> {fr ? "Bien reçu, je m'en occupe" : "Got it, I'm on it"}</p>
-              <span className="text-[8px] text-zinc-400 dark:text-slate-500">{fr ? "il y a 5 min" : "5 min ago"}</span>
-            </div>
-          </div>
-          <div className="flex gap-1.5 px-2">
-            {["Slack", "Discord", "Teams"].map((p) => (
-              <span key={p} className="text-[8px] bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-medium">{p}</span>
-            ))}
-          </div>
+        <div className="w-full space-y-2 text-[10px] text-stone-700">
+          <p>{fr ? "Julie vous a assigné une tâche" : "Julie assigned you a task"}</p>
+          <p className="text-teal-700 font-medium">@Marc — {fr ? "OK, je m'en occupe" : "On it"}</p>
         </div>
       );
     case "notifs":
       return (
-        <div className="w-full space-y-1.5">
-          {[
-            { text: fr ? "Julie vous a assigné une tâche" : "Julie assigned you a task", time: "2 min", dot: "bg-emerald-500" },
-            { text: fr ? "Deadline dans 1h : Démo client" : "Deadline in 1h: Client demo", time: "58 min", dot: "bg-amber-500" },
-            { text: fr ? "Nouveau commentaire sur « Auth »" : "New comment on 'Auth'", time: "3h", dot: "bg-indigo-500" },
-          ].map((n) => (
-            <div key={n.text} className="flex items-start gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-slate-800">
-              <div className={`w-2 h-2 rounded-full ${n.dot} mt-1 shrink-0`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-zinc-700 dark:text-slate-200 leading-tight">{n.text}</p>
-                <p className="text-[9px] text-zinc-400 dark:text-slate-500 mt-0.5">{n.time}</p>
-              </div>
-            </div>
-          ))}
+        <div className="w-full space-y-1.5 text-[10px] text-stone-700">
+          <p>{fr ? "Deadline dans 1h" : "Deadline in 1h"}</p>
+          <p>{fr ? "Nouveau commentaire" : "New comment"}</p>
         </div>
       );
     default:
@@ -274,14 +194,17 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
 
 export default function LandingPage() {
   const { t, locale, setLocale } = useLocale();
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const [themeMounted, setThemeMounted] = useState(false);
+  const [entered, setEntered] = useState(false);
 
   useEffect(() => {
-    const isDark = localStorage.getItem("wroket-dark") !== "0";
+    const isDark = localStorage.getItem("wroket-dark") === "1";
     setDark(isDark);
     document.documentElement.classList.toggle("dark", isDark);
     setThemeMounted(true);
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
   useEffect(() => {
@@ -298,34 +221,37 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="landing-manrope min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100 transition-colors">
-      {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-zinc-100 dark:border-slate-800">
+    <div
+      className="landing-manrope min-h-screen text-stone-900 dark:text-stone-100 transition-colors"
+      style={
+        {
+          ["--landing-ink" as string]: "#1c1917",
+          ["--landing-accent" as string]: "#0f766e",
+          ["--landing-mist" as string]: "#ecfdf5",
+        } as CSSProperties
+      }
+    >
+      <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#fafaf9]/85 dark:bg-stone-950/85 border-b border-stone-200/70 dark:border-stone-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 min-w-0">
           <Link href="/" className="flex items-center gap-2.5 shrink-0 min-w-0">
             <WroketLockup theme="auto" />
           </Link>
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
+              type="button"
               onClick={() => setLocale(locale === "fr" ? "en" : "fr")}
-              className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded"
+              className="text-xs font-medium text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 px-2 py-1 rounded"
             >
               {locale === "fr" ? "EN" : "FR"}
             </button>
-            <span className="w-px h-4 bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden="true" />
             <button
+              type="button"
               onClick={toggleDark}
-              className="p-2 rounded-lg text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors shrink-0"
-              aria-label={
-                themeMounted
-                  ? dark
-                    ? t("a11y.toggleDarkMode")
-                    : t("a11y.toggleLightMode")
-                  : t("a11y.toggleLightMode")
-              }
+              className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+              aria-label={dark ? t("a11y.toggleLightMode") : t("a11y.toggleDarkMode")}
             >
               {!themeMounted ? (
-                <span className="block w-4 h-4" aria-hidden="true" />
+                <span className="block w-4 h-4" aria-hidden />
               ) : dark ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -336,16 +262,15 @@ export default function LandingPage() {
                 </svg>
               )}
             </button>
-            <span className="hidden sm:block w-px h-4 bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden="true" />
             <Link
               href="/pricing"
-              className="hidden sm:inline-flex items-center justify-center text-sm font-medium text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors whitespace-nowrap"
+              className="hidden sm:inline-flex text-sm font-medium text-stone-700 dark:text-stone-300 hover:text-teal-700"
             >
               {t("landing.navPricing")}
             </Link>
             <Link
               href="/login?mode=register"
-              className="inline-flex items-center justify-center text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap"
+              className="inline-flex text-xs sm:text-sm font-medium bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg"
             >
               {t("landing.cta")}
             </Link>
@@ -353,112 +278,112 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ── Hero ── */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-indigo-50 dark:from-emerald-950/20 dark:via-slate-950 dark:to-indigo-950/20" />
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-1/4 w-72 h-72 bg-emerald-200/30 dark:bg-emerald-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-indigo-200/30 dark:bg-indigo-500/10 rounded-full blur-3xl" />
-        </div>
+      {/* Hero: brand + one headline + one line + CTA + full-bleed visual plane */}
+      <section className="relative min-h-[88vh] flex flex-col overflow-hidden bg-[#fafaf9] dark:bg-stone-950">
+        <div
+          className="absolute inset-0 landing-hero-drift"
+          aria-hidden
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(15,118,110,0.22), transparent 55%), radial-gradient(ellipse 50% 40% at 15% 80%, rgba(28,25,23,0.08), transparent 50%), linear-gradient(165deg, #fafaf9 0%, #ecfdf5 45%, #e7e5e4 100%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.35] dark:opacity-20"
+          aria-hidden
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230f766e' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+          }}
+        />
 
-        <div className="relative max-w-4xl mx-auto px-6 pt-24 pb-20 text-center">
-          <div className="inline-flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-full px-5 py-2 sm:px-6 sm:py-2.5 mb-8">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span className="text-sm sm:text-base font-semibold text-emerald-700 dark:text-emerald-300">{t("landing.heroBadge")}</span>
+        <div className="relative flex-1 flex flex-col justify-center max-w-5xl mx-auto px-6 py-16 sm:py-20 w-full">
+          <div
+            className={`mb-8 sm:mb-10 transition-all duration-700 ease-out ${
+              entered ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"
+            }`}
+          >
+            <WroketLockup theme="auto" className="scale-125 sm:scale-150 origin-left" />
           </div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
+          <h1
+            className={`text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] text-stone-900 dark:text-stone-50 max-w-3xl transition-all duration-700 delay-150 ease-out ${
+              entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
             {t("landing.heroTitle").split("\n").map((line, i) => (
               <span key={i}>
                 {i > 0 && <br />}
-                {i === 0 ? line : (
-                  <span className="bg-gradient-to-r from-emerald-500 to-indigo-500 bg-clip-text text-transparent">{line}</span>
-                )}
+                {line}
               </span>
             ))}
           </h1>
 
-          <p className="text-lg sm:text-xl text-zinc-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p
+            className={`mt-5 text-lg sm:text-xl text-stone-600 dark:text-stone-400 max-w-xl leading-relaxed transition-all duration-700 delay-300 ease-out ${
+              entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
             {t("landing.heroSub")}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div
+            className={`mt-10 flex flex-col sm:flex-row items-start gap-4 transition-all duration-700 delay-500 ease-out ${
+              entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
             <Link
               href="/login?mode=register"
-              className="group inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white text-base font-semibold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40"
+              className="group inline-flex items-center gap-2 bg-teal-700 hover:bg-teal-800 text-white text-base font-semibold px-8 py-3.5 rounded-xl transition-transform hover:scale-[1.02]"
             >
               {t("landing.cta")}
               <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
             </Link>
-            <Link
-              href="/login"
-              className="text-sm font-medium text-zinc-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 underline-offset-2 hover:underline"
-            >
+            <Link href="/login" className="text-sm font-medium text-stone-600 hover:text-teal-800 underline-offset-2 hover:underline py-3">
               {t("landing.ctaLogin")}
             </Link>
           </div>
+        </div>
 
-          {/* Mini visual */}
-          <div className="mt-16 mx-auto max-w-3xl rounded-2xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-zinc-300/50 dark:shadow-black/30 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-100 dark:border-slate-800 bg-zinc-50 dark:bg-slate-800/50">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-400" />
-                <div className="w-3 h-3 rounded-full bg-amber-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400" />
-              </div>
-              <span className="text-xs text-zinc-400 dark:text-slate-500 ml-2 font-mono">wroket.com</span>
-            </div>
-            <div className="p-6 space-y-3">
-              {[
-                { label: locale === "fr" ? "Lancer la campagne marketing" : "Launch marketing campaign", prio: locale === "fr" ? "Haute" : "High", color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300", check: true, tag: "marketing", slot: locale === "fr" ? "Lun 09:00" : "Mon 09:00" },
-                { label: locale === "fr" ? "Préparer la démo client" : "Prepare client demo", prio: locale === "fr" ? "Haute" : "High", color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300", check: false, tag: null, slot: locale === "fr" ? "Mar 14:00" : "Tue 14:00" },
-                { label: locale === "fr" ? "Refactorer le module auth" : "Refactor auth module", prio: locale === "fr" ? "Moyenne" : "Medium", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300", check: false, tag: "tech", slot: null },
-                { label: locale === "fr" ? "Mettre à jour la documentation" : "Update documentation", prio: locale === "fr" ? "Basse" : "Low", color: "bg-zinc-100 dark:bg-slate-700 text-zinc-600 dark:text-slate-300", check: false, tag: null, slot: null },
-              ].map((task) => (
-                <div key={task.label} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-zinc-50 dark:bg-slate-800/50 border border-zinc-100 dark:border-slate-700/50">
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${task.check ? "bg-emerald-500 border-emerald-500" : "border-zinc-300 dark:border-slate-600"}`}>
-                    {task.check && (
-                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
-                  <span className={`text-sm flex-1 min-w-0 truncate text-left ${task.check ? "line-through text-zinc-400 dark:text-slate-500" : "text-zinc-700 dark:text-slate-200"}`}>
-                    {task.label}
-                  </span>
-                  {task.tag && (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 shrink-0">{task.tag}</span>
-                  )}
-                  {task.slot && (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 shrink-0">{task.slot}</span>
-                  )}
-                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 w-[72px] text-center ${task.color}`}>
-                    {task.prio}
-                  </span>
-                </div>
+        {/* Full-bleed product strip (edge-to-edge, not a floating card) */}
+        <div
+          className={`relative w-full border-t border-stone-200/80 dark:border-stone-800 bg-stone-900 text-stone-100 transition-opacity duration-1000 delay-700 ${
+            entered ? "opacity-100" : "opacity-0"
+          }`}
+          aria-hidden
+        >
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-wrap gap-3 justify-between items-center text-sm">
+            <span className="font-mono text-teal-300/90 text-xs tracking-wide">wroket · tasks · calendar · notes</span>
+            <div className="flex flex-wrap gap-2">
+              {(locale === "fr"
+                ? ["Prioriser", "Planifier", "Livrer"]
+                : ["Prioritize", "Schedule", "Ship"]
+              ).map((label) => (
+                <span key={label} className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium">
+                  {label}
+                </span>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── How it works (indexable narrative) ── */}
-      <section className="py-20 border-b border-zinc-100 dark:border-slate-800">
+      <section className="py-20 bg-[#fafaf9] dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12 text-stone-900 dark:text-stone-50">
             {t("landing.howItWorks.title")}
           </h2>
-          <ol className="grid sm:grid-cols-2 gap-8">
+          <ol className="grid sm:grid-cols-2 gap-10">
             {HOW_IT_WORKS_STEPS.map((step, i) => (
               <li key={step.titleKey} className="flex gap-4">
-                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white text-sm font-bold flex items-center justify-center">
+                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-teal-700 text-white text-sm font-bold flex items-center justify-center">
                   {i + 1}
                 </span>
                 <div>
-                  <h3 className="font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t(step.titleKey)}</h3>
-                  <p className="text-sm text-zinc-600 dark:text-slate-400 leading-relaxed">{t(step.descKey)}</p>
+                  <h3 className="font-semibold mb-1">{t(step.titleKey)}</h3>
+                  <p className="text-sm text-stone-600 dark:text-stone-400 leading-relaxed">{t(step.descKey)}</p>
                 </div>
               </li>
             ))}
@@ -466,14 +391,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features ── */}
-      <section className="py-24 bg-zinc-50 dark:bg-slate-900/50">
+      <section className="py-24 bg-stone-100/80 dark:bg-stone-900/40">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
-            {t("landing.featuresTitle")}
-          </h2>
-          <div className="w-16 h-1 bg-gradient-to-r from-emerald-500 to-indigo-500 rounded-full mx-auto mb-16" />
-
+          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">{t("landing.featuresTitle")}</h2>
+          <div className="w-16 h-1 bg-teal-700 rounded-full mx-auto mb-16" />
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {FEATURES_KEYS.map((f) => (
               <FlipCard
@@ -489,26 +410,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA final ── */}
-      <section className="py-24">
+      <section className="py-24 bg-[#fafaf9] dark:bg-stone-950">
         <div className="max-w-2xl mx-auto px-6 text-center">
-          <div className="wroket-mark-tile w-16 h-16 bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-6">
+          <div className="wroket-mark-tile w-16 h-16 bg-stone-800 flex items-center justify-center mx-auto mb-6">
             <WroketMark />
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            {t("landing.footerTag")}
-          </h2>
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t("landing.footerTag")}</h2>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
             <Link
               href="/login?mode=register"
-              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/25"
+              className="inline-flex items-center gap-2 bg-teal-700 hover:bg-teal-800 text-white font-semibold px-8 py-3.5 rounded-xl"
             >
               {t("landing.cta")}
             </Link>
-            <Link
-              href="/login"
-              className="text-sm font-medium text-zinc-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 underline-offset-2 hover:underline"
-            >
+            <Link href="/login" className="text-sm font-medium text-stone-600 hover:text-teal-800 underline-offset-2 hover:underline">
               {t("landing.ctaLogin")}
             </Link>
           </div>
@@ -516,6 +431,26 @@ export default function LandingPage() {
       </section>
 
       <LandingFooter />
+
+      <style jsx global>{`
+        @keyframes landing-drift {
+          0%,
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          50% {
+            transform: translate3d(-1.5%, 1%, 0) scale(1.03);
+          }
+        }
+        .landing-hero-drift {
+          animation: landing-drift 18s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .landing-hero-drift {
+            animation: none;
+          }
+        }
+      `}</style>
     </div>
   );
 }

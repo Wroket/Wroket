@@ -275,6 +275,14 @@ export async function deleteUserData(uid: string): Promise<void> {
   try {
     const { purgeShareLinksForProjectIds } = await import("./projectShareLinkService");
     purgeShareLinksForProjectIds(deletedProjectIds);
+    const { purgeTaskShareLinksForOwner } = await import("./taskShareLinkService");
+    purgeTaskShareLinksForOwner(uid);
+    const { purgeClientPortalsForOwner } = await import("./clientPortalService");
+    purgeClientPortalsForOwner(uid);
+    const { purgeOkrsForOwner } = await import("./okrService");
+    purgeOkrsForOwner(uid);
+    const { purgeAutomationRulesForOwner } = await import("./projectAutomationService");
+    purgeAutomationRulesForOwner(uid);
   } catch (err) {
     console.warn("[rgpd] share links purge failed:", err);
   }

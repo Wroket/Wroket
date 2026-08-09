@@ -9,6 +9,8 @@ import {
   getNote,
   createNote,
   updateNote,
+  updateNoteAsCollaborator,
+  resolveNoteAccess,
   deleteNote,
   listArchivedNotes,
   restoreArchivedNote,
@@ -18,15 +20,16 @@ import {
   CreateNoteInput,
   UpdateNoteInput,
 } from "../services/noteService";
+import { listNotePresence, touchNotePresence } from "../services/notePresenceService";
 import { newMentionsOnly } from "../services/commentService";
 import { createNotification } from "../services/notificationService";
 import { findUserByEmail } from "../services/authService";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import {
   createNoteFolder,
   listNoteFolderSummaries,
   removePersistedNoteFolderIfPresent,
 } from "../services/noteFolderService";
-import { ValidationError } from "../utils/errors";
 import { logActivity } from "../services/activityLogService";
 
 const CSV_FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
@@ -121,6 +124,9 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   if (body.shared !== undefined && typeof body.shared !== "boolean") {
     throw new ValidationError("shared doit être un booléen");
   }
+  if (body.collaboratorWrite !== undefined && typeof body.collaboratorWrite !== "boolean") {
+    throw new ValidationError("collaboratorWrite doit être un booléen");
+  }
   if (
     body.sharedWithEmail !== undefined &&
     body.sharedWithEmail !== null &&
@@ -129,20 +135,26 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     throw new ValidationError("sharedWithEmail doit être une chaîne ou null");
   }
 
-  // Capture current content for mention diff (before update)
-  const existingNote = getNote(uid, id);
-  const oldContent = existingNote.content;
+  let note;
+  let oldContent = "";
+  try {
+    const existingNote = getNote(uid, id);
+    oldContent = existingNote.content;
+    const input = body as UpdateNoteInput;
+    note = updateNote(uid, id, input);
+  } catch {
+    oldContent = "";
+    note = updateNoteAsCollaborator(uid, req.user!.email ?? "", id, {
+      title: typeof body.title === "string" ? body.title : undefined,
+      content: typeof body.content === "string" ? body.content : undefined,
+    });
+  }
 
-  const input = body as UpdateNoteInput;
-  const note = updateNote(uid, id, input);
-
-  // Detect and notify new @email mentions in content
-  if (typeof body.content === "string") {
+  if (typeof body.content === "string" && note.userId === uid) {
     const freshMentions = newMentionsOnly(oldContent, body.content);
     for (const email of freshMentions) {
       const mentioned = findUserByEmail(email);
       if (mentioned && mentioned.uid !== uid) {
-        // Auto-share the note so the mentioned user can actually open it
         shareNoteWithUser(uid, id, mentioned.uid, email);
         createNotification(
           mentioned.uid,
@@ -157,6 +169,29 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 
   logActivity(uid, req.user!.email ?? "", "update", "note", note.id, { title: note.title, fields: Object.keys(body) });
   res.status(200).json(note);
+}
+
+export async function getNoteLive(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const access = resolveNoteAccess(req.user!.uid, req.user!.email ?? "", id);
+  if (!access) throw new NotFoundError("Note introuvable");
+  res.status(200).json({
+    note: access.note,
+    canWrite: access.canWrite,
+    presence: listNotePresence(id, req.user!.uid),
+  });
+}
+
+export async function postNotePresence(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const access = resolveNoteAccess(req.user!.uid, req.user!.email ?? "", id);
+  if (!access) throw new NotFoundError("Note introuvable");
+  const displayName =
+    typeof req.body?.displayName === "string" && req.body.displayName.trim()
+      ? req.body.displayName.trim()
+      : req.user!.email ?? req.user!.uid;
+  const peers = touchNotePresence(id, req.user!.uid, displayName);
+  res.status(200).json({ presence: peers });
 }
 
 export async function remove(req: AuthenticatedRequest, res: Response) {

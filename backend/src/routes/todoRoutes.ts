@@ -12,6 +12,11 @@ import {
   startTimer,
   stopTimer,
 } from "../controllers/timeSessionController";
+import {
+  createTodoShareLinkHandler,
+  listTodoShareLinks,
+  revokeTodoShareLinkHandler,
+} from "../controllers/taskShareController";
 import { requireAuth } from "../middlewares/requireAuth";
 import { noStoreCache } from "../middlewares/noStoreCache";
 
@@ -36,6 +41,9 @@ todoRoutes.put("/reorder", reorderTodos);
 todoRoutes.post("/:id/move", move);
 todoRoutes.put("/:id", update);
 todoRoutes.delete("/:id", remove);
+todoRoutes.get("/:id/share-links", listTodoShareLinks);
+todoRoutes.post("/:id/share-links", createTodoShareLinkHandler);
+todoRoutes.delete("/:id/share-links/:linkId", revokeTodoShareLinkHandler);
 todoRoutes.get("/:id/time-sessions", listTodoTimeSessions);
 todoRoutes.post("/:id/time-sessions/start", startTimer);
 todoRoutes.post("/:id/time-sessions/stop", stopTimer);

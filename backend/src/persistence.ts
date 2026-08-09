@@ -45,6 +45,14 @@ const DOMAINS = [
   "taskTemplates",
   /** Public read-only project share links (keyed by token). */
   "projectShareLinks",
+  /** Public read-only task share links (keyed by token). */
+  "taskShareLinks",
+  /** Client Portal hubs (keyed by token). */
+  "clientPortals",
+  /** OKR objectives keyed by id. */
+  "okrs",
+  /** Project automation if/then rules. */
+  "projectAutomationRules",
   "timeSessions",
   /** External app connections (Notion, Monday, ...) keyed by connection id. */
   "externalConnections",
@@ -103,6 +111,14 @@ export interface StoreData {
   taskTemplates?: Record<string, unknown[]>;
   /** Token → share link metadata for public project views. */
   projectShareLinks?: Record<string, unknown>;
+  /** Token → share link metadata for public task views. */
+  taskShareLinks?: Record<string, unknown>;
+  /** Token → client portal hub metadata. */
+  clientPortals?: Record<string, unknown>;
+  /** OKR objectives keyed by id. */
+  okrs?: Record<string, unknown>;
+  /** Project if/then automation rules keyed by id. */
+  projectAutomationRules?: Record<string, unknown>;
   /** Time tracking sessions keyed by session id. */
   timeSessions?: Record<string, unknown>;
   /** External app connections (Notion, Monday, ...) keyed by connection id. */

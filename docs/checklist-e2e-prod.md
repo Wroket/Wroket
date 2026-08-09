@@ -51,9 +51,9 @@ Checklist pas à pas pour valider les parcours critiques sur **production** apr�
 2. [x] Connexion compte principal → redirection dashboard, pas d’erreur bloquante
 3. [x] Déconnexion / reconnexion → session OK
 4. [x] (Optionnel) 2FA si activé → parcours complet
-5. [ ] **Microsoft SSO** — bouton « Continuer avec Microsoft » sur `/login` → compte Microsoft **nouveau** (email pas encore Wroket) → session dashboard
-6. [ ] **Microsoft SSO** — même flux avec email **déjà** lié à un compte Wroket (liaison / login sans doublon destructif)
-7. [ ] Erreur SSO (refus consentement / cancel) → retour login avec message actionnable
+5. [x] **Microsoft SSO** — bouton « Continuer avec Microsoft » sur `/login` → compte Microsoft **nouveau** (email pas encore Wroket) → session dashboard
+6. [x] **Microsoft SSO** — même flux avec email **déjà** lié à un compte Wroket (liaison / login sans doublon destructif)
+7. [x] Erreur SSO (refus consentement / cancel) → retour login avec message actionnable
 
 > Path to 9 transversal : cocher 5–7 en prod avant de déclarer le 9/10 transversal. Doc ops : [`docs/microsoft-azure.md`](microsoft-azure.md).
 

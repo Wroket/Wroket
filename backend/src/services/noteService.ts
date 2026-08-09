@@ -28,6 +28,8 @@ export interface Note {
   sharedWithUid?: string;
   /** Resolved email of the collaborator (stored for display, derived from sharedWithUid). */
   sharedWithEmail?: string;
+  /** When true, sharedWithUid may edit title/content (co-editor). Default read-only. */
+  collaboratorWrite?: boolean;
   /** Owner email — populated at read time by listSharedNotes for display; not persisted. */
   ownerEmail?: string;
   /** Set when the note is in `archivedNotes` (soft delete). */
@@ -62,6 +64,8 @@ export interface UpdateNoteInput {
   teamId?: string;
   /** Set to an email to share directly with one collaborator; null to remove. */
   sharedWithEmail?: string | null;
+  /** Allow the direct collaborator to edit (write). */
+  collaboratorWrite?: boolean;
 }
 
 const notesByUser = new Map<string, Map<string, Note>>();
@@ -337,6 +341,7 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
     if (input.sharedWithEmail === null || input.sharedWithEmail.trim() === "") {
       note.sharedWithUid = undefined;
       note.sharedWithEmail = undefined;
+      note.collaboratorWrite = undefined;
     } else {
       const target = findUserByEmail(input.sharedWithEmail);
       if (!target) throw new ValidationError("Utilisateur introuvable");
@@ -348,11 +353,66 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
     }
   }
 
+  if (input.collaboratorWrite !== undefined) {
+    note.collaboratorWrite = input.collaboratorWrite ? true : undefined;
+  }
+
   note.updatedAt = new Date().toISOString();
   persist();
   if (note.folder) {
     ensureNoteFolder(userId, note.folder, note.projectId);
   }
+  return note;
+}
+
+/**
+ * Locate a note the user can read (own or shared). Returns owner uid + write flag.
+ */
+export function resolveNoteAccess(
+  uid: string,
+  userEmail: string,
+  noteId: string,
+): { note: Note; ownerUid: string; canWrite: boolean } | null {
+  try {
+    const own = getNote(uid, noteId);
+    return { note: own, ownerUid: uid, canWrite: true };
+  } catch {
+    /* not owner */
+  }
+  for (const [ownerUid, map] of notesByUser.entries()) {
+    const n = map.get(noteId);
+    if (!n) continue;
+    const teamShared = !!(n.shared && n.teamId && getTeam(n.teamId) && getTeamRole(getTeam(n.teamId)!, uid, userEmail));
+    const direct = n.sharedWithUid === uid;
+    if (!teamShared && !direct) continue;
+    const canWrite = direct && n.collaboratorWrite === true;
+    return { note: n, ownerUid, canWrite };
+  }
+  return null;
+}
+
+/** Co-editor content patch (title/content only). */
+export function updateNoteAsCollaborator(
+  uid: string,
+  userEmail: string,
+  noteId: string,
+  input: Pick<UpdateNoteInput, "title" | "content">,
+): Note {
+  const access = resolveNoteAccess(uid, userEmail, noteId);
+  if (!access) throw new NotFoundError("Note introuvable");
+  if (!access.canWrite) throw new ValidationError("Lecture seule — demandez l'écriture au propriétaire");
+  const note = access.note;
+  if (input.title !== undefined) {
+    const t = input.title.trim();
+    if (t.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
+    note.title = t || "Sans titre";
+  }
+  if (input.content !== undefined) {
+    if (input.content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
+    note.content = input.content;
+  }
+  note.updatedAt = new Date().toISOString();
+  persist();
   return note;
 }
 

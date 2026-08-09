@@ -173,3 +173,96 @@ export async function addManualTimeSession(
 export function reloadTimeSessionsFromStore(): void {
   hydrate();
 }
+
+export interface TimesheetRow {
+  todoId: string;
+  todoTitle: string;
+  projectId: string | null;
+  userId: string;
+  minutes: number;
+  sessionCount: number;
+}
+
+export interface TimesheetReport {
+  from: string;
+  to: string;
+  totalMinutes: number;
+  rows: TimesheetRow[];
+}
+
+/**
+ * Aggregate completed sessions in [from, to] for a set of todo ids (project timesheet).
+ */
+export function buildTimesheetForTodos(
+  todos: { id: string; title: string; projectId: string | null; userId: string }[],
+  fromIso: string,
+  toIso: string,
+  memberUserId?: string | null,
+): TimesheetReport {
+  const fromMs = Date.parse(fromIso);
+  const toMs = Date.parse(toIso);
+  const todoById = new Map(todos.map((t) => [t.id, t]));
+  const agg = new Map<string, TimesheetRow>();
+
+  for (const s of sessionsById.values()) {
+    if (!s.endedAt || s.durationMinutes == null) continue;
+    if (memberUserId && s.userId !== memberUserId) continue;
+    const todo = todoById.get(s.todoId);
+    if (!todo) continue;
+    const startMs = Date.parse(s.startedAt);
+    if (!Number.isFinite(startMs)) continue;
+    if (Number.isFinite(fromMs) && startMs < fromMs) continue;
+    if (Number.isFinite(toMs) && startMs > toMs) continue;
+
+    const key = `${s.todoId}:${s.userId}`;
+    const prev = agg.get(key);
+    if (prev) {
+      prev.minutes += s.durationMinutes;
+      prev.sessionCount += 1;
+    } else {
+      agg.set(key, {
+        todoId: s.todoId,
+        todoTitle: todo.title,
+        projectId: todo.projectId,
+        userId: s.userId,
+        minutes: s.durationMinutes,
+        sessionCount: 1,
+      });
+    }
+  }
+
+  const rows = [...agg.values()].sort((a, b) => b.minutes - a.minutes);
+  return {
+    from: fromIso,
+    to: toIso,
+    totalMinutes: rows.reduce((n, r) => n + r.minutes, 0),
+    rows,
+  };
+}
+
+export function timesheetToCsv(report: TimesheetReport): string {
+  const header = "todoId,todoTitle,projectId,userId,minutes,sessionCount";
+  const lines = report.rows.map((r) =>
+    [
+      r.todoId,
+      JSON.stringify(r.todoTitle),
+      r.projectId ?? "",
+      r.userId,
+      String(r.minutes),
+      String(r.sessionCount),
+    ].join(","),
+  );
+  return [header, ...lines].join("\n");
+}
+
+/** Minutes logged for many todos (TaskList badges). */
+export function sumMinutesForTodoIds(todoIds: string[]): Record<string, number> {
+  const set = new Set(todoIds);
+  const out: Record<string, number> = {};
+  for (const s of sessionsById.values()) {
+    if (!set.has(s.todoId) || !s.endedAt || s.durationMinutes == null) continue;
+    out[s.todoId] = (out[s.todoId] ?? 0) + s.durationMinutes;
+  }
+  return out;
+}
+

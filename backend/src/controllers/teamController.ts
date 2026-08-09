@@ -552,6 +552,14 @@ export async function patchTeamFeaturesHandler(req: AuthenticatedRequest, res: R
   res.status(200).json({ team, featureFlags: getTeamFeatureFlags(team) });
 }
 
+export async function getTeamCapacity(req: AuthenticatedRequest, res: Response) {
+  const teamId = req.params.teamId as string;
+  const weekStart = typeof req.query.weekStart === "string" ? req.query.weekStart : undefined;
+  const { getTeamCapacitySnapshot } = await import("../services/capacityService");
+  const snap = await getTeamCapacitySnapshot(req.user!.uid, req.user!.email ?? "", teamId, weekStart);
+  res.status(200).json(snap);
+}
+
 export async function getTeamPortfolio(req: AuthenticatedRequest, res: Response) {
   const teamId = req.params.teamId as string;
   const { buildTeamPortfolio } = await import("../services/teamPortfolioService");

@@ -23,6 +23,7 @@ import {
   importProjectTasks,
   seedTemplate,
   getSteering,
+  getProjectTimesheet,
   exportSteering,
 } from "../controllers/projectController";
 import {
@@ -59,6 +60,7 @@ router.put("/:id/access", requireAuth, putAccess);
 router.get("/:id/export", requireAuth, exportProject);
 router.get("/:id/steering", requireAuth, getSteering);
 router.get("/:id/steering/export", requireAuth, exportSteering);
+router.get("/:id/timesheet", requireAuth, getProjectTimesheet);
 router.get("/:id/share-links", requireAuth, listProjectShareLinks);
 router.post("/:id/share-links", requireAuth, createProjectShareLinkHandler);
 router.delete("/:id/share-links/:linkId", requireAuth, revokeProjectShareLinkHandler);

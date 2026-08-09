@@ -93,6 +93,14 @@ async function main(): Promise<void> {
   await hydrateTodosFromV2IfNeeded();
   const { reloadShareLinksFromStore } = await import("./services/projectShareLinkService");
   reloadShareLinksFromStore();
+  const { reloadTaskShareLinksFromStore } = await import("./services/taskShareLinkService");
+  reloadTaskShareLinksFromStore();
+  const { reloadClientPortalsFromStore } = await import("./services/clientPortalService");
+  reloadClientPortalsFromStore();
+  const { reloadOkrsFromStore } = await import("./services/okrService");
+  reloadOkrsFromStore();
+  const { reloadProjectAutomationRulesFromStore } = await import("./services/projectAutomationService");
+  reloadProjectAutomationRulesFromStore();
   // Attach cross-replica cache invalidation AFTER hydration so that the initial
   // onSnapshot calls (which would replay existing data) are safely skipped.
   attachLiveInvalidation();

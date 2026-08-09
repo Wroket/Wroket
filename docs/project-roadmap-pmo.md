@@ -16,7 +16,7 @@ Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit 
 | **1 — Visibilité pilotage** | 🟢 ~85 % | Panneau Pilotage + vues Board/Kanban/Gantt interactif livrés ; aide terminologique et navigation à peaufiner |
 | **2 — Lien plan ↔ todos** | 🟡 ~50 % | Roll-up retard/santé OK ; jalons = fins de phase ; dépendances non livrées |
 | **3 — Rituel PMO (reporting)** | 🟡 V1 OK | Export CSV + PDF steering ; pas de multi-projets ni lien partageable |
-| **§6 — Partage externe** | 🔴 Non démarré | Aligné `[ ]` ROADMAP : liens partageables, client portal |
+| **§6 — Partage externe** | 🟢 Share projet + Client Portal code | Liens `/share/project`, hub `/share/portal` ; smoke E2E |
 | **4 — Qualité E2E** | 🟡 En cours | Parcours projet validé prod ([checklist §G](./checklist-e2e-prod.md)) ; quadrillage Gantt §G.12 à valider |
 
 **Priorité sprint globale** (arbitrage 2026-06-08) : **trois chantiers parallèles** — voir [§12 Alignement 3 priorités](#12-alignement-3-priorités-produit). Séquence technique recommandée : **socle import + dépendances** → **PMO partage/portfolio** → **Notion-Like profondeur** → **Monday-Like**.
@@ -108,10 +108,10 @@ Objectif **PMO** : permettre au porteur de projet de donner de la **visibilité*
 ### 6.1 Partage de projet en lecture seule
 
 - [x] **Partage intra-équipe** — accès projet via équipe / RBAC (existant ; hors périmètre « client externe »)
-- [x] **Lien signé** (token) — accès sans compte, révocation, expiration (`/share/project/:token`) — code livré ; smoke Path to 9 transversal. Lien **par tâche** = hors scope.
-- [ ] **Invité read-only** — compte restreint sur périmètre projet
-- [ ] **Périmètre affichable + masquage** — tâches, commentaires, PJ, emails (RGPD / secrets commerciaux)
-- [ ] **Client portal** — vue externe structurée (ROADMAP Later / Premium) — **après** share projet + traction clients externes
+- [x] **Lien signé** (token) — accès sans compte, révocation, expiration (`/share/project/:token`) — code livré ; smoke Path to 9 transversal. Lien **par tâche** = Epic 2.
+- [x] **Invité read-only** — liste d’emails invités + lien portail (révocation coupe l’accès) ; magic-link = token portail
+- [x] **Périmètre affichable + masquage** — flags portail `showTasks` / commentaires / PJ (projection share)
+- [x] **Client portal** — hub multi-projets `/share/portal/:token`, branding léger, SoftLock Large / Early Bird
 
 **Ordre produit** : cadrer **qui lit quoi** (§6.1) **avant** d’enrichir les exports V2 — les KPIs client doivent refléter les mêmes règles que la vue partagée.
 
@@ -126,7 +126,7 @@ Objectif **PMO** : permettre au porteur de projet de donner de la **visibilité*
 Tout partage externe ou export doit passer la grille [`feature-completeness-gate`](../.cursor/rules/feature-completeness-gate.mdc) : **révocation**, message d’erreur clair, cohérence UI, et [`data-safety`](../.cursor/rules/data-safety.mdc) pour les jetons, journaux d’accès si pertinent.
 
 - [x] Exports steering actuels — erreurs toast (`toast.steeringPdfError`), pas de fuite de données hors périmètre utilisateur connecté
-- [x] Partage externe lien token — révocation + page publique ; Client Portal = Later
+- [x] Partage externe lien token — révocation + page publique ; Client Portal hub livré
 
 ---
 
@@ -155,8 +155,8 @@ Respecter [`feature-completeness-gate`](../.cursor/rules/feature-completeness-ga
 | Board / Kanban / Gantt / phases | Phase 1 | [x] |
 | Gantt interactif + quadrillage | Phase 1 | [x] code / [ ] E2E §G.12 |
 | Export steering CSV/PDF | Phase 3 + §6.2 V1 | [x] |
-| Liens partageables lecture seule (P2 Next) | §6.1 | [ ] |
-| Client portal (Premium) | §6.1 | [ ] |
+| Liens partageables lecture seule (P2 Next) | §6.1 | [x] |
+| Client portal (Premium) | §6.1 | [x] |
 | Dépendances tâches (P3) | Phase 2 | [ ] |
 | Vues portfolio & templates (Monday-Like) | Phase 3 | [ ] |
 | Import Notion ZIP (P2 Now) | Acquisition — hors plan PMO strict | [ ] en cours |

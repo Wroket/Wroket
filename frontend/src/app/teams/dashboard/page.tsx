@@ -423,12 +423,26 @@ export default function TeamDashboardPage() {
             </h1>
             <PageHelpButton helpId="teamDashboard" />
             {!workspaceAdminMode && (
-            <Link
-              href="/teams/portfolio"
-              className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              {t("portfolio.title")}
-            </Link>
+              <>
+                <Link
+                  href="/teams/portfolio"
+                  className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {t("portfolio.title")}
+                </Link>
+                <Link
+                  href={`/teams/capacity${selectedTeamId ? `?teamId=${selectedTeamId}` : ""}`}
+                  className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {t("capacity.title")}
+                </Link>
+                <Link
+                  href="/okr"
+                  className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {t("okr.title")}
+                </Link>
+              </>
             )}
           </div>
           {teams.length > 0 && (
@@ -696,6 +710,88 @@ export default function TeamDashboardPage() {
                           )}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Analytics charts (CSS bars — no chart lib) */}
+                    <div className="grid gap-4 md:grid-cols-3 pt-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+                          {t("teamReport.chartVelocity")}
+                        </p>
+                        {reporting.velocityWeeks.length === 0 ? (
+                          <p className="text-xs text-zinc-400">{t("teamReport.chartEmpty")}</p>
+                        ) : (
+                          <div className="flex items-end gap-1 h-24">
+                            {reporting.velocityWeeks.map((w) => {
+                              const max = Math.max(1, ...reporting.velocityWeeks.map((x) => x.completed));
+                              const h = Math.round((w.completed / max) * 100);
+                              return (
+                                <div key={w.weekStartUtc} className="flex-1 flex flex-col items-center gap-1">
+                                  <div
+                                    className="w-full rounded-t bg-emerald-500/80 min-h-[2px]"
+                                    style={{ height: `${h}%` }}
+                                    title={`${w.completed}`}
+                                  />
+                                  <span className="text-[9px] text-zinc-400 truncate w-full text-center">
+                                    {w.weekStartUtc.slice(5)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+                          {t("teamReport.chartMembers")}
+                        </p>
+                        {reporting.byMember.length === 0 ? (
+                          <p className="text-xs text-zinc-400">{t("teamReport.chartEmpty")}</p>
+                        ) : (
+                          <ul className="space-y-1.5">
+                            {reporting.byMember.slice(0, 6).map((m) => {
+                              const max = Math.max(1, ...reporting.byMember.map((x) => x.completedInPeriod));
+                              const pct = Math.round((m.completedInPeriod / max) * 100);
+                              return (
+                                <li key={m.email}>
+                                  <div className="flex justify-between text-[10px] text-zinc-500 mb-0.5">
+                                    <span className="truncate">{m.email}</span>
+                                    <span>{m.completedInPeriod}</span>
+                                  </div>
+                                  <div className="h-1.5 rounded bg-zinc-100 dark:bg-slate-800">
+                                    <div className="h-full rounded bg-indigo-500" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+                          {t("teamReport.chartCompletion")}
+                        </p>
+                        {reporting.byProject.length === 0 ? (
+                          <p className="text-xs text-zinc-400">{t("teamReport.chartEmpty")}</p>
+                        ) : (
+                          <ul className="space-y-1.5">
+                            {reporting.byProject.slice(0, 6).map((p) => {
+                              const pct = p.completionRatio != null ? Math.round(p.completionRatio * 100) : 0;
+                              return (
+                                <li key={p.projectId}>
+                                  <div className="flex justify-between text-[10px] text-zinc-500 mb-0.5">
+                                    <span className="truncate">{projectNameById.get(p.projectId) ?? p.projectId}</span>
+                                    <span>{pct}%</span>
+                                  </div>
+                                  <div className="h-1.5 rounded bg-zinc-100 dark:bg-slate-800">
+                                    <div className="h-full rounded bg-amber-500" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

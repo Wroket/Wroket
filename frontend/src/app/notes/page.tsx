@@ -22,6 +22,7 @@ import { personalNotesCreateBlocked } from "@/lib/freeQuota";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { newClientEntityId } from "@/lib/newClientId";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
+import { useNoteLiveCollab } from "@/hooks/useNoteLiveCollab";
 
 function NotesPageInner() {
   const { t } = useLocale();
@@ -74,9 +75,26 @@ function NotesPageInner() {
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
-  // A note is considered shared (read-only) only when we know the current user AND the note
-  // has a non-empty userId belonging to someone else. New notes have userId="" until synced.
-  const isSharedNote = !!(selected && currentUid && selected.userId && selected.userId !== currentUid);
+  const isForeignNote = !!(selected && currentUid && selected.userId && selected.userId !== currentUid);
+  const [collabCanWrite, setCollabCanWrite] = useState(false);
+  const isSharedNote = isForeignNote && !collabCanWrite;
+
+  const { presence: notePresence } = useNoteLiveCollab({
+    noteId: selectedId,
+    displayName: authUser?.email ?? currentUid ?? "user",
+    localUpdatedAt: selected?.updatedAt ?? null,
+    isDirty: false,
+    onRemoteNote: (remote, canWrite) => {
+      setCollabCanWrite(canWrite);
+      if (!selectedId) return;
+      // Soft merge: update content if remote is newer (handled by hook gate)
+      saveNote(remote.id, { title: remote.title, content: remote.content });
+    },
+  });
+
+  useEffect(() => {
+    if (!isForeignNote) setCollabCanWrite(false);
+  }, [isForeignNote, selectedId]);
 
   const stripHtml = (value: string): string =>
     value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -926,6 +944,18 @@ function NotesPageInner() {
                     {t("notes.sharedReadOnly")}
                   </span>
                 )}
+                {notePresence.length > 0 && (
+                  <div className="flex items-center gap-1 shrink-0" title={t("notes.presenceHint")}>
+                    {notePresence.slice(0, 4).map((p) => (
+                      <span
+                        key={p.uid}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-[9px] font-bold text-emerald-800 dark:text-emerald-200"
+                      >
+                        {(p.displayName || "?").slice(0, 1).toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {!isSharedNote && (
                   <button
                     type="button"
@@ -1099,6 +1129,16 @@ function NotesPageInner() {
                           <span className="text-[11px] text-zinc-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded px-1.5 py-0.5">
                             {selected.sharedWithEmail}
                           </span>
+                          <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={!!selected.collaboratorWrite}
+                              onChange={(e) =>
+                                saveNote(selected.id, { collaboratorWrite: e.target.checked })
+                              }
+                            />
+                            {t("notes.collaboratorWrite")}
+                          </label>
                           <button
                             type="button"
                             onClick={() => saveNote(selected.id, { sharedWithEmail: null })}
