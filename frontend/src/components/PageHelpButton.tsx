@@ -74,17 +74,17 @@ export default function PageHelpButton({ helpId, items: itemsProp, title: titleP
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={iconOnly ? (title ?? t("tutorial.helpButton")) : undefined}
-        className={`inline-flex items-center justify-center rounded-lg border text-xs font-medium transition-colors ${
+        className={`inline-flex items-center justify-center rounded-sm border text-xs font-medium transition-colors ${
           iconOnly ? "gap-0 p-1.5" : "gap-1.5 px-2.5 py-1.5"
         } ${
           open
-            ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
-            : "bg-white dark:bg-slate-800 border-zinc-200 dark:border-slate-700 text-zinc-500 dark:text-slate-400 hover:border-amber-300 dark:hover:border-amber-700 hover:text-amber-600 dark:hover:text-amber-400"
+            ? "bg-teal-50 dark:bg-teal-950/40 border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-300"
+            : "bg-white dark:bg-slate-900 border-zinc-200 dark:border-slate-700 text-zinc-500 dark:text-slate-400 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-700 dark:hover:text-teal-300"
         }`}
         title={title ?? t("tutorial.helpButton")}
       >
         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
         </svg>
         {iconOnly ? (
           <span className="sr-only">{t("tutorial.helpButton")}</span>
@@ -96,17 +96,19 @@ export default function PageHelpButton({ helpId, items: itemsProp, title: titleP
       {open && createPortal(
         <div
           ref={popRef}
-          className="fixed z-[9999] w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-zinc-200 dark:border-slate-600 overflow-hidden"
+          role="dialog"
+          aria-label={title ?? t("tutorial.helpButton")}
+          className="fixed z-[9999] w-64 bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-zinc-200 dark:border-slate-700 overflow-hidden ui-v2-fade"
           style={{ top: pos.top, left: pos.left }}
         >
           {title && (
-            <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/80">
-              <p className="text-xs font-bold text-zinc-700 dark:text-slate-200 uppercase tracking-wide">{title}</p>
+            <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-slate-800">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-teal-700 dark:text-teal-400">{title}</p>
             </div>
           )}
           <ul className="pr-4 pl-7 py-2.5 space-y-0.5 list-disc list-outside">
             {items.map((item, i) => (
-              <li key={i} className="text-[11px] text-zinc-600 dark:text-slate-300 leading-relaxed marker:text-zinc-400 dark:marker:text-slate-500">
+              <li key={i} className="text-[11px] text-zinc-600 dark:text-slate-300 leading-relaxed marker:text-teal-500 dark:marker:text-teal-600">
                 {item.icon && <span className="mr-1">{item.icon}</span>}{item.text}
               </li>
             ))}

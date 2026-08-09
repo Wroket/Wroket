@@ -48,12 +48,38 @@ export async function createOkr(body: {
   return res.json() as Promise<OkrObjective>;
 }
 
+export async function updateOkr(
+  id: string,
+  body: {
+    title?: string;
+    description?: string;
+    status?: string;
+    teamId?: string | null;
+    keyResults?: OkrKeyResult[];
+  },
+): Promise<OkrObjective> {
+  const res = await fetch(`${API_BASE_URL}/okr/${encodeURIComponent(id)}`, {
+    ...apiFetchDefaults,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(err, "Impossible de mettre à jour l'OKR"));
+  }
+  return res.json() as Promise<OkrObjective>;
+}
+
 export async function refreshOkr(id: string): Promise<OkrObjective> {
   const res = await fetch(`${API_BASE_URL}/okr/${encodeURIComponent(id)}/refresh`, {
     ...apiFetchDefaults,
     method: "POST",
   });
-  if (!res.ok) throw new Error("Refresh failed");
+  if (!res.ok) {
+    const err = await parseJsonOrThrow(res);
+    throw new Error(extractApiMessage(err, "Refresh failed"));
+  }
   return res.json() as Promise<OkrObjective>;
 }
 

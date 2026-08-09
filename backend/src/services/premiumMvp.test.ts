@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { register, setBillingPlanForUid } from "./authService";
-import { createOkr, computeOkrProgress, updateOkr } from "./okrService";
+import { createOkr, computeOkrProgress, refreshOkrFromTodos, updateOkr } from "./okrService";
 import { createAutomationRule, evaluateAutomationRules } from "./projectAutomationService";
-import { createTodo } from "./todoService";
+import { createTodo, updateTodo } from "./todoService";
 
 describe("premium mvp services", () => {
   it("okr progress from KR current/target", () => {
@@ -20,6 +20,50 @@ describe("premium mvp services", () => {
       keyResults: [{ ...okr.keyResults[0], current: 100 }],
     });
     expect(computeOkrProgress(updated)).toBe(100);
+  });
+
+  it("okr refresh derives progress from linked todo completion", async () => {
+    const user = register({ email: `okr-link-${Date.now()}@test.local`, password: "password123" });
+    setBillingPlanForUid(user.uid, "large");
+    const t1 = await createTodo(user.uid, user.email, { title: "A", priority: "medium" });
+    const t2 = await createTodo(user.uid, user.email, { title: "B", priority: "medium" });
+    await updateTodo(user.uid, user.email, t1.id, { status: "completed" });
+    const okr = createOkr(user.uid, {
+      title: "Finish tests",
+      keyResults: [
+        {
+          title: "Progress",
+          target: 100,
+          current: 0,
+          unit: "%",
+          linkedTodoIds: [t1.id, t2.id],
+          linkedProjectIds: [],
+        },
+      ],
+    });
+    const refreshed = await refreshOkrFromTodos(user.uid, user.email, okr.id);
+    expect(refreshed.keyResults[0].current).toBe(50);
+    expect(computeOkrProgress(refreshed)).toBe(50);
+  });
+
+  it("okr refresh keeps current when linked todos are all unresolved", async () => {
+    const user = register({ email: `okr-miss-${Date.now()}@test.local`, password: "password123" });
+    setBillingPlanForUid(user.uid, "large");
+    const okr = createOkr(user.uid, {
+      title: "Ghost links",
+      keyResults: [
+        {
+          title: "Progress",
+          target: 100,
+          current: 40,
+          unit: "%",
+          linkedTodoIds: ["missing-todo-id"],
+          linkedProjectIds: [],
+        },
+      ],
+    });
+    const refreshed = await refreshOkrFromTodos(user.uid, user.email, okr.id);
+    expect(refreshed.keyResults[0].current).toBe(40);
   });
 
   it("automation add_tag on todo_created", async () => {

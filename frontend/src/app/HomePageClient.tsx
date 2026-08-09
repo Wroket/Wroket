@@ -519,16 +519,17 @@ export default function LandingPage() {
           }`}
         >
           <div
-            className="absolute inset-0 bg-[#1c1917] dark:bg-[#1a1816]"
+            className="absolute inset-0 bg-stone-100/90 dark:bg-[#1a1816]"
             aria-hidden
             style={{
-              backgroundImage:
-                "radial-gradient(ellipse 70% 80% at 50% 0%, rgba(15,118,110,0.35), transparent 60%)",
+              backgroundImage: dark
+                ? "radial-gradient(ellipse 70% 80% at 50% 0%, rgba(15,118,110,0.35), transparent 60%)"
+                : "radial-gradient(ellipse 80% 70% at 50% 0%, rgba(15,118,110,0.14), transparent 65%)",
             }}
           />
           <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-10 sm:pb-12">
             <div
-              className="rounded-t-2xl border border-b-0 border-stone-600/50 bg-stone-50 dark:bg-stone-800 overflow-hidden shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.45)]"
+              className="rounded-t-2xl border border-b-0 border-stone-200/90 dark:border-stone-600/50 bg-stone-50 dark:bg-stone-800 overflow-hidden shadow-[0_16px_40px_-20px_rgba(28,25,23,0.18)] dark:shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.45)]"
               role="img"
               aria-label={locale === "fr" ? "Aperçu de la liste de tâches Wroket" : "Wroket task list preview"}
             >

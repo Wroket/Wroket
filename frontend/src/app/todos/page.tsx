@@ -1322,7 +1322,7 @@ export default function TodosPage() {
           }`}
         >
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <input
                 id="todo-create-title"
                 type="text"
@@ -1330,8 +1330,84 @@ export default function TodosPage() {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-slate-600 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 h-[36px] sm:h-[40px]"
+                className="flex-1 min-w-[10rem] sm:min-w-[12rem] rounded-lg border border-zinc-300 dark:border-slate-600 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-zinc-900 dark:text-slate-100 dark:bg-slate-800 placeholder:text-zinc-400 focus:border-emerald-500 dark:focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 h-[36px] sm:h-[40px]"
               />
+              {uiV2 && (
+                <>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenDropdown(openDropdown === "priority" ? null : "priority");
+                      }}
+                      className={`rounded border px-2.5 sm:px-3 py-2 text-sm font-medium transition-colors h-[36px] sm:h-[40px] min-w-[4.5rem] sm:min-w-[5.5rem] text-center ${
+                        priorityTouched
+                          ? `${PRIORITY_BADGES[priority].cls} border-transparent`
+                          : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
+                      }`}
+                    >
+                      {priorityTouched ? t(PRIORITY_BADGES[priority].tKey) : t("todos.importanceLabel")}
+                    </button>
+                    {openDropdown === "priority" && (
+                      <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
+                        {(["high", "medium", "low"] as Priority[]).map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              setPriority(p);
+                              setPriorityTouched(true);
+                              setOpenDropdown(null);
+                            }}
+                            className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors ${
+                              priority === p ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
+                            }`}
+                          >
+                            {t(PRIORITY_BADGES[p].tKey)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenDropdown(openDropdown === "effort" ? null : "effort");
+                      }}
+                      className={`rounded border px-2.5 sm:px-3 py-2 text-sm font-medium transition-colors h-[36px] sm:h-[40px] min-w-[4.5rem] sm:min-w-[5.5rem] text-center ${
+                        effortTouched
+                          ? `${EFFORT_BADGES[effort].cls} border-transparent`
+                          : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
+                      }`}
+                    >
+                      {effortTouched ? t(EFFORT_BADGES[effort].tKey) : t("todos.effortLabel")}
+                    </button>
+                    {openDropdown === "effort" && (
+                      <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
+                        {(["light", "medium", "heavy"] as Effort[]).map((eff) => (
+                          <button
+                            key={eff}
+                            type="button"
+                            onClick={() => {
+                              setEffort(eff);
+                              setEffortTouched(true);
+                              setOpenDropdown(null);
+                            }}
+                            className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors ${
+                              effort === eff ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
+                            }`}
+                          >
+                            {t(EFFORT_BADGES[eff].tKey)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
               <button
                 type="submit"
                 disabled={submitting || !!assignError || personalTaskCreateBlocked(user, selectedProjectId, projects)}
@@ -1340,82 +1416,6 @@ export default function TodosPage() {
                 {submitting ? t("todos.adding") : t("todos.add")}
               </button>
             </div>
-            {uiV2 && (
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenDropdown(openDropdown === "priority" ? null : "priority");
-                    }}
-                    className={`w-full sm:w-auto rounded border px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors h-[38px] sm:h-[42px] sm:min-w-[100px] text-center ${
-                      priorityTouched
-                        ? `${PRIORITY_BADGES[priority].cls} border-transparent`
-                        : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
-                    }`}
-                  >
-                    {priorityTouched ? t(PRIORITY_BADGES[priority].tKey) : t("todos.importanceLabel")}
-                  </button>
-                  {openDropdown === "priority" && (
-                    <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
-                      {(["high", "medium", "low"] as Priority[]).map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => {
-                            setPriority(p);
-                            setPriorityTouched(true);
-                            setOpenDropdown(null);
-                          }}
-                          className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors ${
-                            priority === p ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
-                          }`}
-                        >
-                          {t(PRIORITY_BADGES[p].tKey)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenDropdown(openDropdown === "effort" ? null : "effort");
-                    }}
-                    className={`w-full sm:w-auto rounded border px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors h-[38px] sm:h-[42px] sm:min-w-[100px] text-center ${
-                      effortTouched
-                        ? `${EFFORT_BADGES[effort].cls} border-transparent`
-                        : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
-                    }`}
-                  >
-                    {effortTouched ? t(EFFORT_BADGES[effort].tKey) : t("todos.effortLabel")}
-                  </button>
-                  {openDropdown === "effort" && (
-                    <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
-                      {(["light", "medium", "heavy"] as Effort[]).map((eff) => (
-                        <button
-                          key={eff}
-                          type="button"
-                          onClick={() => {
-                            setEffort(eff);
-                            setEffortTouched(true);
-                            setOpenDropdown(null);
-                          }}
-                          className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors ${
-                            effort === eff ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
-                          }`}
-                        >
-                          {t(EFFORT_BADGES[eff].tKey)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
             {uiV2 && (
               <button
                 type="button"

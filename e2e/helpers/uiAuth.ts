@@ -22,7 +22,7 @@ export async function loginAsFreshUser(
 export async function prepareFreshSession(page: Page): Promise<void> {
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("wroket-tutorial-v4-seen", "1");
+      localStorage.setItem("wroket-tutorial-v6-seen", "1");
     } catch {
       /* ignore */
     }
