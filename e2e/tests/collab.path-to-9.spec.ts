@@ -55,9 +55,11 @@ test.describe("Collab Path to 9 smoke", () => {
     await page.waitForURL(/\/(dashboard|notes|todos|projects)/, { timeout: 30_000 });
 
     await page.goto("/todos");
-    await expect(page.getByText(taskTitle).first()).toBeVisible({ timeout: 25_000 });
+    // Prefer the TaskList row (avoid off-screen / hidden duplicates matching getByText).
+    const taskRow = page.locator(".group\\/task").filter({ hasText: taskTitle }).first();
+    await expect(taskRow).toBeVisible({ timeout: 25_000 });
     await expect(
-      page.getByText(/En attente d'acceptation|Pending acceptance|En attente|Pending/i).first(),
+      taskRow.getByText(/En attente d'acceptation|Pending acceptance|En attente|Pending/i).first(),
     ).toBeVisible({ timeout: 10_000 });
 
     await page.goto("/notifications");

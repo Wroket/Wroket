@@ -10,12 +10,12 @@ import type { ShareLinkTab } from "@/lib/api/projectShare";
 import { getHealthConfig } from "@/app/projects/_components/types";
 import { WroketLockup } from "@/components/brand/WroketBrand";
 import GanttChart from "@/app/projects/_components/GanttChart";
-import SharedKanbanView from "../../../project/_components/SharedKanbanView";
+import SharedKanbanView from "@/app/share/project/_components/SharedKanbanView";
 import {
   sharedMilestonesToProjectMilestones,
   sharedPhasesToProjectPhases,
   sharedTasksToTodos,
-} from "../../../project/_components/sharedViewMappers";
+} from "@/app/share/project/_components/sharedViewMappers";
 
 const TAB_LABEL: Record<ShareLinkTab, "share.publicPilotage" | "projects.kanban" | "gantt.view"> = {
   pilotage: "share.publicPilotage",
@@ -99,7 +99,7 @@ export default function PortalProjectPage() {
           <>
             <h1 className="text-xl font-bold text-zinc-900 dark:text-slate-100">{view.projectName}</h1>
             {hc && (
-              <p className={`text-xs font-semibold mt-1 ${hc.text}`}>{hc.label}</p>
+              <p className={`text-xs font-semibold mt-1 ${hc.color}`}>{hc.label}</p>
             )}
             <div className="flex gap-1 mt-4 mb-4 border-b border-zinc-200 dark:border-slate-700">
               {view.allowedTabs.map((key) => (
