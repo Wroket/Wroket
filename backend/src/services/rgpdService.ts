@@ -18,6 +18,7 @@ export interface UserDataExport {
   comments: unknown[];
   notifications: unknown[];
   notes: unknown[];
+  archivedNotes: unknown[];
   noteFolders: unknown[];
   teams: unknown[];
   projects: unknown[];
@@ -25,6 +26,25 @@ export interface UserDataExport {
   contacts: unknown[];
   userDatabases: unknown[];
   userDatabaseRows: Record<string, unknown[]>;
+  taskTemplates: unknown[];
+  timeSessions: unknown[];
+  /** Attachment metadata only (no binary payloads / no storage keys secrets beyond id). */
+  attachmentManifest: Array<{
+    kind: "task" | "note";
+    id: string;
+    parentId: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+    createdAt: string;
+  }>;
+  /** External OAuth connections without tokens. */
+  externalConnections: Array<{
+    id: string;
+    provider: string;
+    workspaceName: string | null;
+    connectedAt: string;
+  }>;
 }
 
 export interface ExportUserDataOptions {
@@ -80,10 +100,12 @@ export async function exportUserData(uid: string, opts?: ExportUserDataOptions):
   const notifStore = (store.notifications ?? {}) as Record<string, unknown[]>;
   const notifications = notifStore[uid] ?? [];
 
-  // Notes
+  // Notes (active + archived)
   const noteStore = (store.notes ?? {}) as Record<string, Record<string, unknown>>;
   const userNotes = noteStore[uid] ?? {};
   const notes = Object.values(userNotes);
+  const archivedNoteStore = (store.archivedNotes ?? {}) as Record<string, Record<string, unknown>>;
+  const archivedNotes = Object.values(archivedNoteStore[uid] ?? {});
 
   // Teams
   const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
@@ -108,12 +130,64 @@ export async function exportUserData(uid: string, opts?: ExportUserDataOptions):
   const { databases, rows } = exportDatabasesForOwner(uid);
   const noteFolders = exportNoteFoldersForOwner(uid) as unknown[];
 
+  const { listTemplates } = await import("./templateService");
+  const { exportTimeSessionsForUser } = await import("./timeSessionService");
+  const { listConnectionSummariesForUser } = await import("./externalConnectionService");
+  const taskTemplates = listTemplates(uid) as unknown[];
+  const timeSessions = exportTimeSessionsForUser(uid) as unknown[];
+  const email = typeof user.email === "string" ? user.email : "";
+  const externalConnections = listConnectionSummariesForUser(uid, email)
+    .filter((c) => c.status === "connected")
+    .map((c) => ({
+      id: c.id,
+      provider: c.provider,
+      workspaceName: c.workspaceName,
+      connectedAt: c.connectedAt ?? "",
+    }));
+
+  const attachmentManifest: UserDataExport["attachmentManifest"] = [];
+  const taskAttStore = (store.attachments ?? {}) as Record<string, Array<Record<string, unknown>>>;
+  for (const [todoId, list] of Object.entries(taskAttStore)) {
+    for (const att of list ?? []) {
+      if (att.userId !== uid && att.ownerUid !== uid) continue;
+      attachmentManifest.push({
+        kind: "task",
+        id: String(att.id ?? ""),
+        parentId: todoId,
+        originalName: String(att.originalName ?? ""),
+        mimeType: String(att.mimeType ?? ""),
+        size: typeof att.size === "number" ? att.size : 0,
+        createdAt: String(att.createdAt ?? ""),
+      });
+    }
+  }
+  const noteAttStore = (store.noteAttachments ?? {}) as Record<string, Array<Record<string, unknown>>>;
+  const ownedNoteIds = new Set([
+    ...Object.keys(userNotes),
+    ...Object.keys(archivedNoteStore[uid] ?? {}),
+  ]);
+  for (const [noteId, list] of Object.entries(noteAttStore)) {
+    if (!ownedNoteIds.has(noteId)) continue;
+    for (const att of list ?? []) {
+      attachmentManifest.push({
+        kind: "note",
+        id: String(att.id ?? ""),
+        parentId: noteId,
+        originalName: String(att.originalName ?? ""),
+        mimeType: String(att.mimeType ?? ""),
+        size: typeof att.size === "number" ? att.size : 0,
+        createdAt: String(att.createdAt ?? ""),
+      });
+    }
+  }
+
   return {
     user: sanitizeUserForExport(user),
     todos,
     comments,
     notifications,
     notes,
+    archivedNotes,
     noteFolders,
     teams,
     projects,
@@ -121,6 +195,10 @@ export async function exportUserData(uid: string, opts?: ExportUserDataOptions):
     contacts,
     userDatabases: databases as unknown[],
     userDatabaseRows: rows as Record<string, unknown[]>,
+    taskTemplates,
+    timeSessions,
+    attachmentManifest,
+    externalConnections,
   };
 }
 
@@ -194,6 +272,13 @@ export async function deleteUserData(uid: string): Promise<void> {
   }
   scheduleSave("projects");
 
+  try {
+    const { purgeShareLinksForProjectIds } = await import("./projectShareLinkService");
+    purgeShareLinksForProjectIds(deletedProjectIds);
+  } catch (err) {
+    console.warn("[rgpd] share links purge failed:", err);
+  }
+
   // --- Clean up other users' todos linked to deleted projects ---
   const allTodos = (store.todos ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
   for (const [todoOwnerUid, userTodos] of Object.entries(allTodos)) {
@@ -225,7 +310,10 @@ export async function deleteUserData(uid: string): Promise<void> {
 
   await purgeAttachmentsForTodoIds(allTodoIds);
 
+  const archivedNoteStorePre = (store.archivedNotes ?? {}) as Record<string, Record<string, unknown>>;
+  const archivedNoteIds = Object.keys(archivedNoteStorePre[uid] ?? {});
   const noteIds = purgeNotesRuntimeForUid(uid);
+  const allNoteIds = [...new Set([...noteIds, ...archivedNoteIds])];
   const noteStore = (store.notes ?? {}) as Record<string, unknown>;
   delete noteStore[uid];
   scheduleSave("notes");
@@ -233,11 +321,41 @@ export async function deleteUserData(uid: string): Promise<void> {
   delete archivedNoteStore[uid];
   scheduleSave("archivedNotes");
   purgeNoteFoldersForOwner(uid);
-  const noteAttachmentStore = (store.noteAttachments ?? {}) as Record<string, unknown[]>;
-  for (const noteId of noteIds) {
-    delete noteAttachmentStore[noteId];
+
+  try {
+    const { purgeNoteAttachments } = await import("./noteAttachmentService");
+    for (const noteId of allNoteIds) {
+      await purgeNoteAttachments(noteId);
+    }
+  } catch (err) {
+    console.warn("[rgpd] note attachments purge failed:", err);
+    const noteAttachmentStore = (store.noteAttachments ?? {}) as Record<string, unknown[]>;
+    for (const noteId of allNoteIds) {
+      delete noteAttachmentStore[noteId];
+    }
+    scheduleSave("noteAttachments");
   }
-  scheduleSave("noteAttachments");
+
+  try {
+    const { purgeAllConnectionsForUser } = await import("./externalConnectionService");
+    purgeAllConnectionsForUser(uid);
+  } catch (err) {
+    console.warn("[rgpd] external connections purge failed:", err);
+  }
+
+  try {
+    const { purgeTemplatesForUser } = await import("./templateService");
+    purgeTemplatesForUser(uid);
+  } catch (err) {
+    console.warn("[rgpd] task templates purge failed:", err);
+  }
+
+  try {
+    const { purgeTimeSessionsForUser } = await import("./timeSessionService");
+    purgeTimeSessionsForUser(uid);
+  } catch (err) {
+    console.warn("[rgpd] time sessions purge failed:", err);
+  }
 
   // Anonymize comments
   const commentStore = (store.comments ?? {}) as Record<string, Array<Record<string, unknown>>>;

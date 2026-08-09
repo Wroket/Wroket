@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
+import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
+import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { getTeams, type Team } from "@/lib/api";
@@ -129,11 +132,13 @@ function DocDiffSummary({ diff, t }: { diff: MondayDocSyncDiff; t: (k: string) =
 function MondayMigrateContent() {
   const { t } = useLocale();
   const { toast } = useToast();
+  const { user, refresh } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetParam = searchParams.get("target");
   const initialTarget: MondayImportTarget =
     targetParam === "database" || targetParam === "document" ? targetParam : "project";
+  const showIntegrationsSoftLock = !user?.entitlements?.integrations && !user?.earlyBird;
 
   const [mode, setMode] = useState<ImportMode>("api");
   const [projectName, setProjectName] = useState("");
@@ -433,13 +438,22 @@ function MondayMigrateContent() {
         {mode === "api" && !mondayConnected && (
           <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/20 p-4 space-y-3">
             <p className="text-sm text-violet-900 dark:text-violet-200">{t("migrate.monday.apiHint")}</p>
-            <button
-              type="button"
-              onClick={() => connectMondayOAuth("/migrate/monday")}
-              className="rounded-md bg-violet-600 text-white text-sm px-4 py-2 hover:bg-violet-700"
-            >
-              {t("migrate.monday.connectCta")}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => connectMondayOAuth("/migrate/monday")}
+                className="rounded-md bg-violet-600 text-white text-sm px-4 py-2 hover:bg-violet-700"
+              >
+                {t("migrate.monday.connectCta")}
+              </button>
+              {showIntegrationsSoftLock && <PlanBadge tier="small" />}
+            </div>
+            {showIntegrationsSoftLock && (
+              <>
+                <EarlyBirdUnlockCard variant="compact" onEnrolled={refresh} />
+                <SoftLockHint tier="small" className="mt-1" />
+              </>
+            )}
           </div>
         )}
 

@@ -7,6 +7,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import AppShell from "@/components/AppShell";
+import { useAuth } from "@/components/AuthContext";
+import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
+import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import {
   confirmNotionImport,
   confirmNotionSync,
@@ -320,11 +323,13 @@ export default function MigrateNotionPage() {
 function MigrateNotionPageContent() {
   const { t } = useLocale();
   const { toast } = useToast();
+  const { user, refresh } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const contactsModeParam = searchParams.get("mode") === "contacts";
   const dataModeParam = searchParams.get("mode") === "data";
   const fileRef = useRef<HTMLInputElement>(null);
+  const showIntegrationsSoftLock = !user?.entitlements?.integrations && !user?.earlyBird;
 
   const [mode, setMode] = useState<ImportMode>("api");
   const [projectName, setProjectName] = useState("");
@@ -720,13 +725,22 @@ function MigrateNotionPageContent() {
             {!connectionsLoaded ? (
               <p className="text-sm text-zinc-500">{t("migrate.notion.syncPreviewLoading")}</p>
             ) : !notionConnected ? (
-              <div className="rounded-lg border border-zinc-200 dark:border-slate-700 p-4">
-                <Link
-                  href="/settings?tab=integrations"
-                  className="text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
-                >
-                  {t("migrate.notion.connectCta")}
-                </Link>
+              <div className="rounded-lg border border-zinc-200 dark:border-slate-700 p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/settings?tab=integrations"
+                    className="text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    {t("migrate.notion.connectCta")}
+                  </Link>
+                  {showIntegrationsSoftLock && <PlanBadge tier="small" />}
+                </div>
+                {showIntegrationsSoftLock && (
+                  <>
+                    <EarlyBirdUnlockCard variant="compact" onEnrolled={refresh} />
+                    <SoftLockHint tier="small" className="mt-1" />
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-4">

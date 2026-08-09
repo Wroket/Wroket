@@ -10,7 +10,10 @@ export type FunnelAnalyticsEvent =
   | "first_slot_booked"
   | "slot_synced_external"
   | "project_created"
-  | "project_task_created";
+  | "project_task_created"
+  | "note_created"
+  | "data_exported"
+  | "data_imported";
 
 export type ProductAnalyticsEvent = RadarAnalyticsEvent | FunnelAnalyticsEvent;
 

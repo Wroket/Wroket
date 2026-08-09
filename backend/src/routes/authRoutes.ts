@@ -43,9 +43,10 @@ import { createApiKey, listApiKeys, revokeApiKey } from "../controllers/apiKeyCo
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireProductAccess } from "../middlewares/requireProductAccess";
 
+/** Local/E2E store: high ceiling so a slow Playwright run does not cascade 429s across specs. */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: process.env.USE_LOCAL_STORE === "true" ? 500 : 15,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Trop de tentatives, réessayez dans 15 minutes" },

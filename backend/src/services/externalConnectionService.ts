@@ -112,6 +112,19 @@ export function deleteConnectionForUser(uid: string, provider: ExternalProvider)
   return true;
 }
 
+/** Remove all Notion/Monday (etc.) connections for account deletion — tokens discarded. */
+export function purgeAllConnectionsForUser(uid: string): Array<{ id: string; provider: ExternalProvider }> {
+  const removed: Array<{ id: string; provider: ExternalProvider }> = [];
+  for (const conn of [...connectionsById.values()]) {
+    if (conn.ownerUid === uid) {
+      removed.push({ id: conn.id, provider: conn.provider });
+      connectionsById.delete(conn.id);
+    }
+  }
+  if (removed.length > 0) persistConnections();
+  return removed;
+}
+
 export function assertConnectionOwnedBy(uid: string, connectionId: string): ExternalConnection {
   const conn = connectionsById.get(connectionId);
   if (!conn) throw new NotFoundError("Connexion introuvable");

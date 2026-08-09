@@ -11,6 +11,8 @@ const MENU_WIDTH = 280;
 interface Props {
   exportCsv: () => Promise<void>;
   exportJson: () => Promise<void>;
+  /** Optional Markdown export (e.g. notes). */
+  exportMarkdown?: () => Promise<void>;
   /** Direct import: run after file pick (legacy). */
   onImport?: (file: File) => Promise<{ created: number; errors: Array<{ row: number; message: string }>; total: number }>;
   /** If set, file pick calls this instead of onImport (e.g. open preview modal). */
@@ -19,7 +21,7 @@ interface Props {
   templateJson?: string;
 }
 
-export default function ExportImportDropdown({ exportCsv, exportJson, onImport, onImportFile, templateCsv, templateJson }: Props) {
+export default function ExportImportDropdown({ exportCsv, exportJson, exportMarkdown, onImport, onImportFile, templateCsv, templateJson }: Props) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -89,10 +91,14 @@ export default function ExportImportDropdown({ exportCsv, exportJson, onImport, 
       const result = await onImport(file);
       setImportResult(result);
       if (result.created > 0) {
-        toast.success(`${result.created}/${result.total} imported`);
+        toast.success(
+          t("export.importSuccess")
+            .replace("{created}", String(result.created))
+            .replace("{total}", String(result.total)),
+        );
       }
       if (result.errors.length > 0) {
-        toast.error(`${result.errors.length} error(s)`);
+        toast.error(t("export.importErrors").replace("{count}", String(result.errors.length)));
       }
     } catch {
       toast.error(t("export.error"));
@@ -158,6 +164,16 @@ export default function ExportImportDropdown({ exportCsv, exportJson, onImport, 
               >
                 {t("export.asJson")}
               </button>
+              {exportMarkdown && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleExport(exportMarkdown)}
+                  className="w-full text-left px-3 py-2 text-zinc-800 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  {t("export.markdown")}
+                </button>
+              )}
 
               {hasImport && (
                 <>
@@ -229,6 +245,7 @@ export default function ExportImportDropdown({ exportCsv, exportJson, onImport, 
     <div className="relative inline-flex" ref={triggerRef}>
       <button
         type="button"
+        data-testid="export-import-menu"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors"
       >
@@ -250,18 +267,22 @@ export default function ExportImportDropdown({ exportCsv, exportJson, onImport, 
         <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/30" onClick={() => setImportResult(null)}>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-5 max-w-md w-full max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-zinc-800 dark:text-slate-200 mb-2">
-              {importResult.created} / {importResult.total} imported
+              {t("export.importSuccess")
+                .replace("{created}", String(importResult.created))
+                .replace("{total}", String(importResult.total))}
             </h3>
-            <p className="text-xs text-red-500 mb-2">{importResult.errors.length} error(s):</p>
+            <p className="text-xs text-red-500 mb-2">
+              {t("export.importErrors").replace("{count}", String(importResult.errors.length))}
+            </p>
             <ul className="text-xs space-y-1 text-zinc-600 dark:text-slate-400">
               {importResult.errors.slice(0, 50).map((e, i) => (
                 <li key={i}>
-                  Row {e.row}: {e.message}
+                  {t("export.importRowError").replace("{row}", String(e.row)).replace("{message}", e.message)}
                 </li>
               ))}
             </ul>
             <button type="button" onClick={() => setImportResult(null)} className="mt-3 text-xs text-cyan-600 hover:underline">
-              OK
+              {t("export.importErrorsOk")}
             </button>
           </div>
         </div>

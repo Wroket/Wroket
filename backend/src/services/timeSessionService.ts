@@ -66,6 +66,24 @@ export function getActiveTimerForUser(userId: string): TimeSession | null {
   return sessionsById.get(id) ?? null;
 }
 
+/** Remove all time sessions owned by the user (account deletion). */
+export function purgeTimeSessionsForUser(userId: string): void {
+  let changed = false;
+  for (const [id, s] of [...sessionsById.entries()]) {
+    if (s.userId === userId) {
+      sessionsById.delete(id);
+      changed = true;
+    }
+  }
+  if (activeTimerByUser.delete(userId)) changed = true;
+  if (changed) persist();
+}
+
+/** Lightweight rows for RGPD export (no entitlement gate). */
+export function exportTimeSessionsForUser(userId: string): TimeSession[] {
+  return [...sessionsById.values()].filter((s) => s.userId === userId);
+}
+
 export async function startTimeTimer(userId: string, userEmail: string, todoId: string): Promise<TimeSession> {
   assertTimeTrackingEntitlement(userId);
   const found = await findTodoForUser(userId, todoId);

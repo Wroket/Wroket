@@ -56,10 +56,12 @@ test.describe("Projects Path to 9 smoke", () => {
     const todo = (await createTodo.json()) as { id: string };
 
     await page.goto(`/projects?project=${encodeURIComponent(project.id)}`);
-    await expect(page.getByText(taskTitle).first()).toBeVisible({ timeout: 25_000 });
+
+    // Target the board row (group/task) — not the off-screen export Gantt which also renders the title
+    const taskRow = page.locator(".group\\/task").filter({ hasText: taskTitle });
+    await expect(taskRow).toBeVisible({ timeout: 25_000 });
 
     // Hover board row so phase select is visible, then change phase → constraint modal → cancel
-    const taskRow = page.getByText(taskTitle).first().locator("xpath=ancestor::*[contains(@class,'group')][1]");
     await taskRow.hover();
     const phaseSelect = taskRow.locator("select").first();
     await phaseSelect.selectOption(phaseBBody.id);

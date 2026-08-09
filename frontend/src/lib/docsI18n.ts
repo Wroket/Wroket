@@ -868,8 +868,8 @@ export const docsTranslations = {
     en: "How do I migrate from Notion or Monday?",
   },
   "docs.pricing.faq5a": {
-    fr: "Consultez les guides Notion, Monday, Slack+ et agents MCP dans la documentation. Un compte Small teams est requis pour la plupart des imports et pour Slack OAuth.",
-    en: "See the Notion, Monday, Slack+, and MCP agents guides in the documentation. A Small teams account is required for most imports and for Slack OAuth.",
+    fr: "L’import / export fichier (CSV, JSON) est disponible dès Free. La sync OAuth Notion / Monday et Slack OAuth nécessitent le pack Intégrations (Small teams) ou Early Bird. Guides dans la documentation :",
+    en: "File import / export (CSV, JSON) is available on Free. Notion / Monday OAuth sync and Slack OAuth need the Integrations pack (Small teams) or Early Bird. Guides in the docs:",
   },
   "docs.pricing.faq5linkNotion": { fr: "Guide Notion", en: "Notion guide" },
   "docs.pricing.faq5linkMonday": { fr: "Guide Monday", en: "Monday guide" },

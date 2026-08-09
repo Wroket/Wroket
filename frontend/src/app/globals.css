@@ -454,38 +454,6 @@ html.ui-v2:not(.dark) .radar-constellation-cross {
     );
 }
 
-html.ui-v2 .radar-constellation-dust {
-  background-image:
-    radial-gradient(1px 1px at 12% 18%, rgb(226 232 240 / 0.7), transparent),
-    radial-gradient(1px 1px at 28% 62%, rgb(203 213 225 / 0.45), transparent),
-    radial-gradient(1.5px 1.5px at 44% 28%, rgb(226 232 240 / 0.55), transparent),
-    radial-gradient(1px 1px at 58% 78%, rgb(148 163 184 / 0.4), transparent),
-    radial-gradient(1px 1px at 72% 22%, rgb(226 232 240 / 0.5), transparent),
-    radial-gradient(1.5px 1.5px at 86% 54%, rgb(203 213 225 / 0.45), transparent),
-    radial-gradient(1px 1px at 18% 88%, rgb(148 163 184 / 0.35), transparent),
-    radial-gradient(1px 1px at 92% 12%, rgb(226 232 240 / 0.42), transparent),
-    radial-gradient(1px 1px at 35% 45%, rgb(148 163 184 / 0.3), transparent),
-    radial-gradient(1px 1px at 65% 40%, rgb(203 213 225 / 0.35), transparent);
-  opacity: 0.9;
-  pointer-events: none;
-  z-index: 2;
-}
-
-html.ui-v2:not(.dark) .radar-constellation-dust {
-  background-image:
-    radial-gradient(1px 1px at 12% 18%, rgb(71 85 105 / 0.45), transparent),
-    radial-gradient(1px 1px at 28% 62%, rgb(100 116 139 / 0.35), transparent),
-    radial-gradient(1.5px 1.5px at 44% 28%, rgb(71 85 105 / 0.4), transparent),
-    radial-gradient(1px 1px at 58% 78%, rgb(100 116 139 / 0.3), transparent),
-    radial-gradient(1px 1px at 72% 22%, rgb(71 85 105 / 0.35), transparent),
-    radial-gradient(1.5px 1.5px at 86% 54%, rgb(100 116 139 / 0.32), transparent),
-    radial-gradient(1px 1px at 18% 88%, rgb(100 116 139 / 0.28), transparent),
-    radial-gradient(1px 1px at 92% 12%, rgb(71 85 105 / 0.35), transparent),
-    radial-gradient(1px 1px at 35% 45%, rgb(100 116 139 / 0.25), transparent),
-    radial-gradient(1px 1px at 65% 40%, rgb(71 85 105 / 0.28), transparent);
-  opacity: 0.75;
-}
-
 html.ui-v2 .radar-star {
   --star-r: 148;
   --star-g: 163;

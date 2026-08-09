@@ -423,8 +423,6 @@ export default function EisenhowerRadar({
             </div>
           )}
 
-          {uiV2 && <div className="radar-constellation-dust absolute inset-0 rounded-[inherit]" aria-hidden />}
-
           <span className={`absolute top-3 left-3 z-[3] font-bold text-rose-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.doFirst")}</span>
           <span className={`absolute top-3 right-3 z-[3] font-bold text-amber-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.delegate")}</span>
           <span className={`absolute bottom-3 left-3 z-[3] font-bold text-blue-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.schedule")}</span>

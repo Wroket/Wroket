@@ -13,6 +13,10 @@ vi.mock("./attachmentService", () => ({
   purgeAttachmentsForTodoIds: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("./noteAttachmentService", () => ({
+  purgeNoteAttachments: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("./stripeBillingService", () => ({
   cancelStripeSubscriptionsById: vi.fn().mockResolvedValue(undefined),
 }));
@@ -82,13 +86,46 @@ describe("exportUserData", () => {
     await initStore();
   });
 
-  it("includes user databases in export", async () => {
+  it("includes user databases and archived notes slices in export", async () => {
     const { uid } = register({ email: "rgpd-export@test.local", password: "password123" });
     const db = createUserDatabase(uid, { name: "Export DB", columns: [{ id: "c1", name: "Nom", type: "text" }] });
     createDatabaseRow(uid, db.id, { c1: "Ligne 1" });
+    const store = getStore();
+    const archived = (store.archivedNotes ?? {}) as Record<string, Record<string, unknown>>;
+    archived[uid] = {
+      "arch-note-1": { id: "arch-note-1", title: "Archived", content: "x", userId: uid },
+    };
+    store.archivedNotes = archived;
     const data = await exportUserData(uid);
     expect(data.userDatabases).toHaveLength(1);
     expect((data.userDatabases[0] as { name: string }).name).toBe("Export DB");
     expect(Object.keys(data.userDatabaseRows)).toContain(db.id);
+    expect(data.archivedNotes.length).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(data.attachmentManifest)).toBe(true);
+    expect(Array.isArray(data.externalConnections)).toBe(true);
+    expect(Array.isArray(data.taskTemplates)).toBe(true);
+    expect(Array.isArray(data.timeSessions)).toBe(true);
+  });
+
+  it("purges templates, time sessions and external connections on delete", async () => {
+    const { uid } = register({ email: "rgpd-purge-extra@test.local", password: "password123" });
+    const { createTemplate, listTemplates } = await import("./templateService");
+    const { purgeAllConnectionsForUser, upsertConnection, getConnectionForUser } = await import("./externalConnectionService");
+    createTemplate(uid, { name: "T1", priority: "medium" });
+    expect(listTemplates(uid).length).toBe(1);
+    upsertConnection({
+      provider: "notion",
+      ownerUid: uid,
+      ownerEmail: "rgpd-purge-extra@test.local",
+      accessToken: "tok",
+    });
+    expect(getConnectionForUser(uid, "notion")).not.toBeNull();
+
+    await deleteUserData(uid);
+
+    expect(listTemplates(uid)).toEqual([]);
+    expect(getConnectionForUser(uid, "notion")).toBeNull();
+    // ensure helper is wired (no-op if already purged)
+    expect(purgeAllConnectionsForUser(uid)).toEqual([]);
   });
 });

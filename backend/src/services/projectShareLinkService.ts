@@ -136,6 +136,20 @@ export function listShareLinksForProject(projectId: string): ProjectShareLink[] 
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/** Revoke all share links for the given project ids (account deletion). */
+export function purgeShareLinksForProjectIds(projectIds: Set<string>): number {
+  if (projectIds.size === 0) return 0;
+  let n = 0;
+  for (const [token, link] of [...linksByToken.entries()]) {
+    if (projectIds.has(link.projectId)) {
+      linksByToken.delete(token);
+      n++;
+    }
+  }
+  if (n > 0) persistShareLinks();
+  return n;
+}
+
 export function createProjectShareLink(
   uid: string,
   userEmail: string,

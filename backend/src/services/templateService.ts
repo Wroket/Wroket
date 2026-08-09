@@ -63,6 +63,14 @@ export function listTemplates(userId: string): TaskTemplate[] {
   );
 }
 
+/** Drop all task templates for account deletion. */
+export function purgeTemplatesForUser(userId: string): void {
+  const store = getTemplateStore();
+  if (!store[userId]) return;
+  delete store[userId];
+  persist();
+}
+
 export function createTemplate(userId: string, input: CreateTemplateInput): TaskTemplate {
   if (!input.name?.trim()) throw new ValidationError("Le nom du template est requis.");
   if (input.name.trim().length > 100) throw new ValidationError("Nom trop long (max 100 caractères).");

@@ -3398,7 +3398,7 @@ function ChangePasswordForm() {
       setCurrent(""); setNext(""); setConfirm("");
       setTimeout(() => { setSuccess(false); setOpen(false); }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(formatUserFacingError(err, "toast.genericError"));
     } finally { setSaving(false); }
   };
 
@@ -3583,8 +3583,10 @@ function AdminSection() {
       a.download = `wroket-export-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      const { trackFunnelEvent } = await import("@/lib/productAnalytics");
+      trackFunnelEvent("data_exported", { source: "account" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+      toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally { setExporting(false); }
   };
 
@@ -3622,7 +3624,7 @@ function AdminSection() {
       setTransferStep(false);
       setShowDelete(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(formatUserFacingError(err, "toast.genericError"));
     } finally { setTransferring(false); }
   };
 
@@ -3633,7 +3635,7 @@ function AdminSection() {
       await deleteMyAccount(deleteConfirm);
       window.location.href = "/login";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(formatUserFacingError(err, "toast.genericError"));
     } finally { setDeleting(false); }
   };
 
@@ -3647,6 +3649,24 @@ function AdminSection() {
       <div className="bg-zinc-50 dark:bg-slate-800/50 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
         <h4 className="text-sm font-medium text-zinc-900 dark:text-slate-100 mb-1">{t("settings.dataExport")}</h4>
         <p className="text-xs text-zinc-500 dark:text-slate-400 mb-3">{t("settings.dataExportDesc")}</p>
+        <ul className="mb-3 space-y-1.5 text-xs">
+          <li>
+            <Link
+              href="/notes"
+              className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+            >
+              {t("settings.dataHubLink")}
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/settings?tab=integrations"
+              className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+            >
+              {t("settings.dataImportLink")}
+            </Link>
+          </li>
+        </ul>
         <button type="button" onClick={handleExport} disabled={exporting}
           className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-60 transition-colors">
           {exporting ? "..." : t("settings.exportBtn")}

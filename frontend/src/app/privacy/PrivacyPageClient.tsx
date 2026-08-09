@@ -48,8 +48,8 @@ export default function PrivacyPage() {
             <Link href="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
               {isFr ? "CGU" : "Terms"}
             </Link>
-            <a href="mailto:team@privacy.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-              team@privacy.com
+            <a href="mailto:team@wroket.com" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              team@wroket.com
             </a>
           </div>
         </div>
@@ -72,7 +72,7 @@ function PrivacyFr() {
         société immatriculée sous le numéro <strong>[À COMPLÉTER : n° d&apos;entreprise]</strong>, dont le siège est situé{" "}
         <strong>[À COMPLÉTER : adresse complète]</strong>. Le responsable de traitement au sens du RGPD est l&apos;éditeur ci-dessus.
         Pour toute question relative à la protection des données, vous pouvez nous écrire à{" "}
-        <a href="mailto:team@privacy.com">team@privacy.com</a>.
+        <a href="mailto:team@wroket.com">team@wroket.com</a>.
       </p>
 
       <h2>2. Données que nous collectons</h2>
@@ -142,13 +142,13 @@ function PrivacyFr() {
       <p>Nous ne vendons pas vos données. Nous partageons uniquement avec :</p>
       <ul>
         <li><strong>Google Cloud Platform</strong> (sous-traitant d&apos;hébergement, région Europe : Belgique / Pays-Bas), pour l&apos;exécution de l&apos;infrastructure.</li>
-        <li><strong>Fournisseur d&apos;envoi d&apos;e-mails transactionnels</strong> : [À COMPLÉTER : nom du fournisseur e-mail].</li>
+        <li><strong>Fournisseur d&apos;envoi d&apos;e-mails transactionnels</strong> : SMTP configuré côté serveur (ex. Gmail SMTP / compte opérationnel Wroket).</li>
         <li>Autorités, sur réquisition légale uniquement.</li>
       </ul>
 
       <h2>6. Durée de conservation</h2>
       <ul>
-        <li>Données de compte : tant que le compte est actif. Suppression définitive sous 30 jours après votre demande.</li>
+        <li>Données de compte : tant que le compte est actif. Suppression définitive immédiate (sous quelques heures) après votre demande de suppression de compte.</li>
         <li>Données Google Calendar : non stockées de manière persistante au-delà du nécessaire (cache court terme pour l&apos;affichage agenda). Les jetons OAuth sont chiffrés au repos et révoqués automatiquement quand vous déconnectez votre agenda.</li>
         <li>Journaux techniques : 90 jours maximum.</li>
         <li>Sauvegardes : 30 jours maximum.</li>
@@ -171,7 +171,7 @@ function PrivacyFr() {
         <li>Réclamation auprès d&apos;une autorité de contrôle (en Belgique : Autorité de protection des données ; en France : CNIL).</li>
       </ul>
       <p>
-        Pour exercer ces droits : <a href="mailto:team@privacy.com">team@privacy.com</a>. Une réponse vous sera apportée dans un délai d&apos;un mois.
+        Pour exercer ces droits : <a href="mailto:team@wroket.com">team@wroket.com</a>. Une réponse vous sera apportée dans un délai d&apos;un mois.
       </p>
 
       <h2>9. Transferts internationaux</h2>
@@ -192,7 +192,7 @@ function PrivacyFr() {
       <h2>12. Contact</h2>
       <p>
         Pour toute question relative à cette politique :{" "}
-        <a href="mailto:team@privacy.com">team@privacy.com</a>.
+        <a href="mailto:team@wroket.com">team@wroket.com</a>.
       </p>
     </article>
   );
@@ -210,7 +210,7 @@ function PrivacyEn() {
         <strong>[TO BE COMPLETED: legal entity name]</strong>, registered under number{" "}
         <strong>[TO BE COMPLETED: registration number]</strong>, with its head office at{" "}
         <strong>[TO BE COMPLETED: full postal address]</strong>. The data controller within the meaning of GDPR is the entity above.
-        For any data protection question, contact us at <a href="mailto:team@privacy.com">team@privacy.com</a>.
+        For any data protection question, contact us at <a href="mailto:team@wroket.com">team@wroket.com</a>.
       </p>
 
       <h2>2. Data we collect</h2>
@@ -280,13 +280,13 @@ function PrivacyEn() {
       <p>We do not sell your data. We share only with:</p>
       <ul>
         <li><strong>Google Cloud Platform</strong> (hosting sub-processor, EU region: Belgium / Netherlands), for infrastructure execution.</li>
-        <li><strong>Transactional email provider</strong>: [TO BE COMPLETED: email provider name].</li>
+        <li><strong>Transactional email provider</strong>: server-configured SMTP (e.g. Gmail SMTP / Wroket ops account).</li>
         <li>Authorities, only upon legal request.</li>
       </ul>
 
       <h2>6. Retention</h2>
       <ul>
-        <li>Account data: as long as the account is active. Permanently deleted within 30 days after your request.</li>
+        <li>Account data: as long as the account is active. Permanently deleted immediately (within a few hours) after your account deletion request.</li>
         <li>Google Calendar data: not stored persistently beyond what is needed (short-term cache for agenda display). OAuth tokens are encrypted at rest and automatically revoked when you disconnect your calendar.</li>
         <li>Technical logs: at most 90 days.</li>
         <li>Backups: at most 30 days.</li>
@@ -309,7 +309,7 @@ function PrivacyEn() {
         <li>Filing a complaint with a supervisory authority (in Belgium: Data Protection Authority; in France: CNIL).</li>
       </ul>
       <p>
-        To exercise these rights: <a href="mailto:team@privacy.com">team@privacy.com</a>. We will reply within one month.
+        To exercise these rights: <a href="mailto:team@wroket.com">team@wroket.com</a>. We will reply within one month.
       </p>
 
       <h2>9. International transfers</h2>
@@ -329,7 +329,7 @@ function PrivacyEn() {
 
       <h2>12. Contact</h2>
       <p>
-        For any question about this policy: <a href="mailto:team@privacy.com">team@privacy.com</a>.
+        For any question about this policy: <a href="mailto:team@wroket.com">team@wroket.com</a>.
       </p>
     </article>
   );
