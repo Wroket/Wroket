@@ -327,7 +327,7 @@ export default function PricingPage() {
               )}
             </button>
             <Link
-              href="/login"
+              href="/login?mode=register"
               className="inline-flex items-center justify-center text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap"
             >
               {t("landing.cta")}
@@ -356,9 +356,9 @@ export default function PricingPage() {
             <h2 className="text-lg font-bold text-zinc-900 dark:text-slate-50 pt-2">{t("settings.plan.free")}</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-slate-400">{t("pricing.tier.free.tagline")}</p>
             <p className="mt-4 text-2xl font-bold text-zinc-900 dark:text-slate-100">{t("pricing.priceFree")}</p>
-            <TierBullets keys={["pricing.tier.free.b1", "pricing.tier.free.b2", "pricing.tier.free.b3"]} />
+            <TierBullets keys={["pricing.tier.free.b1", "pricing.tier.free.b2", "pricing.tier.free.b3", "pricing.tier.free.b4"]} />
             <div className="mt-auto pt-8">
-              <Link href="/login" className={ctaPrimary}>
+              <Link href="/login?mode=register" className={ctaPrimary}>
                 {t("pricing.cta.createAccount")}
               </Link>
             </div>
@@ -454,7 +454,7 @@ export default function PricingPage() {
           <p className="text-lg font-semibold text-zinc-800 dark:text-slate-200">{t("landing.footerTag")}</p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/login"
+              href="/login?mode=register"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold px-8 py-3 rounded-xl transition-all"
             >
               {t("landing.cta")}

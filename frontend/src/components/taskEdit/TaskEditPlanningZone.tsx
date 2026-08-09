@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Todo, RecurrenceFrequency, SuggestedSlot } from "@/lib/api";
 import type { TaskEditModalProps } from "./types";
+import SlotPicker from "@/components/SlotPicker";
 
 export interface TaskEditPlanningZoneProps {
   className: string;
@@ -24,6 +26,8 @@ export interface TaskEditPlanningZoneProps {
   onSuggestTimeChange: (time: string) => void;
   suggestDuration: number;
   onSuggestDurationChange: (duration: number) => void;
+  /** After SlotPicker books/clears a slot in the Planning zone. */
+  onScheduleUpdate?: (todo: Todo) => void;
 }
 
 export default function TaskEditPlanningZone({
@@ -46,12 +50,33 @@ export default function TaskEditPlanningZone({
   onSuggestTimeChange,
   suggestDuration,
   onSuggestDurationChange,
+  onScheduleUpdate,
 }: TaskEditPlanningZoneProps) {
   const { t } = useLocale();
 
   return (
     <>
       <div id="zone-planning" className={className}>
+        {isTaskOwner && onScheduleUpdate && (
+          <div className="mb-4 rounded-md border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+            <p className="text-xs font-medium text-zinc-600 dark:text-slate-300 mb-2">{t("schedule.title")}</p>
+            <SlotPicker
+              todoId={todo.id}
+              scheduledSlot={todo.scheduledSlot ?? null}
+              suggestedSlot={todo.suggestedSlot}
+              onBooked={onScheduleUpdate}
+              onCleared={onScheduleUpdate}
+              dateMin={form.startDate || undefined}
+              dateMax={form.deadline || undefined}
+            />
+            <Link
+              href={`/agenda?schedule=${encodeURIComponent(todo.id)}`}
+              className="mt-2 inline-flex text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+            >
+              {t("schedule.openInAgenda")}
+            </Link>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">

@@ -124,16 +124,6 @@ const NOTES_ITEM = {
   ),
 };
 
-const NOTIF_NAV_ITEM = {
-  tKey: "nav.notifications",
-  href: "/notifications",
-  icon: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
-  ),
-};
-
 const SETTINGS_ITEM = {
   tKey: "nav.settings",
   href: "/settings",
@@ -141,16 +131,6 @@ const SETTINGS_ITEM = {
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-};
-
-const DOCS_ITEM = {
-  tKey: "nav.documentation",
-  href: "/docs",
-  icon: (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
   ),
 };
@@ -163,10 +143,6 @@ const FEEDBACK_ITEM = {
     </svg>
   ),
 };
-
-function isDocsPath(pathname: string): boolean {
-  return pathname === "/docs" || pathname.startsWith("/docs/");
-}
 
 const ADMIN_ITEM = {
   tKey: "nav.admin",
@@ -390,7 +366,7 @@ export default function AppShell({ children }: AppShellProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const { user: me, loading, refresh } = useAuth();
-  const { uiV2, setUiV2, sidebarCollapsed, toggleSidebarCollapsed } = useUiV2();
+  const { uiV2, sidebarCollapsed, toggleSidebarCollapsed } = useUiV2();
   const wsAdminOnly = me?.isWorkspaceAdminOnly === true;
   const wsDefaultTeamId = me?.workspaceAdminTeamIds?.[0];
   const [darkMode, setDarkMode] = useState(false);
@@ -409,6 +385,8 @@ export default function AppShell({ children }: AppShellProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const helpMenuRef = useRef<HTMLDivElement>(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifTimeTick, setNotifTimeTick] = useState(0);
@@ -563,6 +541,17 @@ export default function AppShell({ children }: AppShellProps) {
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [helpMenuOpen]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [accountMenuOpen]);
 
   const refreshNotificationList = useCallback(async () => {
     try {
@@ -774,41 +763,6 @@ export default function AppShell({ children }: AppShellProps) {
                 <EarlyBirdBadge compact className="sm:hidden" />
               </>
             ) : null}
-            <button
-              type="button"
-              role="switch"
-              data-testid="ui-v2-toggle"
-              aria-checked={uiV2}
-              aria-label={t("settings.uiV2")}
-              title={uiV2 ? t("settings.uiV2On") : t("settings.uiV2Off")}
-              onClick={() => setUiV2(!uiV2)}
-              className={`hidden sm:inline-flex items-center gap-2 rounded-full border px-2 py-1 transition-colors ${
-                uiV2
-                  ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20"
-                  : "border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800/60"
-              }`}
-            >
-              <span
-                className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${
-                  uiV2 ? "bg-emerald-600 dark:bg-emerald-500" : "bg-zinc-300 dark:bg-slate-600"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${
-                    uiV2 ? "translate-x-4" : "translate-x-0"
-                  }`}
-                />
-              </span>
-              <span
-                className={`text-[10px] font-semibold whitespace-nowrap ${
-                  uiV2
-                    ? "text-emerald-700 dark:text-emerald-300"
-                    : "text-zinc-500 dark:text-slate-400"
-                }`}
-              >
-                {t("uiV2.newInterface")}
-              </span>
-            </button>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             {uiV2 && !wsAdminOnly && <CreateMenu />}
@@ -909,16 +863,76 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <Link href="/settings" className="flex items-center gap-2 rounded px-1.5 sm:px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors">
-              <div className="w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
-                  {me?.firstName ? me.firstName.charAt(0).toUpperCase() : me?.email?.charAt(0).toUpperCase() ?? "?"}
+            <div className="relative" ref={accountMenuRef}>
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                className="flex items-center gap-2 rounded px-1.5 sm:px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label={t("app.accountMenu")}
+                aria-expanded={accountMenuOpen}
+              >
+                <div className="w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">
+                    {me?.firstName ? me.firstName.charAt(0).toUpperCase() : me?.email?.charAt(0).toUpperCase() ?? "?"}
+                  </span>
+                </div>
+                <span className="text-sm text-zinc-700 dark:text-slate-300 hidden sm:inline">
+                  {me?.firstName ? me.firstName : me?.email}
                 </span>
-              </div>
-              <span className="text-sm text-zinc-700 dark:text-slate-300 hidden sm:inline">
-                {me?.firstName ? me.firstName : me?.email}
-              </span>
-            </Link>
+              </button>
+              {accountMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1 z-50">
+                  <Link
+                    href="/settings"
+                    onClick={() => setAccountMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-zinc-500 dark:text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="font-medium">{t("nav.settings")}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => toggleDarkMode()}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    {darkMode ? (
+                      <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                    )}
+                    <span className="font-medium">{darkMode ? t("app.lightMode") : t("app.darkMode")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAccountMenuOpen(false); setShareOpen(true); setShareResult(null); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-slate-600 dark:text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    <span className="font-medium">{t("app.share")}</span>
+                  </button>
+                  <hr className="border-zinc-100 dark:border-slate-700/50 my-1" />
+                  <button
+                    type="button"
+                    onClick={() => { setAccountMenuOpen(false); void handleLogout(); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span className="font-medium">{t("app.logout")}</span>
+                  </button>
+                </div>
+              )}
+            </div>
             {/* Notification bell */}
             <div className="relative" ref={notifRef}>
               <button
@@ -1056,21 +1070,6 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <button
-              onClick={toggleDarkMode}
-              className="rounded border border-zinc-200 dark:border-slate-600 p-2 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-              aria-label={darkMode ? t("a11y.toggleDarkMode") : t("a11y.toggleLightMode")}
-            >
-              {darkMode ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
-            </button>
             <div className="relative" ref={helpMenuRef}>
               <button
                 onClick={() => setHelpMenuOpen((v) => !v)}
@@ -1127,26 +1126,6 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => { setShareOpen(true); setShareResult(null); }}
-              className="inline-flex items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors"
-              aria-label={t("app.share")}
-            >
-              <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              <span className="hidden sm:inline">{t("app.share")}</span>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="rounded border border-zinc-200 dark:border-slate-600 p-2 sm:px-4 sm:py-2 text-sm text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
-              aria-label={t("app.logout")}
-            >
-              <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              <span className="hidden sm:inline">{t("app.logout")}</span>
-            </button>
           </div>
         </div>
       </header>
@@ -1284,7 +1263,6 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             )}
           </div>
-          <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} onClick={closeMobileMenu} />
           {!wsAdminOnly && (
           <div>
             <button
@@ -1337,7 +1315,6 @@ export default function AppShell({ children }: AppShellProps) {
                 onClick={() => { closeMobileMenu(); setFeedbackOpen(true); }}
               />
             )}
-            <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} onClick={closeMobileMenu} />
             <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} onClick={closeMobileMenu} />
             {me && userSeesAdminNav(me) && (
               <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} onClick={closeMobileMenu} />
@@ -1538,7 +1515,6 @@ export default function AppShell({ children }: AppShellProps) {
               )}
             </div>
             )}
-            <NavLink href={NOTIF_NAV_ITEM.href} icon={NOTIF_NAV_ITEM.icon} label={t(NOTIF_NAV_ITEM.tKey)} active={pathname === "/notifications"} collapsed={railCollapsed} />
             {!wsAdminOnly && (
             railCollapsed ? (
               <CollapsedNavGroup
@@ -1619,7 +1595,6 @@ export default function AppShell({ children }: AppShellProps) {
                   collapsed={railCollapsed}
                 />
               )}
-              <NavLink href={DOCS_ITEM.href} icon={DOCS_ITEM.icon} label={t(DOCS_ITEM.tKey)} active={isDocsPath(pathname)} collapsed={railCollapsed} />
               <NavLink href={SETTINGS_ITEM.href} icon={SETTINGS_ITEM.icon} label={t(SETTINGS_ITEM.tKey)} active={pathname === SETTINGS_ITEM.href} collapsed={railCollapsed} />
               {me && userSeesAdminNav(me) && (
                 <NavLink href={ADMIN_ITEM.href} icon={ADMIN_ITEM.icon} label={t(ADMIN_ITEM.tKey)} active={pathname === ADMIN_ITEM.href} collapsed={railCollapsed} />
@@ -1663,6 +1638,11 @@ export default function AppShell({ children }: AppShellProps) {
         onClose={closeTutorial}
         earlyBird={!!me?.earlyBird}
         onEarlyBirdEnrolled={refresh}
+        onFinishNavigate={() => {
+          const hasCal =
+            (me?.googleAccounts?.length ?? 0) > 0 || (me?.microsoftAccounts?.length ?? 0) > 0;
+          router.push(hasCal ? "/todos" : "/agenda/manage");
+        }}
       />
 
       {me && (

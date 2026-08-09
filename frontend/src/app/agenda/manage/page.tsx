@@ -27,6 +27,7 @@ import { formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import { useAuth } from "@/components/AuthContext";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
+import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import Link from "next/link";
 
 const ACCOUNT_COLORS = [
@@ -44,7 +45,9 @@ function hasBothCalendarProviders(accs: AccountWithCals[]): boolean {
 
 export default function ManageCalendarsPage() {
   const { t } = useLocale();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refresh } = useAuth();
+  const showEarlyBirdUnlock = !authLoading && !!user && !user.entitlements?.integrations && !user.earlyBird;
+  const showPlanLockHint = !authLoading && !!user && !user.entitlements?.integrations && !!user.earlyBird;
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -318,9 +321,21 @@ export default function ManageCalendarsPage() {
             </Link>
           </div>
           <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("agenda.manageDesc")}</p>
-          {!authLoading && user && !user.entitlements?.integrations && (
+          {showEarlyBirdUnlock && (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-zinc-600 dark:text-slate-300">{t("agenda.calendarIntegrationsBanner")}</p>
+              <EarlyBirdUnlockCard variant="banner" onEnrolled={refresh} />
+              <Link
+                href="/settings?tab=integrations"
+                className="inline-block text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                {t("agenda.openIntegrationsTab")}
+              </Link>
+            </div>
+          )}
+          {showPlanLockHint && (
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100">
-              <p>{t("agenda.calendarIntegrationsBanner")}</p>
+              <SoftLockHint tier="small" />
               <Link
                 href="/settings?tab=integrations"
                 className="mt-2 inline-block text-sm font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950 dark:text-amber-200 dark:hover:text-amber-50"
@@ -345,7 +360,10 @@ export default function ManageCalendarsPage() {
               {t("agenda.inAppSlotsSyncCardTitle")}
               {!canUseCalendarIntegrations && <PlanBadge tier="small" />}
             </h2>
-            {!canUseCalendarIntegrations && <SoftLockHint tier="small" />}
+            {!canUseCalendarIntegrations && showEarlyBirdUnlock && (
+              <EarlyBirdUnlockCard variant="compact" onEnrolled={refresh} />
+            )}
+            {!canUseCalendarIntegrations && !showEarlyBirdUnlock && <SoftLockHint tier="small" />}
             {inAppSyncPendingCount > 0 ? (
               <>
                 <p className="text-sm text-zinc-600 dark:text-slate-300">

@@ -19,6 +19,8 @@ import { useToast } from "@/components/Toast";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
 import { TAG_AUX } from "@/lib/tagPalette";
 import { toolbarAffordanceClass } from "@/components/taskToolbarStyles";
+import { trackFunnelEvent } from "@/lib/productAnalytics";
+import Link from "next/link";
 
 export interface SlotPickerProps {
   todoId: string;
@@ -167,8 +169,6 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const doBook = async (start: string, end: string, force?: boolean) => {
     setBooking(true);
-    // Optimistic close for better perceived responsiveness.
-    setOpen(false);
     try {
       const result = await bookTaskSlot(todoId, start, end, force);
       if (result.conflict && result.conflicts?.length) {
@@ -181,6 +181,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
       if (result.todo) {
         setConflicts([]);
         setPendingSlot(null);
+        setOpen(false);
+        trackFunnelEvent("first_slot_booked", { todoId, source: "slot_picker" });
         onBooked(result.todo);
         toast.success(t("schedule.booked"));
       }
@@ -284,10 +286,10 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     };
   }, [open, presentation]);
 
-  const formatSlotBadge = (slot: ScheduledSlot): string => `📅 ${formatScheduledSlotLabel(slot)}`;
+  const formatSlotBadge = (slot: ScheduledSlot): string => formatScheduledSlotLabel(slot);
 
   const panelShellClass =
-    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-sm shadow-xl w-72 max-w-[min(100vw-2rem,18rem)] overflow-y-auto";
+    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-sm shadow-xl w-80 max-w-[min(100vw-2rem,20rem)] overflow-y-auto";
 
   const renderScheduleBody = () => (
     <>
@@ -307,6 +309,13 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
             </button>
           )}
         </div>
+        <Link
+          href={`/agenda?schedule=${encodeURIComponent(todoId)}`}
+          onClick={() => setOpen(false)}
+          className="mt-1.5 inline-flex text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+        >
+          {t("schedule.openInAgenda")}
+        </Link>
             {(!scheduledSlot || rescheduleMode) && (
               <div className="flex gap-1 mt-2">
                 <button
@@ -336,7 +345,6 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
                   </p>
                   {conflicts.map((c) => (
                     <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-amber-800 dark:text-amber-200 py-0.5">
-                      <span className="shrink-0">⚠️</span>
                       <span className="truncate font-medium">{c.title}</span>
                       <span className="shrink-0 text-amber-600 dark:text-amber-400">
                         {new Date(c.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
@@ -654,9 +662,15 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 }
 
 export function ScheduledSlotBadge({ slot }: { slot: ScheduledSlot }) {
+  const { t } = useLocale();
+  const synced = Boolean(slot.calendarEventId);
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 ${TAG_AUX.slot} shrink-0 whitespace-nowrap`}>
-      📅 {formatScheduledSlotLabel(slot)}
+    <span
+      className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 ${TAG_AUX.slot} shrink-0 whitespace-nowrap`}
+      title={synced ? t("schedule.badgeExternal") : t("schedule.badgeWroket")}
+    >
+      {formatScheduledSlotLabel(slot)}
+      <span className="opacity-70">· {synced ? t("schedule.badgeExternal") : t("schedule.badgeWroket")}</span>
     </span>
   );
 }

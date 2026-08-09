@@ -440,6 +440,8 @@ export default function TaskEditModal({
         const r = await syncOneScheduledSlotToCalendar(todo.id, { skipIfConflict: false });
         if (r.outcome === "synced") {
           broadcastResourceChange("todos");
+          const { trackFunnelEvent } = await import("@/lib/productAnalytics");
+          trackFunnelEvent("slot_synced_external", { todoId: todo.id, source: "task_edit" });
           toast.success(t("agenda.inAppSlotsSyncTaskSuccess"));
           await onExternalSlotSynced?.();
         } else if (r.outcome === "skipped") {
@@ -553,6 +555,13 @@ export default function TaskEditModal({
           onSuggestTimeChange={setSuggestTime}
           suggestDuration={suggestDuration}
           onSuggestDurationChange={setSuggestDuration}
+          onScheduleUpdate={
+            onTodoUpdated
+              ? (updated) => {
+                  onTodoUpdated(updated);
+                }
+              : undefined
+          }
         />
 
         <TaskEditCollabZone

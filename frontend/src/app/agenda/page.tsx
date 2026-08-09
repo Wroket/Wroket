@@ -10,8 +10,12 @@ import TaskEditModal from "@/components/TaskEditModal";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import { useToast } from "@/components/Toast";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
+import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
+import AgendaUnscheduledRail from "@/components/AgendaUnscheduledRail";
 import { useUiV2 } from "@/lib/UiVersionContext";
+import { trackFunnelEvent } from "@/lib/productAnalytics";
 import {
   affectedIdsForDelete,
   runOptimisticTaskDelete,
@@ -68,7 +72,9 @@ import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 
 export default function AgendaPage() {
   const { t, locale } = useLocale();
-  const { uiV2 } = useUiV2();
+  // Path to 9 B1: critical agenda path is V2-only (no legacy chrome polish).
+  const uiV2 = true;
+  useUiV2();
   const router = useRouter();
   const { user, refresh } = useAuth();
   const { toast } = useToast();
@@ -88,6 +94,7 @@ export default function AgendaPage() {
   const timeGridScrollRef = useRef<HTMLDivElement>(null);
   const [timeGridScrollbarW, setTimeGridScrollbarW] = useState(0);
   const [now, setNow] = useState(new Date());
+  const [scheduleFocusId, setScheduleFocusId] = useState<string | null>(null);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
@@ -114,6 +121,10 @@ export default function AgendaPage() {
   const [editAssignError, setEditAssignError] = useState<string | null>(null);
   const editAssignLookupTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [dragConstraintDialog, setDragConstraintDialog] = useState<{
+    titleKey: "agenda.constraintDropTitle" | "agenda.constraintPhaseTitle";
+    messageKey: "agenda.dropOutsideGrid" | "agenda.slotOutsidePhase";
+  } | null>(null);
   const [syncBannerRunning, setSyncBannerRunning] = useState(false);
 
   const accountColorMap = useMemo(() => {
@@ -330,11 +341,16 @@ export default function AgendaPage() {
   const hasIntegrationsEntitlement = user?.entitlements?.integrations === true;
   const canSyncExternalSlots = !!(hasIntegrationsEntitlement && linkedCalendarCount > 0);
 
-  useEffect(() => {
-    if (linkedCalendarCount === 0) {
+  const refreshPendingSyncCount = useCallback(async () => {
+    try {
+      const { count } = await getInAppScheduledSlotsPendingCount();
+      setPendingSyncCount(count);
+    } catch {
       setPendingSyncCount(0);
-      return;
     }
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
@@ -347,7 +363,19 @@ export default function AgendaPage() {
     return () => {
       cancelled = true;
     };
-  }, [linkedCalendarCount, googleAccounts, microsoftAccounts]);
+  }, [linkedCalendarCount, googleAccounts, microsoftAccounts, agendaTodoById]);
+
+  // A1: deep-link `/agenda?schedule=:todoId` opens SlotPicker in the rail.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("schedule")?.trim();
+    if (!id) return;
+    setScheduleFocusId(id);
+    router.replace("/agenda", { scroll: false });
+  }, [router]);
+
+  const agendaTodosList = useMemo(() => Array.from(agendaTodoById.values()), [agendaTodoById]);
 
   const eventsForDay = useCallback(
     (day: Date, allDay: boolean) =>
@@ -551,6 +579,35 @@ export default function AgendaPage() {
     setMicrosoftEvents(data.microsoftEvents ?? []);
   }, [dateRange]);
 
+  const handleRailBooked = useCallback(
+    (todo: Todo) => {
+      setAgendaTodoById((prev) => {
+        const next = new Map(prev);
+        next.set(todo.id, todo);
+        return next;
+      });
+      broadcastTodosMutated();
+      broadcastResourceChange("todos");
+      void refreshPendingSyncCount();
+      void refreshCalendarForRange();
+    },
+    [refreshPendingSyncCount, refreshCalendarForRange],
+  );
+
+  const handleRailCleared = useCallback(
+    (todo: Todo) => {
+      setAgendaTodoById((prev) => {
+        const next = new Map(prev);
+        next.set(todo.id, todo);
+        return next;
+      });
+      broadcastTodosMutated();
+      void refreshPendingSyncCount();
+      void refreshCalendarForRange();
+    },
+    [refreshPendingSyncCount, refreshCalendarForRange],
+  );
+
   const commitSlotMove = useCallback(
     async (todoId: string, startIso: string, endIso: string, force?: boolean) => {
       setBookingMoveId(todoId);
@@ -631,7 +688,10 @@ export default function AgendaPage() {
       const dayEl = findAgendaDayElement(e.clientX, e.clientY);
       const ymd = dayEl?.dataset.agendaDay;
       if (!dayEl || !ymd) {
-        toast.error(t("agenda.dropOutsideGrid"));
+        setDragConstraintDialog({
+          titleKey: "agenda.constraintDropTitle",
+          messageKey: "agenda.dropOutsideGrid",
+        });
         return;
       }
       const durationMs = s.origEndMs - s.origStartMs;
@@ -645,7 +705,10 @@ export default function AgendaPage() {
       const todo = agendaTodoById.get(s.todoId);
       const bounds = getPhaseSlotDateBounds(todo, projects);
       if (!isSlotWithinPhaseLocalDays(bounds, new Date(start).getTime(), new Date(end).getTime())) {
-        toast.error(t("agenda.slotOutsidePhase"));
+        setDragConstraintDialog({
+          titleKey: "agenda.constraintPhaseTitle",
+          messageKey: "agenda.slotOutsidePhase",
+        });
         return;
       }
       void commitSlotMove(s.todoId, start, end, false);
@@ -684,6 +747,9 @@ export default function AgendaPage() {
         setPendingSyncCount(0);
       }
       await refreshCalendarForRange();
+      if (result.synced > 0) {
+        trackFunnelEvent("slot_synced_external", { source: "agenda_banner" });
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("agenda.inAppSlotsSyncBannerSync"));
     } finally {
@@ -997,27 +1063,36 @@ export default function AgendaPage() {
           </div>
         </div>
 
-        {pendingSyncCount > 0 && linkedCalendarCount > 0 && (
+        {pendingSyncCount > 0 && (
           <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/25 dark:text-amber-100">
             <div className="min-w-0">
               <p className="text-sm font-medium inline-flex flex-wrap items-center gap-2">
-                {t("agenda.inAppSlotsSyncBanner").replace("{{count}}", String(pendingSyncCount))}
+                {linkedCalendarCount > 0
+                  ? t("agenda.inAppSlotsSyncBanner").replace("{{count}}", String(pendingSyncCount))
+                  : t("agenda.postBookReserved")}
                 {!hasIntegrationsEntitlement && <PlanBadge tier="small" />}
               </p>
-              {!hasIntegrationsEntitlement && <SoftLockHint tier="small" className="mt-1" />}
+              {!hasIntegrationsEntitlement && !user?.earlyBird && (
+                <EarlyBirdUnlockCard variant="compact" onEnrolled={refresh} className="mt-2" />
+              )}
+              {!hasIntegrationsEntitlement && !!user?.earlyBird && (
+                <SoftLockHint tier="small" className="mt-1" />
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
-                type="button"
-                disabled={syncBannerRunning || !canSyncExternalSlots}
-                onClick={() => {
-                  if (!canSyncExternalSlots) return;
-                  void handleBannerSync();
-                }}
-                className="rounded-lg bg-slate-800 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
-              >
-                {syncBannerRunning ? "…" : t("agenda.inAppSlotsSyncBannerSync")}
-              </button>
+              {linkedCalendarCount > 0 && (
+                <button
+                  type="button"
+                  disabled={syncBannerRunning || !canSyncExternalSlots}
+                  onClick={() => {
+                    if (!canSyncExternalSlots) return;
+                    void handleBannerSync();
+                  }}
+                  className="rounded-lg bg-slate-800 dark:bg-slate-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
+                >
+                  {syncBannerRunning ? "…" : t("agenda.postBookSyncCta")}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => router.push("/agenda/manage")}
@@ -1036,8 +1111,20 @@ export default function AgendaPage() {
           </div>
         )}
 
+        {!loading && (
+          <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
+            <AgendaUnscheduledRail
+              todos={agendaTodosList}
+              meUid={user?.uid ?? null}
+              scheduleFocusId={scheduleFocusId}
+              onSelect={(id) => setScheduleFocusId(id)}
+              onBooked={handleRailBooked}
+              onCleared={handleRailCleared}
+              onCloseFocus={() => setScheduleFocusId(null)}
+            />
+            <div className="flex-1 min-w-0 flex flex-col min-h-[420px]">
         {/* Calendar grid — Day / Week */}
-        {!loading && viewMode !== "month" && (
+        {viewMode !== "month" && (
           <div
             className={`flex-1 overflow-hidden rounded-lg border ${
               uiV2
@@ -1289,7 +1376,7 @@ export default function AgendaPage() {
         )}
 
         {/* Calendar grid — Month */}
-        {!loading && viewMode === "month" && (() => {
+        {viewMode === "month" && (() => {
           const monthLocale = locale === "fr" ? "fr-FR" : "en-US";
           const monthDayNames = Array.from({ length: 7 }, (_, i) => {
             const d = new Date(2024, 0, i + 1);
@@ -1396,13 +1483,22 @@ export default function AgendaPage() {
         })()}
 
         {/* Empty state */}
-        {!loading && allEvents.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {allEvents.length === 0 && (
+          <div className="py-10 flex items-center justify-center">
             <div className="text-center">
               <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-slate-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <p className="text-sm text-zinc-400 dark:text-slate-500">{t("agenda.noEvents")}</p>
+              <Link
+                href="/todos"
+                className="mt-3 inline-flex text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:underline pointer-events-auto"
+              >
+                {t("agenda.noEventsCta")}
+              </Link>
+            </div>
+          </div>
+        )}
             </div>
           </div>
         )}
@@ -1549,6 +1645,17 @@ export default function AgendaPage() {
           }
           canSyncToCalendar={canSyncExternalSlots && !!editingTodo && editingTodo.userId === user?.uid}
           onExternalSlotSynced={handleExternalSlotSynced}
+          onTodoUpdated={(updated) => {
+            setEditingTodo(updated);
+            setAgendaTodoById((prev) => {
+              const next = new Map(prev);
+              next.set(updated.id, updated);
+              return next;
+            });
+            broadcastTodosMutated();
+            void refreshPendingSyncCount();
+            void refreshCalendarForRange();
+          }}
           onRequestDeleteTask={async (td) => {
             await closeEditModal();
             try {
@@ -1603,6 +1710,17 @@ export default function AgendaPage() {
             </div>
           </div>
         )}
+
+        <ConfirmDialog
+          open={dragConstraintDialog !== null}
+          title={dragConstraintDialog ? t(dragConstraintDialog.titleKey) : ""}
+          message={dragConstraintDialog ? t(dragConstraintDialog.messageKey) : ""}
+          variant="warning"
+          confirmLabel={t("agenda.constraintOk")}
+          cancelLabel={t("edit.cancel")}
+          onConfirm={() => setDragConstraintDialog(null)}
+          onCancel={() => setDragConstraintDialog(null)}
+        />
 
         <DeleteTaskDialog
           open={!!deleteTaskDialog}

@@ -510,6 +510,27 @@ export default function DashboardPage() {
     };
   }, [active]);
 
+  const hasExternalCalendar =
+    (user?.googleAccounts?.length ?? 0) > 0 || (user?.microsoftAccounts?.length ?? 0) > 0;
+  const primaryCta = !hasExternalCalendar
+    ? {
+        href: "/agenda/manage" as const,
+        labelKey: (user?.entitlements?.integrations
+          ? "dashboard.connectCalendar"
+          : "dashboard.resumeSetup") as TranslationKey,
+      }
+    : myTodos.length === 0 && !loading
+      ? { href: "/todos" as const, labelKey: "dashboard.primaryCreateTasks" as TranslationKey }
+      : { href: "/todos" as const, labelKey: "dashboard.manageTasks" as TranslationKey };
+  const ctaPrimaryCls =
+    "inline-flex items-center justify-center gap-1.5 rounded bg-emerald-600 dark:bg-emerald-500 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 transition-colors whitespace-nowrap";
+  const ctaSecondaryCls =
+    "inline-flex items-center justify-center gap-1.5 rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap";
+  const ctaSecondaryGridCls =
+    "flex w-full min-w-0 items-center justify-center gap-2 rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors text-center";
+  const ctaPrimaryGridCls =
+    "flex w-full min-w-0 items-center justify-center gap-2 rounded bg-emerald-600 dark:bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 transition-colors text-center";
+
   return (
     <AppShell>
       <div className="max-w-[1200px] mx-auto space-y-6">
@@ -523,33 +544,25 @@ export default function DashboardPage() {
               <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1 capitalize">{todayLabel}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
-              <Link
-                href="/todos"
-                className="inline-flex items-center justify-center gap-1.5 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors whitespace-nowrap"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                {t("dashboard.manageTasks")}
+              <Link href={primaryCta.href} className={ctaPrimaryCls}>
+                {t(primaryCta.labelKey)}
               </Link>
-              <Link
-                href="/agenda/manage"
-                className="inline-flex items-center justify-center gap-1.5 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors whitespace-nowrap"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {t("dashboard.connectCalendar")}
-              </Link>
-              <Link
-                href="/teams"
-                className="inline-flex items-center justify-center gap-1.5 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors whitespace-nowrap"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
+              {primaryCta.href !== "/todos" && (
+                <Link href="/todos" className={ctaSecondaryCls}>
+                  {t("dashboard.manageTasks")}
+                </Link>
+              )}
+              {hasExternalCalendar && (
+                <Link href="/agenda/manage" className={ctaSecondaryCls}>
+                  {t("dashboard.connectCalendar")}
+                </Link>
+              )}
+              <Link href="/teams" className={ctaSecondaryCls}>
                 {t("dashboard.collaborate")}
               </Link>
+              <button type="button" onClick={() => setImportChoiceOpen(true)} className={ctaSecondaryCls}>
+                {t("dashboard.importData")}
+              </button>
             </div>
           </div>
         ) : (
@@ -562,41 +575,22 @@ export default function DashboardPage() {
               <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("dashboard.subtitle")}</p>
             </div>
             <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2">
-              <Link
-                href="/todos"
-                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                {t("dashboard.manageTasks")}
+              <Link href={primaryCta.href} className={ctaPrimaryGridCls}>
+                {t(primaryCta.labelKey)}
               </Link>
-              <Link
-                href="/agenda/manage"
-                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {t("dashboard.connectCalendar")}
-              </Link>
-              <Link
-                href="/teams"
-                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
+              {primaryCta.href !== "/todos" ? (
+                <Link href="/todos" className={ctaSecondaryGridCls}>
+                  {t("dashboard.manageTasks")}
+                </Link>
+              ) : (
+                <Link href="/agenda/manage" className={ctaSecondaryGridCls}>
+                  {t("dashboard.connectCalendar")}
+                </Link>
+              )}
+              <Link href="/teams" className={ctaSecondaryGridCls}>
                 {t("dashboard.collaborate")}
               </Link>
-              <button
-                type="button"
-                onClick={() => setImportChoiceOpen(true)}
-                className="flex w-full min-w-0 items-center justify-center gap-2 rounded bg-slate-700 dark:bg-slate-600 px-3 py-2.5 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors text-center"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
+              <button type="button" onClick={() => setImportChoiceOpen(true)} className={ctaSecondaryGridCls}>
                 {t("dashboard.importData")}
               </button>
             </div>
@@ -648,6 +642,9 @@ export default function DashboardPage() {
                     subtaskCounts={radarSubtaskCounts}
                     activeChildrenByParent={radarChildrenByParent}
                     onEditTask={openRadarEdit}
+                    onScheduleTask={(todo) => {
+                      router.push(`/agenda?schedule=${encodeURIComponent(todo.id)}`);
+                    }}
                     headerStart={
                       <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
                         <span className="min-w-0 truncate">{t("dashboard.radarTitle")}</span>
@@ -777,6 +774,9 @@ export default function DashboardPage() {
                     subtaskCounts={radarSubtaskCounts}
                     activeChildrenByParent={radarChildrenByParent}
                     onEditTask={openRadarEdit}
+                    onScheduleTask={(todo) => {
+                      router.push(`/agenda?schedule=${encodeURIComponent(todo.id)}`);
+                    }}
                     headerStart={
                       <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
                         <svg className="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

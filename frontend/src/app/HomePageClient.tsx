@@ -162,15 +162,15 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
       return (
         <div className="w-full grid grid-cols-2 gap-2">
           {[
-            { label: "Notion", sub: fr ? "Projets & bases" : "Projects & databases", shell: "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900" },
-            { label: "Monday", sub: fr ? "Boards & docs" : "Boards & docs", shell: "bg-violet-600 text-white" },
-            { label: "Google", sub: "Calendar", shell: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50" },
-            { label: "Outlook", sub: "Calendar", shell: "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800/50" },
+            { label: "Notion", sub: fr ? "Import projets & bases" : "Import projects & DBs", shell: "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900", badge: fr ? "Dispo" : "Ready" },
+            { label: "Monday", sub: fr ? "Import boards" : "Import boards", shell: "bg-violet-600 text-white", badge: fr ? "Dispo" : "Ready" },
+            { label: "Google", sub: "Calendar", shell: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50", badge: "Early Bird" },
+            { label: "Outlook", sub: "Calendar", shell: "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800/50", badge: "Early Bird" },
           ].map((app) => (
             <div key={app.label} className={`rounded-lg px-2.5 py-2 ${app.shell}`}>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-bold">{app.label}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-[8px] font-semibold uppercase tracking-wide opacity-80">{app.badge}</span>
               </div>
               <p className="text-[9px] mt-0.5 opacity-80">{app.sub}</p>
             </div>
@@ -344,7 +344,7 @@ export default function LandingPage() {
               {t("landing.navPricing")}
             </Link>
             <Link
-              href="/login"
+              href="/login?mode=register"
               className="inline-flex items-center justify-center text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap"
             >
               {t("landing.cta")}
@@ -384,13 +384,19 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/login"
+              href="/login?mode=register"
               className="group inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white text-base font-semibold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40"
             >
               {t("landing.cta")}
               <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
+            </Link>
+            <Link
+              href="/login"
+              className="text-sm font-medium text-zinc-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 underline-offset-2 hover:underline"
+            >
+              {t("landing.ctaLogin")}
             </Link>
           </div>
 
@@ -494,10 +500,16 @@ export default function LandingPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
             <Link
-              href="/login"
+              href="/login?mode=register"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/25"
             >
               {t("landing.cta")}
+            </Link>
+            <Link
+              href="/login"
+              className="text-sm font-medium text-zinc-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 underline-offset-2 hover:underline"
+            >
+              {t("landing.ctaLogin")}
             </Link>
           </div>
         </div>

@@ -13,6 +13,18 @@ import {
 export const UI_V2_STORAGE_KEY = "wroket-ui-v2";
 export const SIDEBAR_COLLAPSED_KEY = "wroket-sidebar-collapsed";
 
+/** UI V2 defaults on for new sessions; explicit `"0"` keeps legacy UI. */
+function readUiV2Flag(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const v = localStorage.getItem(UI_V2_STORAGE_KEY);
+    if (v === null) return true;
+    return v === "1";
+  } catch {
+    return true;
+  }
+}
+
 function readStorageFlag(key: string): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -39,7 +51,7 @@ interface UiVersionContextValue {
 }
 
 const UiVersionContext = createContext<UiVersionContextValue>({
-  uiV2: false,
+  uiV2: true,
   setUiV2: () => {},
   toggleUiV2: () => {},
   ready: false,
@@ -49,10 +61,10 @@ const UiVersionContext = createContext<UiVersionContextValue>({
 });
 
 /**
- * Client-only UI version flag (localStorage). Default off = legacy UI.
+ * Client-only UI version flag (localStorage). Default on = Nouvelle interface.
  */
 export function UiVersionProvider({ children }: { children: ReactNode }) {
-  const [uiV2, setUiV2State] = useState(() => readStorageFlag(UI_V2_STORAGE_KEY));
+  const [uiV2, setUiV2State] = useState(() => readUiV2Flag());
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(() =>
     readStorageFlag(SIDEBAR_COLLAPSED_KEY),
   );
@@ -61,7 +73,7 @@ export function UiVersionProvider({ children }: { children: ReactNode }) {
   // Hydration gate: re-read localStorage after mount (SSR has no window).
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- intentional client hydration sync */
-    setUiV2State(readStorageFlag(UI_V2_STORAGE_KEY));
+    setUiV2State(readUiV2Flag());
     setSidebarCollapsedState(readStorageFlag(SIDEBAR_COLLAPSED_KEY));
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -70,8 +82,7 @@ export function UiVersionProvider({ children }: { children: ReactNode }) {
   const setUiV2 = useCallback((enabled: boolean) => {
     setUiV2State(enabled);
     try {
-      if (enabled) localStorage.setItem(UI_V2_STORAGE_KEY, "1");
-      else localStorage.removeItem(UI_V2_STORAGE_KEY);
+      localStorage.setItem(UI_V2_STORAGE_KEY, enabled ? "1" : "0");
     } catch {
       /* ignore */
     }

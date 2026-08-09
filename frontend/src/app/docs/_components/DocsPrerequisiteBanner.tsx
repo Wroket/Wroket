@@ -40,7 +40,7 @@ export function DocsPrerequisiteBanner({ access }: DocsPrerequisiteBannerProps) 
             {t("docs.banner.ctaLogin")}
           </Link>
           <Link
-            href="/register"
+            href="/login?mode=register"
             className="inline-flex rounded-lg border border-indigo-300 dark:border-indigo-700 text-sm font-medium px-4 py-2 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/40 transition-colors"
           >
             {t("docs.banner.ctaRegister")}

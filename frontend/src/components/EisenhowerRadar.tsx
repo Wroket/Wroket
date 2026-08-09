@@ -204,6 +204,8 @@ interface Props {
   nowMs?: number;
   /** When set, clicking the dot or the hover card opens edit (e.g. TaskEditModal) without navigating. */
   onEditTask?: (todo: Todo) => void;
+  /** Schedule unbooked task via Agenda deep-link. */
+  onScheduleTask?: (todo: Todo) => void;
   /** Renders on the left of the lens pills (e.g. dashboard title); pills stay on one row from `sm` when space allows. */
   headerStart?: ReactNode;
 }
@@ -219,6 +221,7 @@ export default function EisenhowerRadar({
   onRadarModeChange,
   nowMs,
   onEditTask,
+  onScheduleTask,
   headerStart,
 }: Props) {
   const { t } = useLocale();
@@ -413,6 +416,12 @@ export default function EisenhowerRadar({
               <div className="bg-zinc-100/80 dark:bg-slate-800/60" />
             </div>
           )}
+          {todos.length === 0 && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 px-6 text-center bg-white/75 dark:bg-slate-900/75 rounded-[inherit]">
+              <p className="text-sm text-zinc-600 dark:text-slate-300">{t("matrix.radarEmpty")}</p>
+              <p className="text-xs text-zinc-400 dark:text-slate-500">{t("matrix.empty")}</p>
+            </div>
+          )}
 
           {uiV2 && <div className="radar-constellation-dust absolute inset-0 rounded-[inherit]" aria-hidden />}
 
@@ -534,6 +543,15 @@ export default function EisenhowerRadar({
                             }
                           : undefined
                       }
+                      onScheduleTaskClick={
+                        onScheduleTask && !todo.scheduledSlot?.start
+                          ? () => {
+                              cancelHoverClear();
+                              setHoveredId(null);
+                              onScheduleTask(todo);
+                            }
+                          : undefined
+                      }
                     />
                   )}
                 </div>
@@ -650,6 +668,15 @@ export default function EisenhowerRadar({
                           }
                         : undefined
                     }
+                    onScheduleTaskClick={
+                      onScheduleTask && !todo.scheduledSlot?.start
+                        ? () => {
+                            cancelHoverClear();
+                            setHoveredId(null);
+                            onScheduleTask(todo);
+                          }
+                        : undefined
+                    }
                   />
                 )}
               </div>
@@ -677,6 +704,7 @@ function Tooltip({
   onMouseEnter,
   onMouseLeave,
   onEditTaskClick,
+  onScheduleTaskClick,
 }: {
   x: number;
   y: number;
@@ -693,6 +721,7 @@ function Tooltip({
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   onEditTaskClick?: () => void;
+  onScheduleTaskClick?: () => void;
 }) {
   const showBelow = y > 75;
   const alignRight = x > 75;
@@ -775,11 +804,20 @@ function Tooltip({
       {bookingLabel && bookingLabel !== "—" && (
         <p className="mt-2 pt-2 border-t border-white/15 text-[11px] text-slate-100/95 leading-snug">
           <span className="font-medium text-slate-200">{t("schedule.booked")}:</span>{" "}
-          <span className="whitespace-nowrap">
-            {"\uD83D\uDCC5 "}
-            {bookingLabel}
-          </span>
+          <span className="whitespace-nowrap">{bookingLabel}</span>
         </p>
+      )}
+      {onScheduleTaskClick && (
+        <button
+          type="button"
+          className="mt-2 w-full rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1.5 text-[11px] font-semibold text-white"
+          onClick={(e) => {
+            e.stopPropagation();
+            onScheduleTaskClick();
+          }}
+        >
+          {t("agenda.unscheduledPlace")}
+        </button>
       )}
       <div
         className={`absolute ${arrowPosition} w-0 h-0 ${showBelow ? "bottom-full" : "top-full"}`}

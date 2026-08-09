@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
@@ -189,7 +190,9 @@ function mapMeetErrorToMessageKey(message: string): TranslationKey {
 
 export default function TodosPage() {
   const { t } = useLocale();
-  const { uiV2 } = useUiV2();
+  // Path to 9 B1: critical todos path is V2-only.
+  const uiV2 = true;
+  useUiV2();
   const { user, refresh } = useAuth();
   const userTimeZone = user?.workingHours?.timezone ?? "UTC";
   const router = useRouter();
@@ -321,6 +324,7 @@ export default function TodosPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  const [schedulePromptId, setSchedulePromptId] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
   const [filterProject, setFilterProject] = useState<string | "__none__" | null>(null);
@@ -629,8 +633,12 @@ export default function TodosPage() {
         })();
       }
       setMyTodos((prev) => prev.map((t) => t.id === tmpId ? created : t));
-      setJustCreatedId(created.id);
-      setTimeout(() => setJustCreatedId(null), 10000);
+      setJustCreatedId(priorityTouched || effortTouched ? created.id : null);
+      if (!(priorityTouched || effortTouched)) {
+        setSchedulePromptId(created.id);
+      } else {
+        setTimeout(() => setJustCreatedId(null), 10000);
+      }
       void refresh();
     } catch (err) {
       setMyTodos((prev) => prev.filter((t) => t.id !== tmpId));
@@ -756,7 +764,7 @@ export default function TodosPage() {
       setMyTodos(prev => [todo, ...prev]);
       void refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("toast.genericError"));
     } finally {
       subtaskCreateInFlightRef.current = false;
       setSubtaskSubmitting(false);
@@ -1318,6 +1326,7 @@ export default function TodosPage() {
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
               <input
+                id="todo-create-title"
                 type="text"
                 placeholder={t("todos.addPlaceholder")}
                 required
@@ -1333,6 +1342,82 @@ export default function TodosPage() {
                 {submitting ? t("todos.adding") : t("todos.add")}
               </button>
             </div>
+            {uiV2 && (
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenDropdown(openDropdown === "priority" ? null : "priority");
+                    }}
+                    className={`w-full sm:w-auto rounded border px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors h-[38px] sm:h-[42px] sm:min-w-[100px] text-center ${
+                      priorityTouched
+                        ? `${PRIORITY_BADGES[priority].cls} border-transparent`
+                        : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
+                    }`}
+                  >
+                    {priorityTouched ? t(PRIORITY_BADGES[priority].tKey) : t("todos.importanceLabel")}
+                  </button>
+                  {openDropdown === "priority" && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
+                      {(["high", "medium", "low"] as Priority[]).map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            setPriority(p);
+                            setPriorityTouched(true);
+                            setOpenDropdown(null);
+                          }}
+                          className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors ${
+                            priority === p ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {t(PRIORITY_BADGES[p].tKey)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenDropdown(openDropdown === "effort" ? null : "effort");
+                    }}
+                    className={`w-full sm:w-auto rounded border px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors h-[38px] sm:h-[42px] sm:min-w-[100px] text-center ${
+                      effortTouched
+                        ? `${EFFORT_BADGES[effort].cls} border-transparent`
+                        : "border-zinc-300 dark:border-slate-600 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:border-zinc-400 dark:hover:border-slate-400"
+                    }`}
+                  >
+                    {effortTouched ? t(EFFORT_BADGES[effort].tKey) : t("todos.effortLabel")}
+                  </button>
+                  {openDropdown === "effort" && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[120px]">
+                      {(["light", "medium", "heavy"] as Effort[]).map((eff) => (
+                        <button
+                          key={eff}
+                          type="button"
+                          onClick={() => {
+                            setEffort(eff);
+                            setEffortTouched(true);
+                            setOpenDropdown(null);
+                          }}
+                          className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-slate-700 transition-colors ${
+                            effort === eff ? "font-semibold text-zinc-900 dark:text-slate-100" : "text-zinc-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {t(EFFORT_BADGES[eff].tKey)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {uiV2 && (
               <button
                 type="button"
@@ -1361,6 +1446,8 @@ export default function TodosPage() {
                   )}
                 </div>
               )}
+              {!uiV2 && (
+              <>
               <div className="relative">
                 <button
                   type="button"
@@ -1433,6 +1520,8 @@ export default function TodosPage() {
                   </div>
                 )}
               </div>
+              </>
+              )}
               <input
                 type="date"
                 value={deadline}
@@ -1794,8 +1883,25 @@ export default function TodosPage() {
                     </span>
                   </div>
                   {listTodos.length === 0 ? (
-                    <div className="flex items-center justify-center min-h-[140px]">
-                      <p className="text-xs text-zinc-400 italic">{t("matrix.empty")}</p>
+                    <div className="flex flex-col items-center justify-center min-h-[160px] gap-3 px-4 text-center">
+                      <p className="text-sm text-zinc-500 dark:text-slate-400">{t("matrix.empty")}</p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            document.getElementById("todo-create-title")?.focus();
+                          }}
+                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                        >
+                          {t("matrix.emptyCta")}
+                        </button>
+                        <Link
+                          href="/agenda"
+                          className="rounded-lg border border-zinc-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                        >
+                          {t("matrix.emptySecondary")}
+                        </Link>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -2047,6 +2153,9 @@ export default function TodosPage() {
                     onRadarModeChange={setRadarMode}
                     nowMs={nowMs}
                     onEditTask={openEdit}
+                    onScheduleTask={(todo) => {
+                      router.push(`/agenda?schedule=${encodeURIComponent(todo.id)}`);
+                    }}
                   />
                 </div>
               </div>
@@ -2096,6 +2205,11 @@ export default function TodosPage() {
         freeTierContentLocks={
           !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
         }
+        onTodoUpdated={(updated) => {
+          replaceTodoInLists(updated);
+          setEditingTodo(updated);
+          void handleScheduleUpdate(updated);
+        }}
         onRequestDeleteTask={async (t) => {
           await closeEditModal();
           requestDelete(t);
@@ -2151,6 +2265,22 @@ export default function TodosPage() {
         confirmLabel={t("bulk.delete")}
         onCancel={() => setBulkTaskConfirm(null)}
         onConfirm={handleBulkTaskConfirm}
+      />
+
+      <ConfirmDialog
+        open={schedulePromptId !== null}
+        title={t("schedule.promptTitle")}
+        message={t("schedule.promptBody")}
+        variant="primary"
+        confirmLabel={t("schedule.promptConfirm")}
+        cancelLabel={t("schedule.notNow")}
+        onCancel={() => setSchedulePromptId(null)}
+        onConfirm={() => {
+          if (schedulePromptId) {
+            router.push(`/agenda?schedule=${encodeURIComponent(schedulePromptId)}`);
+          }
+          setSchedulePromptId(null);
+        }}
       />
 
       {meetOptionsTodo && (

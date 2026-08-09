@@ -64,9 +64,8 @@ export function SoftLockHint({
 }
 
 /**
- * Soft-lock wrapper: when locked, shows badge + hint above children and dims them.
- * Prefer passing `disabled` into interactive children; this wrap only dims visually.
- * Pricing CTA stays outside the dimmed region (in the header).
+ * Soft-lock wrapper: when locked, shows badge + hint above children and blocks interaction.
+ * Pricing CTA stays outside the inert region (in the header).
  */
 export function SoftLock({
   locked,
@@ -100,7 +99,15 @@ export function SoftLock({
         <PlanBadge tier={tier} />
       </div>
       <SoftLockHint tier={tier} hintKey={hintKey} />
-      <div className="opacity-60" data-soft-locked="true" aria-disabled="true">
+      <div
+        className="opacity-60 pointer-events-none select-none"
+        data-soft-locked="true"
+        aria-disabled="true"
+        ref={(el) => {
+          if (!el) return;
+          el.setAttribute("inert", "");
+        }}
+      >
         {children}
       </div>
     </div>

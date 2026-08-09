@@ -39,7 +39,7 @@ export function DocsShell({ children }: { children: ReactNode }) {
                   {t("login.title")}
                 </Link>
                 <Link
-                  href="/register"
+                  href="/login?mode=register"
                   className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-1.5 transition-colors"
                 >
                   {t("login.createAccount")}

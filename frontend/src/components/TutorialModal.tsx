@@ -36,6 +36,8 @@ interface TutorialModalProps {
   onClose: () => void;
   earlyBird?: boolean;
   onEarlyBirdEnrolled?: () => Promise<void>;
+  /** After finish / skip on last step — e.g. navigate to first win. */
+  onFinishNavigate?: () => void;
 }
 
 export function useTutorial() {
@@ -59,7 +61,7 @@ export function useTutorial() {
   return { showTutorial, openTutorial, closeTutorial };
 }
 
-export default function TutorialModal({ open, onClose, earlyBird = false, onEarlyBirdEnrolled }: TutorialModalProps) {
+export default function TutorialModal({ open, onClose, earlyBird = false, onEarlyBirdEnrolled, onFinishNavigate }: TutorialModalProps) {
   const { t, locale } = useLocale();
   const trapRef = useFocusTrap(open);
   const [step, setStep] = useState(0);
@@ -90,7 +92,10 @@ export default function TutorialModal({ open, onClose, earlyBird = false, onEarl
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, step]);
 
-  useModalCloseKeys(open, onClose);
+  const finish = () => {
+    onClose();
+    onFinishNavigate?.();
+  };
 
   const handleEarlyBirdEnroll = async () => {
     if (isEarlyBirdActive || enrolling) return;
@@ -100,11 +105,15 @@ export default function TutorialModal({ open, onClose, earlyBird = false, onEarl
       const result = await postEarlyBirdEnroll({ locale });
       if (result.ok) {
         setEnrollDone(true);
+        const { trackFunnelEvent } = await import("@/lib/productAnalytics");
+        trackFunnelEvent("early_bird_or_calendar", { source: "tutorial" });
         await onEarlyBirdEnrolled?.();
         return;
       }
       if (result.status === 502) {
         setEnrollDone(true);
+        const { trackFunnelEvent } = await import("@/lib/productAnalytics");
+        trackFunnelEvent("early_bird_or_calendar", { source: "tutorial" });
         await onEarlyBirdEnrolled?.();
         setEnrollError(result.message);
         return;
@@ -209,7 +218,7 @@ export default function TutorialModal({ open, onClose, earlyBird = false, onEarl
                 <>
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={finish}
                     disabled={enrolling}
                     className="text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 px-3 py-1.5 rounded border border-zinc-200 dark:border-slate-700 transition-colors disabled:opacity-50"
                   >
@@ -227,7 +236,7 @@ export default function TutorialModal({ open, onClose, earlyBird = false, onEarl
               ) : (
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={finish}
                   className="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-4 py-1.5 rounded transition-colors"
                 >
                   {t("tutorial.finish")}

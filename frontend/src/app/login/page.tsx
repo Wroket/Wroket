@@ -61,6 +61,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     let params = new URLSearchParams(window.location.search);
+    const modeParam = params.get("mode");
+    if (modeParam === "register" || modeParam === "signup") {
+      setMode("register");
+    } else if (modeParam === "login") {
+      setMode("login");
+    }
     const pending2fa = params.get("pending2fa");
 
     const err = params.get("error");
@@ -192,6 +198,8 @@ export default function LoginPage() {
           return;
         }
         await register({ email, password });
+        const { trackFunnelEvent } = await import("@/lib/productAnalytics");
+        trackFunnelEvent("signup_ok", { source: "email_register" });
         setNeedsVerification(true);
         setSuccess(t("login.verifyEmailSent"));
         return;

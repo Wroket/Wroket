@@ -37,6 +37,8 @@ export default function EarlyBirdUnlockCard({
       const result = await postEarlyBirdEnroll({ locale });
       if (result.ok || result.status === 502) {
         setDone(true);
+        const { trackFunnelEvent } = await import("@/lib/productAnalytics");
+        trackFunnelEvent("early_bird_or_calendar", { source: "early_bird_unlock_card" });
         await (onEnrolled ?? refresh)();
         if (!result.ok && result.status === 502) {
           setError(result.message);

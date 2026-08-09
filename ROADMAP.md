@@ -76,10 +76,11 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 ### Now (0-6 semaines)
 
 0. ~~**Lot local à stabiliser (2026-08)**~~ — **Fait** (2026-08-07) : UI V2 + créneaux intelligents + colonnes TaskList + polish tags méta sur `main`.
+0b. **UX Path to 9** — Continuité prioriser→créneau (`?schedule=` + SlotPicker + rail Agenda), sunset V1 critiques, chrome header/nav, SoftLock dur, empty states, funnel analytics (`signup_ok` → `first_slot_booked`). Checklist terrain : [`docs/cold-path-first-slot.md`](docs/cold-path-first-slot.md). **Seuil 9/10** = 5 cold paths Free chronométrés (pas seulement tsc).
 1. **Slack+ — finalisation ops Lots 1–4** — Code (Lots 1–3 `882c6ca` + Lot 4 digests). **À faire** : secrets Cloud Run (`SLACK_*`), config Slack App, smoke E2E workspace (boutons + slash + my-week). Doc : [`docs/slack-plus.md`](docs/slack-plus.md).
 2. **Teams+ / Chat+ / Discord+ — ops consoles** — Code parité livré. **À faire** : Azure Bot, Google Chat app, Discord Application + secrets `TEAMS_BOT_*` / `GOOGLE_CHAT_*` / `DISCORD_*` (noms dans `cloudbuild.yaml`, valeurs Secret Manager). Docs ops ci-dessus.
 3. **MCP / IA agentique — validation usage** — Serveur MCP + clés API livrés (PR #6). **À faire** : smoke Cursor/Claude Desktop contre `https://api.wroket.com/mcp`, mesurer adoption / incidents auth, décision go/no-go. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
-4. **Dual UI V1+V2 — observation** — Flag opt-in prod ; collecter feedback ; décider sunset V1 (~fin août / début sept. 2026).
+4. **Dual UI V1+V2 — observation** — V2 forcé sur Todos/Agenda critiques (Path to 9 B1) ; flag Settings encore présent pour opt-out legacy hors parcours critiques ; sunset total V1 reste Next.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
    - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — après Slack/canaux ops + gate MCP.
