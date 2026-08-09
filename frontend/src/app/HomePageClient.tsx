@@ -278,18 +278,23 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero: brand + one headline + one line + CTA + full-bleed visual plane */}
-      <section className="relative min-h-[88vh] flex flex-col overflow-hidden bg-[#fafaf9] dark:bg-stone-950">
+      {/* Hero: brand + one headline + one line + CTA — contrast tied to theme */}
+      <section
+        className={`relative min-h-[88vh] flex flex-col overflow-hidden ${
+          dark ? "bg-stone-950" : "bg-[#fafaf9]"
+        }`}
+      >
         <div
           className="absolute inset-0 landing-hero-drift"
           aria-hidden
           style={{
-            background:
-              "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(15,118,110,0.22), transparent 55%), radial-gradient(ellipse 50% 40% at 15% 80%, rgba(28,25,23,0.08), transparent 50%), linear-gradient(165deg, #fafaf9 0%, #ecfdf5 45%, #e7e5e4 100%)",
+            background: dark
+              ? "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(15,118,110,0.35), transparent 55%), radial-gradient(ellipse 50% 40% at 20% 70%, rgba(45,212,191,0.08), transparent 50%), linear-gradient(165deg, #0c0a09 0%, #134e4a 42%, #1c1917 100%)"
+              : "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(15,118,110,0.22), transparent 55%), radial-gradient(ellipse 50% 40% at 15% 80%, rgba(28,25,23,0.08), transparent 50%), linear-gradient(165deg, #fafaf9 0%, #ecfdf5 45%, #e7e5e4 100%)",
           }}
         />
         <div
-          className="absolute inset-0 opacity-[0.35] dark:opacity-20"
+          className={`absolute inset-0 ${dark ? "opacity-15" : "opacity-[0.35]"}`}
           aria-hidden
           style={{
             backgroundImage:
@@ -303,13 +308,16 @@ export default function LandingPage() {
               entered ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"
             }`}
           >
-            <WroketLockup theme="auto" className="scale-125 sm:scale-150 origin-left" />
+            <WroketLockup
+              theme={dark ? "dark" : "light"}
+              className="scale-125 sm:scale-150 origin-left"
+            />
           </div>
 
           <h1
-            className={`text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] text-stone-900 dark:text-stone-50 max-w-3xl transition-all duration-700 delay-150 ease-out ${
-              entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
+            className={`text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] max-w-3xl transition-all duration-700 delay-150 ease-out ${
+              dark ? "text-stone-50" : "text-stone-900"
+            } ${entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             {t("landing.heroTitle").split("\n").map((line, i) => (
               <span key={i}>
@@ -320,9 +328,9 @@ export default function LandingPage() {
           </h1>
 
           <p
-            className={`mt-5 text-lg sm:text-xl text-stone-600 dark:text-stone-400 max-w-xl leading-relaxed transition-all duration-700 delay-300 ease-out ${
-              entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
+            className={`mt-5 text-lg sm:text-xl max-w-xl leading-relaxed transition-all duration-700 delay-300 ease-out ${
+              dark ? "text-stone-300" : "text-stone-700"
+            } ${entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             {t("landing.heroSub")}
           </p>
@@ -341,7 +349,12 @@ export default function LandingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
             </Link>
-            <Link href="/login" className="text-sm font-medium text-stone-600 hover:text-teal-800 underline-offset-2 hover:underline py-3">
+            <Link
+              href="/login"
+              className={`text-sm font-medium underline-offset-2 hover:underline py-3 ${
+                dark ? "text-stone-300 hover:text-teal-300" : "text-stone-700 hover:text-teal-800"
+              }`}
+            >
               {t("landing.ctaLogin")}
             </Link>
           </div>
