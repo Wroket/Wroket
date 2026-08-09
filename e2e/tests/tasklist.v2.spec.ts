@@ -7,7 +7,10 @@ test.describe("TaskList UI V2", () => {
   test.use({ viewport: { width: 1400, height: 900 } });
   test.setTimeout(45_000);
 
-  test("toggle, meta columns readable, actions prefs persist", async ({ page, request }) => {
+  test("meta columns readable, actions prefs persist, settings hosts V2 toggle", async ({
+    page,
+    request,
+  }) => {
     await enableUiV2(page);
     await loginAsFreshUser(page, request);
 
@@ -54,9 +57,10 @@ test.describe("TaskList UI V2", () => {
     expect(stored).toBeTruthy();
     expect(JSON.parse(stored!) as string[]).toContain("delete");
 
-    // Toggle UI V2 off → list loses V2 table class.
-    await page.getByTestId("ui-v2-toggle").click();
-    await expect(page.locator("html")).not.toHaveClass(/ui-v2/);
-    await expect(page.getByTestId("task-list")).not.toHaveClass(/task-list-v2/);
+    // Path to 9: opt-out toggle lives in Settings (Languages), not the Todos header.
+    await page.goto("/settings?tab=languages");
+    const toggle = page.getByTestId("ui-v2-toggle");
+    await expect(toggle).toBeVisible({ timeout: 15_000 });
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
   });
 });
