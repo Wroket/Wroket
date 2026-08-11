@@ -360,6 +360,9 @@ export default function ManageCalendarsPage() {
               {t("agenda.inAppSlotsSyncCardTitle")}
               {!canUseCalendarIntegrations && <PlanBadge tier="small" />}
             </h2>
+            <p className="text-sm text-zinc-600 dark:text-slate-300">
+              {t("agenda.inAppSlotsSyncCardHelp")}
+            </p>
             {!canUseCalendarIntegrations && showEarlyBirdUnlock && (
               <EarlyBirdUnlockCard variant="compact" onEnrolled={refresh} />
             )}

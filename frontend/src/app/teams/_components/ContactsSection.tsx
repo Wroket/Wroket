@@ -270,7 +270,7 @@ export default function ContactsSection({ onBack }: ContactsSectionProps) {
         <div className="flex flex-col items-stretch sm:items-end gap-1">
           <Link
             href="/migrate/notion?mode=contacts"
-            className="inline-flex items-center justify-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:underline px-1"
+            className="inline-flex w-full items-center justify-center text-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:underline px-1"
           >
             {t("contacts.importNotion")}
             {!hasIntegrations && <PlanBadge tier="small" />}
