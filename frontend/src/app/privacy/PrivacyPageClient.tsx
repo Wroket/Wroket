@@ -8,9 +8,10 @@ import { useLocale } from "@/lib/LocaleContext";
 /**
  * Bilingual Privacy Policy.
  *
+ * Legal framework: French company (controller in France; CNIL as lead authority).
  * IMPORTANT before Google OAuth verification:
  * - Replace every "[À COMPLÉTER ...]" / "[TO BE COMPLETED ...]" placeholder
- *   with the real legal entity, postal address, registration number and DPO contact.
+ *   with the real legal entity, SIREN/RCS, postal address and DPO contact.
  * - The text below already covers Google API Services User Data Policy
  *   (including the Limited Use disclosure) so that `calendar.events` and
  *   `calendar.readonly` scopes can pass the sensitive-scopes review.
@@ -55,7 +56,7 @@ export default function PrivacyPage() {
   );
 }
 
-const LAST_UPDATED = "2026-05-26";
+const LAST_UPDATED = "2026-08-11";
 
 function PrivacyFr() {
   return (
@@ -66,9 +67,9 @@ function PrivacyFr() {
       <h2>1. Qui sommes-nous</h2>
       <p>
         Wroket (« nous », « notre service ») est un outil de gestion de tâches et d&apos;agenda édité par <strong>[À COMPLÉTER : raison sociale]</strong>,
-        société immatriculée sous le numéro <strong>[À COMPLÉTER : n° d&apos;entreprise]</strong>, dont le siège est situé{" "}
-        <strong>[À COMPLÉTER : adresse complète]</strong>. Le responsable de traitement au sens du RGPD est l&apos;éditeur ci-dessus.
-        Pour toute question relative à la protection des données, vous pouvez nous écrire à{" "}
+        société de droit français immatriculée au RCS sous le numéro <strong>[À COMPLÉTER : SIREN / RCS]</strong>, dont le siège social
+        est situé en France à <strong>[À COMPLÉTER : adresse complète]</strong>. Le responsable de traitement au sens du RGPD est
+        l&apos;éditeur ci-dessus. Pour toute question relative à la protection des données, vous pouvez nous écrire à{" "}
         <a href="mailto:team@wroket.com">team@wroket.com</a>.
       </p>
 
@@ -167,7 +168,10 @@ function PrivacyFr() {
         <li>Portabilité (export de vos tâches au format JSON / CSV).</li>
         <li>Opposition et limitation du traitement.</li>
         <li>Retrait du consentement à tout moment (notamment révocation des accès Google dans <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer noopener">votre compte Google</a>).</li>
-        <li>Réclamation auprès d&apos;une autorité de contrôle (en Belgique : Autorité de protection des données ; en France : CNIL).</li>
+        <li>
+          Réclamation auprès de la CNIL (Commission Nationale de l&apos;Informatique et des Libertés), autorité de contrôle
+          compétente en France, ou auprès de toute autre autorité de contrôle de l&apos;UE si vous résidez dans un autre État membre.
+        </li>
       </ul>
       <p>
         Pour exercer ces droits : <a href="mailto:team@wroket.com">team@wroket.com</a>. Une réponse vous sera apportée dans un délai d&apos;un mois.
@@ -206,10 +210,11 @@ function PrivacyEn() {
       <h2>1. Who we are</h2>
       <p>
         Wroket (&quot;we&quot;, &quot;our service&quot;) is a task management and calendar tool operated by{" "}
-        <strong>[TO BE COMPLETED: legal entity name]</strong>, registered under number{" "}
-        <strong>[TO BE COMPLETED: registration number]</strong>, with its head office at{" "}
-        <strong>[TO BE COMPLETED: full postal address]</strong>. The data controller within the meaning of GDPR is the entity above.
-        For any data protection question, contact us at <a href="mailto:team@wroket.com">team@wroket.com</a>.
+        <strong>[TO BE COMPLETED: legal entity name]</strong>, a company incorporated under French law, registered with the
+        French Trade and Companies Register (RCS) under number <strong>[TO BE COMPLETED: SIREN / RCS]</strong>, with its
+        registered office in France at <strong>[TO BE COMPLETED: full postal address]</strong>. The data controller within the
+        meaning of GDPR is the entity above. For any data protection question, contact us at{" "}
+        <a href="mailto:team@wroket.com">team@wroket.com</a>.
       </p>
 
       <h2>2. Data we collect</h2>
@@ -306,7 +311,10 @@ function PrivacyEn() {
         <li>Portability (export of your tasks in JSON / CSV).</li>
         <li>Opposition and restriction of processing.</li>
         <li>Withdrawal of consent at any time (including revoking Google access from <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer noopener">your Google Account</a>).</li>
-        <li>Filing a complaint with a supervisory authority (in Belgium: Data Protection Authority; in France: CNIL).</li>
+        <li>
+          Filing a complaint with the CNIL (Commission Nationale de l&apos;Informatique et des Libertés), the competent
+          supervisory authority in France, or with any other EU supervisory authority if you reside in another Member State.
+        </li>
       </ul>
       <p>
         To exercise these rights: <a href="mailto:team@wroket.com">team@wroket.com</a>. We will reply within one month.

@@ -8,9 +8,10 @@ import { useLocale } from "@/lib/LocaleContext";
 /**
  * Bilingual Terms of Service.
  *
+ * Legal framework: French company (droit français).
  * IMPORTANT before publication / Google OAuth verification:
  * - Replace every "[À COMPLÉTER ...]" / "[TO BE COMPLETED ...]" placeholder
- *   with the real legal entity, postal address, and governing law / court.
+ *   with the real legal entity, SIREN/RCS, postal address, and court of the siège.
  * - Pricing / billing terms are summarized here and detailed on the /pricing page.
  */
 export default function TermsPage() {
@@ -53,7 +54,7 @@ export default function TermsPage() {
   );
 }
 
-const LAST_UPDATED = "2026-05-26";
+const LAST_UPDATED = "2026-08-11";
 
 function TermsFr() {
   return (
@@ -64,8 +65,8 @@ function TermsFr() {
       <h2>1. Acceptation</h2>
       <p>
         Les présentes Conditions Générales d&apos;Utilisation (« CGU ») régissent l&apos;accès et l&apos;utilisation du service Wroket
-        (« le Service ») édité par <strong>[À COMPLÉTER : raison sociale]</strong>, immatriculée sous le numéro{" "}
-        <strong>[À COMPLÉTER : n° d&apos;entreprise]</strong>, dont le siège est situé{" "}
+        (« le Service ») édité par <strong>[À COMPLÉTER : raison sociale]</strong>, société de droit français immatriculée au RCS sous le numéro{" "}
+        <strong>[À COMPLÉTER : SIREN / RCS]</strong>, dont le siège social est situé en France à{" "}
         <strong>[À COMPLÉTER : adresse complète]</strong>. En créant un compte ou en utilisant le Service, vous acceptez sans réserve les présentes CGU.
       </p>
 
@@ -175,9 +176,9 @@ function TermsFr() {
 
       <h2>14. Loi applicable et juridiction</h2>
       <p>
-        Les présentes CGU sont régies par le droit <strong>[À COMPLÉTER : pays / droit applicable]</strong>. Tout litige relève de
-        la compétence exclusive des tribunaux de <strong>[À COMPLÉTER : ville / juridiction]</strong>, sous réserve des dispositions
-        impératives applicables aux consommateurs (qui peuvent saisir les tribunaux de leur lieu de résidence).
+        Les présentes CGU sont régies par le droit français. Tout litige relève de la compétence exclusive des tribunaux
+        français du ressort du siège social de l&apos;éditeur (<strong>[À COMPLÉTER : ville du siège]</strong>), sous réserve des
+        dispositions impératives applicables aux consommateurs (qui peuvent saisir les tribunaux de leur lieu de résidence).
       </p>
 
       <h2>15. Contact</h2>
@@ -197,8 +198,9 @@ function TermsEn() {
       <h2>1. Acceptance</h2>
       <p>
         These Terms of Service (&quot;Terms&quot;) govern access to and use of the Wroket service (&quot;the Service&quot;)
-        operated by <strong>[TO BE COMPLETED: legal entity name]</strong>, registered under number{" "}
-        <strong>[TO BE COMPLETED: registration number]</strong>, with its head office at{" "}
+        operated by <strong>[TO BE COMPLETED: legal entity name]</strong>, a company incorporated under French law, registered
+        with the French Trade and Companies Register (RCS) under number{" "}
+        <strong>[TO BE COMPLETED: SIREN / RCS]</strong>, with its registered office in France at{" "}
         <strong>[TO BE COMPLETED: full postal address]</strong>. By creating an account or using the Service, you accept these Terms without reservation.
       </p>
 
@@ -304,9 +306,9 @@ function TermsEn() {
 
       <h2>14. Governing law and jurisdiction</h2>
       <p>
-        These Terms are governed by the laws of <strong>[TO BE COMPLETED: country / applicable law]</strong>. Any dispute is
-        within the exclusive jurisdiction of the courts of <strong>[TO BE COMPLETED: city / jurisdiction]</strong>, subject
-        to mandatory consumer protection rules (consumers may bring proceedings in the courts of their place of residence).
+        These Terms are governed by French law. Any dispute is within the exclusive jurisdiction of the French courts of the
+        operator&apos;s registered office (<strong>[TO BE COMPLETED: city of registered office]</strong>), subject to
+        mandatory consumer protection rules (consumers may bring proceedings in the courts of their place of residence).
       </p>
 
       <h2>15. Contact</h2>
