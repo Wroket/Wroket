@@ -16,7 +16,8 @@ export function isSmtpConfiguredForOutbound(): boolean {
 
 let transporter: nodemailer.Transporter | null = null;
 
-const BRAND_LOCKUP_NEUTRAL_EMAIL_URL = `${process.env.FRONTEND_URL || "http://localhost:3000"}/brand/wroket-lockup-neutral-email.svg`;
+/** PNG (not SVG): most mail clients block remote SVG images. */
+const BRAND_LOCKUP_NEUTRAL_EMAIL_URL = `${process.env.FRONTEND_URL || "http://localhost:3000"}/brand/wroket-lockup-neutral-email.png`;
 
 function emailHeader(): string {
   return `<div style="text-align:center;padding:24px 0 16px">
@@ -807,9 +808,9 @@ export async function sendAdminOpsAlertEmail(
   </div>`;
 
   await sendOutboundMail({
-    from: `"Wroket Ops" <${FROM_ADDRESS}>`,
+    from: `"Wroket" <${FROM_ADDRESS}>`,
     to: recipients.join(", "),
-    subject: `[Wroket Ops] ${title}`,
+    subject: `[Wroket] ${title}`,
     html,
   });
   console.log("[email] Admin ops alert sent to %s: %s", recipients.join(", "), title);

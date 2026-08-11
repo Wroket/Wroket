@@ -124,7 +124,7 @@ function localHour(date: Date, timezone: string): number {
 
 function buildDigestEmailHtml(entries: DigestEntry[]): string {
   const frontendUrl = process.env.FRONTEND_URL || "https://wroket.com";
-  const lockupUrl = `${frontendUrl}/brand/wroket-lockup-neutral-email.svg`;
+  const lockupUrl = `${frontendUrl}/brand/wroket-lockup-neutral-email.png`;
   const summary = buildActionSummary(entries);
   const summaryText = formatActionSummaryText(summary);
   const rows = entries

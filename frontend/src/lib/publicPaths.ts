@@ -27,5 +27,7 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/share/portal/")) return true;
   if (pathname.startsWith("/share/task/")) return true;
   if (pathname === "/docs" || pathname.startsWith("/docs/")) return true;
+  // Brand assets (email headers, OG, etc.) must load without auth — email clients cannot send cookies.
+  if (pathname.startsWith("/brand/")) return true;
   return false;
 }

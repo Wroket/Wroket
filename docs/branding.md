@@ -20,6 +20,7 @@ Tous les assets statiques doivent vivre dans `frontend/public/brand/`:
 - `wroket-lockup-dark.svg`
 - `wroket-lockup-light.svg`
 - `wroket-lockup-neutral-email.svg`
+- `wroket-lockup-neutral-email.png` (dérivé du SVG — **emails uniquement**)
 
 ## Matrice d'usage
 
@@ -27,7 +28,8 @@ Tous les assets statiques doivent vivre dans `frontend/public/brand/`:
   - Utiliser en priorité les composants React canoniques (`WroketMark/Lockup`).
   - Utiliser les SVG `public/brand/` uniquement pour les besoins statiques.
 - **Emails transactionnels + digest**
-  - Utiliser exclusivement `wroket-lockup-neutral-email.svg`.
+  - Utiliser `wroket-lockup-neutral-email.png` (hébergé sur le frontend, chemin public `/brand/`).
+  - Ne pas utiliser le SVG en email : la plupart des clients bloquent les images SVG distantes.
 - **Notifications non-email (Slack/Teams/Chat)**
   - Aucun asset image canonique requis actuellement.
   - En cas d'ajout visuel futur, utiliser `public/brand/` uniquement.
