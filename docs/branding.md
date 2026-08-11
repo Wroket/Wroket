@@ -20,7 +20,7 @@ Tous les assets statiques doivent vivre dans `frontend/public/brand/`:
 - `wroket-lockup-dark.svg`
 - `wroket-lockup-light.svg`
 - `wroket-lockup-neutral-email.svg`
-- `wroket-lockup-neutral-email.png` (dérivé du SVG — **emails uniquement**)
+- `wroket-lockup-neutral-email.png` (dérivé du SVG — **emails uniquement**, rendu avec Manrope Bold pour coller au wordmark V2)
 
 ## Matrice d'usage
 

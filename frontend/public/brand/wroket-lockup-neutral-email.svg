@@ -6,7 +6,7 @@
     <path d="M12.4 8l0.7-1" stroke="#10b981" stroke-width="2.8" stroke-linecap="round" fill="none"/>
     <path d="M21.4 8l0.7-1" stroke="#4f46e5" stroke-width="2.8" stroke-linecap="round" fill="none"/>
   </g>
-  <text x="112" y="61" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="42" font-weight="800">
+  <text x="112" y="61" font-family="Manrope,ui-sans-serif,system-ui,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.02em">
     <tspan fill="#0f172a">Wro</tspan><tspan fill="#10b981">ket</tspan>
   </text>
 </svg>
