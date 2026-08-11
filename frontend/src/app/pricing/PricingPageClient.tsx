@@ -448,7 +448,7 @@ export default function PricingPage() {
         </section>
 
         <section className="mt-20 text-center">
-          <div className="w-14 h-14 rounded-md bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-md overflow-hidden bg-slate-800 dark:bg-slate-100 flex items-center justify-center mx-auto mb-4">
             <WroketMark />
           </div>
           <p className="text-lg font-semibold text-zinc-800 dark:text-slate-200">{t("landing.footerTag")}</p>
@@ -458,9 +458,6 @@ export default function PricingPage() {
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-semibold px-8 py-3 rounded-xl transition-all"
             >
               {t("landing.cta")}
-            </Link>
-            <Link href="/" className="text-sm font-medium text-zinc-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400">
-              ← {t("nav.home")}
             </Link>
           </div>
         </section>

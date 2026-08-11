@@ -2547,8 +2547,8 @@ const translations = {
   "landing.heroBadge": { fr: "Wroket travaille pour vous", en: "Wroket works for you" },
   "landing.heroTitle": { fr: "Organisez, planifiez,\ncollaborez.", en: "Organize, schedule,\ncollaborate." },
   "landing.heroSub": {
-    fr: "Wroket priorise pour vous et vous aide \u00e0 bloquer vos t\u00e2ches dans l\u2019agenda. Synchronisez Google Calendar ou Outlook quand vous \u00eates pr\u00eat.",
-    en: "Wroket prioritizes for you and helps you block tasks on the calendar. Sync Google Calendar or Outlook when you\u2019re ready.",
+    fr: "Les projets et les t\u00e2ches deviennent plus simples. Wroket priorise pour vous et vous aide \u00e0 faire avancer l\u2019essentiel.",
+    en: "Projects and tasks get easier. Wroket prioritizes for you and helps you get tasks done.",
   },
   "landing.howItWorks.title": { fr: "Comment Wroket vous aide", en: "How Wroket helps you" },
   "landing.howItWorks.step1.title": { fr: "Cr\u00e9ez ou recevez des t\u00e2ches", en: "Create or receive tasks" },

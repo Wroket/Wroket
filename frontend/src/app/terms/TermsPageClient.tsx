@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { useLocale } from "@/lib/LocaleContext";
 
 /**
@@ -18,18 +19,14 @@ export default function TermsPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100">
-      <header className="border-b border-zinc-100 dark:border-slate-800">
-        <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between">
-          <Link href="/" className="text-sm font-semibold text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400">
-            ← Wroket
-          </Link>
-          <Link href="/privacy" className="text-sm text-zinc-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400">
-            {isFr ? "Politique de confidentialité" : "Privacy policy"}
-          </Link>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <main className="max-w-3xl mx-auto px-6 py-12 prose prose-zinc dark:prose-invert">
+        <p className="not-prose mb-6 text-sm text-zinc-500 dark:text-slate-400">
+          <Link href="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+            {isFr ? "Politique de confidentialité" : "Privacy policy"}
+          </Link>
+        </p>
         {isFr ? <TermsFr /> : <TermsEn />}
       </main>
 
@@ -74,9 +71,11 @@ function TermsFr() {
 
       <h2>2. Description du service</h2>
       <p>
-        Wroket est un outil de gestion de tâches, de projets et d&apos;agenda, accessible via un navigateur web. Il propose notamment :
-        vue Radar de priorisation, agenda intelligent avec connexion à Google Calendar et Microsoft Outlook, projets et phases,
-        bloc-notes, équipes, et notifications. La liste détaillée des fonctionnalités est susceptible d&apos;évoluer.
+        Wroket est un outil web de gestion de tâches, de projets et d&apos;agenda. Le Service comprend notamment : la gestion de
+        tâches personnelles et partagées, la priorisation (dont vue Radar), les projets et phases, l&apos;agenda Wroket avec
+        réservation de créneaux, les notes, les équipes, les notifications, ainsi que des intégrations optionnelles avec des
+        services tiers tels que Google Calendar et Outlook. Certaines fonctionnalités permettent de pousser explicitement un
+        créneau Wroket vers un calendrier tiers ; la liste détaillée du Service est susceptible d&apos;évoluer.
       </p>
 
       <h2>3. Compte utilisateur</h2>
@@ -116,10 +115,12 @@ function TermsFr() {
 
       <h2>6. Services tiers (Google, Microsoft)</h2>
       <p>
-        Wroket s&apos;intègre à Google Calendar et Microsoft Outlook pour les fonctionnalités d&apos;agenda. Ces intégrations sont activées
-        uniquement avec votre consentement OAuth explicite et peuvent être révoquées à tout moment depuis votre compte fournisseur
-        ou depuis Wroket. L&apos;utilisation de ces services est régie par les conditions et politiques de Google / Microsoft, sur
-        lesquelles nous n&apos;avons aucun contrôle.
+        Wroket peut s&apos;intégrer à Google Calendar et Outlook / Microsoft 365 pour certaines fonctionnalités d&apos;agenda. Ces
+        intégrations sont optionnelles, activées uniquement avec votre consentement OAuth explicite, et révocables à tout moment
+        depuis votre compte fournisseur ou depuis Wroket. Les créneaux peuvent être réservés dans Wroket sans calendrier tiers ;
+        l&apos;écriture dans Google Calendar ou Outlook n&apos;intervient qu&apos;après une action explicite de votre part. L&apos;utilisation
+        de ces services tiers reste régie par les conditions et politiques de Google et Microsoft, sur lesquelles nous n&apos;avons
+        aucun contrôle.
       </p>
 
       <h2>7. Tarifs, abonnement et facturation</h2>
@@ -203,9 +204,11 @@ function TermsEn() {
 
       <h2>2. Service description</h2>
       <p>
-        Wroket is a task, project and calendar management tool, accessible via a web browser. It includes among others:
-        priority Radar view, smart agenda with Google Calendar and Microsoft Outlook integration, projects and phases,
-        notes, teams, and notifications. The detailed feature set is subject to evolution.
+        Wroket is a web-based task, project, and calendar management tool. The Service includes personal and shared task
+        management, prioritization features (including Radar view), projects and phases, the Wroket Agenda with time-slot
+        booking, notes, teams, notifications, and optional integrations with third-party services such as Google Calendar and
+        Outlook. Some features allow you to explicitly push a Wroket slot to a third-party calendar; the detailed feature set
+        may evolve over time.
       </p>
 
       <h2>3. User account</h2>
@@ -245,10 +248,11 @@ function TermsEn() {
 
       <h2>6. Third-party services (Google, Microsoft)</h2>
       <p>
-        Wroket integrates with Google Calendar and Microsoft Outlook for calendar functionality. These integrations are
-        enabled only with your explicit OAuth consent and can be revoked at any time from your provider account or from
-        Wroket. Use of these services is governed by the terms and policies of Google / Microsoft, over which we have no
-        control.
+        Wroket may integrate with Google Calendar and Outlook / Microsoft 365 for certain calendar features. These integrations
+        are optional, enabled only with your explicit OAuth consent, and can be revoked at any time from your provider account
+        or from Wroket. Slots can be booked in Wroket without a third-party calendar; writing to Google Calendar or Outlook
+        occurs only after an explicit action by you. Use of these third-party services remains governed by Google&apos;s and
+        Microsoft&apos;s terms and policies, over which we have no control.
       </p>
 
       <h2>7. Pricing, subscription and billing</h2>

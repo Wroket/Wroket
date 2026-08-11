@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import { useLocale } from "@/lib/LocaleContext";
 
 /**
@@ -20,18 +21,14 @@ export default function PrivacyPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-zinc-900 dark:text-slate-100">
-      <header className="border-b border-zinc-100 dark:border-slate-800">
-        <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between">
-          <Link href="/" className="text-sm font-semibold text-zinc-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400">
-            ← Wroket
-          </Link>
-          <Link href="/terms" className="text-sm text-zinc-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400">
-            {isFr ? "Conditions d'utilisation" : "Terms of service"}
-          </Link>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <main className="max-w-3xl mx-auto px-6 py-12 prose prose-zinc dark:prose-invert">
+        <p className="not-prose mb-6 text-sm text-zinc-500 dark:text-slate-400">
+          <Link href="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+            {isFr ? "Conditions d'utilisation" : "Terms of service"}
+          </Link>
+        </p>
         {isFr ? <PrivacyFr /> : <PrivacyEn />}
       </main>
 
@@ -98,7 +95,8 @@ function PrivacyFr() {
         <li>
           <strong>Calendrier en écriture (`calendar.events`)</strong> : utilisé uniquement pour pousser dans votre Google Calendar
           les créneaux Wroket que vous avez explicitement choisi de synchroniser, et pour créer un Google Meet à la demande.
-          Nous n&apos;écrivons aucun événement sans action utilisateur.
+          La simple connexion de votre compte ne déclenche aucune synchronisation automatique ; nous n&apos;écrivons aucun événement
+          sans action utilisateur explicite.
         </li>
       </ul>
 
@@ -117,7 +115,7 @@ function PrivacyFr() {
 
       <h2>3. Finalités et bases légales</h2>
       <ul>
-        <li>Fourniture du service (exécution du contrat) : création de compte, gestion des tâches et agendas, synchronisation Calendar.</li>
+        <li>Fourniture du service (exécution du contrat) : création de compte, gestion des tâches, projets et agendas, réservation de créneaux dans Wroket, et synchronisation explicite vers Google Calendar si vous la déclenchez.</li>
         <li>Sécurité (intérêt légitime) : journaux, détection d&apos;abus.</li>
         <li>Communication transactionnelle (exécution du contrat) : e-mails de vérification, réinitialisation de mot de passe, notifications d&apos;invitation.</li>
         <li>Amélioration du service (intérêt légitime) : statistiques agrégées et anonymisées.</li>
@@ -133,6 +131,7 @@ function PrivacyFr() {
       <p>Plus précisément, les données obtenues via Google Calendar :</p>
       <ul>
         <li>ne sont utilisées que pour fournir et améliorer les fonctionnalités d&apos;agenda visibles directement par l&apos;utilisateur ;</li>
+        <li>ne servent pas à synchroniser automatiquement vos créneaux par simple connexion OAuth ; tout push vers Google Calendar requiert une action explicite dans Wroket ;</li>
         <li>ne sont jamais transférées à des tiers, sauf processeurs strictement nécessaires au fonctionnement (hébergement Google Cloud) ou si la loi l&apos;exige ;</li>
         <li>ne sont jamais utilisées pour du ciblage publicitaire, de la revente, ni pour entraîner des modèles d&apos;intelligence artificielle généralisés ;</li>
         <li>ne sont pas lues par un humain, sauf consentement explicite, support technique ponctuel à votre demande, ou obligation légale.</li>
@@ -149,7 +148,7 @@ function PrivacyFr() {
       <h2>6. Durée de conservation</h2>
       <ul>
         <li>Données de compte : tant que le compte est actif. Suppression définitive immédiate (sous quelques heures) après votre demande de suppression de compte.</li>
-        <li>Données Google Calendar : non stockées de manière persistante au-delà du nécessaire (cache court terme pour l&apos;affichage agenda). Les jetons OAuth sont chiffrés au repos et révoqués automatiquement quand vous déconnectez votre agenda.</li>
+        <li>Données Google Calendar : non stockées de manière persistante au-delà du nécessaire (cache court terme pour l&apos;affichage agenda et le calcul de disponibilités). Les jetons OAuth sont chiffrés au repos et révoqués automatiquement quand vous déconnectez votre agenda.</li>
         <li>Journaux techniques : 90 jours maximum.</li>
         <li>Sauvegardes : 30 jours maximum.</li>
       </ul>
@@ -235,8 +234,8 @@ function PrivacyEn() {
         </li>
         <li>
           <strong>Calendar write (`calendar.events`)</strong>: used only to push to your Google Calendar the Wroket time
-          slots you explicitly chose to sync, and to create a Google Meet on demand. We never write any event without
-          explicit user action.
+          slots you explicitly chose to sync, and to create a Google Meet on demand. Simply connecting your account does not
+          trigger any automatic sync; we never write any event without explicit user action.
         </li>
       </ul>
 
@@ -255,7 +254,7 @@ function PrivacyEn() {
 
       <h2>3. Purposes and legal bases</h2>
       <ul>
-        <li>Service delivery (performance of contract): account creation, task and calendar management, Calendar synchronization.</li>
+        <li>Service delivery (performance of contract): account creation, task, project, and calendar management, slot booking in Wroket, and explicit synchronization to Google Calendar when triggered by you.</li>
         <li>Security (legitimate interest): logs, abuse detection.</li>
         <li>Transactional communication (performance of contract): verification emails, password resets, invitation notifications.</li>
         <li>Service improvement (legitimate interest): aggregated and anonymized statistics.</li>
@@ -271,6 +270,7 @@ function PrivacyEn() {
       <p>Specifically, data obtained from Google Calendar:</p>
       <ul>
         <li>is used solely to provide and improve user-facing calendar features visible directly to the user;</li>
+        <li>is not used to automatically sync your slots upon OAuth connection alone; any push to Google Calendar requires an explicit action in Wroket;</li>
         <li>is never transferred to third parties, except processors strictly necessary for operations (Google Cloud hosting) or as required by law;</li>
         <li>is never used for advertising targeting, resale, or to train generalized AI / machine learning models;</li>
         <li>is not read by humans, except with explicit consent, for narrow user-requested support, or to comply with applicable law.</li>
@@ -287,7 +287,7 @@ function PrivacyEn() {
       <h2>6. Retention</h2>
       <ul>
         <li>Account data: as long as the account is active. Permanently deleted immediately (within a few hours) after your account deletion request.</li>
-        <li>Google Calendar data: not stored persistently beyond what is needed (short-term cache for agenda display). OAuth tokens are encrypted at rest and automatically revoked when you disconnect your calendar.</li>
+        <li>Google Calendar data: not stored persistently beyond what is needed (short-term cache for agenda display and availability computation). OAuth tokens are encrypted at rest and automatically revoked when you disconnect your calendar.</li>
         <li>Technical logs: at most 90 days.</li>
         <li>Backups: at most 30 days.</li>
       </ul>
