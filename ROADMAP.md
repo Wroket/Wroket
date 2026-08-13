@@ -27,6 +27,8 @@ Exécution priorisée : **finaliser Slack+ / canaux chat en prod**, **valider MC
 | **C — PMO** | Stabilisation continue | Socle solide + digests chat | Liens partageables / portfolio selon traction |
 
 **Décisions produit associées :**
+- **Slack+ / Teams+ / Google Chat+** : connexions **SaaS multi-clients** — chaque client Small teams+ connecte **son** workspace / org M365 / Google Workspace ; ops Wroket = une app partagée par canal ([`docs/chat-integrations-clients.md`](docs/chat-integrations-clients.md)). Bot Teams prod = **multilocataire** (pas Client unique tenant Wroket).
+- **Bot time tracking** : **Later** (pas maintenant) — étendre `/wroket` (`start`/`stop`/`log`) sur le time tracking déjà livré ; **pas** de clone Gryzzly (budgets/CIR/rappels) tant que ops canaux chat ne sont pas stables. Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 - **Notion-Like** et **Monday-Like** sont considérés **aboutis en MVP acquisition** pour le besoin actuel.
 - **Import Notion ZIP** et imports **CSV** supplémentaires Notion/Monday sont **dépriorisés**.
 - **E2E Gantt §G.12** est considéré validé.
@@ -81,7 +83,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 0d. **UX Données Path to 9** — Continuité notes import/export UI, SoftLock quota notes, Compte & données ↔ hub, SoftLock/Early Bird migrate OAuth, RGPD purge/export complets, privacy/pricing alignés. Checklist : [`docs/cold-path-donnees.md`](docs/cold-path-donnees.md) ; revue : [`docs/funnel-donnees-monthly.md`](docs/funnel-donnees-monthly.md). **Seuil 9/10** = 3 cold paths terrain (pas seulement tsc).
 0e. **UX Path to 9 transversal** — Collab (UX-4), a11y, EmptyState, share smoke, **Microsoft SSO validé terrain** (§B 5–7). Reste pour seuil 9/10 : cold paths collab + §I-bis Push PWA (+ CI E2E smoke).
 1. **Slack+ — finalisation ops Lots 1–4** — Code (Lots 1–3 `882c6ca` + Lot 4 digests). **À faire** : secrets Cloud Run (`SLACK_*`), config Slack App, smoke E2E workspace (boutons + slash + my-week). Doc : [`docs/slack-plus.md`](docs/slack-plus.md).
-2. **Teams+ / Chat+ / Discord+ — ops consoles** — Code parité livré. **À faire** : Azure Bot, Google Chat app, Discord Application + secrets `TEAMS_BOT_*` / `GOOGLE_CHAT_*` / `DISCORD_*` (noms dans `cloudbuild.yaml`, valeurs Secret Manager). Docs ops ci-dessus.
+2. **Teams+ / Chat+ / Discord+ — ops consoles** — Code parité livré. **À faire** : Azure Bot **multilocataire**, Google Chat app, Discord Application + secrets `TEAMS_BOT_*` / `GOOGLE_CHAT_*` / `DISCORD_*` (noms dans `cloudbuild.yaml`, valeurs Secret Manager). **Public cible** : tous les clients Small teams+ (pas le tenant Wroket seul) — voir [`docs/chat-integrations-clients.md`](docs/chat-integrations-clients.md). Checklist propriétaire : [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md). Scripts : `scripts/ops-create-teams-secrets.sh`, `scripts/ops-create-google-chat-secrets.sh`. *Code : replies Teams via Bot Connector (inbound) — à déployer pour débloquer Web Chat / canal.*
+2b. **Bot time tracking — Later** — Après ops canaux stables : MVP `/wroket start|stop|log|timer` → `timeSessionService`. **Pas** de clone Gryzzly. Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 3. **MCP / IA agentique — validation usage** — Serveur MCP + clés API livrés (PR #6). **À faire** : smoke Cursor/Claude Desktop contre `https://api.wroket.com/mcp`, mesurer adoption / incidents auth, décision go/no-go. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
 4. ~~**Dual UI V1+V2 — observation**~~ — **Sunset V1** (2026-08-09) : V2 permanent ; toggle Settings retiré ; opt-out localStorage ignoré/effacé.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
@@ -95,7 +98,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 - [x] **Workspace admin hors siège (Small/Large)** — Livré (spec [`docs/workspace-admin.md`](docs/workspace-admin.md)).
 - [x] **Slack+ Lot 4 — Workflows PMO managers** — `/wroket my-week`, `team-risk`, `overdue` via `pmoDigestService` (code) ; smoke workspace = reste ops.
-- [ ] **Teams+ / Google Chat+ / Discord+ — ops E2E** — Code parité 1A livré ; brancher consoles + secrets + smoke.
+- [ ] **Teams+ / Google Chat+ / Discord+ — ops E2E** — Code parité 1A livré ; brancher consoles + secrets + smoke ; replies Teams via Bot Connector (code).
+- [ ] **Bot time tracking (P3bis)** — Après ops canaux : `/wroket start|stop|log|timer` sur `timeSessionService` — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). **Exclu** : clone Gryzzly (budgets, CIR, rappels 1:1) tant que PMO chat n’est pas stable.
 - [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
 - [ ] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe selon traction terrain — *pas* le Client Portal (voir Later).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
@@ -103,6 +107,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ### Later (12+ semaines)
 
+- [ ] **Bot time tracking (slash)** — `/wroket start|stop|log|timer` → `timeSessionService` après ops canaux — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md)
 - [x] **Client Portal** — Vue externe structurée pour parties prenantes (clients, managers) : espace multi-projets, progression / jalons / commentaires filtrés, invité read-only optionnel, au-delà du lien token `/share/project/:token`. Spec PMO : [`docs/project-roadmap-pmo.md`](docs/project-roadmap-pmo.md) §6.1.
 - IA intégrée minimale (2-3 commandes natives) sur primitives MCP validées.
 - Notes collaboratives temps réel (chantier lourd).
@@ -503,6 +508,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 *À traiter après monétisation de base (P1) et traction sur Pro/Team — cf. priorités P4.*
 
 - [x] **Time tracking** — Chronomètre intégré par tâche, timesheet projet (semaine) + export CSV, SoftLock Small+
+- [ ] **Time tracking via bot chat** — **Later** (après ops Slack+/Teams+/Chat+) — voir [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md) ; pas de produit type Gryzzly
 - [x] **Analytics & Reporting** — Dashboard équipe : KPIs + 3 charts (vélocité, membres, complétion projets) SoftLock Large+
 - [x] **Capacity planning** — Vue charge estimée / trackée par membre (`/teams/capacity`), alerte surcharge
 - [x] **Automation rules** — Builder if/then (create/complete → tag/priority/assign) + recettes overdue existantes

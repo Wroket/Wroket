@@ -1090,8 +1090,8 @@ const translations = {
   },
   "settings.connectionSlack": { fr: "Slack", en: "Slack" },
   "settings.connectionSlackDesc": {
-    fr: "Connectez votre workspace Slack pour poster les notifications via l’API (chat.postMessage) et agir depuis Slack (accepter / refuser / terminer, slash /wroket). Vous choisissez le canal à l’installation.",
-    en: "Connect your Slack workspace to post notifications via the API (chat.postMessage) and act from Slack (accept / decline / complete, /wroket slash). You pick the channel during install.",
+    fr: "Connectez votre workspace Slack (tout client Wroket Small teams+) : notifications, boutons d’action et /wroket. Vous choisissez le canal à l’installation.",
+    en: "Connect your Slack workspace (any Wroket Small teams+ customer): notifications, action buttons, and /wroket. You pick the channel during install.",
   },
   "settings.connectionSlackActionsHint": {
     fr: "Après connexion : boutons sur les messages OAuth + commande `/wroket`. Reconnectez si vous mettez à jour les scopes (email Slack).",
@@ -1106,8 +1106,8 @@ const translations = {
 
   "settings.connectionTeams": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "settings.connectionTeamsDesc": {
-    fr: "Connectez Teams (Bot Framework) pour notifications Adaptive Cards, actions Accepter/Refuser/Terminer et commandes /wroket (dont my-week, overdue, team-risk). Le webhook entrant reste un repli.",
-    en: "Connect Teams (Bot Framework) for Adaptive Card notifications, Accept/Decline/Complete actions, and /wroket commands (including my-week, overdue, team-risk). Incoming webhook remains a fallback.",
+    fr: "Connectez votre organisation Microsoft 365 / Teams (Small teams+) : Adaptive Cards, actions et /wroket. Après OAuth, installez l’app Wroket dans votre canal Teams.",
+    en: "Connect your Microsoft 365 / Teams organization (Small teams+): Adaptive Cards, actions, and /wroket. After OAuth, install the Wroket app in your Teams channel.",
   },
   "settings.connectionTeamsConnected": { fr: "Connecté", en: "Connected" },
   "settings.connectionTeamsTest": { fr: "Envoyer un test", en: "Send a test" },
@@ -1117,8 +1117,8 @@ const translations = {
 
   "settings.connectionGoogleChat": { fr: "Google Chat", en: "Google Chat" },
   "settings.connectionGoogleChatDesc": {
-    fr: "App Google Chat + cartes v2 : notifications, actions et commandes @Wroket (parité Slack+). Webhook = repli.",
-    en: "Google Chat app + cards v2: notifications, actions, and @Wroket commands (Slack+ parity). Webhook = fallback.",
+    fr: "Connectez votre Google Workspace (Small teams+) : cartes v2, actions et @Wroket. Requiert un espace Chat Workspace (pas Gmail seul). Webhook = repli.",
+    en: "Connect your Google Workspace (Small teams+): cards v2, actions, and @Wroket. Requires a Workspace Chat space (not Gmail-only). Webhook = fallback.",
   },
   "settings.connectionGoogleChatConnected": { fr: "Connecté", en: "Connected" },
   "settings.connectionGoogleChatTest": { fr: "Envoyer un test", en: "Send a test" },

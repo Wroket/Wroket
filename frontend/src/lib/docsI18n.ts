@@ -711,7 +711,10 @@ export const docsTranslations = {
     en: "Incoming Webhook remains available as fallback.",
   },
   "docs.teams.prereq1": { fr: "Palier Small teams (ou entitlements Intégrations ; SoftLock sur Free).", en: "Small teams plan (or Integrations entitlements; SoftLock on Free)." },
-  "docs.teams.prereq2": { fr: "Bot Azure / Entra enregistré (voir docs/microsoft-azure.md + docs/teams-plus.md).", en: "Azure / Entra bot registered (see docs/microsoft-azure.md + docs/teams-plus.md)." },
+  "docs.teams.prereq2": {
+    fr: "Organisation Microsoft 365 / Teams + app bot Wroket installée dans un canal (app partagée Wroket — pas d’inscription Azure côté client). Voir docs/chat-integrations-clients.md.",
+    en: "Microsoft 365 / Teams organization + Wroket bot app installed in a channel (shared Wroket app — no Azure registration on the customer side). See docs/chat-integrations-clients.md.",
+  },
   "docs.teams.stepOauth.title": { fr: "Connecter Teams (OAuth / Bot)", en: "Connect Teams (OAuth / Bot)" },
   "docs.teams.stepOauth.p1": {
     fr: "Paramètres › Intégrations › Connexions › Microsoft Teams. Autorisez l’app Entra ; le tenant est mémorisé pour les posts proactifs.",
@@ -770,7 +773,10 @@ export const docsTranslations = {
     en: "PMO digests: my-week, overdue, team-risk.",
   },
   "docs.googleChat.prereq1": { fr: "Palier Small teams (SoftLock sur Free).", en: "Small teams plan (SoftLock on Free)." },
-  "docs.googleChat.prereq2": { fr: "App Chat configurée dans Google Cloud (voir docs/google-chat-plus.md).", en: "Chat app configured in Google Cloud (see docs/google-chat-plus.md)." },
+  "docs.googleChat.prereq2": {
+    fr: "Google Workspace + app Chat Wroket ajoutée à l’espace (app partagée — pas de projet GCP côté client). Voir docs/chat-integrations-clients.md.",
+    en: "Google Workspace + Wroket Chat app added to the space (shared app — no GCP project on the customer side). See docs/chat-integrations-clients.md.",
+  },
   "docs.googleChat.stepOauth.title": { fr: "Connecter Google Chat", en: "Connect Google Chat" },
   "docs.googleChat.stepOauth.p1": {
     fr: "Paramètres › Connexions › Google Chat. Autorisez les scopes Chat ; ajoutez l’app à l’espace cible.",

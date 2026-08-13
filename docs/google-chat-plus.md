@@ -1,6 +1,11 @@
 /**
  * Google Chat+ — Chat API app + cards v2 (parité Slack+ / Teams+).
  *
+ * ## Public cible
+ *
+ * **Tous les clients Wroket** (Small teams+) avec **Google Workspace** (domaine org).
+ * Pas Gmail consumer seul. App Chat Wroket partagée (SaaS). Voir [chat-integrations-clients.md](./chat-integrations-clients.md).
+ *
  * ## Webhook vs App
  *
  * Incoming space webhook remains a fallback. Prefer OAuth connection in
@@ -29,13 +34,16 @@
  *
  * ## Owner ops checklist
  *
+ * Full checkbox list: [ops-chat-integrations.md](./ops-chat-integrations.md) §3.
+ *
  * 1. Google Cloud Console → enable Google Chat API → configure Chat app
  * 2. Set HTTP endpoint URL to `https://api.wroket.com/integrations/google-chat/interactions`
- * 3. Copy Verification Token → Secret Manager
- * 4. OAuth client + redirect URI; scopes chat.spaces + chat.messages + email
- * 5. Mount secrets on Cloud Run (`cloudbuild.yaml` names only)
- * 6. Settings → Connect → add app to a space → Test
- * 7. Smoke: card click + `@Wroket overdue`
+ * 3. Copy Verification Token → Secret Manager (`scripts/ops-create-google-chat-secrets.sh`)
+ * 4. OAuth client + redirect URI `https://api.wroket.com/integrations/google-chat/callback`
+ * 5. Scopes: openid email profile + chat.spaces + chat.messages
+ * 6. Mount secrets on Cloud Run (`cloudbuild.yaml` names only) after secrets exist
+ * 7. Settings → Connect → add app to a Workspace space → Test
+ * 8. Smoke: card click + `@Wroket overdue`
  */
 
 export {};

@@ -7,34 +7,77 @@ import { getTeamsConnectionForUser } from "./teamsConnectionService";
 import { getTeamsBotConnectorToken, isTeamsBotConfigured } from "./teamsOAuthService";
 
 /**
+ * Reply (or proactive post) to a Bot Framework conversation via Connector API.
+ * Prefer this over returning a message body in the HTTP webhook response.
+ */
+export async function postTeamsConversationActivity(opts: {
+  serviceUrl: string;
+  conversationId: string;
+  activity: unknown;
+}): Promise<boolean> {
+  const token = await getTeamsBotConnectorToken();
+  if (!token) return false;
+  const base = opts.serviceUrl.replace(/\/$/, "");
+  if (!base || !opts.conversationId) return false;
+
+  const res = await fetch(
+    `${base}/v3/conversations/${encodeURIComponent(opts.conversationId)}/activities`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(opts.activity),
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
+  if (!res.ok) {
+    console.warn("[teams] connector post failed:", res.status, await res.text().catch(() => ""));
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Send a text reply to the inbound activity's conversation (Web Chat + Teams).
+ */
+export async function replyTeamsText(opts: {
+  serviceUrl?: string;
+  conversationId?: string;
+  replyToId?: string;
+  text: string;
+}): Promise<boolean> {
+  if (!opts.serviceUrl || !opts.conversationId || !opts.text.trim()) return false;
+  const activity: Record<string, unknown> = {
+    type: "message",
+    text: opts.text,
+  };
+  if (opts.replyToId) activity.replyToId = opts.replyToId;
+  return postTeamsConversationActivity({
+    serviceUrl: opts.serviceUrl,
+    conversationId: opts.conversationId,
+    activity,
+  });
+}
+
+/**
  * Post an Adaptive Card / activity to the user's stored conversation via Bot Connector.
  */
 export async function tryPostViaTeamsBot(uid: string, cardOrText: unknown): Promise<boolean> {
   const conn = getTeamsConnectionForUser(uid);
   if (!conn?.conversationId || !conn.serviceUrl) return false;
-  const token = await getTeamsBotConnectorToken();
-  if (!token) return false;
 
-  const base = conn.serviceUrl.replace(/\/$/, "");
   const activity =
     typeof cardOrText === "string"
       ? { type: "message", text: cardOrText }
       : cardOrText;
 
-  const res = await fetch(`${base}/v3/conversations/${encodeURIComponent(conn.conversationId)}/activities`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(activity),
-    signal: AbortSignal.timeout(8_000),
+  return postTeamsConversationActivity({
+    serviceUrl: conn.serviceUrl,
+    conversationId: conn.conversationId,
+    activity,
   });
-  if (!res.ok) {
-    console.warn("[teams] proactive post failed:", res.status, await res.text().catch(() => ""));
-    return false;
-  }
-  return true;
 }
 
 export async function postTeamsTestMessage(uid: string): Promise<void> {

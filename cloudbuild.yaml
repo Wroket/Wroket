@@ -70,11 +70,17 @@ steps:
       # Notion: NOTION_CLIENT_ID + NOTION_CLIENT_SECRET (Secret Manager) + NOTION_REDIRECT_URI (env above).
       # Monday: MONDAY_CLIENT_ID + MONDAY_CLIENT_SECRET (Secret Manager) + MONDAY_REDIRECT_URI (env above).
       # Slack: SLACK_CLIENT_ID + SLACK_CLIENT_SECRET + SLACK_SIGNING_SECRET in --set-secrets (Secret Manager).
-      # Teams+: TEAMS_BOT_APP_ID + TEAMS_BOT_APP_PASSWORD (or MICROSOFT_BOT_*) — add to --set-secrets only after created.
-      # Google Chat+: GOOGLE_CHAT_CLIENT_ID/SECRET + GOOGLE_CHAT_VERIFICATION_TOKEN — same rule.
+      # Teams+: create secrets via scripts/ops-create-teams-secrets.sh then APPEND to --set-secrets:
+      #   TEAMS_BOT_APP_ID=TEAMS_BOT_APP_ID:latest,TEAMS_BOT_APP_PASSWORD=TEAMS_BOT_APP_PASSWORD:latest
+      #   (Until then, OAuth/bot reuse MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET via code fallback.)
+      # Google Chat+: create via scripts/ops-create-google-chat-secrets.sh then APPEND:
+      #   GOOGLE_CHAT_VERIFICATION_TOKEN=GOOGLE_CHAT_VERIFICATION_TOKEN:latest
+      #   (+ optional GOOGLE_CHAT_CLIENT_ID / GOOGLE_CHAT_CLIENT_SECRET)
       # Discord+: DISCORD_CLIENT_ID/SECRET + DISCORD_PUBLIC_KEY + DISCORD_BOT_TOKEN — same rule.
+      # Checklist: docs/ops-chat-integrations.md
       # SLACK_REDIRECT_URI / TEAMS_REDIRECT_URI / GOOGLE_CHAT_REDIRECT_URI / DISCORD_REDIRECT_URI are plain env above.
       # Grant wroket-run@… Secret Accessor on each secret. --set-secrets replaces the full list (see .cursor/rules/cloudbuild.mdc).
+      # Do NOT add TEAMS_BOT_* / GOOGLE_CHAT_* here until Secret Manager secrets exist (deploy fails otherwise).
       - '--set-secrets'
       - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,NOTION_CLIENT_ID=NOTION_CLIENT_ID:latest,NOTION_CLIENT_SECRET=NOTION_CLIENT_SECRET:latest,MONDAY_CLIENT_ID=MONDAY_CLIENT_ID:latest,MONDAY_CLIENT_SECRET=MONDAY_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,SLACK_CLIENT_ID=SLACK_CLIENT_ID:latest,SLACK_CLIENT_SECRET=SLACK_CLIENT_SECRET:latest,SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest'
 

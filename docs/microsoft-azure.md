@@ -57,15 +57,30 @@ Le **Directory tenant ID** ci-dessus sert au portail Azure (admin, DNS, consente
 
 ## Teams+ (Bot Framework)
 
-Pour l’intégration chat interactive (Adaptive Cards, `/wroket`), voir [teams-plus.md](./teams-plus.md).
+Pour l’intégration chat interactive (Adaptive Cards, `/wroket`), voir [teams-plus.md](./teams-plus.md) et [chat-integrations-clients.md](./chat-integrations-clients.md).
+
+**Public cible :** tous les clients Wroket (Small teams+) avec Microsoft 365 / Teams — **pas** réservé au tenant Wroket ci-dessous.
 
 | Variable | Rôle |
 |----------|------|
-| `TEAMS_BOT_APP_ID` (ou `MICROSOFT_BOT_APP_ID` / réutiliser `MICROSOFT_CLIENT_ID`) | App ID bot |
+| `TEAMS_BOT_APP_ID` (ou `MICROSOFT_BOT_APP_ID` / réutiliser `MICROSOFT_CLIENT_ID`) | App ID bot **partagé** (SaaS) |
 | `TEAMS_BOT_APP_PASSWORD` (ou `MICROSOFT_BOT_APP_PASSWORD` / `MICROSOFT_CLIENT_SECRET`) | Secret bot |
 | `TEAMS_REDIRECT_URI` | `https://api.wroket.com/integrations/teams/callback` |
 
 Messaging endpoint Bot : `https://api.wroket.com/integrations/teams/interactions`
+
+**Ops prod :** bot Azure **Multilocataire** + app Teams installable par chaque client (manifest `docs/assets/azure/teams-app/`). Le Directory tenant ID Wroket (`4d7ec8e5-…`) sert à l’administration Entra Wroket, pas à verrouiller les clients.
+
+Checklist détaillée : [ops-chat-integrations.md](./ops-chat-integrations.md) §2.
+
+### Passage Client unique → Multilocataire (obligatoire multi-clients)
+
+1. Azure Bot `wroket-teams` → **Configuration** → Type de bot → **Multilocataire** → Appliquer  
+2. Entra → Inscription **Wroket** → **Types de comptes** → Multilocataire (org)  
+3. **Canaux** → Microsoft Teams activé  
+4. Installer [`wroket-teams-app.zip`](./assets/azure/wroket-teams-app.zip) dans une org M365 de test  
+
+Icônes : `docs/assets/azure/wroket-bot-color-192.png` (192) / `wroket-bot-outline-32.png` (32).
 
 ## Checklist opérationnelle
 

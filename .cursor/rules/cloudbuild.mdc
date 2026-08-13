@@ -19,10 +19,11 @@ Pour `gcloud run deploy`, **`--set-secrets` définit la liste complète** des va
 - Intégrations Notion : **`NOTION_CLIENT_ID`**, **`NOTION_CLIENT_SECRET`** (Secret Manager) + **`NOTION_REDIRECT_URI`** (env en clair dans `--update-env-vars`, ex. `https://api.wroket.com/integrations/notion/callback`).
 - Intégrations Monday : **`MONDAY_CLIENT_ID`**, **`MONDAY_CLIENT_SECRET`** (Secret Manager) + **`MONDAY_REDIRECT_URI`** (env en clair, ex. `https://api.wroket.com/integrations/monday/callback`). Scopes OAuth : `boards:read docs:read` via **`MONDAY_OAUTH_SCOPES`** (doit correspondre exactement aux scopes cochés dans Monday Dev).
 - Intégrations Slack : **`SLACK_CLIENT_ID`**, **`SLACK_CLIENT_SECRET`** (Secret Manager — à ajouter à `--set-secrets` seulement une fois créés) + **`SLACK_REDIRECT_URI`** (env en clair). Lot 3 : **`SLACK_SIGNING_SECRET`** (Secret Manager, même règle) pour `POST /integrations/slack/interactions` et `/commands`. Scopes bot : `chat:write`, `channels:read`, `groups:read`, `incoming-webhook`, `users:read`, `users:read.email`.
-- Teams+ : **`TEAMS_BOT_APP_ID`**, **`TEAMS_BOT_APP_PASSWORD`** (ou alias `MICROSOFT_BOT_*`) — ajouter à `--set-secrets` seulement une fois créés + **`TEAMS_REDIRECT_URI`** (env). Messaging : `/integrations/teams/interactions`.
-- Google Chat+ : **`GOOGLE_CHAT_CLIENT_ID`**, **`GOOGLE_CHAT_CLIENT_SECRET`**, **`GOOGLE_CHAT_VERIFICATION_TOKEN`** (même règle) + **`GOOGLE_CHAT_REDIRECT_URI`**.
+- Teams+ : **`TEAMS_BOT_APP_ID`**, **`TEAMS_BOT_APP_PASSWORD`** (ou alias `MICROSOFT_BOT_*`) — ajouter à `--set-secrets` seulement une fois créés + **`TEAMS_REDIRECT_URI`** (env). Messaging : `/integrations/teams/interactions`. Script : `scripts/ops-create-teams-secrets.sh`. Checklist : `docs/ops-chat-integrations.md`.
+- Google Chat+ : **`GOOGLE_CHAT_CLIENT_ID`**, **`GOOGLE_CHAT_CLIENT_SECRET`**, **`GOOGLE_CHAT_VERIFICATION_TOKEN`** (même règle) + **`GOOGLE_CHAT_REDIRECT_URI`**. Script : `scripts/ops-create-google-chat-secrets.sh`.
 - Discord+ : **`DISCORD_CLIENT_ID`**, **`DISCORD_CLIENT_SECRET`**, **`DISCORD_PUBLIC_KEY`**, **`DISCORD_BOT_TOKEN`** (même règle) + **`DISCORD_REDIRECT_URI`**.
 - Le compte **`wroket-run@…`** doit avoir **Secret Manager Secret Accessor** sur chaque secret référencé.
+- Tant que `TEAMS_BOT_*` / `GOOGLE_CHAT_*` ne sont pas créés : **ne pas** les ajouter à `--set-secrets` (le deploy échoue). Le code Teams réutilise `MICROSOFT_CLIENT_*` en fallback.
 
 ## Avant un push sur `main`
 

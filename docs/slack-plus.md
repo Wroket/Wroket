@@ -1,6 +1,11 @@
 /**
  * Slack+ — Incoming Webhooks (Lot 1), OAuth (Lot 2), Actions (Lot 3).
  *
+ * ## Public cible
+ *
+ * **Tous les clients Wroket** (Small teams+) avec **leur propre workspace Slack**.
+ * App Slack Wroket distribuée (SaaS) — le client n’enregistre pas d’app Slack. Voir [chat-integrations-clients.md](./chat-integrations-clients.md).
+ *
  * ## Incoming Webhook vs OAuth
  *
  * | | Incoming Webhook | OAuth (`chat.postMessage`) |
@@ -82,6 +87,17 @@
  *
  * Add `SLACK_CLIENT_*` / `SLACK_SIGNING_SECRET` to Cloud Run `--set-secrets` only after the secrets exist
  * in Secret Manager (otherwise deploy fails).
+ *
+ * ## Owner ops checklist (prod)
+ *
+ * Full checkbox list: [ops-chat-integrations.md](./ops-chat-integrations.md) §1.
+ *
+ * 1. Slack App → Redirect `https://api.wroket.com/integrations/slack/callback`
+ * 2. Scopes bot (ci-dessus) ; re-install / Reconnecter Wroket after change
+ * 3. Interactivity URL → `/integrations/slack/interactions`
+ * 4. Slash `/wroket` → `/integrations/slack/commands`
+ * 5. Manage Distribution → not Internal-only
+ * 6. Smoke: Connect + test + buttons + `/wroket my-week`
  */
 
 export {};

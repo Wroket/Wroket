@@ -1,0 +1,36 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "a8c3f1e2-6b4d-4a9e-9f2c-1d7e8b5a0c3f",
+  "packageName": "com.wroket.teams",
+  "developer": {
+    "name": "Wroket",
+    "websiteUrl": "https://wroket.com",
+    "privacyUrl": "https://wroket.com/privacy",
+    "termsOfUseUrl": "https://wroket.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "Wroket",
+    "full": "Wroket — gestion de projets"
+  },
+  "description": {
+    "short": "Notifications et commandes /wroket dans Teams.",
+    "full": "Bot Wroket : Adaptive Cards (accepter, refuser, terminer), commandes /wroket (my-week, overdue, team-risk) et notifications projet."
+  },
+  "accentColor": "#4f46e5",
+  "bots": [
+    {
+      "botId": "e75f60be-547f-40fe-b910-5feb59a600bc",
+      "scopes": ["team", "personal", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["api.wroket.com", "wroket.com"]
+}

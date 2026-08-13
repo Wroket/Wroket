@@ -43,7 +43,8 @@ export function getTeamsBotCredentials(): { appId: string; appPassword: string }
 }
 
 /**
- * Admin consent URL — installs the multi-tenant bot app into the user's tenant.
+ * Delegated user OAuth — links the customer's Entra tenant to their Wroket account.
+ * Does not install the Teams app; the customer must add the Wroket bot to a channel separately.
  */
 export function getTeamsAuthorizeUrl(uid: string, returnTo?: string): string {
   const state = createOAuthState(uid, returnTo);

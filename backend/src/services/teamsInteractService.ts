@@ -94,6 +94,7 @@ export async function handleTeamsCommandText(opts: {
 
 /**
  * Persist conversation reference when the bot is added / messaged (enables proactive posts).
+ * Prefer activity email; otherwise attach to the existing OAuth connection for this tenant.
  */
 export function rememberTeamsConversation(opts: {
   tenantId: string;
@@ -102,12 +103,26 @@ export function rememberTeamsConversation(opts: {
   channelId?: string;
   userEmail?: string;
 }): void {
-  if (!opts.userEmail) return;
-  const user = findUserByEmail(opts.userEmail);
-  if (!user) return;
+  if (opts.userEmail) {
+    const user = findUserByEmail(opts.userEmail);
+    if (user) {
+      upsertTeamsConnection({
+        ownerUid: user.uid,
+        ownerEmail: user.email,
+        tenantId: opts.tenantId,
+        conversationId: opts.conversationId,
+        serviceUrl: opts.serviceUrl,
+        channelId: opts.channelId,
+      });
+      return;
+    }
+  }
+  // Channel messages often omit email — still store conversation on the tenant owner.
+  const conn = getTeamsConnectionForTenant(opts.tenantId);
+  if (!conn) return;
   upsertTeamsConnection({
-    ownerUid: user.uid,
-    ownerEmail: user.email,
+    ownerUid: conn.ownerUid,
+    ownerEmail: conn.ownerEmail,
     tenantId: opts.tenantId,
     conversationId: opts.conversationId,
     serviceUrl: opts.serviceUrl,

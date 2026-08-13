@@ -1,6 +1,7 @@
 /**
  * Teams Bot Framework inbound — activities + Adaptive Card invoke/submit.
  * Expects JSON body; JWT verified via Authorization Bearer.
+ * Replies go via Bot Connector (serviceUrl), not the HTTP response body.
  */
 
 import { Request, Response } from "express";
@@ -18,6 +19,7 @@ import {
   runTeamsTaskAction,
   teamsSlashHelp,
 } from "../services/teamsInteractService";
+import { replyTeamsText } from "../services/teamsApiService";
 
 function authHeader(req: Request): string | undefined {
   const h = req.header("authorization") ?? req.header("Authorization");
@@ -39,6 +41,7 @@ async function verifyOrReject(req: Request, res: Response): Promise<boolean> {
 }
 
 interface TeamsActivity {
+  id?: string;
   type?: string;
   text?: string;
   name?: string;
@@ -52,10 +55,29 @@ interface TeamsActivity {
 
 function extractEmailFromActivity(activity: TeamsActivity): string | null {
   // Bot Framework rarely sends email on channel messages; AAD id is primary.
-  // ChannelData / entities may include email in some tenants — best-effort.
   const name = activity.from?.name;
   if (name?.includes("@")) return name.trim().toLowerCase();
   return null;
+}
+
+async function sendReply(activity: TeamsActivity, text: string): Promise<void> {
+  const ok = await replyTeamsText({
+    serviceUrl: activity.serviceUrl,
+    conversationId: activity.conversation?.id,
+    replyToId: activity.id,
+    text,
+  });
+  if (!ok) {
+    console.warn("[teams] connector reply failed — user may see no response in chat");
+  }
+}
+
+function ackInvoke(res: Response): void {
+  res.status(200).json({
+    statusCode: 200,
+    type: "invokeResponse",
+    value: { status: 200, body: null },
+  });
 }
 
 /**
@@ -66,7 +88,7 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
 
   const activity = (typeof req.body === "object" && req.body ? req.body : {}) as TeamsActivity;
 
-  // Bot Framework ping
+  // Bot Framework ping / install
   if (activity.type === "conversationUpdate" || activity.type === "installationUpdate") {
     const tenantId = activity.channelData?.tenant?.id ?? activity.conversation?.tenantId ?? "";
     if (tenantId && activity.conversation?.id && activity.serviceUrl) {
@@ -83,11 +105,12 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
   }
 
   const tenantId = activity.channelData?.tenant?.id ?? activity.conversation?.tenantId ?? "";
+  const isInvoke = activity.type === "invoke";
 
   // Adaptive Card Action.Submit / invoke
   if (
-    activity.type === "invoke" ||
-    activity.type === "message" && activity.value && typeof activity.value === "object"
+    isInvoke ||
+    (activity.type === "message" && activity.value && typeof activity.value === "object")
   ) {
     const submit = parseTeamsTaskSubmit(activity.value);
     if (submit) {
@@ -96,17 +119,27 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
         email: extractEmailFromActivity(activity),
         tenantId,
       });
-      if ("error" in resolved) {
-        res.status(200).json({ type: "message", text: resolved.error });
+      const text =
+        "error" in resolved
+          ? resolved.error
+          : (
+              await runTeamsTaskAction({
+                actorUid: resolved.uid,
+                targetUid: submit.targetUid,
+                todoId: submit.todoId,
+                action: submit.action,
+              })
+            ).message;
+      await sendReply(activity, text);
+      if (isInvoke) {
+        ackInvoke(res);
         return;
       }
-      const result = await runTeamsTaskAction({
-        actorUid: resolved.uid,
-        targetUid: submit.targetUid,
-        todoId: submit.todoId,
-        action: submit.action,
-      });
-      res.status(200).json({ type: "message", text: result.message });
+      res.status(200).json({});
+      return;
+    }
+    if (isInvoke) {
+      ackInvoke(res);
       return;
     }
   }
@@ -129,16 +162,18 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
       tenantId,
     });
     if ("error" in resolved) {
-      res.status(200).json({ type: "message", text: resolved.error });
+      await sendReply(activity, resolved.error);
+      res.status(200).json({});
       return;
     }
     try {
       const reply = await handleTeamsCommandText({ actorUid: resolved.uid, text: activity.text });
-      res.status(200).json({ type: "message", text: reply || teamsSlashHelp() });
+      await sendReply(activity, reply || teamsSlashHelp());
     } catch (err) {
       console.warn("[teams] command failed:", err);
-      res.status(200).json({ type: "message", text: "Erreur lors du traitement de la commande." });
+      await sendReply(activity, "Erreur lors du traitement de la commande.");
     }
+    res.status(200).json({});
     return;
   }
 
