@@ -6,6 +6,7 @@ import {
   unreadCount,
   markAsRead,
   markAllAsRead,
+  deleteNotification,
   type Notification,
 } from "../services/notificationService";
 import { findTodoForUser } from "../services/todoService";
@@ -77,5 +78,11 @@ export async function read(req: AuthenticatedRequest, res: Response) {
 
 export async function readAll(req: AuthenticatedRequest, res: Response) {
   markAllAsRead(req.user!.uid);
+  res.status(200).json({ ok: true });
+}
+
+export async function dismiss(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  deleteNotification(req.user!.uid, id);
   res.status(200).json({ ok: true });
 }

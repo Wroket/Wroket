@@ -278,3 +278,12 @@ export function markAllAsRead(userId: string): void {
   list.forEach((n) => { n.read = true; });
   persist();
 }
+
+/** Removes a notification from the user's feed (dismiss / hide). */
+export function deleteNotification(userId: string, notifId: string): void {
+  const list = getUserNotifications(userId);
+  const idx = list.findIndex((n) => n.id === notifId);
+  if (idx === -1) throw new NotFoundError("Notification introuvable");
+  list.splice(idx, 1);
+  persist();
+}

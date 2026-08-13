@@ -1825,6 +1825,8 @@ const translations = {
   "notif.all": { fr: "Toutes", en: "All" },
   "notif.viewAll": { fr: "Voir tout", en: "View all" },
   "notif.open": { fr: "Ouvrir", en: "Open" },
+  "notif.dismiss": { fr: "Masquer", en: "Dismiss" },
+  "notif.dismissTitle": { fr: "Masquer cette notification", en: "Dismiss this notification" },
   "notif.noUnread": { fr: "Aucune notification non lue", en: "No unread notifications" },
   "notif.noRead": { fr: "Aucune notification lue", en: "No read notifications" },
   "notif.noNotifications": { fr: "Aucune notification pour le moment", en: "No notifications yet" },

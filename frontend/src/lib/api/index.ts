@@ -138,6 +138,7 @@ export {
   getUnreadCount,
   markNotificationRead,
   markAllNotificationsRead,
+  dismissNotification,
 } from "./teams";
 export type {
   Collaborator,

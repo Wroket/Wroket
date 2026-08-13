@@ -510,3 +510,12 @@ export async function markAllNotificationsRead(): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/notifications/read-all`, { method: "PUT", credentials: "include" });
   if (!res.ok) throw new Error("Impossible de marquer les notifications comme lues");
 }
+
+/** Hide / dismiss a notification from the user's feed. */
+export async function dismissNotification(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/notifications/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de masquer la notification");
+}

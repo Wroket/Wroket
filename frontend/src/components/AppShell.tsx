@@ -10,6 +10,7 @@ import {
   getUnreadCount,
   markNotificationRead,
   markAllNotificationsRead,
+  dismissNotification,
   acceptCollaboration,
   declineCollaboration,
   shareInviteApi,
@@ -625,6 +626,19 @@ export default function AppShell({ children }: AppShellProps) {
     } catch { toast.error(t("toast.updateError")); }
   };
 
+  const handleDismissNotif = async (id: string) => {
+    try {
+      await dismissNotification(id);
+      let wasUnread = false;
+      setNotifications((prev) => {
+        const target = prev.find((n) => n.id === id);
+        wasUnread = Boolean(target && !target.read);
+        return prev.filter((n) => n.id !== id);
+      });
+      if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch { toast.error(t("toast.updateError")); }
+  };
+
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -1059,23 +1073,33 @@ export default function AppShell({ children }: AppShellProps) {
                                 <span className="text-[10px] text-zinc-400 dark:text-slate-500 tabular-nums">
                                   {timeAgo(notif.createdAt, t)}
                                 </span>
-                                {notif.type !== "team_invite" && (() => {
-                                  const href = panelNotifHref(notif);
-                                  if (!href) return null;
-                                  return (
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        await handleMarkRead(notif.id);
-                                        setNotifOpen(false);
-                                        router.push(href);
-                                      }}
-                                      className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline shrink-0"
-                                    >
-                                      {t("notif.open")}
-                                    </button>
-                                  );
-                                })()}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDismissNotif(notif.id)}
+                                    className="text-[11px] font-medium text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-slate-200 hover:underline"
+                                    title={t("notif.dismissTitle")}
+                                  >
+                                    {t("notif.dismiss")}
+                                  </button>
+                                  {notif.type !== "team_invite" && (() => {
+                                    const href = panelNotifHref(notif);
+                                    if (!href) return null;
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          await handleMarkRead(notif.id);
+                                          setNotifOpen(false);
+                                          router.push(href);
+                                        }}
+                                        className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                      >
+                                        {t("notif.open")}
+                                      </button>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                               {notif.type === "team_invite" && notif.data?.inviterEmail && (
                                 <div className="flex flex-wrap gap-2 pt-0.5">

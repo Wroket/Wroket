@@ -9,6 +9,7 @@ import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  dismissNotification,
   acceptCollaboration,
   declineCollaboration,
   updateTodo,
@@ -107,6 +108,18 @@ export default function NotificationsPage() {
       toast.error(formatUserFacingError(err, "toast.genericError", locale));
     }
   }, [locale, toast]);
+
+  const handleDismiss = useCallback(
+    async (id: string) => {
+      try {
+        await dismissNotification(id);
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      } catch (err) {
+        toast.error(formatUserFacingError(err, "toast.genericError", locale));
+      }
+    },
+    [locale, toast],
+  );
 
   const handleInviteAction = useCallback(
     async (notif: AppNotification, action: "accept" | "decline") => {
@@ -346,6 +359,17 @@ export default function NotificationsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void handleDismiss(notif.id)}
+                      title={t("notif.dismissTitle")}
+                      aria-label={t("notif.dismiss")}
+                      className="rounded p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                     {!notif.read && !showInviteActions && !showAssignActions && (
                       <button
                         type="button"
