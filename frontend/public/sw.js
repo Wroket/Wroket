@@ -1,8 +1,19 @@
 /* Wroket PWA shell — cache static assets; network-first navigation with offline fallback. */
 
-const CACHE_VERSION = "wroket-shell-v4";
+const CACHE_VERSION = "wroket-shell-v5";
 const PUSH_ICON = "/wroket-notification-icon.png";
 const PRECACHE_URLS = ["/offline.html", PUSH_ICON, "/wroket-logo.png"];
+
+/** Tell open app tabs to refresh the in-app unread badge (light, no WebSocket). */
+async function notifyClientsOfPush(payload) {
+  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  for (const client of clients) {
+    client.postMessage({
+      type: "WROKET_PUSH",
+      notifId: payload?.notifId || null,
+    });
+  }
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -126,7 +137,12 @@ self.addEventListener("push", (event) => {
   };
   if (actions.length > 0) options.actions = actions;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      notifyClientsOfPush(payload),
+    ]),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

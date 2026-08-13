@@ -391,6 +391,7 @@ export default function AppShell({ children }: AppShellProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifTimeTick, setNotifTimeTick] = useState(0);
   const prevUnreadCountRef = useRef(0);
+  const notifOpenRef = useRef(false);
   const browserNotifPermRef = useRef<NotificationPermission | null>(null);
   const panelNotifications = useMemo(
     () =>
@@ -467,52 +468,8 @@ export default function AppShell({ children }: AppShellProps) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchCount = async () => {
-      try {
-        const c = await getUnreadCount();
-        if (!cancelled) {
-          const prev = prevUnreadCountRef.current;
-          prevUnreadCountRef.current = c;
-          // Desktop alert when tab is open — skip if Web Push handles this device.
-          if (c > prev && typeof Notification !== "undefined" && Notification.permission === "granted") {
-            void (async () => {
-              if (await hasLocalWebPushSubscription()) return;
-              try {
-                const list = await getNotifications();
-                const latest = list.find((n) => !n.read) ?? list[0];
-                if (latest) {
-                  const href = panelNotifHref(latest);
-                  const desktopNotif = new Notification(latest.title || "Wroket", {
-                    body: latest.message,
-                    icon: PUSH_NOTIFICATION_ICON,
-                    tag: latest.id ? `wroket-${latest.id}` : "wroket-notif",
-                  });
-                  desktopNotif.onclick = () => {
-                    window.focus();
-                    if (href) window.location.href = href;
-                    desktopNotif.close();
-                  };
-                  return;
-                }
-              } catch { /* fall through to generic */ }
-              const delta = c - prev;
-              const body = delta === 1
-                ? "Vous avez 1 nouvelle notification"
-                : `Vous avez ${delta} nouvelles notifications`;
-              try {
-                new Notification("Wroket", { body, icon: PUSH_NOTIFICATION_ICON, tag: "wroket-notif" });
-              } catch { /* browser may block even with permission */ }
-            })();
-          }
-          setUnreadCount(c);
-        }
-      } catch { /* polling — silent */ }
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 30000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
+    notifOpenRef.current = notifOpen;
+  }, [notifOpen]);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -558,10 +515,92 @@ export default function AppShell({ children }: AppShellProps) {
       const list = await getNotifications();
       setNotifications(list);
       setUnreadCount(list.filter((n) => !n.read).length);
+      prevUnreadCountRef.current = list.filter((n) => !n.read).length;
     } catch {
       toast.error(t("toast.loadError"));
     }
   }, [toast, t]);
+
+  /**
+   * Unread badge sync (light):
+   * - poll every 30s (background safety net)
+   * - refetch when the tab becomes visible / comes online
+   * - refetch when the service worker receives a Web Push (`WROKET_PUSH`)
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const c = await getUnreadCount();
+        if (!cancelled) {
+          const prev = prevUnreadCountRef.current;
+          prevUnreadCountRef.current = c;
+          // Desktop alert when tab is open — skip if Web Push handles this device.
+          if (c > prev && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            void (async () => {
+              if (await hasLocalWebPushSubscription()) return;
+              try {
+                const list = await getNotifications();
+                const latest = list.find((n) => !n.read) ?? list[0];
+                if (latest) {
+                  const href = panelNotifHref(latest);
+                  const desktopNotif = new Notification(latest.title || "Wroket", {
+                    body: latest.message,
+                    icon: PUSH_NOTIFICATION_ICON,
+                    tag: latest.id ? `wroket-${latest.id}` : "wroket-notif",
+                  });
+                  desktopNotif.onclick = () => {
+                    window.focus();
+                    if (href) window.location.href = href;
+                    desktopNotif.close();
+                  };
+                  return;
+                }
+              } catch { /* fall through to generic */ }
+              const delta = c - prev;
+              const body = delta === 1
+                ? "Vous avez 1 nouvelle notification"
+                : `Vous avez ${delta} nouvelles notifications`;
+              try {
+                new Notification("Wroket", { body, icon: PUSH_NOTIFICATION_ICON, tag: "wroket-notif" });
+              } catch { /* browser may block even with permission */ }
+            })();
+          }
+          setUnreadCount(c);
+        }
+      } catch { /* polling — silent */ }
+    };
+
+    const softRefresh = () => {
+      if (notifOpenRef.current) void refreshNotificationList();
+      else void fetchCount();
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden) softRefresh();
+    };
+    const onOnline = () => softRefresh();
+    const onSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "WROKET_PUSH") softRefresh();
+    };
+
+    softRefresh();
+    const interval = setInterval(fetchCount, 30_000);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onSwMessage);
+    }
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onSwMessage);
+      }
+    };
+  }, [refreshNotificationList]);
 
   const openNotifPanel = useCallback(() => {
     setNotifOpen((prev) => {
