@@ -6,9 +6,18 @@ import { findUserByUid, getEntitlementsForUid, getNotificationDeliveryPrefs, get
 import { enqueueDigest } from "./digestService";
 import { sendNotificationEmail } from "./emailService";
 import { getProjectById } from "./projectService";
-import { dispatchOutboundWebhook, dispatchWebhooks, type WebhookEvent } from "./webhookService";
+import {
+  dispatchOutboundWebhook,
+  dispatchWebhooks,
+  listMatchingWebhooks,
+  type WebhookEvent,
+  type WebhookPlatform,
+} from "./webhookService";
 import { sendWebPushForNotification } from "./webPushService";
 import { filterNotificationsForDisplay } from "./notificationDisplayPolicy";
+import { getSlackConnectionForUser } from "./slackConnectionService";
+import { getTeamsConnectionForUser } from "./teamsConnectionService";
+import { getGoogleChatConnectionForUser } from "./googleChatConnectionService";
 
 export type NotificationType =
   | "task_assigned"
@@ -141,6 +150,35 @@ export function createNotification(
   return notif;
 }
 
+/**
+ * True when profile Slack/Teams/Google Chat delivery would hit the same destination
+ * as an already-matching webhook (OAuth same channel, or identical Incoming Webhook URL).
+ * Prevents duplicate side-channel posts from createNotification.
+ */
+export function shouldSkipProfileChatDelivery(
+  userId: string,
+  platform: Extract<WebhookPlatform, "slack" | "teams" | "google_chat">,
+  event: WebhookEvent,
+  data: Record<string, string> | undefined,
+  profileWebhookUrl: string | null,
+): boolean {
+  const matching = listMatchingWebhooks(userId, event, data).filter((w) => w.platform === platform);
+  if (matching.length === 0) return false;
+
+  if (platform === "slack") {
+    const conn = getSlackConnectionForUser(userId);
+    if (conn?.accessToken && conn.channelId) return true;
+  } else if (platform === "teams") {
+    if (getTeamsConnectionForUser(userId)) return true;
+  } else if (platform === "google_chat") {
+    if (getGoogleChatConnectionForUser(userId)) return true;
+  }
+
+  const profileUrl = profileWebhookUrl?.trim().toLowerCase() ?? "";
+  if (!profileUrl) return false;
+  return matching.some((w) => w.url.trim().toLowerCase() === profileUrl);
+}
+
 /** Email / Slack / Teams / Google Chat channel from user settings (Paramètres → Intégrations). */
 function deliverProfileOutbound(
   userId: string,
@@ -165,6 +203,9 @@ function deliverProfileOutbound(
     return;
   }
   if (prefs.mode === "slack") {
+    if (shouldSkipProfileChatDelivery(userId, "slack", type as WebhookEvent, data, prefs.webhookUrl)) {
+      return;
+    }
     // Prefer OAuth chat.postMessage; fall back to Incoming Webhook URL.
     if (prefs.webhookUrl) {
       dispatchOutboundWebhook(prefs.webhookUrl, "slack", type as WebhookEvent, title, message, data, userId);
@@ -192,11 +233,21 @@ function deliverProfileOutbound(
     }
     return;
   }
-  if (
-    (prefs.mode === "teams" || prefs.mode === "google_chat") &&
-    prefs.webhookUrl
-  ) {
-    dispatchOutboundWebhook(prefs.webhookUrl, prefs.mode, type as WebhookEvent, title, message, data, userId);
+  if (prefs.mode === "teams" || prefs.mode === "google_chat") {
+    if (
+      shouldSkipProfileChatDelivery(
+        userId,
+        prefs.mode,
+        type as WebhookEvent,
+        data,
+        prefs.webhookUrl,
+      )
+    ) {
+      return;
+    }
+    if (prefs.webhookUrl) {
+      dispatchOutboundWebhook(prefs.webhookUrl, prefs.mode, type as WebhookEvent, title, message, data, userId);
+    }
   }
 }
 

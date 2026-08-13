@@ -893,6 +893,23 @@ async function postWebhookBody(
 }
 
 /**
+ * Enabled webhooks that would fire for this event (+ optional project/team filters).
+ */
+export function listMatchingWebhooks(
+  uid: string,
+  event: WebhookEvent,
+  data?: Record<string, string>,
+): WebhookConfig[] {
+  return getUserWebhooks(uid).filter(
+    (w) =>
+      w.enabled &&
+      w.events.includes(event) &&
+      !isWebhookInBackoff(w) &&
+      matchesWebhookFilters(w, data),
+  );
+}
+
+/**
  * Fire webhook(s) for a given user + event.
  * Non-blocking — errors are logged and recorded on the config.
  */
@@ -903,14 +920,7 @@ export function dispatchWebhooks(
   message: string,
   data?: Record<string, string>,
 ): void {
-  const list = getUserWebhooks(uid);
-  const matching = list.filter(
-    (w) =>
-      w.enabled &&
-      w.events.includes(event) &&
-      !isWebhookInBackoff(w) &&
-      matchesWebhookFilters(w, data),
-  );
+  const matching = listMatchingWebhooks(uid, event, data);
   if (matching.length === 0) return;
 
   const payload: WebhookPayload = {
