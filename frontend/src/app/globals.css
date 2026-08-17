@@ -235,7 +235,8 @@ html.ui-v2 table.task-list-v2,
   /*
    * Fixed layout + EXPLICIT meta/actions widths.
    * Do not use Tailwind w-px/w-full on these cells — they crush the right columns.
-   * Intitulé (no width) receives the leftover space and truncates.
+   * Intitulé (no width) receives leftover space. Title text truncates on its own
+   * line; slot/assignment badges wrap below (must not replace the name).
    */
   table-layout: fixed;
   width: 100%;

@@ -191,65 +191,81 @@ export default function SortableTaskRow({
           todo.status === "cancelled" ? "line-through text-zinc-400 italic" :
           todo.status === "deleted" ? "line-through text-zinc-300 dark:text-slate-600" :
           "text-zinc-900 dark:text-slate-100";
+        const proj = todo.projectId ? projects.find((p) => p.id === todo.projectId) : undefined;
+        const assignedToMe = Boolean(todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid);
+        const assignedToOther = Boolean(todo.assignedTo && meUid && todo.assignedTo !== meUid);
+        const hasMeta = Boolean(
+          proj || assignedToMe || assignedToOther || todo.assignmentStatus || todo.scheduledSlot || subs.length > 0,
+        );
+        const meta = (
+          <>
+            {proj ? (
+              <span className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300`}>
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                {proj.name}
+              </span>
+            ) : null}
+            {assignedToMe && (
+              <span className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300`} title={`${t("assign.assignedBy")} ${userDisplayName(todo.userId)}`}>
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {userDisplayName(todo.userId)}
+              </span>
+            )}
+            {assignedToOther && (
+              <span className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300`} title={`${t("assign.assignedTo")} ${userDisplayName(todo.assignedTo!)}`}>
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                → {userDisplayName(todo.assignedTo!)}
+              </span>
+            )}
+            {todo.assignmentStatus && (
+              <AssignmentStatusBadge
+                status={todo.assignmentStatus}
+                className={uiV2 ? "" : "ml-1.5"}
+              />
+            )}
+            {todo.scheduledSlot && (
+              <span className={uiV2 ? "shrink-0" : "ml-1.5"}>
+                <ScheduledSlotBadge slot={todo.scheduledSlot} compact={uiV2} />
+              </span>
+            )}
+            {subs.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggleExpand(todo.id); }}
+                className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 transition-colors ${SUBTASK_BADGE_CLS}`}
+              >
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
+                </svg>
+                {subs.length} {expanded.has(todo.id) ? "▴" : "▾"}
+              </button>
+            )}
+          </>
+        );
         return (
           <td
             key={col}
             className={`pl-2 pr-4 py-3 ${uiV2 ? "task-list-col-title" : ""}`}
           >
-            <div className={uiV2 ? "flex min-w-0 items-center gap-1.5" : undefined}>
-              <span
-                className={`font-medium ${titleCls}${uiV2 ? " min-w-0 truncate" : ""}`}
-                title={uiV2 ? titleText : undefined}
-              >
-                {titleText}
-              </span>
-              {todo.projectId && (() => {
-                const proj = projects.find((p) => p.id === todo.projectId);
-                return proj ? (
-                  <span className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300`}>
-                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-                    {proj.name}
-                  </span>
-                ) : null;
-              })()}
-              {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && (
-                <span className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300`} title={`${t("assign.assignedBy")} ${userDisplayName(todo.userId)}`}>
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  {userDisplayName(todo.userId)}
+            {uiV2 ? (
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className={`font-medium block min-w-0 truncate ${titleCls}`} title={titleText}>
+                  {titleText}
                 </span>
-              )}
-              {todo.assignedTo && meUid && todo.assignedTo !== meUid && (
-                <span className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300`} title={`${t("assign.assignedTo")} ${userDisplayName(todo.assignedTo)}`}>
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  → {userDisplayName(todo.assignedTo)}
-                </span>
-              )}
-              {todo.assignmentStatus && (
-                <AssignmentStatusBadge
-                  status={todo.assignmentStatus}
-                  className={uiV2 ? "" : "ml-1.5"}
-                />
-              )}
-              {todo.scheduledSlot && (
-                <span className={uiV2 ? "shrink-0" : "ml-1.5"}><ScheduledSlotBadge slot={todo.scheduledSlot} /></span>
-              )}
-              {subs.length > 0 && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); toggleExpand(todo.id); }}
-                  className={`${uiV2 ? "shrink-0" : "ml-1.5"} inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 transition-colors ${SUBTASK_BADGE_CLS}`}
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 5.25h16.5m-16.5-10.5H12" />
-                  </svg>
-                  {subs.length} {expanded.has(todo.id) ? "▴" : "▾"}
-                </button>
-              )}
-            </div>
+                {hasMeta ? (
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">{meta}</div>
+                ) : null}
+              </div>
+            ) : (
+              <div>
+                <span className={`font-medium ${titleCls}`}>{titleText}</span>
+                {meta}
+              </div>
+            )}
           </td>
         );
       }

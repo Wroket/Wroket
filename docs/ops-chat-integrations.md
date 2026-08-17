@@ -29,7 +29,7 @@ Redirect env : `https://api.wroket.com/integrations/slack/callback`.
   - `https://api.wroket.com/integrations/slack/interactions`
 - [ ] **Slash Commands** → commande `/wroket` → Request URL :
   - `https://api.wroket.com/integrations/slack/commands`
-- [ ] **Manage Distribution** : **pas** « Internal only » — distribution activée (tout workspace)
+- [x] **Manage Distribution** : public distribution **active** (app `A0ASUUQ8DQE`, confirmé 2026-08-13 — bouton « Deactivate Public Distribution » visible)
 - [ ] Si scopes modifiés : dans Wroket → **Reconnecter** Slack
 
 ### Smoke

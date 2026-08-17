@@ -663,16 +663,24 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   );
 }
 
-export function ScheduledSlotBadge({ slot }: { slot: ScheduledSlot }) {
+export function ScheduledSlotBadge({
+  slot,
+  compact = false,
+}: {
+  slot: ScheduledSlot;
+  /** Hide the “on calendar” suffix — keep it in the tooltip (tight table cells). */
+  compact?: boolean;
+}) {
   const { t } = useLocale();
   const synced = Boolean(slot.calendarEventId);
+  const where = synced ? t("schedule.badgeExternal") : t("schedule.badgeWroket");
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 ${TAG_AUX.slot} shrink-0 whitespace-nowrap`}
-      title={synced ? t("schedule.badgeExternal") : t("schedule.badgeWroket")}
+      title={where}
     >
       {formatScheduledSlotLabel(slot)}
-      <span className="opacity-70">· {synced ? t("schedule.badgeExternal") : t("schedule.badgeWroket")}</span>
+      {!compact && <span className="opacity-70">· {where}</span>}
     </span>
   );
 }

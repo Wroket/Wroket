@@ -96,7 +96,7 @@
  * 2. Scopes bot (ci-dessus) ; re-install / Reconnecter Wroket after change
  * 3. Interactivity URL → `/integrations/slack/interactions`
  * 4. Slash `/wroket` → `/integrations/slack/commands`
- * 5. Manage Distribution → not Internal-only
+ * 5. Manage Distribution → **done** (public distribution active, app `A0ASUUQ8DQE`)
  * 6. Smoke: Connect + test + buttons + `/wroket my-week`
  */
 
