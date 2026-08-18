@@ -5,6 +5,7 @@
 
 import { getAdminEmails } from "./adminService";
 import { isSmtpConfiguredForOutbound, sendAdminOpsAlertEmail } from "./emailService";
+import type { PersistenceHealthMetrics } from "./healthService";
 
 export type AdminOpsAlertKind =
   | "persistence_flush"
@@ -81,6 +82,31 @@ export function stopAdminOpsAlertMonitor(): void {
   monitorTimer = null;
 }
 
+/**
+ * True when dirty data has been continuously non-empty longer than `staleMs`.
+ * Uses `dirtyAgeMs` (time since dirty became non-empty), not `lastFlushAt`
+ * (which stays old during quiet periods and caused false positives).
+ */
+export function isPersistenceFlushStale(
+  persistence: Pick<
+    PersistenceHealthMetrics,
+    "dirtyDomainsCount" | "dirtyShardsCount" | "dirtyAgeMs" | "consecutiveFlushFailures"
+  >,
+  staleMs: number,
+): boolean {
+  const dirtyTotal = persistence.dirtyDomainsCount + persistence.dirtyShardsCount;
+  if (dirtyTotal <= 0) return false;
+  if (persistence.consecutiveFlushFailures > 0) return false;
+  const ageMs = persistence.dirtyAgeMs;
+  if (ageMs === null || !Number.isFinite(ageMs)) return false;
+  return ageMs > staleMs;
+}
+
+function flushStaleThresholdMs(): number {
+  const staleMinutes = Number(process.env.ADMIN_OPS_FLUSH_STALE_MINUTES);
+  return (Number.isFinite(staleMinutes) && staleMinutes > 0 ? staleMinutes : 10) * 60 * 1000;
+}
+
 async function runReadinessProbe(): Promise<void> {
   const { probeSmtpDeliveryHealth } = await import("./emailDeliveryMonitor");
   probeSmtpDeliveryHealth();
@@ -88,26 +114,21 @@ async function runReadinessProbe(): Promise<void> {
   const { getReadinessStatus } = await import("./healthService");
   const status = await getReadinessStatus();
   const p = status.persistence;
-  const dirtyTotal = p.dirtyDomainsCount + p.dirtyShardsCount;
-  const staleMinutes = Number(process.env.ADMIN_OPS_FLUSH_STALE_MINUTES);
-  const staleMs =
-    (Number.isFinite(staleMinutes) && staleMinutes > 0 ? staleMinutes : 10) * 60 * 1000;
+  const staleMs = flushStaleThresholdMs();
 
-  if (dirtyTotal > 0 && p.consecutiveFlushFailures === 0 && status.store.ok) {
-    const lastFlushMs = p.lastFlushAt ? new Date(p.lastFlushAt).getTime() : null;
-    const ageMs = lastFlushMs === null ? Number.POSITIVE_INFINITY : Date.now() - lastFlushMs;
-    if (ageMs > staleMs) {
-      maybeNotifyAdminOpsAlert({
-        kind: "persistence_flush_stale",
-        title: "Flush Firestore stale — données dirty non persistées",
-        lines: [
-          `Domaines/shards dirty : ${p.dirtyDomainsCount} domaines, ${p.dirtyShardsCount} shards todos`,
-          `Dernier flush réussi : ${p.lastFlushAt ?? "jamais"}`,
-          `Seuil stale : ${Math.round(staleMs / 60_000)} min`,
-          "Aucun échec flush consécutif pour l'instant — risque de dégradation silencieuse.",
-        ],
-      });
-    }
+  if (isPersistenceFlushStale(p, staleMs) && status.store.ok) {
+    const ageMin = p.dirtyAgeMs === null ? "?" : Math.round(p.dirtyAgeMs / 60_000);
+    maybeNotifyAdminOpsAlert({
+      kind: "persistence_flush_stale",
+      title: "Flush Firestore stale — données dirty non persistées",
+      lines: [
+        `Domaines/shards dirty : ${p.dirtyDomainsCount} domaines, ${p.dirtyShardsCount} shards todos`,
+        `Dirty depuis : ${p.dirtySince ?? "inconnu"} (~${ageMin} min)`,
+        `Dernier flush réussi : ${p.lastFlushAt ?? "jamais"}`,
+        `Seuil stale : ${Math.round(staleMs / 60_000)} min (âge du dirty, pas du dernier flush)`,
+        "Aucun échec flush consécutif pour l'instant — risque de dégradation silencieuse.",
+      ],
+    });
   }
 
   if (status.status !== "degraded") return;

@@ -142,6 +142,22 @@ let db: Firestore | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const dirtyDomains = new Set<Domain>();
 const dirtyTodoShards = new Set<number>();
+/**
+ * Wall-clock when the dirty sets last became non-empty (null when clean).
+ * Used by ops alerts so "stale flush" means dirty stuck for N minutes — not
+ * "last successful flush was long ago" (false positive after quiet periods).
+ */
+let dirtySinceMs: number | null = null;
+
+/** Sync `dirtySinceMs` after any mutation of the dirty sets. */
+function refreshDirtySince(): void {
+  const dirty = dirtyDomains.size > 0 || dirtyTodoShards.size > 0;
+  if (dirty) {
+    if (dirtySinceMs === null) dirtySinceMs = Date.now();
+  } else {
+    dirtySinceMs = null;
+  }
+}
 
 /** Firestore onSnapshot unsubscribe functions for cross-replica live invalidation. */
 const liveListenerUnsubs: Array<() => void> = [];
@@ -282,6 +298,7 @@ async function loadFromFirestore(): Promise<StoreData> {
   const shardsFilled = shardsHaveAnyUserData(shardSnaps);
   if (legacyHadUsers && !shardsFilled) {
     for (let i = 0; i < TODO_SHARD_COUNT; i++) dirtyTodoShards.add(i);
+    refreshDirtySince();
     console.log(
       "[persistence] Legacy store/todos only — marking all %d todo shard(s) dirty for first flush to Firestore",
       TODO_SHARD_COUNT
@@ -325,11 +342,17 @@ const saveMetrics: SaveMetrics = {
 export function getPersistenceMetrics(): SaveMetrics & {
   dirtyDomainsCount: number;
   dirtyShardsCount: number;
+  /** ISO timestamp when dirty sets became non-empty; null when clean. */
+  dirtySince: string | null;
+  /** Milliseconds since dirty became non-empty; null when clean. */
+  dirtyAgeMs: number | null;
 } {
   return {
     ...saveMetrics,
     dirtyDomainsCount: dirtyDomains.size,
     dirtyShardsCount: dirtyTodoShards.size,
+    dirtySince: dirtySinceMs === null ? null : new Date(dirtySinceMs).toISOString(),
+    dirtyAgeMs: dirtySinceMs === null ? null : Math.max(0, Date.now() - dirtySinceMs),
   };
 }
 
@@ -339,6 +362,7 @@ async function saveToFirestore(): Promise<void> {
   // Legacy monolithic activity log is not flushed in Firestore prod (see activityLogService).
   if (!USE_LOCAL && dirtyDomains.delete("activityLog")) {
     console.log("[persistence] skipped legacy store/activityLog flush (activity_log_v2 is source of truth)");
+    refreshDirtySince();
   }
 
   type FlushOp = {
@@ -403,6 +427,7 @@ async function saveToFirestore(): Promise<void> {
         await batch.commit();
         if (op.domain) dirtyDomains.delete(op.domain);
         if (op.shardIndex !== undefined) dirtyTodoShards.delete(op.shardIndex);
+        refreshDirtySince();
         committed += 1;
         saved = true;
         break;
@@ -487,6 +512,7 @@ function armDebounce(): void {
       saveToDisk();
       dirtyDomains.clear();
       dirtyTodoShards.clear();
+      refreshDirtySince();
     } else {
       saveToFirestore().catch((err) => console.error("[persistence] Async save error: %s", err));
     }
@@ -542,6 +568,7 @@ export function scheduleSave(domain?: Domain): void {
       }
     });
   }
+  refreshDirtySince();
   armDebounce();
 }
 
@@ -558,6 +585,7 @@ export function scheduleTodoShardPersist(shardSpec: "all" | number | number[]): 
       if (i >= 0 && i < TODO_SHARD_COUNT) dirtyTodoShards.add(i);
     }
   }
+  refreshDirtySince();
   armDebounce();
 }
 
@@ -579,6 +607,7 @@ export async function flushNow(): Promise<void> {
     saveToDisk();
     dirtyDomains.clear();
     dirtyTodoShards.clear();
+    refreshDirtySince();
   } else {
     await saveToFirestore();
   }

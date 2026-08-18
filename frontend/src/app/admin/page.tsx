@@ -1241,6 +1241,7 @@ export default function AdminPage() {
                   <div className="flex justify-between"><dt className="text-zinc-500">{t("admin.ops.lastFlush")}</dt><dd className="text-xs">{ops.persistence.lastFlushAt ? formatDateTime(ops.persistence.lastFlushAt) : "—"}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">{t("admin.ops.dirtyDomains")}</dt><dd className="font-mono">{ops.persistence.dirtyDomainsCount}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">{t("admin.ops.dirtyShards")}</dt><dd className="font-mono">{ops.persistence.dirtyShardsCount}</dd></div>
+                  <div className="flex justify-between"><dt className="text-zinc-500">{t("admin.ops.dirtySince")}</dt><dd className="text-xs">{ops.persistence.dirtySince ? formatDateTime(ops.persistence.dirtySince) : "—"}</dd></div>
                 </dl>
               </div>
               <div className={`rounded-xl border p-4 ${ops.todosDrift.status === "drift" || ops.todosDrift.status === "error" ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/20" : "border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>

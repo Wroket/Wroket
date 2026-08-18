@@ -25,6 +25,8 @@ function metricsFixture(overrides: Partial<ReturnType<typeof getPersistenceMetri
     failedFlushAttempts: 0,
     dirtyDomainsCount: 0,
     dirtyShardsCount: 0,
+    dirtySince: null,
+    dirtyAgeMs: null,
     ...overrides,
   };
 }

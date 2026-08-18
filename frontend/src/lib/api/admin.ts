@@ -110,6 +110,8 @@ export interface AdminOpsSnapshot {
     failedFlushAttempts: number;
     dirtyDomainsCount: number;
     dirtyShardsCount: number;
+    dirtySince?: string | null;
+    dirtyAgeMs?: number | null;
   };
   todosDrift: {
     status: string;

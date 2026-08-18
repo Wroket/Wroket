@@ -3443,6 +3443,7 @@ const translations = {
   "admin.ops.lastFlush": { fr: "Dernier flush", en: "Last flush" },
   "admin.ops.dirtyDomains": { fr: "Domaines dirty", en: "Dirty domains" },
   "admin.ops.dirtyShards": { fr: "Shards todos dirty", en: "Dirty todo shards" },
+  "admin.ops.dirtySince": { fr: "Dirty depuis", en: "Dirty since" },
   "admin.ops.drift": { fr: "Drift todos_v2", en: "todos_v2 drift" },
   "admin.ops.sessions": { fr: "Sessions actives", en: "Active sessions" },
   "admin.ops.multiSession": { fr: "Utilisateurs multi-sessions", en: "Multi-session users" },

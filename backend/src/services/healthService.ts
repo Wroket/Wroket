@@ -21,6 +21,8 @@ export interface PersistenceHealthMetrics {
   failedFlushAttempts: number;
   dirtyDomainsCount: number;
   dirtyShardsCount: number;
+  dirtySince: string | null;
+  dirtyAgeMs: number | null;
 }
 
 export interface ReadinessStatus {

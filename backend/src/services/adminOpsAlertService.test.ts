@@ -67,4 +67,57 @@ describe("adminOpsAlertService", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(sendAdminOpsAlertEmail).not.toHaveBeenCalled();
   });
+
+  it("isPersistenceFlushStale ignores old lastFlushAt — requires dirtyAgeMs", async () => {
+    const { isPersistenceFlushStale } = await import("./adminOpsAlertService");
+    const staleMs = 10 * 60 * 1000;
+    // Quiet period then a fresh write: dirty briefly, age under threshold → no alert
+    expect(
+      isPersistenceFlushStale(
+        {
+          dirtyDomainsCount: 1,
+          dirtyShardsCount: 0,
+          dirtyAgeMs: 5_000,
+          consecutiveFlushFailures: 0,
+        },
+        staleMs,
+      ),
+    ).toBe(false);
+    // Dirty stuck > 10 min → alert
+    expect(
+      isPersistenceFlushStale(
+        {
+          dirtyDomainsCount: 1,
+          dirtyShardsCount: 0,
+          dirtyAgeMs: staleMs + 1,
+          consecutiveFlushFailures: 0,
+        },
+        staleMs,
+      ),
+    ).toBe(true);
+    // Clean → no alert
+    expect(
+      isPersistenceFlushStale(
+        {
+          dirtyDomainsCount: 0,
+          dirtyShardsCount: 0,
+          dirtyAgeMs: null,
+          consecutiveFlushFailures: 0,
+        },
+        staleMs,
+      ),
+    ).toBe(false);
+    // Exhausted flush path has its own alert kind
+    expect(
+      isPersistenceFlushStale(
+        {
+          dirtyDomainsCount: 1,
+          dirtyShardsCount: 0,
+          dirtyAgeMs: staleMs + 1,
+          consecutiveFlushFailures: 2,
+        },
+        staleMs,
+      ),
+    ).toBe(false);
+  });
 });
