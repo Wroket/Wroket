@@ -7,6 +7,7 @@ import AppShell from "@/components/AppShell";
 import DashboardImportModal from "@/components/DashboardImportModal";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
+import PageScheduleModal from "@/components/PageScheduleModal";
 import TaskEditModal from "@/components/TaskEditModal";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import TaskImportModal from "@/components/TaskImportModal";
@@ -133,6 +134,7 @@ export default function DashboardPage() {
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [schedulePickerTodo, setSchedulePickerTodo] = useState<Todo | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<Todo | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
@@ -643,7 +645,7 @@ export default function DashboardPage() {
                     activeChildrenByParent={radarChildrenByParent}
                     onEditTask={openRadarEdit}
                     onScheduleTask={(todo) => {
-                      router.push(`/agenda?schedule=${encodeURIComponent(todo.id)}`);
+                      setSchedulePickerTodo(todo);
                     }}
                     headerStart={
                       <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
@@ -775,7 +777,7 @@ export default function DashboardPage() {
                     activeChildrenByParent={radarChildrenByParent}
                     onEditTask={openRadarEdit}
                     onScheduleTask={(todo) => {
-                      router.push(`/agenda?schedule=${encodeURIComponent(todo.id)}`);
+                      setSchedulePickerTodo(todo);
                     }}
                     headerStart={
                       <h3 className="m-0 flex min-w-0 w-full items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-slate-100">
@@ -890,6 +892,14 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      <PageScheduleModal
+        todo={schedulePickerTodo}
+        projects={projects}
+        onClose={() => setSchedulePickerTodo(null)}
+        onBooked={replaceTodoInLists}
+        analyticsSource="dashboard"
+      />
 
       <TaskEditModal
         todo={editingTodo}

@@ -21,6 +21,7 @@ import ExportImportDropdown from "@/components/ExportImportDropdown";
 import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
+import PageScheduleModal from "@/components/PageScheduleModal";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import SubtaskModal from "@/components/SubtaskModal";
@@ -262,6 +263,7 @@ export default function ProjectDetailView({
   const [addingTask, setAddingTask] = useState(false);
   const addTaskInFlightRef = useRef(false);
   const [schedulePromptId, setSchedulePromptId] = useState<string | null>(null);
+  const [schedulePickerTodo, setSchedulePickerTodo] = useState<Todo | null>(null);
 
   const [convertModal, setConvertModal] = useState<{ phaseId: string; phaseName: string } | null>(null);
   const [convertStep, setConvertStep] = useState<1 | 2>(1);
@@ -2889,10 +2891,19 @@ export default function ProjectDetailView({
           onCancel={() => setSchedulePromptId(null)}
           onConfirm={() => {
             if (schedulePromptId) {
-              router.push(`/agenda?schedule=${encodeURIComponent(schedulePromptId)}`);
+              const todo = projectTodos.find((td) => td.id === schedulePromptId) ?? null;
+              if (todo) setSchedulePickerTodo(todo);
             }
             setSchedulePromptId(null);
           }}
+        />
+
+        <PageScheduleModal
+          todo={schedulePickerTodo}
+          projects={projects}
+          onClose={() => setSchedulePickerTodo(null)}
+          onBooked={handleScheduleUpdate}
+          analyticsSource="project"
         />
 
         <DeleteTaskDialog

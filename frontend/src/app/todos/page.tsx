@@ -11,6 +11,7 @@ import DeleteTaskDialog from "@/components/DeleteTaskDialog";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
 import { ScheduledSlotBadge } from "@/components/SlotPicker";
+import PageScheduleModal from "@/components/PageScheduleModal";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal, { type TaskEditZone } from "@/components/TaskEditModal";
@@ -323,6 +324,7 @@ export default function TodosPage() {
   const [submitting, setSubmitting] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [schedulePromptId, setSchedulePromptId] = useState<string | null>(null);
+  const [schedulePickerTodo, setSchedulePickerTodo] = useState<Todo | null>(null);
 
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
   const [filterProject, setFilterProject] = useState<string | "__none__" | null>(null);
@@ -2042,7 +2044,7 @@ export default function TodosPage() {
                     nowMs={nowMs}
                     onEditTask={openEdit}
                     onScheduleTask={(todo) => {
-                      router.push(`/agenda?schedule=${encodeURIComponent(todo.id)}`);
+                      setSchedulePickerTodo(todo);
                     }}
                   />
                 </div>
@@ -2165,10 +2167,22 @@ export default function TodosPage() {
         onCancel={() => setSchedulePromptId(null)}
         onConfirm={() => {
           if (schedulePromptId) {
-            router.push(`/agenda?schedule=${encodeURIComponent(schedulePromptId)}`);
+            const todo =
+              myTodos.find((td) => td.id === schedulePromptId)
+              ?? assignedTodos.find((td) => td.id === schedulePromptId)
+              ?? null;
+            if (todo) setSchedulePickerTodo(todo);
           }
           setSchedulePromptId(null);
         }}
+      />
+
+      <PageScheduleModal
+        todo={schedulePickerTodo}
+        projects={projects}
+        onClose={() => setSchedulePickerTodo(null)}
+        onBooked={handleScheduleUpdate}
+        analyticsSource="todos"
       />
 
       {meetOptionsTodo && (

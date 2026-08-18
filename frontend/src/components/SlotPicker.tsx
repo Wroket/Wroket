@@ -35,14 +35,21 @@ export interface SlotPickerProps {
   dateMax?: string;
   /** Analytics source for first_slot_booked (e.g. "project"). */
   analyticsSource?: string;
+  /**
+   * Page-level modal: no calendar trigger. Opens centered on the current page
+   * (used after “Schedule now?” so Mes tâches / Projet / Dashboard stay in place).
+   */
+  pageModal?: boolean;
+  /** Called when the user dismisses a page-level modal (overlay, Escape, Pas maintenant). */
+  onDismiss?: () => void;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker" }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker", pageModal = false, onDismiss }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(pageModal);
   /** After creating a task, show schedule UI as a centered modal; manual opens use the anchored popover. */
-  const [presentation, setPresentation] = useState<"popover" | "modal">("popover");
+  const [presentation, setPresentation] = useState<"popover" | "modal">(pageModal ? "modal" : "popover");
   const autoOpenedRef = useRef(false);
   const [mounted, setMounted] = useState(false);
 
@@ -51,13 +58,19 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   }, []);
 
   useEffect(() => {
+    if (pageModal) {
+      setPresentation("modal");
+      setOpen(true);
+      fetchSlots();
+      return;
+    }
     if (autoOpen && !autoOpenedRef.current && !scheduledSlot) {
       autoOpenedRef.current = true;
       setPresentation("modal");
       setOpen(true);
       fetchSlots();
     }
-  }, [autoOpen, scheduledSlot]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoOpen, scheduledSlot, pageModal]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState<SlotProposal[]>([]);
   const [slotsVisibleCount, setSlotsVisibleCount] = useState(3);
@@ -134,6 +147,11 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
       setLoading(false);
     }
   }, [todoId]);
+
+  const dismissModal = () => {
+    setOpen(false);
+    onDismiss?.();
+  };
 
   const handleOpen = () => {
     setPresentation("modal");
@@ -268,7 +286,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") dismissModal();
     };
     document.addEventListener("keydown", handleKey);
     if (presentation === "popover") {
@@ -303,7 +321,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
           {presentation === "modal" && (
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={dismissModal}
               className="shrink-0 whitespace-nowrap rounded border border-zinc-200 dark:border-slate-600 px-2 py-1 text-[11px] font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors"
               aria-label={t("schedule.notNow")}
             >
@@ -313,7 +331,10 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
         </div>
         <Link
           href={`/agenda?schedule=${encodeURIComponent(todoId)}`}
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            setOpen(false);
+            onDismiss?.();
+          }}
           className="mt-1.5 inline-flex text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
         >
           {t("schedule.openInAgenda")}
@@ -601,6 +622,34 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const slotMutationBusy = booking || clearing;
 
+  const modalPortal = mounted && open && presentation === "modal" && createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="slot-picker-dialog-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        aria-label={t("cancel")}
+        onClick={dismissModal}
+      />
+      <div
+        ref={popoverRef}
+        className={`relative z-[1] w-full max-w-sm max-h-[min(90vh,36rem)] overflow-y-auto ${panelShellClass}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {renderScheduleBody()}
+      </div>
+    </div>,
+    document.body,
+  );
+
+  if (pageModal) {
+    return <>{modalPortal}</>;
+  }
+
   return (
     <>
       <div ref={ref} className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center">
@@ -636,29 +685,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
           </div>
         )}
       </div>
-      {mounted && open && presentation === "modal" && createPortal(
-        <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="slot-picker-dialog-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
-            aria-label={t("cancel")}
-            onClick={() => setOpen(false)}
-          />
-          <div
-            ref={popoverRef}
-            className={`relative z-[1] w-full max-w-sm max-h-[min(90vh,36rem)] overflow-y-auto ${panelShellClass}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {renderScheduleBody()}
-          </div>
-        </div>,
-        document.body,
-      )}
+      {modalPortal}
     </>
   );
 }
