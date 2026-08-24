@@ -95,7 +95,7 @@ function PrivacyFr() {
         </li>
         <li>
           <strong>Calendrier en écriture (`calendar.events`)</strong> : utilisé uniquement pour pousser dans votre Google Calendar
-          les créneaux Wroket que vous avez explicitement choisi de synchroniser, et pour créer un Google Meet à la demande.
+          les créneaux Wroket que vous avez explicitement choisis de synchroniser, et pour créer un Google Meet à la demande.
           La simple connexion de votre compte ne déclenche aucune synchronisation automatique ; nous n&apos;écrivons aucun événement
           sans action utilisateur explicite.
         </li>
@@ -309,7 +309,7 @@ function PrivacyEn() {
       <ul>
         <li>Access, rectification, deletion of your data.</li>
         <li>Portability (export of your tasks in JSON / CSV).</li>
-        <li>Opposition and restriction of processing.</li>
+        <li>Objection and restriction of processing.</li>
         <li>Withdrawal of consent at any time (including revoking Google access from <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer noopener">your Google Account</a>).</li>
         <li>
           Filing a complaint with the CNIL (Commission Nationale de l&apos;Informatique et des Libertés), the competent

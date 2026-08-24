@@ -932,7 +932,7 @@ const translations = {
   "settings.stripeStatusActive": { fr: "Actif", en: "Active" },
   "settings.stripeStatusTrialing": { fr: "Période d’essai", en: "Trialing" },
   "settings.stripeStatusPastDue": { fr: "Paiement en retard", en: "Past due" },
-  "settings.stripeStatusCanceled": { fr: "Annulé", en: "Canceled" },
+  "settings.stripeStatusCanceled": { fr: "Annulé", en: "Cancelled" },
   "settings.stripeStatusOther": { fr: "Autre statut", en: "Other status" },
   "settings.stripePeriodEndHeading": { fr: "Fin de période facturée", en: "Current period ends" },
   "settings.stripeNotLinked": {
@@ -1067,7 +1067,7 @@ const translations = {
   "settings.eventTaskDeclined": { fr: "Tâche refusée", en: "Task declined" },
   "settings.eventTaskAccepted": { fr: "Tâche acceptée", en: "Task accepted" },
   "settings.eventTeamInvite": { fr: "Invitation équipe", en: "Team invite" },
-  "settings.eventDeadline": { fr: "Deadline proche", en: "Deadline approaching" },
+  "settings.eventDeadline": { fr: "Échéance proche", en: "Deadline approaching" },
   "settings.eventDeadlineToday": { fr: "Échéance aujourd'hui", en: "Due today" },
   "settings.eventCommentMention": { fr: "Mention dans un commentaire", en: "Comment mention" },
   "settings.eventProjectDeleted": { fr: "Projet supprimé", en: "Project deleted" },
@@ -1432,7 +1432,7 @@ const translations = {
   "notes.attachNone": { fr: "Aucune pièce jointe", en: "No attachments" },
   "notes.attachDelete": { fr: "Supprimer la pièce jointe", en: "Delete attachment" },
   "notes.attachDeleteConfirm": { fr: "Supprimer cette pièce jointe ?", en: "Delete this attachment?" },
-  "notes.attachError": { fr: "Erreur lors de l'upload", en: "Upload error" },
+  "notes.attachError": { fr: "Erreur lors du téléversement", en: "Upload error" },
   "notes.attachFromTask": { fr: "Pièce jointe de la tâche liée", en: "Attachment from linked task" },
   "notes.attachTaskBadge": { fr: "tâche", en: "task" },
   "notes.delete": { fr: "Supprimer", en: "Delete" },
@@ -1521,9 +1521,9 @@ const translations = {
   "notes.deleteFolder": { fr: "Supprimer le dossier…", en: "Delete folder…" },
   "notes.deleteFolderTitle": {
     fr: "Que faire des {{count}} note(s) dans « {{name}} » ?",
-    en: "What should happen to {{count}} note(s) in « {{name}} »?",
+    en: "What should happen to {{count}} note(s) in “{{name}}”?",
   },
-  "notes.deleteFolderOptA": { fr: "Les déplacer vers « Vos notes » (sans dossier)", en: "Move them to « Your notes » (no folder)" },
+  "notes.deleteFolderOptA": { fr: "Les déplacer vers « Vos notes » (sans dossier)", en: "Move them to “Your notes” (no folder)" },
   "notes.deleteFolderOptB": { fr: "Les déplacer vers un autre dossier", en: "Move them to another folder" },
   "notes.deleteFolderOptC": { fr: "Les archiver (corbeille)", en: "Archive them (trash)" },
   "notes.deleteFolderOptD": { fr: "Les supprimer définitivement", en: "Delete them permanently" },
@@ -1533,7 +1533,7 @@ const translations = {
   "notes.deleteFolderNeedTarget": { fr: "Choisissez un dossier cible", en: "Choose a target folder" },
   "notes.folderExists": { fr: "Ce nom existe déjà", en: "This name already exists" },
   "notes.folderCreated": { fr: "Dossier créé", en: "Folder created" },
-  "notes.deleteFolderEmptyTitle": { fr: "Supprimer le dossier « {{name}} » ?", en: "Delete folder « {{name}} »?" },
+  "notes.deleteFolderEmptyTitle": { fr: "Supprimer le dossier « {{name}} » ?", en: "Delete folder “{{name}}”?" },
   "notes.deleteFolderEmptyHint": { fr: "Ce dossier est vide. Cette action est irréversible.", en: "This folder is empty. This cannot be undone." },
   "notes.deleteFolderProjectBlocked": {
     fr: "Ce dossier est lié à un projet : supprimez le projet ou retirez les notes une par une.",
@@ -1708,7 +1708,7 @@ const translations = {
     fr: "Charge estimée et temps tracké par membre (semaine).",
     en: "Estimated load and tracked time per member (week).",
   },
-  "capacity.backDashboard": { fr: "Dashboard équipe", en: "Team dashboard" },
+  "capacity.backDashboard": { fr: "Tableau de bord équipe", en: "Team dashboard" },
   "capacity.empty": { fr: "Aucune donnée de capacité", en: "No capacity data" },
   "capacity.cap": { fr: "Capacité", en: "Capacity" },
   "capacity.overloadAlert": {
@@ -1848,8 +1848,8 @@ const translations = {
   "subtask.adding": { fr: "Ajout…", en: "Adding…" },
   "subtask.none": { fr: "Aucune sous-tâche", en: "No subtasks" },
   "subtask.startDate": { fr: "Début", en: "Start" },
-  "subtask.deadline": { fr: "Deadline", en: "Deadline" },
-  "subtask.deadlineError": { fr: "La deadline ne peut pas dépasser celle de la tâche parente", en: "Deadline cannot exceed parent task deadline" },
+  "subtask.deadline": { fr: "Échéance", en: "Deadline" },
+  "subtask.deadlineError": { fr: "L’échéance ne peut pas dépasser celle de la tâche parente", en: "Deadline cannot exceed parent task deadline" },
   "subtask.create": { fr: "Créer", en: "Create" },
   "subtask.cancel": { fr: "Annuler", en: "Cancel" },
   "subtask.done": { fr: "Terminé", en: "Done" },
@@ -1901,7 +1901,7 @@ const translations = {
     en: "List order does not follow start dates.",
   },
   "gantt.sortByDatesHint": {
-    fr: "Affichage seulement — l’ordre Tableau / drag-and-drop n’est pas modifié.",
+    fr: "Affichage seulement — l’ordre Tableau / glisser-déposer n’est pas modifié.",
     en: "Display only — Tableau / drag-and-drop order is unchanged.",
   },
   "projects.moveConstraint.dateTitle": { fr: "Dates hors phase", en: "Dates outside phase" },
@@ -2212,7 +2212,7 @@ const translations = {
   "agenda.connectOutlook": { fr: "Connecter Outlook / Microsoft 365", en: "Connect Outlook / Microsoft 365" },
   "agenda.calendarIntegrationsBanner": {
     fr: "Pour connecter Google Calendar ou Outlook gratuitement pendant la phase founding, devenez Early Bird. Le palier Small teams reste l’offre commerciale ensuite.",
-    en: "To connect Google Calendar or Outlook for free during the founding phase, become an Early Bird. The Small teams plan remains the commercial offer afterward.",
+    en: "To connect Google Calendar or Outlook for free during the founding phase, become an Early Bird. The Small teams plan remains the commercial offer afterwards.",
   },
   "agenda.openIntegrationsTab": { fr: "Paramètres → Intégrations", en: "Settings → Integrations" },
   "agenda.calendarReadonlyPlanHint": {
@@ -2395,7 +2395,7 @@ const translations = {
   "tutorial.stepOf": { fr: "sur", en: "of" },
   "tutorial.step1.title": { fr: "Capturez vos tâches", en: "Capture your tasks" },
   "tutorial.step1.desc": {
-    fr: "Dans Mes tâches, ajoutez un titre, puis importance et effort avant « + Add ». La table, les cartes et le Radar Focus vous aident à prioriser ; le menu ⋯ ouvre l’édition complète.",
+    fr: "Dans Mes tâches, ajoutez un titre, puis importance et effort avant « + Ajouter ». La table, les cartes et le Radar Focus vous aident à prioriser ; le menu ⋯ ouvre l’édition complète.",
     en: "In My tasks, add a title, then importance and effort before “+ Add”. The table, cards, and Focus radar help you prioritize; the ⋯ menu opens full editing.",
   },
   "tutorial.step2.title": { fr: "Réservez un créneau dans Wroket", en: "Book a slot in Wroket" },
@@ -2405,7 +2405,7 @@ const translations = {
   },
   "tutorial.step3.title": { fr: "Pilotez vos projets", en: "Steer your projects" },
   "tutorial.step3.desc": {
-    fr: "Board, Kanban ou Gantt : phases et dates restent alignés. Si un déplacement heurte une contrainte, Wroket propose des options — pas un simple message d’erreur.",
+    fr: "Board, Kanban ou Gantt : phases et dates restent alignées. Si un déplacement heurte une contrainte, Wroket propose des options — pas un simple message d’erreur.",
     en: "Board, Kanban, or Gantt: phases and dates stay aligned. If a move hits a constraint, Wroket offers choices — not just an error toast.",
   },
   "tutorial.step4.title": { fr: "Travaillez en équipe", en: "Work as a team" },
@@ -2624,7 +2624,7 @@ const translations = {
   "landing.preview.chrome": { fr: "wroket.com", en: "wroket.com" },
   "landing.preview.task1": { fr: "Lancer la campagne marketing", en: "Launch marketing campaign" },
   "landing.preview.task2": { fr: "Préparer la démo client", en: "Prepare client demo" },
-  "landing.preview.task3": { fr: "Refactorer le module auth", en: "Refactor auth module" },
+  "landing.preview.task3": { fr: "Refactoriser le module auth", en: "Refactor auth module" },
   "landing.preview.task4": { fr: "Mettre à jour la documentation", en: "Update documentation" },
   "landing.preview.prioHigh": { fr: "Haute", en: "High" },
   "landing.preview.prioMed": { fr: "Moyenne", en: "Medium" },
@@ -2670,7 +2670,7 @@ const translations = {
   },
   "marketing.team.s1.title": { fr: "Au-del\u00e0 de la to-do solo", en: "Beyond solo to-do" },
   "marketing.team.s1.p1": {
-    fr: "Partager une liste par e-mail ou un tableur ne scale pas. Wroket offre des \u00e9quipes avec r\u00f4les, invitations par e-mail et visibilit\u00e9 sur qui fait quoi.",
+    fr: "Partager une liste par e-mail ou un tableur ne passe pas à l’échelle. Wroket offre des \u00e9quipes avec r\u00f4les, invitations par e-mail et visibilit\u00e9 sur qui fait quoi.",
     en: "Sharing a list by email or spreadsheet doesn\u2019t scale. Wroket offers teams with roles, email invites, and visibility on who does what.",
   },
   "marketing.team.s2.title": { fr: "Assignation et commentaires", en: "Assignment and comments" },
@@ -2693,7 +2693,7 @@ const translations = {
   "marketing.eisenhower.h1": { fr: "La matrice d\u2019Eisenhower, calcul\u00e9e pour vous", en: "The Eisenhower matrix, computed for you" },
   "marketing.eisenhower.intro": {
     fr: "La matrice urgent / important est un classique. Wroket l\u2019automatise via la Vue Radar : chaque t\u00e2che se place sans glisser-d\u00e9poser dans une grille.",
-    en: "The urgent / important matrix is a classic. Wroket automates it with Radar view: every task lands without drag-and-drop into a grid.",
+    en: "The urgent / important matrix is a classic. Wroket automates it with Radar view: every task lands on a grid without drag-and-drop.",
   },
   "marketing.eisenhower.s1.title": { fr: "Les quatre quadrants", en: "The four quadrants" },
   "marketing.eisenhower.s1.p1": {
@@ -2702,8 +2702,8 @@ const translations = {
   },
   "marketing.eisenhower.s2.title": { fr: "Vue Radar : scores automatiques", en: "Radar view: automatic scores" },
   "marketing.eisenhower.s2.p1": {
-    fr: "Wroket calcule urgence et importance \u00e0 partir de l\u2019\u00e9ch\u00e9ance, de la priorit\u00e9 et de l\u2019effort. Chaque t\u00e2che se place sur la Vue Radar sans drag-and-drop dans une grille.",
-    en: "Wroket computes urgency and importance from deadline, priority, and effort. Each task lands on Radar view without drag-and-drop into a grid.",
+    fr: "Wroket calcule urgence et importance \u00e0 partir de l\u2019\u00e9ch\u00e9ance, de la priorit\u00e9 et de l\u2019effort. Chaque t\u00e2che se place sur la Vue Radar sans glisser-d\u00e9poser dans une grille.",
+    en: "Wroket computes urgency and importance from deadline, priority, and effort. Each task lands on Radar view without drag-and-drop.",
   },
   "marketing.eisenhower.s3.title": { fr: "Quatre lentilles, pas une seule matrice", en: "Four lenses, not one matrix" },
   "marketing.eisenhower.s3.p1": {
@@ -2729,7 +2729,7 @@ const translations = {
   "pricing.faqTitle": { fr: "Questions fréquentes", en: "FAQ" },
   "pricing.faq1q": { fr: "Comment changer de palier ?", en: "How do I change tiers?" },
   "pricing.faq1a": {
-    fr: "Écrivez-nous à team@wroket.com avec votre besoin (solo / petite équipe / organisation). Nous vous guidons vers le bon palier et activerons Stripe Checkout dès qu’il sera disponible en self-service.",
+    fr: "Écrivez-nous à team@wroket.com avec votre besoin (solo / petite équipe / organisation). Nous vous guidons vers le bon palier et activerons Stripe Checkout dès qu’il sera disponible en libre-service.",
     en: "Email team@wroket.com with your needs (solo / small team / org). We’ll point you to the right tier; self-service Stripe Checkout will follow as soon as it ships.",
   },
   "pricing.faq2q": { fr: "Que se passe-t-il si je reste sur Free ?", en: "What happens if I stay on Free?" },
@@ -2926,12 +2926,12 @@ const translations = {
   "notes.databases.deleteColumn": { fr: "Supprimer la colonne", en: "Delete column" },
   "notes.databases.deleteColumnConfirm": {
     fr: "Supprimer la colonne « {name} » ? Les valeurs associées seront perdues.",
-    en: "Delete column « {name} »? Associated values will be lost.",
+    en: "Delete column “{name}”? Associated values will be lost.",
   },
   "notes.databases.deleteDatabase": { fr: "Supprimer la base", en: "Delete database" },
   "notes.databases.deleteDatabaseConfirm": {
     fr: "Déplacer la base « {name} » vers Archive › Données › Bases ? Vous pourrez la restaurer ensuite.",
-    en: "Move database « {name} » to Archive › Data › Databases? You can restore it later.",
+    en: "Move database “{name}” to Archive › Data › Databases? You can restore it later.",
   },
   "notes.databases.deleted": { fr: "Base déplacée vers les archives", en: "Database moved to archive" },
   "notes.databases.renameDatabase": { fr: "Renommer la base", en: "Rename database" },
@@ -3042,8 +3042,8 @@ const translations = {
     en: "This Notion database looks like a contact list (email, phone…), not a task tracker. Import as a project is blocked — sync it below as contacts.",
   },
   "migrate.notion.peopleDatabaseCta": {
-    fr: "Les contacts importés apparaîtront dans Collaborations → Contacts.",
-    en: "Imported contacts will appear under Collaborations → Contacts.",
+    fr: "Les contacts importés apparaîtront dans Collaboration › Contacts.",
+    en: "Imported contacts will appear under Collaboration › Contacts.",
   },
   "migrate.notion.importAsContacts": { fr: "Importer comme contacts", en: "Import as contacts" },
   "migrate.notion.importAsProject": { fr: "Importer comme projet", en: "Import as project" },
@@ -3135,7 +3135,7 @@ const translations = {
   },
   "migrate.monday.docsScopeMissingHint": {
     fr: "Monday Dev autorise docs:read, mais Wroket doit aussi le demander à la connexion OAuth. Déconnectez puis reconnectez — l'écran Monday doit afficher « Read user's docs » en plus des boards.",
-    en: "Monday Dev allows docs:read, but Wroket must request it during OAuth. Disconnect and reconnect — the Monday screen should show « Read user's docs » in addition to boards.",
+    en: "Monday Dev allows docs:read, but Wroket must request it during OAuth. Disconnect and reconnect — the Monday screen should show “Read user's docs” in addition to boards.",
   },
   "migrate.monday.reconnectForDocs": {
     fr: "Reconnecter Monday (avec docs:read)",
@@ -3354,7 +3354,7 @@ const translations = {
     fr: "Vue multi-projets : santé, avancement et jalons pour l’équipe sélectionnée.",
     en: "Multi-project view: health, progress and milestones for the selected team.",
   },
-  "portfolio.backDashboard": { fr: "Dashboard équipe", en: "Team dashboard" },
+  "portfolio.backDashboard": { fr: "Tableau de bord équipe", en: "Team dashboard" },
   "portfolio.loading": { fr: "Chargement…", en: "Loading…" },
   "portfolio.empty": { fr: "Aucun projet actif pour cette équipe.", en: "No active projects for this team." },
   "portfolio.loadError": { fr: "Impossible de charger le portfolio", en: "Could not load portfolio" },

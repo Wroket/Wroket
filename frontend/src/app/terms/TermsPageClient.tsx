@@ -238,7 +238,7 @@ function TermsEn() {
         <li>attempt to access accounts or data that do not belong to you;</li>
         <li>bypass security controls, mass-scrape, or launch denial-of-service attacks;</li>
         <li>upload illegal, infringing, defamatory content or content that violates others&apos; privacy;</li>
-        <li>resell or re-expose the Service without prior written authorization.</li>
+        <li>resell or redistribute the Service without prior written authorization.</li>
       </ul>
 
       <h2>5. User content</h2>
@@ -274,7 +274,7 @@ function TermsEn() {
       <h2>9. Availability and warranty</h2>
       <p>
         The Service is provided &quot;as is&quot;, without warranty of continuous availability or error-free operation. We
-        deploy reasonable means to maintain high availability and data security. No warranty of fitness for a particular
+        take reasonable steps to maintain high availability and data security. No warranty of fitness for a particular
         purpose is granted beyond what is required by law.
       </p>
 

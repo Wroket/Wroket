@@ -298,13 +298,13 @@ function FeaturePreview({ id, fr }: { id: string; fr: boolean }) {
           <div className="space-y-1.5">
             {[
               {
-                label: fr ? "Deadline dans 1h" : "Deadline in 1h",
+                label: fr ? "Échéance dans 1h" : "Deadline in 1h",
                 meta: fr ? "Revue brief" : "Brief review",
                 tone: "urgent" as const,
               },
               {
                 label: fr ? "Nouvelle assignation" : "New assignment",
-                meta: "Julie → vous",
+                meta: fr ? "Julie → vous" : "Julie → you",
                 tone: "info" as const,
               },
               {

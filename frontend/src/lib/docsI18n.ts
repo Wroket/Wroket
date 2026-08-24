@@ -530,7 +530,7 @@ export const docsTranslations = {
   "docs.calendar.trouble1.title": { fr: "Connexion refusée ou créneau absent de Google/Outlook", en: "Connection denied or slot missing on Google/Outlook" },
   "docs.calendar.trouble1.body": {
     fr: "Reconnectez le compte depuis Mes agendas. Si le créneau n'est que dans Wroket, lancez un push explicite — la connexion seule ne synchronise pas. Vérifiez aussi le palier Small teams et l'URL de redirection OAuth (api.wroket.com).",
-    en: "Reconnect the account from Manage calendars. If the slot is only in Wroket, run an explicit push — connect alone does not sync. Also check Small teams entitlement and the OAuth redirect URL (api.wroket.com).",
+    en: "Reconnect the account from Manage calendars. If the slot is only in Wroket, run an explicit push — connecting alone does not sync. Also check Small teams entitlement and the OAuth redirect URL (api.wroket.com).",
   },
 
   "docs.slack.metaTitle": { fr: "Guide Slack+", en: "Slack+ guide" },
