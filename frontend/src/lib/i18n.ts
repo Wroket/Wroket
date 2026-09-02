@@ -3559,6 +3559,7 @@ const translations = {
   "search.todos": { fr: "Tâches", en: "Tasks" },
   "search.projects": { fr: "Projets", en: "Projects" },
   "search.notes": { fr: "Notes", en: "Notes" },
+  "search.tags": { fr: "Tags", en: "Tags" },
 
   // ── Accessibility ──
   "a11y.skipToContent": { fr: "Aller au contenu principal", en: "Skip to main content" },

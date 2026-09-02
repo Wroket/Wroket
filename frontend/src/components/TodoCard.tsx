@@ -14,6 +14,7 @@ import {
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
 import { ScheduledSlotBadge } from "@/components/SlotPicker";
 import AssignmentStatusBadge from "@/components/AssignmentStatusBadge";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface TodoCardProps {
   todo: Todo;
@@ -41,6 +42,18 @@ interface TodoCardProps {
   nowMs?: number;
 }
 
+function ProjectChip({ name }: { name: string }) {
+  return (
+    <span
+      title={name}
+      className="max-w-[40%] shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded truncate bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+    >
+      <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+      <span className="truncate">{name}</span>
+    </span>
+  );
+}
+
 export default function TodoCard({
   todo,
   onComplete,
@@ -65,6 +78,7 @@ export default function TodoCard({
   nowMs,
 }: TodoCardProps) {
   const { t } = useLocale();
+  const compact = useMediaQuery("(max-width: 639px)");
   const badge = PRIORITY_BADGES[todo.priority];
   const dl = todo.deadline ? deadlineLabel(todo.deadline, t) : null;
   const project = todo.projectId ? projects.find((p) => p.id === todo.projectId) : undefined;
@@ -75,7 +89,7 @@ export default function TodoCard({
       role="button"
       onClick={(e) => { e.preventDefault(); onEdit?.(todo); }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit?.(todo); } }}
-      className="group bg-white dark:bg-slate-900/80 rounded border border-zinc-200 dark:border-slate-600/40 pl-1 pr-3 py-2.5 flex items-start gap-2 shadow-sm hover:shadow transition-shadow cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
+      className="group bg-white dark:bg-slate-900/80 rounded border border-zinc-200 dark:border-slate-600/40 pl-1 pr-2 sm:pr-3 py-2.5 flex items-start gap-2 shadow-sm hover:shadow transition-shadow cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
     >
       <div className={`w-1 self-stretch rounded-full shrink-0 ${QUADRANT_CONFIG[classify(todo, nowMs)].accentBar}`} />
       {todo.status !== "active" ? (
@@ -113,20 +127,23 @@ export default function TodoCard({
               hasLinkedNote={hasLinkedNote}
               justCreatedId={justCreatedId}
               suggestedSlot={todo.suggestedSlot}
+              visibleActions={compact ? [] : undefined}
             />
           </div>
         )
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2 min-w-0">
-          <p className={`flex-1 min-w-0 text-sm leading-snug font-medium truncate ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}>{displayTodoTitle(todo.title, t("todos.untitled"))}</p>
-          {project && (
-            <span
-              title={project.name}
-              className="ml-auto max-w-[40%] shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded truncate bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-            >
-              <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-              <span className="truncate">{project.name}</span>
+          <p
+            className={`flex-1 min-w-0 text-sm leading-snug font-medium ${
+              compact ? "line-clamp-2" : "truncate"
+            } ${todo.status !== "active" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-slate-100"}`}
+          >
+            {displayTodoTitle(todo.title, t("todos.untitled"))}
+          </p>
+          {!compact && project && (
+            <span className="ml-auto">
+              <ProjectChip name={project.name} />
             </span>
           )}
         </div>
@@ -140,6 +157,7 @@ export default function TodoCard({
             </span>
           )}
           {dl && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${dl.cls}`}>{dl.text}</span>}
+          {compact && project && <ProjectChip name={project.name} />}
           {todo.assignedTo && meUid && todo.assignedTo === meUid && todo.userId !== meUid && userDisplayName && (
             <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
               <svg className="w-2.5 h-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>

@@ -673,10 +673,11 @@ export default function AppShell({ children }: AppShellProps) {
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    if (value.length < 2) {
+    if (value.trim().length < 3) {
       setSearchResults([]);
       setSearchContactEmails([]);
       setSearchOpen(false);
+      setSearchLoading(false);
       return;
     }
     setSearchLoading(true);
@@ -688,7 +689,7 @@ export default function AppShell({ children }: AppShellProps) {
         const q = value.trim();
         const [results, contacts] = await Promise.all([
           globalSearch(value, { signal: ac.signal }),
-          q.length >= 3 ? getEmailSuggestions(q, { signal: ac.signal }) : Promise.resolve([] as string[]),
+          getEmailSuggestions(q, { signal: ac.signal }),
         ]);
         setSearchResults(results);
         setSearchContactEmails(contacts);
@@ -721,9 +722,10 @@ export default function AppShell({ children }: AppShellProps) {
     setSearchQuery("");
     setSearchResults([]);
     setMobileSearchOpen(false);
-    if (result.type === "todo") router.push(`/todos?edit=${encodeURIComponent(result.id)}`);
-    else if (result.type === "project") router.push(`/projects/${encodeURIComponent(result.id)}`);
+    if (result.type === "todo") router.push(`/todos?task=${encodeURIComponent(result.id)}`);
+    else if (result.type === "project") router.push(`/projects?project=${encodeURIComponent(result.id)}`);
     else if (result.type === "note") router.push(`/notes?id=${encodeURIComponent(result.id)}`);
+    else if (result.type === "tag") router.push(`/todos?tag=${encodeURIComponent(result.id)}`);
     else if (result.type === "contact") router.push("/teams?section=contacts");
     else if (result.type === "database") router.push(`/notes?section=databases&db=${encodeURIComponent(result.id)}`);
   }, [router]);
@@ -850,7 +852,7 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
               {searchOpen && (
                 <div className={`absolute left-0 top-full mt-1.5 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl z-50 ${uiV2 ? "rounded-sm" : "rounded-lg"}`}>
-                  {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.length >= 2 ? (
+                  {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.trim().length >= 3 ? (
                     <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
                   ) : (
                     <>
@@ -872,19 +874,21 @@ export default function AppShell({ children }: AppShellProps) {
                           ))}
                         </div>
                       )}
-                      {(["todo", "project", "note", "contact", "database"] as const).map((type) => {
+                      {(["todo", "project", "note", "tag", "contact", "database"] as const).map((type) => {
                         const group = searchResults.filter((r) => r.type === type);
                         if (group.length === 0) return null;
                         const labelKey =
                           type === "todo" ? "search.todos"
                           : type === "project" ? "search.projects"
                           : type === "note" ? "search.notes"
+                          : type === "tag" ? "search.tags"
                           : type === "contact" ? "search.contactsRepertoire"
                           : "search.databases";
                         const icon =
                           type === "todo" ? "\u{1F4CB}"
                           : type === "project" ? "\u{1F4C1}"
                           : type === "note" ? "\u{1F4DD}"
+                          : type === "tag" ? "\u{1F3F7}"
                           : type === "contact" ? "\u{1F464}"
                           : "\u{1F4CA}";
                         return (
@@ -1760,7 +1764,7 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.length >= 2 ? (
+            {searchResults.length === 0 && searchContactEmails.length === 0 && searchQuery.trim().length >= 3 ? (
               <p className="px-4 py-8 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("search.noResults")}</p>
             ) : (
               <>
@@ -1782,29 +1786,42 @@ export default function AppShell({ children }: AppShellProps) {
                     ))}
                   </div>
                 )}
-                {(["todo", "project", "note", "contact", "database"] as const).map((type) => {
+                {(["todo", "project", "note", "tag", "contact", "database"] as const).map((type) => {
                   const group = searchResults.filter((r) => r.type === type);
                   if (group.length === 0) return null;
                   const labelKey =
                     type === "todo" ? "search.todos"
                     : type === "project" ? "search.projects"
                     : type === "note" ? "search.notes"
+                    : type === "tag" ? "search.tags"
                     : type === "contact" ? "search.contactsRepertoire"
                     : "search.databases";
+                  const icon =
+                    type === "todo" ? "\u{1F4CB}"
+                    : type === "project" ? "\u{1F4C1}"
+                    : type === "note" ? "\u{1F4DD}"
+                    : type === "tag" ? "\u{1F3F7}"
+                    : type === "contact" ? "\u{1F464}"
+                    : "\u{1F4CA}";
                   return (
                     <div key={type}>
                       <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-slate-500 bg-zinc-50 dark:bg-slate-800/50 border-b border-zinc-100 dark:border-slate-800">
-                        {t(labelKey)}
+                        {icon} {t(labelKey)}
                       </div>
                       {group.map((result) => (
                         <button
                           key={`${result.type}-${result.id}`}
                           type="button"
                           onClick={() => handleSearchResultClick(result)}
-                          className="w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-slate-800 border-b border-zinc-50 dark:border-slate-800/50"
+                          className="w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-slate-800 border-b border-zinc-50 dark:border-slate-800/50 last:border-b-0"
                         >
                           <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
-                          {result.snippet && <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>}
+                          {result.snippet && (
+                            <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>
+                          )}
+                          {result.status && (
+                            <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-slate-700 text-zinc-500 dark:text-slate-400">{result.status}</span>
+                          )}
                         </button>
                       ))}
                     </div>

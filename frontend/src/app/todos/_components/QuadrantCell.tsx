@@ -81,16 +81,34 @@ export default function QuadrantCell({
   }, [allTodos]);
   const subtasksOf = (id: string) => childrenMap[id] ?? [];
 
+  const axisSubtitle = (() => {
+    switch (quadrant) {
+      case "do-first":
+        return `${t("matrix.urgent")} · ${t("matrix.important")}`;
+      case "schedule":
+        return `${t("matrix.notUrgent")} · ${t("matrix.important")}`;
+      case "delegate":
+        return `${t("matrix.urgent")} · ${t("matrix.notImportant")}`;
+      case "eliminate":
+        return `${t("matrix.notUrgent")} · ${t("matrix.notImportant")}`;
+    }
+  })();
+
   return (
-    <div className={`${cfg.cellBg} flex flex-col min-h-[220px] h-full border border-zinc-200/80 dark:border-slate-700/80 rounded-sm overflow-hidden`}>
+    <div className={`${cfg.cellBg} flex flex-col min-h-0 sm:min-h-[220px] h-full border border-zinc-200/80 dark:border-slate-700/80 rounded-sm overflow-hidden`}>
       <div className={`${cfg.headerBg} px-3 py-2 flex items-center justify-between gap-2`}>
         <div className="flex items-center gap-2 min-w-0">
           <span className={`shrink-0 ${cfg.iconClass}`}>
             <QuadrantIcon id={cfg.icon} />
           </span>
-          <span className={`text-[11px] font-semibold ${cfg.headerText} tracking-[0.08em] uppercase truncate`}>
-            {t(cfg.tKey)}
-          </span>
+          <div className="min-w-0">
+            <span className={`block text-[11px] font-semibold ${cfg.headerText} tracking-[0.08em] uppercase truncate`}>
+              {t(cfg.tKey)}
+            </span>
+            <span className="sm:hidden block text-[10px] text-zinc-500 dark:text-slate-400 truncate mt-0.5">
+              {axisSubtitle}
+            </span>
+          </div>
         </div>
         {todos.length > 0 && (
           <span className="shrink-0 text-[10px] font-semibold tabular-nums text-zinc-600 dark:text-slate-300 bg-zinc-200/80 dark:bg-slate-700/80 rounded-sm min-w-[1.25rem] h-5 px-1 flex items-center justify-center">
@@ -98,9 +116,9 @@ export default function QuadrantCell({
           </span>
         )}
       </div>
-      <div className="p-3 flex-1">
+      <div className="p-2 sm:p-3 flex-1">
         {todos.length === 0 ? (
-          <div className="h-full flex items-center justify-center min-h-[140px]">
+          <div className="h-full flex items-center justify-center min-h-[56px] sm:min-h-[140px]">
             <p className="text-xs text-zinc-400 italic">{t("matrix.empty")}</p>
           </div>
         ) : (

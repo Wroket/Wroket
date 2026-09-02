@@ -479,7 +479,7 @@ export async function getMyActivity(params?: {
 }
 
 export interface SearchResult {
-  type: "todo" | "project" | "note" | "contact" | "database";
+  type: "todo" | "project" | "note" | "contact" | "database" | "tag";
   id: string;
   title: string;
   snippet?: string;
@@ -490,7 +490,7 @@ export async function globalSearch(
   query: string,
   opts?: { signal?: AbortSignal },
 ): Promise<SearchResult[]> {
-  if (query.length < 2) return [];
+  if (query.trim().length < 3) return [];
   const res = await fetch(`${API_BASE_URL}/auth/search?q=${encodeURIComponent(query)}`, {
     credentials: "include",
     signal: opts?.signal,

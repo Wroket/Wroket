@@ -333,6 +333,15 @@ export default function TodosPage() {
   const [filterDeadline, setFilterDeadline] = useState<DeadlineFilter>("all");
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  useEffect(() => {
+    const tag = searchParams.get("tag")?.trim();
+    if (!tag) return;
+    setFilterTag(tag);
+    setShowAdvancedFilters(true);
+    router.replace("/todos", { scroll: false });
+  }, [searchParams, router]);
+
   const [sortCol, setSortCol] = useState<SortColumn>("classification");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [lastAction, setLastAction] = useState<{ todoId: string; previousStatus: TodoStatus } | null>(null);
@@ -1058,7 +1067,10 @@ export default function TodosPage() {
         }
       }
 
-      if (filterTag && !(t.tags ?? []).includes(filterTag)) return false;
+      if (filterTag) {
+        const needle = filterTag.toLowerCase();
+        if (!(t.tags ?? []).some((tag) => tag.toLowerCase() === needle)) return false;
+      }
 
       return true;
     });
@@ -1797,7 +1809,7 @@ export default function TodosPage() {
               onBulkDelete={requestBulkDelete}
             />
           ) : mainView === "cards" ? (
-            <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 p-2 sm:p-4">
               {filters.size > 0 && activeQuadrantFilters.length === 0 ? (
                 /* Only status filters: show archived list */
                 <div className="min-h-[220px]">
@@ -1861,10 +1873,10 @@ export default function TodosPage() {
                   )}
                 </div>
               ) : (
-                /* No filter: show full 2x2 matrix */
+                /* No filter: stacked on mobile, 2x2 matrix from sm */
                 <>
-                  {/* Column headers */}
-                  <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
+                  {/* Column headers — desktop only */}
+                  <div className="hidden sm:grid grid-cols-[auto_1fr_1fr] gap-x-2 mb-2">
                     <div className="w-10" />
                     <div className="text-center py-2 bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
                       <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-600 dark:text-slate-300">
@@ -1879,8 +1891,8 @@ export default function TodosPage() {
                   </div>
 
                   {/* Important row — left: urgent (do first), right: not urgent (schedule) */}
-                  <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2">
-                    <div className="w-10 flex items-center justify-center bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
+                  <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr] gap-2">
+                    <div className="hidden sm:flex w-10 items-center justify-center bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
                       <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-600 dark:text-slate-300">
                         {t("matrix.important")}
                       </span>
@@ -1890,8 +1902,8 @@ export default function TodosPage() {
                   </div>
 
                   {/* Not important row — left: urgent (delegate), right: not urgent (eliminate) */}
-                  <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 mt-2">
-                    <div className="w-10 flex items-center justify-center bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
+                  <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr] gap-2 mt-2">
+                    <div className="hidden sm:flex w-10 items-center justify-center bg-zinc-50/80 dark:bg-slate-800/60 rounded-sm border border-zinc-200/70 dark:border-slate-700/70">
                       <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-semibold tracking-[0.12em] uppercase text-zinc-500 dark:text-slate-400">
                         {t("matrix.notImportant")}
                       </span>
