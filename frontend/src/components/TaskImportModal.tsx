@@ -79,7 +79,7 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
+        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80dvh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-slate-600 space-y-2">

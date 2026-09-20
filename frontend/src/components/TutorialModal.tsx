@@ -5,6 +5,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { postEarlyBirdEnroll } from "@/lib/api/earlyBird";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import type { TranslationKey } from "@/lib/i18n";
 
 /** Bumped when onboarding copy/UX changes so users see the V2 tour once. */
@@ -124,6 +125,7 @@ export default function TutorialModal({
   const { t, locale } = useLocale();
   const trapRef = useFocusTrap(open);
   useModalCloseKeys(open, onClose);
+  useBodyScrollLock(open);
   const [step, setStep] = useState(0);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollDone, setEnrollDone] = useState(false);
@@ -140,15 +142,6 @@ export default function TutorialModal({
         setEnrollError(null);
       });
     }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
   }, [open]);
 
   useEffect(() => {
@@ -216,7 +209,7 @@ export default function TutorialModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="tutorial-dialog-title"
-        className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90dvh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]"
       >
         <div className="h-0.5 bg-zinc-100 dark:bg-slate-800 shrink-0">
           <div

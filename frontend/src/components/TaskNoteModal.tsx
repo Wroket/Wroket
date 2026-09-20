@@ -122,7 +122,7 @@ export default function TaskNoteModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-note-modal-title"
-        className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl ui-v2-fade"
+        className="relative w-full max-w-3xl max-h-[90dvh] flex flex-col rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl ui-v2-fade"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 flex items-start gap-3 px-4 sm:px-5 py-3 border-b border-zinc-100 dark:border-slate-800">

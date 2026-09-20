@@ -22,6 +22,7 @@ import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import type { Todo, Priority, Effort } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
@@ -169,6 +170,7 @@ export default function SubtaskModal({
   }, [parent]);
 
   useModalCloseKeys(!!parent, onClose);
+  useBodyScrollLock(!!parent);
 
   if (!parent) return null;
 
@@ -195,7 +197,7 @@ export default function SubtaskModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -203,7 +205,7 @@ export default function SubtaskModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="subtask-modal-title"
-        className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6"
+        className="bg-white dark:bg-slate-900 rounded-t-lg sm:rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-0 sm:mx-4 p-6 max-h-[85dvh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
       >
         <h3

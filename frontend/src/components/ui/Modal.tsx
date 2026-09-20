@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 interface ModalProps {
   open: boolean;
@@ -39,15 +40,7 @@ export default function Modal({
   const trapRef = useFocusTrap(open);
 
   useModalCloseKeys(open, onClose);
-
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   if (!open) return null;
 
@@ -66,7 +59,7 @@ export default function Modal({
       />
       <div
         ref={trapRef}
-        className={`relative w-full ${SIZE_CLS[size]} bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90vh] flex flex-col`}
+        className={`relative w-full ${SIZE_CLS[size]} bg-white dark:bg-slate-900 rounded-t-sm sm:rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90dvh] flex flex-col pb-[env(safe-area-inset-bottom)]`}
       >
         {title && (
           <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-zinc-100 dark:border-slate-800 shrink-0">

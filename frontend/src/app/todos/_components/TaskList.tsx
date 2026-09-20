@@ -488,12 +488,12 @@ export default function TaskList({
   };
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <div
         className={
           uiV2
-            ? "bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto px-2 pb-1"
-            : "bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto"
+            ? "min-w-0 max-w-full bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto px-2 pb-1"
+            : "min-w-0 max-w-full bg-white dark:bg-slate-900 rounded-md shadow-sm border border-zinc-200 dark:border-slate-700 overflow-x-auto"
         }
       >
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={handleDragEnd}>

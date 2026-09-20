@@ -772,7 +772,7 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors [--app-mobile-header:4.5rem] ${
+    <div className={`min-h-screen flex flex-col overflow-x-clip transition-colors [--app-mobile-header:4.5rem] ${
       uiV2
         ? "ui-v2 ui-v2-shell"
         : "bg-zinc-100 dark:bg-slate-950"
@@ -787,12 +787,12 @@ export default function AppShell({ children }: AppShellProps) {
           ? "ui-glass"
           : "bg-white dark:bg-slate-900 border-zinc-200 dark:border-slate-700"
       }`}>
-        <div className="px-4 md:px-6 py-4 flex items-center justify-between min-h-[var(--app-mobile-header)]">
-          <div className="flex items-center gap-3">
+        <div className="px-4 md:px-6 py-4 flex items-center justify-between gap-2 min-h-[var(--app-mobile-header)] min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="md:hidden rounded p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+              className="md:hidden shrink-0 rounded p-1.5 text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
               aria-label={mobileMenuOpen ? t("a11y.closeMenu") : t("a11y.openMenu")}
               aria-expanded={mobileMenuOpen}
             >
@@ -810,16 +810,16 @@ export default function AppShell({ children }: AppShellProps) {
               theme="auto"
               markSize={28}
               markContainerClassName="wroket-mark-tile w-10 h-10 bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0"
-              wordmarkClassName="text-lg font-semibold"
+              wordmarkClassName="hidden sm:inline text-lg font-semibold"
             />
             {me?.earlyBird ? (
               <>
                 <EarlyBirdBadge className="hidden sm:inline-flex" />
-                <EarlyBirdBadge compact className="sm:hidden" />
+                <EarlyBirdBadge compact className="sm:hidden shrink-0" />
               </>
             ) : null}
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
             {uiV2 && !wsAdminOnly && <CreateMenu />}
             {/* Mobile search button */}
             <button
@@ -1406,7 +1406,8 @@ export default function AppShell({ children }: AppShellProps) {
         </nav>
       </div>
 
-      <div className="flex flex-1 min-h-0">
+      {/* min-w-0: prevent column-flex min-content (e.g. TaskList 52rem) from widening the document on mobile */}
+      <div className="flex flex-1 min-h-0 min-w-0">
         {/* ── Desktop Sidebar: full viewport height below header; main nav scrolls; settings pinned at bottom -- */}
         <aside
           className={`hidden md:flex md:flex-col md:shrink-0 md:sticky md:top-[4.5rem] md:h-[calc(100vh-4.5rem)] md:min-h-0 border-r ${

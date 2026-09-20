@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useLocale } from "@/lib/LocaleContext";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -45,6 +46,8 @@ export default function ConfirmDialog({
   const resolvedCancelLabel = cancelLabel ?? t("cancel");
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
@@ -92,7 +95,7 @@ export default function ConfirmDialog({
     "text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors";
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center">
+    <div className="fixed inset-0 z-[9998] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
       <div
         ref={dialogRef}
@@ -101,7 +104,7 @@ export default function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         tabIndex={-1}
         data-confirm
-        className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none"
+        className="relative bg-white dark:bg-slate-800 rounded-t-lg sm:rounded-lg shadow-xl max-w-md w-full mx-0 sm:mx-4 p-6 outline-none max-h-[85dvh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]"
       >
         <h2
           id="confirm-dialog-title"

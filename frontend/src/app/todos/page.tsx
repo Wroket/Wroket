@@ -1515,13 +1515,14 @@ export default function TodosPage() {
                 {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
               </h2>
               <PageHelpButton helpId={mainView === "radar" ? "todos.radar" : "todos"} />
-              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
+              <div className="max-sm:overflow-x-auto max-sm:max-w-full">
+                <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden max-sm:w-max">
                 {(["all", "personal", "assigned", "delegated"] as TaskScope[]).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setScope(s)}
-                    className={`px-3 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+                    className={`px-3 py-1 text-xs font-medium transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${
                       scope === s
                         ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                         : "text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-800"
@@ -1537,9 +1538,10 @@ export default function TodosPage() {
                     </span>
                   </button>
                 ))}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0 max-sm:overflow-x-auto">
               <button
                 type="button"
                 onClick={handleUndo}
@@ -1556,11 +1558,11 @@ export default function TodosPage() {
                 </svg>
                 <span className="hidden sm:inline">{t("todos.undo")}</span>
               </button>
-              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden">
+              <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden shrink-0">
                 <button
                   type="button"
                   onClick={() => setMainView("list")}
-                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${
                     mainView === "list"
                       ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
@@ -1574,7 +1576,7 @@ export default function TodosPage() {
                 <button
                   type="button"
                   onClick={() => setMainView("cards")}
-                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
+                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 whitespace-nowrap border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "cards"
                       ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"
@@ -1588,7 +1590,7 @@ export default function TodosPage() {
                 <button
                   type="button"
                   onClick={() => setMainView("radar")}
-                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 border-l border-zinc-200 dark:border-slate-600 ${
+                  className={`flex-1 justify-center px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5 whitespace-nowrap border-l border-zinc-200 dark:border-slate-600 ${
                     mainView === "radar"
                       ? "bg-slate-700 dark:bg-slate-600 text-white dark:text-slate-100"
                       : "bg-white dark:bg-slate-800 text-zinc-600 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-slate-700"

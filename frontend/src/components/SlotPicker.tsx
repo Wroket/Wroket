@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
 import { TAG_AUX } from "@/lib/tagPalette";
 import { toolbarAffordanceClass } from "@/components/taskToolbarStyles";
@@ -52,6 +53,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const [presentation, setPresentation] = useState<"popover" | "modal">(pageModal ? "modal" : "popover");
   const autoOpenedRef = useRef(false);
   const [mounted, setMounted] = useState(false);
+
+  useBodyScrollLock(open && presentation === "modal");
 
   useEffect(() => {
     setMounted(true);
@@ -309,7 +312,9 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const formatSlotBadge = (slot: ScheduledSlot): string => formatScheduledSlotLabel(slot);
 
   const panelShellClass =
-    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-sm shadow-xl w-80 max-w-[min(100vw-2rem,20rem)] overflow-y-auto";
+    "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-sm shadow-xl overflow-y-auto";
+  const popoverShellClass = `${panelShellClass} w-80 max-w-[min(100vw-2rem,20rem)]`;
+  const modalShellClass = `${panelShellClass} w-full max-w-sm mx-0 sm:mx-auto rounded-t-sm sm:rounded-sm max-h-[min(85dvh,36rem)] pb-[max(0.5rem,env(safe-area-inset-bottom))]`;
 
   const renderScheduleBody = () => (
     <>
@@ -624,7 +629,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const modalPortal = mounted && open && presentation === "modal" && createPortal(
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-picker-dialog-title"
@@ -637,7 +642,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
       />
       <div
         ref={popoverRef}
-        className={`relative z-[1] w-full max-w-sm max-h-[min(90vh,36rem)] overflow-y-auto ${panelShellClass}`}
+        className={`relative z-[1] ${modalShellClass}`}
         onClick={(e) => e.stopPropagation()}
       >
         {renderScheduleBody()}
@@ -678,7 +683,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
           <div
             ref={popoverRef}
             style={popoverStyle}
-            className={panelShellClass}
+            className={popoverShellClass}
             onClick={(e) => e.stopPropagation()}
           >
             {renderScheduleBody()}
