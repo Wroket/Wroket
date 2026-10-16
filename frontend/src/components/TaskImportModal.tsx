@@ -6,6 +6,8 @@ import { useLocale } from "@/lib/LocaleContext";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { confirmTaskImport, previewTaskImport, type TaskImportPreviewResult } from "@/lib/api";
 import { downloadTaskImportTemplateCsv, downloadTaskImportTemplateJson } from "@/lib/importTemplates";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useToast } from "./Toast";
 
 interface Props {
@@ -22,6 +24,7 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
   const [confirming, setConfirming] = useState(false);
   const [preview, setPreview] = useState<TaskImportPreviewResult | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const narrow = useNarrowVisualViewport(open && !!file);
 
   useEffect(() => {
     if (!open || !file) {
@@ -76,12 +79,14 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
 
   if (!open || !file) return null;
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80dvh] overflow-hidden flex flex-col",
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80dvh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ViewportOverlay open onClose={onClose} zClassName="z-50">
+      <div className={panelClass} onClick={(e) => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-slate-600 space-y-2">
           <h3 className="text-sm font-semibold text-zinc-800 dark:text-slate-100">
             {t("import.tasksPreviewTitle")}
@@ -151,6 +156,6 @@ export default function TaskImportModal({ file, open, onClose, onSuccess }: Prop
           </button>
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

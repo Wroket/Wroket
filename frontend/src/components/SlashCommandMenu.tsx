@@ -14,6 +14,7 @@ import {
 import { useLocale } from "@/lib/LocaleContext";
 import { useUiV2 } from "@/lib/UiVersionContext";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
+import { clampInVisualViewport } from "@/hooks/useVisualViewportRect";
 
 /* ─── Types ─── */
 
@@ -273,24 +274,29 @@ export default function SlashCommandMenu({
   /* ── Position computing ── */
 
   const computeMenuPosition = useCallback(() => {
+    const menuW = 300;
+    const menuH = 380;
+    const clamp = (preferredTop: number, preferredLeft: number) =>
+      clampInVisualViewport({
+        width: menuW,
+        height: menuH,
+        preferredTop,
+        preferredLeft,
+      });
+
     const editor = editorRef?.current;
     if (editor) {
       const sel = window.getSelection();
       if (sel?.rangeCount && editor.contains(sel.anchorNode)) {
         const r = sel.getRangeAt(0).getBoundingClientRect();
         const pad = 4;
-        const top = Math.min(
-          (r.height > 0 || r.width > 0 ? r.bottom : r.top) + pad,
-          window.innerHeight - 8,
-        );
-        const left = Math.min(r.left, window.innerWidth - 300);
+        const preferredTop = (r.height > 0 || r.width > 0 ? r.bottom : r.top) + pad;
+        const { top, left } = clamp(preferredTop, r.left);
         return { top, left };
       }
       const rect = editor.getBoundingClientRect();
-      return {
-        top: Math.min(rect.top + 8, window.innerHeight - 380),
-        left: Math.min(rect.left + 12, window.innerWidth - 300),
-      };
+      const { top, left } = clamp(rect.top + 8, rect.left + 12);
+      return { top, left };
     }
     const textarea = textareaRef?.current;
     if (!textarea) return { top: 0, left: 0 };
@@ -304,9 +310,10 @@ export default function SlashCommandMenu({
     const lineIndex = lines.length - 1;
     const charIndex = lines[lineIndex]!.length;
     const charWidth = parseFloat(style.fontSize) * 0.6;
-    const top = rect.top + paddingTop + (lineIndex + 1) * lineHeight - textarea.scrollTop + 4;
-    const left = rect.left + paddingLeft + charIndex * charWidth;
-    return { top: Math.min(top, window.innerHeight - 380), left: Math.min(left, window.innerWidth - 300) };
+    const preferredTop = rect.top + paddingTop + (lineIndex + 1) * lineHeight - textarea.scrollTop + 4;
+    const preferredLeft = rect.left + paddingLeft + charIndex * charWidth;
+    const { top, left } = clamp(preferredTop, preferredLeft);
+    return { top, left };
   }, [editorRef, textareaRef, content, slashStart]);
 
   /* ── Textarea event listeners (only for command list, NOT panels) ── */

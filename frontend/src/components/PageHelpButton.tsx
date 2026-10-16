@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
 import { PAGE_HELP, type PageHelpId } from "@/lib/pageHelpConfigs";
+import { clampInVisualViewport } from "@/hooks/useVisualViewportRect";
 
 export interface HelpItem {
   icon?: string;
@@ -42,12 +43,20 @@ export default function PageHelpButton({ helpId, items: itemsProp, title: titleP
   const updatePos = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 8, left: Math.max(8, rect.right - POPOVER_WIDTH) });
+    const height = popRef.current?.offsetHeight ?? 200;
+    const { top, left } = clampInVisualViewport({
+      width: POPOVER_WIDTH,
+      height,
+      preferredTop: rect.bottom + 8,
+      preferredLeft: rect.right - POPOVER_WIDTH,
+    });
+    setPos({ top, left });
   }, []);
 
   useEffect(() => {
     if (!open) return;
     updatePos();
+    requestAnimationFrame(updatePos);
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (btnRef.current?.contains(target) || popRef.current?.contains(target)) return;
@@ -58,11 +67,16 @@ export default function PageHelpButton({ helpId, items: itemsProp, title: titleP
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", updatePos, true);
     window.addEventListener("resize", updatePos);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", updatePos);
+    vv?.addEventListener("scroll", updatePos);
     return () => {
       document.removeEventListener("mousedown", handler);
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", updatePos, true);
       window.removeEventListener("resize", updatePos);
+      vv?.removeEventListener("resize", updatePos);
+      vv?.removeEventListener("scroll", updatePos);
     };
   }, [open, updatePos]);
 

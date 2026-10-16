@@ -5,7 +5,8 @@ import { useLocale } from "@/lib/LocaleContext";
 import { postEarlyBirdEnroll } from "@/lib/api/earlyBird";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import type { TranslationKey } from "@/lib/i18n";
 
 /** Bumped when onboarding copy/UX changes so users see the V2 tour once. */
@@ -125,7 +126,7 @@ export default function TutorialModal({
   const { t, locale } = useLocale();
   const trapRef = useFocusTrap(open);
   useModalCloseKeys(open, onClose);
-  useBodyScrollLock(open);
+  const narrow = useNarrowVisualViewport(open);
   const [step, setStep] = useState(0);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollDone, setEnrollDone] = useState(false);
@@ -194,22 +195,25 @@ export default function TutorialModal({
   const isLast = step === STEPS.length - 1;
   const isEarlyBirdStep = current.variant === "earlyBird";
   const progressPct = ((step + 1) / STEPS.length) * 100;
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90dvh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]",
+  );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-[2px]"
-        aria-label={t("tutorial.skip")}
-        onClick={onClose}
-      />
-
+    <ViewportOverlay
+      open
+      onClose={onClose}
+      zClassName="z-[100]"
+      backdropClassName="absolute inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-[2px]"
+    >
       <div
         ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="tutorial-dialog-title"
-        className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90dvh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="h-0.5 bg-zinc-100 dark:bg-slate-800 shrink-0">
           <div
@@ -348,6 +352,6 @@ export default function TutorialModal({
           </div>
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

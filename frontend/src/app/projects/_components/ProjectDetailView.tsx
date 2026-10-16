@@ -29,6 +29,8 @@ import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal from "@/components/TaskEditModal";
 import TaskNoteModal from "@/components/TaskNoteModal";
 import TaskBlockedModal, { type TaskBlockerInfo } from "@/components/TaskBlockedModal";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useToast } from "@/components/Toast";
 import {
   affectedIdsForDelete,
@@ -290,6 +292,11 @@ export default function ProjectDetailView({
   const subtaskCreateInFlightRef = useRef(false);
 
   const [phaseToDelete, setPhaseToDelete] = useState<{ id: string; name: string } | null>(null);
+  const addTaskNarrow = useNarrowVisualViewport(showAddTask);
+  const convertModalNarrow = useNarrowVisualViewport(!!convertModal);
+  const assignTodoNarrow = useNarrowVisualViewport(!!assigningTodo);
+  const phaseDeleteNarrow = useNarrowVisualViewport(!!phaseToDelete);
+  const ganttPhaseEditNarrow = useNarrowVisualViewport(detailTab === "gantt" && !!editingPhaseId);
   const [showCreateSub, setShowCreateSub] = useState(false);
   const [subName, setSubName] = useState("");
   const [creatingSub, setCreatingSub] = useState(false);
@@ -2475,8 +2482,18 @@ export default function ProjectDetailView({
 
         {/* Add task modal */}
         {showAddTask && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddTask(false); setAddTaskPhaseId(null); setAddTaskMoreOpen(false); }}>
-            <div className="bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 rounded-xl" onClick={(e) => e.stopPropagation()}>
+          <ViewportOverlay
+            open
+            onClose={() => { setShowAddTask(false); setAddTaskPhaseId(null); setAddTaskMoreOpen(false); }}
+            zClassName="z-[100]"
+          >
+            <div
+              className={sheetPanelClass(
+                addTaskNarrow,
+                "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 rounded-xl",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.addTask")}</h3>
               {personalTaskCreateBlocked(user, selectedProject.id, projects) && (
                 <div className="mb-3 space-y-1 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2">
@@ -2562,12 +2579,23 @@ export default function ProjectDetailView({
                 <button onClick={() => void handleAddTask()} disabled={addingTask || !newTaskTitle.trim() || personalTaskCreateBlocked(user, selectedProject.id, projects)} className="rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700">{addingTask ? t("todos.adding") : t("projects.save")}</button>
               </div>
             </div>
-          </div>
+          </ViewportOverlay>
         )}
 
         {convertModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => !convertSubmitting && setConvertModal(null)}>
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <ViewportOverlay
+            open
+            onClose={() => { if (!convertSubmitting) setConvertModal(null); }}
+            zClassName="z-[100]"
+            closeOnBackdrop={!convertSubmitting}
+          >
+            <div
+              className={sheetPanelClass(
+                convertModalNarrow,
+                "relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 flex flex-col",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
               {convertStep === 1 ? (
                 <>
                   <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-2">{t("projects.convertStep1Title")}</h3>
@@ -2634,16 +2662,21 @@ export default function ProjectDetailView({
                 </>
               )}
             </div>
-          </div>
+          </ViewportOverlay>
         )}
 
         {assigningTodo && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onClick={() => !assignSubmitting && setAssigningTodo(null)}
+          <ViewportOverlay
+            open
+            onClose={() => { if (!assignSubmitting) setAssigningTodo(null); }}
+            zClassName="z-[100]"
+            closeOnBackdrop={!assignSubmitting}
           >
             <div
-              className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-5"
+              className={sheetPanelClass(
+                assignTodoNarrow,
+                "relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-5",
+              )}
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100">{t("assign.label")}</h3>
@@ -2721,7 +2754,7 @@ export default function ProjectDetailView({
                 </div>
               </div>
             </div>
-          </div>
+          </ViewportOverlay>
         )}
 
         <TaskEditModal
@@ -2810,12 +2843,15 @@ export default function ProjectDetailView({
         {phaseToDelete && (() => {
           const tasksCount = projectTodos.filter((td) => td.phaseId === phaseToDelete.id).length;
           return (
-            <div className="fixed inset-0 z-[9998] flex items-center justify-center">
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPhaseToDelete(null)} />
+            <ViewportOverlay open onClose={() => setPhaseToDelete(null)} zClassName="z-[9998]">
               <div
                 role="dialog"
                 aria-modal="true"
-                className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+                className={sheetPanelClass(
+                  phaseDeleteNarrow,
+                  "relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6",
+                )}
+                onClick={(e) => e.stopPropagation()}
               >
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
                   {t("phase.delete")}
@@ -2868,7 +2904,7 @@ export default function ProjectDetailView({
                   )}
                 </div>
               </div>
-            </div>
+            </ViewportOverlay>
           );
         })()}
 
@@ -2939,13 +2975,17 @@ export default function ProjectDetailView({
         />
 
         {detailTab === "gantt" && editingPhaseId && (
-          <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="gantt-phase-edit-title"
-          >
-            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+          <ViewportOverlay open onClose={() => setEditingPhaseId(null)} zClassName="z-[200]">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="gantt-phase-edit-title"
+              className={sheetPanelClass(
+                ganttPhaseEditNarrow,
+                "relative w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 id="gantt-phase-edit-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
                 {t("phase.edit")}
               </h2>
@@ -2992,7 +3032,7 @@ export default function ProjectDetailView({
                 </button>
               </div>
             </div>
-          </div>
+          </ViewportOverlay>
         )}
       </div>
     </AppShell>

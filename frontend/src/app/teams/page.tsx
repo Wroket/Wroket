@@ -8,6 +8,8 @@ import PageHelpButton from "@/components/PageHelpButton";
 import ContactsSection from "@/app/teams/_components/ContactsSection";
 import { useLocale } from "@/lib/LocaleContext";
 import { useResourceSync } from "@/lib/useResourceSync";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useToast } from "@/components/Toast";
 import {
   getCollaborators,
@@ -63,6 +65,7 @@ function TeamsPageContent() {
   const [inviteEmail, setInviteEmail] = useState("");
 
   const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const createTeamNarrow = useNarrowVisualViewport(showCreateTeam);
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamMembers, setNewTeamMembers] = useState<NewTeamMember[]>([]);
   const [newTeamEmail, setNewTeamEmail] = useState("");
@@ -932,12 +935,12 @@ function TeamsPageContent() {
 
       {/* ── Create Team Modal ── */}
       {showCreateTeam && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowCreateTeam(false)}
-        >
+        <ViewportOverlay open onClose={() => setShowCreateTeam(false)} zClassName="z-[100]">
           <div
-            className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-6"
+            className={sheetPanelClass(
+              createTeamNarrow,
+              "relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-6",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-4">
@@ -1069,7 +1072,7 @@ function TeamsPageContent() {
               </div>
             </div>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
     </AppShell>
   );

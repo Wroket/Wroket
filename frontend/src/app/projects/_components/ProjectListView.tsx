@@ -26,6 +26,8 @@ import DashboardImportModal from "@/components/DashboardImportModal";
 import PageHelpButton from "@/components/PageHelpButton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import TaskImportModal from "@/components/TaskImportModal";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useToast } from "@/components/Toast";
 import {
   createProject,
@@ -79,6 +81,7 @@ export default function ProjectListView({
   const { refresh } = useAuth();
 
   const [showCreate, setShowCreate] = useState(false);
+  const createProjectNarrow = useNarrowVisualViewport(showCreate);
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createMoreOpen, setCreateMoreOpen] = useState(false);
@@ -808,8 +811,14 @@ export default function ProjectListView({
 
         {/* Create project modal */}
         {showCreate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeCreateModal}>
-            <div className="bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 rounded-xl" onClick={(e) => e.stopPropagation()}>
+          <ViewportOverlay open onClose={closeCreateModal} zClassName="z-[100]">
+            <div
+              className={sheetPanelClass(
+                createProjectNarrow,
+                "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 rounded-xl",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-4">{t("projects.create")}</h3>
               {!createTeamId && personalProjectsCreateBlocked(user) && (
                 <div className="mb-3 space-y-1 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2">
@@ -959,7 +968,7 @@ export default function ProjectListView({
                 </button>
               </div>
             </div>
-          </div>
+          </ViewportOverlay>
         )}
 
         <ConfirmDialog open={!!confirm} title={confirm?.title ?? ""} message={confirm?.message ?? ""} onConfirm={() => confirm?.action()} onCancel={() => setConfirm(null)} variant="warning" confirmLabel={t("projects.archive")} />

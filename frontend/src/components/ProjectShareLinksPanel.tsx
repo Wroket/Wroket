@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useToast } from "@/components/Toast";
 import {
   ALL_SHARE_TABS,
@@ -33,6 +35,7 @@ export default function ProjectShareLinksPanel({ projectId, canManage }: Props) 
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const shareCreateNarrow = useNarrowVisualViewport(modalOpen);
   const [expiryDays, setExpiryDays] = useState<ShareLinkExpiryDays>(30);
   const [label, setLabel] = useState("");
   const [selectedTabs, setSelectedTabs] = useState<ShareLinkTab[]>([...ALL_SHARE_TABS]);
@@ -218,17 +221,16 @@ export default function ProjectShareLinksPanel({ projectId, canManage }: Props) 
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setModalOpen(false)}
-          />
+        <ViewportOverlay open onClose={() => setModalOpen(false)} zClassName="z-[9998]">
           <div
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="share-create-dialog-title"
-            className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+            className={sheetPanelClass(
+              shareCreateNarrow,
+              "relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
             <h2
@@ -314,7 +316,7 @@ export default function ProjectShareLinksPanel({ projectId, canManage }: Props) 
               </button>
             </div>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
     </>
   );

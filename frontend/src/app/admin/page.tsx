@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/AppShell";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import {
   getAdminStats, getAdminUsers, getAdminInvites,
   getAdminActivity, getAdminSessions, getAdminIntegrations,
@@ -92,6 +94,8 @@ export default function AdminPage() {
   const [planReason, setPlanReason] = useState("");
   const [planSaving, setPlanSaving] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const adminUserDetailNarrow = useNarrowVisualViewport(!!selectedUser);
+  const planModalNarrow = useNarrowVisualViewport(!!planModal);
   const [earlyBirdReason, setEarlyBirdReason] = useState("");
   const [earlyBirdSaving, setEarlyBirdSaving] = useState(false);
   const [engagement, setEngagement] = useState<AdminEngagementSnapshot | null>(null);
@@ -706,15 +710,20 @@ export default function AdminPage() {
             </div>
 
             {selectedUser && (
-              <div
-                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="admin-user-detail-title"
-                onClick={() => { setSelectedUser(null); setEarlyBirdReason(""); }}
+              <ViewportOverlay
+                open
+                onClose={() => { setSelectedUser(null); setEarlyBirdReason(""); }}
+                zClassName="z-[100]"
+                backdropClassName="absolute inset-0 bg-black/50"
               >
                 <div
-                  className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-5"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="admin-user-detail-title"
+                  className={sheetPanelClass(
+                    adminUserDetailNarrow,
+                    "relative bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-5",
+                  )}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -861,19 +870,24 @@ export default function AdminPage() {
                     </div>
                   </section>
                 </div>
-              </div>
+              </ViewportOverlay>
             )}
 
             {planModal && (
-              <div
-                className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="admin-plan-modal-title"
-                onClick={() => { setPlanModal(null); setBillingFlash(null); }}
+              <ViewportOverlay
+                open
+                onClose={() => { setPlanModal(null); setBillingFlash(null); }}
+                zClassName="z-[110]"
+                backdropClassName="absolute inset-0 bg-black/50"
               >
                 <div
-                  className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 shadow-xl max-w-md w-full p-5 space-y-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="admin-plan-modal-title"
+                  className={sheetPanelClass(
+                    planModalNarrow,
+                    "relative bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 shadow-xl max-w-md w-full p-5 space-y-4",
+                  )}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <h2 id="admin-plan-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
@@ -931,7 +945,7 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
-              </div>
+              </ViewportOverlay>
             )}
           </div>
         )}

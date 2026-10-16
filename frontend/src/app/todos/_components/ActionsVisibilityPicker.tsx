@@ -8,6 +8,7 @@ import {
   TASK_LIST_ACTION_IDS,
   type TaskListActionId,
 } from "@/lib/taskListVisibleActions";
+import { clampInVisualViewport } from "@/hooks/useVisualViewportRect";
 
 const ACTION_LABEL_KEYS: Record<TaskListActionId, TranslationKey> = {
   schedule: "table.visibleAction.schedule",
@@ -45,17 +46,27 @@ export default function ActionsVisibilityPicker({
       if (!btn) return;
       const r = btn.getBoundingClientRect();
       const width = panelRef.current?.offsetWidth ?? 220;
-      const pad = 8;
-      let left = r.left;
-      left = Math.max(pad, Math.min(left, window.innerWidth - width - pad));
-      setCoords({ top: r.bottom + 4, left });
+      const height = panelRef.current?.offsetHeight ?? 280;
+      const { top, left } = clampInVisualViewport({
+        width,
+        height,
+        preferredTop: r.bottom + 4,
+        preferredLeft: r.left,
+      });
+      setCoords({ top, left });
     };
     update();
+    requestAnimationFrame(update);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
     };
   }, [open]);
 

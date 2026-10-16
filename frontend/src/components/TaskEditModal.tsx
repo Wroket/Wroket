@@ -5,11 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import {
   getComments,
   postCommentApi,
@@ -96,8 +96,7 @@ export default function TaskEditModal({
   const effectiveCanUseCustomFields = canUseCustomFields || integrationsEntitled;
   const trapRef = useFocusTrap(!!todo);
   useModalCloseKeys(!!todo, onClose);
-  useBodyScrollLock(!!todo);
-  const viewport = useVisualViewportRect(!!todo);
+  const narrow = useNarrowVisualViewport(!!todo);
   const [editZone, setEditZone] = useState<TaskEditZone>(initialZone);
 
   /**
@@ -466,15 +465,15 @@ export default function TaskEditModal({
     })();
   };
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    uiV2
+      ? "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-4 max-w-xl h-[min(36rem,90dvh)] overflow-hidden flex flex-col rounded-sm"
+      : "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-4 max-w-lg max-h-[90dvh] overflow-y-auto rounded-lg",
+  );
+
   return (
-    <div
-      className="z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
-      style={visualViewportOverlayStyle(viewport)}
-      onClick={() => {
-        if (mentionInviteOpen) return;
-        void onClose();
-      }}
-    >
+    <>
       <ConfirmDialog
         open={mentionInviteOpen}
         title={t("comments.mentionInviteTitle")}
@@ -503,16 +502,22 @@ export default function TaskEditModal({
           })();
         }}
       />
+      <ViewportOverlay
+        open={!!todo}
+        onClose={() => {
+          if (mentionInviteOpen) return;
+          void onClose();
+        }}
+        closeOnBackdrop={!mentionInviteOpen}
+        zClassName="z-[100]"
+        lockScroll={!mentionInviteOpen}
+      >
       <div
         ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-edit-modal-title"
-        className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-0 sm:mx-4 pb-[env(safe-area-inset-bottom)] ${
-          uiV2
-            ? "rounded-t-sm sm:rounded-sm max-w-xl h-[min(36rem,90dvh)] overflow-hidden flex flex-col"
-            : "rounded-t-lg sm:rounded-lg max-w-lg max-h-[90dvh] overflow-y-auto"
-        }`}
+        className={panelClass}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`p-6 ${uiV2 ? "flex flex-col flex-1 min-h-0" : ""}`}>
@@ -710,6 +715,7 @@ export default function TaskEditModal({
         </div>
       </div>
     </div>
-    </div>
+      </ViewportOverlay>
+    </>
   );
 }

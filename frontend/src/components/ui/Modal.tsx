@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 
 interface ModalProps {
   open: boolean;
@@ -39,31 +39,27 @@ export default function Modal({
   titleId = "ui-modal-title",
 }: ModalProps) {
   const trapRef = useFocusTrap(open);
-
   useModalCloseKeys(open, onClose);
-  useBodyScrollLock(open);
-  const viewport = useVisualViewportRect(open);
+  const narrow = useNarrowVisualViewport(open);
 
   if (!open) return null;
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    `relative w-full ${SIZE_CLS[size]} bg-white dark:bg-slate-900 rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90dvh] flex flex-col`,
+  );
+
   return (
-    <div
-      className="z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={visualViewportOverlayStyle(viewport)}
+    <ViewportOverlay
+      open={open}
+      onClose={onClose}
+      zClassName="z-[100]"
+      backdropClassName="absolute inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : undefined}
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-[2px]"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div
-        ref={trapRef}
-        className={`relative w-full ${SIZE_CLS[size]} bg-white dark:bg-slate-900 rounded-t-sm sm:rounded-sm border border-zinc-200 dark:border-slate-700 shadow-lg ui-v2-fade max-h-[90dvh] flex flex-col pb-[env(safe-area-inset-bottom)]`}
-      >
+      <div ref={trapRef} className={panelClass}>
         {title && (
           <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-zinc-100 dark:border-slate-800 shrink-0">
             <h2 id={titleId} className="text-base font-semibold text-zinc-900 dark:text-slate-100">
@@ -88,6 +84,6 @@ export default function Modal({
           </div>
         )}
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

@@ -22,11 +22,11 @@ import { displayTodoTitle } from "@/lib/todoDisplay";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import type { Todo, Priority, Effort } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 
 export interface SubtaskModalProps {
   parent: Todo | null;
@@ -171,10 +171,7 @@ export default function SubtaskModal({
   }, [parent]);
 
   useModalCloseKeys(!!parent, onClose);
-  useBodyScrollLock(!!parent);
-  const viewport = useVisualViewportRect(!!parent);
-
-  if (!parent) return null;
+  const narrow = useNarrowVisualViewport(!!parent);
 
   const handleSubmit = () => {
     if (!title.trim() || creating || submitInFlightRef.current) return;
@@ -197,18 +194,21 @@ export default function SubtaskModal({
     onReorderSubtasks(reordered.map((s) => s.id));
   };
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-4 p-6 max-h-[85dvh] overflow-y-auto",
+  );
+
+  if (!parent) return null;
+
   return (
-    <div
-      className="z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
-      style={visualViewportOverlayStyle(viewport)}
-      onClick={onClose}
-    >
+    <ViewportOverlay open onClose={onClose} zClassName="z-[100]">
       <div
         ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="subtask-modal-title"
-        className="bg-white dark:bg-slate-900 rounded-t-lg sm:rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-md mx-0 sm:mx-4 p-6 max-h-[85dvh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        className={panelClass}
         onClick={(e) => e.stopPropagation()}
       >
         <h3
@@ -320,6 +320,6 @@ export default function SubtaskModal({
           </button>
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

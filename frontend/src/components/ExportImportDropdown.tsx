@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { clampInVisualViewport, useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "./Toast";
 
@@ -28,6 +30,8 @@ export default function ExportImportDropdown({ exportCsv, exportJson, exportMark
   const [mounted, setMounted] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; errors: Array<{ row: number; message: string }>; total: number } | null>(null);
+  const importErrorsOpen = !!importResult && importResult.errors.length > 0;
+  const importErrorsNarrow = useNarrowVisualViewport(importErrorsOpen);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const csvFileRef = useRef<HTMLInputElement>(null);
@@ -45,10 +49,13 @@ export default function ExportImportDropdown({ exportCsv, exportJson, exportMark
     const el = triggerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    let left = r.right - MENU_WIDTH;
-    if (left < 8) left = 8;
-    if (left + MENU_WIDTH > window.innerWidth - 8) left = Math.max(8, window.innerWidth - MENU_WIDTH - 8);
-    setMenuPos({ top: r.bottom + 6, left });
+    const { top, left } = clampInVisualViewport({
+      width: MENU_WIDTH,
+      height: 220,
+      preferredTop: r.bottom + 6,
+      preferredLeft: r.right - MENU_WIDTH,
+    });
+    setMenuPos({ top, left });
   }, []);
 
   useLayoutEffect(() => {
@@ -65,9 +72,14 @@ export default function ExportImportDropdown({ exportCsv, exportJson, exportMark
     const onResize = () => updateMenuPosition();
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", onResize);
+    vv?.addEventListener("scroll", onScroll);
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
+      vv?.removeEventListener("resize", onResize);
+      vv?.removeEventListener("scroll", onScroll);
     };
   }, [open, updateMenuPosition]);
 
@@ -263,9 +275,15 @@ export default function ExportImportDropdown({ exportCsv, exportJson, exportMark
       <input ref={csvFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvFileChange} />
       <input ref={jsonFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleJsonFileChange} />
 
-      {importResult && importResult.errors.length > 0 && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/30" onClick={() => setImportResult(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-5 max-w-md w-full max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      {importErrorsOpen && (
+        <ViewportOverlay open onClose={() => setImportResult(null)} zClassName="z-[250]" backdropClassName="absolute inset-0 bg-black/30">
+          <div
+            className={sheetPanelClass(
+              importErrorsNarrow,
+              "relative bg-white dark:bg-slate-800 rounded-lg shadow-xl p-5 max-w-md w-full max-h-[70vh] overflow-y-auto",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-sm font-semibold text-zinc-800 dark:text-slate-200 mb-2">
               {t("export.importSuccess")
                 .replace("{created}", String(importResult.created))
@@ -285,7 +303,7 @@ export default function ExportImportDropdown({ exportCsv, exportJson, exportMark
               {t("export.importErrorsOk")}
             </button>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
     </div>
   );

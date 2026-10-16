@@ -23,6 +23,8 @@ import { formatUserFacingError } from "@/lib/apiErrors";
 import { newClientEntityId } from "@/lib/newClientId";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
 import { useNoteLiveCollab } from "@/hooks/useNoteLiveCollab";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 
 function NotesPageInner() {
   const { t } = useLocale();
@@ -49,8 +51,10 @@ function NotesPageInner() {
   const [homeView, setHomeView] = useState<NotesHomeView>("tiles");
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const createFolderNarrow = useNarrowVisualViewport(createFolderOpen);
   const [createFolderName, setCreateFolderName] = useState("");
   const [deleteFolderModal, setDeleteFolderModal] = useState<string | null>(null);
+  const deleteFolderNarrow = useNarrowVisualViewport(!!deleteFolderModal);
   const [deleteFolderChoice, setDeleteFolderChoice] = useState<"a" | "b" | "c" | "d">("a");
   const [deleteFolderTarget, setDeleteFolderTarget] = useState("");
   const [folderPickInput, setFolderPickInput] = useState("");
@@ -656,11 +660,19 @@ function NotesPageInner() {
           </div>
 
           {createFolderOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" role="presentation">
+            <ViewportOverlay
+              open
+              onClose={() => { setCreateFolderOpen(false); setCreateFolderName(""); }}
+              zClassName="z-[100]"
+              backdropClassName="absolute inset-0 bg-black/50"
+            >
               <div
                 role="dialog"
                 aria-labelledby="new-folder-title"
-                className="w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-4"
+                className={sheetPanelClass(
+                  createFolderNarrow,
+                  "relative w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-4",
+                )}
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 id="new-folder-title" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
@@ -694,7 +706,7 @@ function NotesPageInner() {
                   </button>
                 </div>
               </div>
-            </div>
+            </ViewportOverlay>
           )}
         </div>
       ) : (
@@ -1263,11 +1275,19 @@ function NotesPageInner() {
         const deleteFolderNoteCount = notes.filter((x) => x.folder === deleteFolderModal && isOwnNote(x)).length;
         const isEmptyFolder = deleteFolderNoteCount === 0;
         return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4" role="presentation">
+        <ViewportOverlay
+          open
+          onClose={() => { setDeleteFolderModal(null); setDeleteFolderChoice("a"); setDeleteFolderTarget(""); }}
+          zClassName="z-[120]"
+          backdropClassName="absolute inset-0 bg-black/50"
+        >
           <div
             role="dialog"
             aria-labelledby="del-folder-title"
-            className="w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+            className={sheetPanelClass(
+              deleteFolderNarrow,
+              "relative w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-4 max-h-[90vh] overflow-y-auto",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="del-folder-title" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
@@ -1326,7 +1346,7 @@ function NotesPageInner() {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportOverlay>
         );
       })()}
     </AppShell>

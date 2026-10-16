@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import {
   getTaskSlots,
@@ -16,12 +15,12 @@ import {
 } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
+import { clampInVisualViewport, useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
 import { TAG_AUX } from "@/lib/tagPalette";
 import { toolbarAffordanceClass } from "@/components/taskToolbarStyles";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import Link from "next/link";
 
 export interface SlotPickerProps {
@@ -55,8 +54,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const autoOpenedRef = useRef(false);
   const [mounted, setMounted] = useState(false);
 
-  useBodyScrollLock(open && presentation === "modal");
-  const viewport = useVisualViewportRect(open && presentation === "modal");
+  const narrow = useNarrowVisualViewport(open && presentation === "modal");
 
   useEffect(() => {
     setMounted(true);
@@ -102,25 +100,33 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     const rect = ref.current.getBoundingClientRect();
     const popW = 288;
     const margin = 8;
-    const spaceBelow = window.innerHeight - rect.bottom - margin;
-    const spaceAbove = rect.top - margin;
+    const vv = window.visualViewport;
+    const viewTop = vv?.offsetTop ?? 0;
+    const viewLeft = vv?.offsetLeft ?? 0;
+    const viewWidth = vv?.width ?? window.innerWidth;
+    const viewHeight = vv?.height ?? window.innerHeight;
+    const spaceBelow = viewTop + viewHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - viewTop - margin;
     const openBelow = spaceBelow >= 260 || spaceBelow >= spaceAbove;
     const available = openBelow ? spaceBelow : spaceAbove;
-    const maxH = Math.max(220, Math.min(available, window.innerHeight - margin * 2));
-    const openRight = window.innerWidth - rect.left >= popW;
-    const left = openRight
-      ? Math.min(rect.left, window.innerWidth - popW - margin)
-      : undefined;
-    const right = openRight ? undefined : Math.max(margin, window.innerWidth - rect.right);
+    const maxH = Math.max(220, Math.min(available, viewHeight - margin * 2));
+    const preferredLeft = rect.left;
+    const preferredTop = openBelow ? rect.bottom + 4 : rect.top - 4 - Math.min(maxH, 400);
+    const clamped = clampInVisualViewport({
+      width: popW,
+      height: Math.min(maxH, 480),
+      preferredTop,
+      preferredLeft,
+      pad: margin,
+    });
 
     setPopoverStyle({
       position: "fixed",
-      top: openBelow ? rect.bottom + 4 : undefined,
-      bottom: openBelow ? undefined : window.innerHeight - rect.top + 4,
-      left,
-      right,
+      top: clamped.top,
+      left: clamped.left,
       zIndex: 9999,
       maxHeight: maxH,
+      maxWidth: clamped.maxWidth,
       overflowY: "auto",
     });
   }, []);
@@ -130,7 +136,16 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     computePosition();
     const onResize = () => computePosition();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    window.addEventListener("scroll", onResize, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", onResize);
+    vv?.addEventListener("scroll", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
+      vv?.removeEventListener("resize", onResize);
+      vv?.removeEventListener("scroll", onResize);
+    };
   }, [open, presentation, slotsVisibleCount, slots.length, mode, computePosition]);
 
   const fetchSlots = useCallback(async () => {
@@ -316,7 +331,10 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const panelShellClass =
     "bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-sm shadow-xl overflow-y-auto";
   const popoverShellClass = `${panelShellClass} w-80 max-w-[min(100vw-2rem,20rem)]`;
-  const modalShellClass = `${panelShellClass} w-full max-w-sm mx-0 sm:mx-auto rounded-t-sm sm:rounded-sm max-h-[min(85dvh,36rem)] pb-[max(0.5rem,env(safe-area-inset-bottom))]`;
+  const modalShellClass = sheetPanelClass(
+    narrow,
+    `${panelShellClass} relative z-[1] w-full max-w-sm mx-4 max-h-[min(85dvh,36rem)]`,
+  );
 
   const renderScheduleBody = () => (
     <>
@@ -629,29 +647,24 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const slotMutationBusy = booking || clearing;
 
-  const modalPortal = mounted && open && presentation === "modal" && createPortal(
-    <div
-      className="z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={visualViewportOverlayStyle(viewport)}
+  const modalPortal = mounted && open && presentation === "modal" && (
+    <ViewportOverlay
+      open
+      onClose={dismissModal}
+      zClassName="z-[10000]"
+      backdropClassName="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-picker-dialog-title"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
-        aria-label={t("cancel")}
-        onClick={dismissModal}
-      />
       <div
         ref={popoverRef}
-        className={`relative z-[1] ${modalShellClass}`}
+        className={modalShellClass}
         onClick={(e) => e.stopPropagation()}
       >
         {renderScheduleBody()}
       </div>
-    </div>,
-    document.body,
+    </ViewportOverlay>
   );
 
   if (pageModal) {

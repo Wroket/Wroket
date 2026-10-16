@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
 import { getComments } from "@/lib/api";
 import type { Comment } from "@/lib/api";
+import { clampInVisualViewport } from "@/hooks/useVisualViewportRect";
 
 interface CommentHoverIconProps {
   todoId: string;
@@ -28,7 +29,7 @@ export default function CommentHoverIcon({
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
-  const [popupPos, setPopupPos] = useState<{ top: number; left: number; above: boolean } | null>(null);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
 
@@ -46,12 +47,16 @@ export default function CommentHoverIcon({
       if (iconRef.current) {
         const rect = iconRef.current.getBoundingClientRect();
         const popupW = 288;
-        let left = rect.right - popupW;
-        if (left < 8) left = 8;
-        if (left + popupW > window.innerWidth - 8) left = window.innerWidth - popupW - 8;
-        const above = rect.top > 270;
-        const top = above ? rect.top - 8 : rect.bottom + 8;
-        setPopupPos({ top, left, above });
+        const popupH = 256;
+        const preferAbove = rect.top > 270;
+        const preferredTop = preferAbove ? rect.top - 8 - popupH : rect.bottom + 8;
+        const { top, left } = clampInVisualViewport({
+          width: popupW,
+          height: popupH,
+          preferredTop,
+          preferredLeft: rect.right - popupW,
+        });
+        setPopupPos({ top, left });
       }
       setShowComments(true);
       loadComments();
@@ -102,7 +107,6 @@ export default function CommentHoverIcon({
             position: "fixed",
             top: popupPos.top,
             left: popupPos.left,
-            transform: popupPos.above ? "translateY(-100%)" : "translateY(0)",
           }}
           className="w-72 max-h-64 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-xl z-[9999] overflow-hidden"
           onMouseEnter={() => { if (hoverTimeout.current) clearTimeout(hoverTimeout.current); }}

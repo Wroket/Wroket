@@ -14,6 +14,8 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import AgendaUnscheduledRail from "@/components/AgendaUnscheduledRail";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useUiV2 } from "@/lib/UiVersionContext";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
@@ -97,6 +99,7 @@ export default function AgendaPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const quickCreateNarrow = useNarrowVisualViewport(showQuickCreate);
   const [quickCreateDate, setQuickCreateDate] = useState("");
   const [quickCreateTime, setQuickCreateTime] = useState("");
   const [quickCreateTitle, setQuickCreateTitle] = useState("");
@@ -169,6 +172,7 @@ export default function AgendaPage() {
     conflicts: SlotConflict[];
   } | null>(null);
   const dragConflictTrapRef = useFocusTrap(!!dragConflict);
+  const dragConflictNarrow = useNarrowVisualViewport(!!dragConflict);
 
   const dragSessionRef = useRef<{
     todoId: string;
@@ -1505,8 +1509,18 @@ export default function AgendaPage() {
 
         {/* Quick-create task modal */}
         {showQuickCreate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowQuickCreate(false); setQuickCreateMore(false); }}>
-            <div className={`bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-5 ${uiV2 ? "rounded-xl" : "rounded-lg"}`} onClick={(e) => e.stopPropagation()}>
+          <ViewportOverlay
+            open
+            onClose={() => { setShowQuickCreate(false); setQuickCreateMore(false); }}
+            zClassName="z-[100]"
+          >
+            <div
+              className={sheetPanelClass(
+                quickCreateNarrow,
+                `relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-5 ${uiV2 ? "rounded-xl" : "rounded-lg"}`,
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("agenda.newTask")}</h3>
               <p className="text-xs text-zinc-400 dark:text-slate-500 mb-4">
                 {quickCreateDate}{quickCreateTime ? ` · ${quickCreateTime}` : ""}
@@ -1619,7 +1633,7 @@ export default function AgendaPage() {
                 <button onClick={handleQuickCreate} disabled={!quickCreateTitle.trim() || quickCreating || personalTaskCreateBlocked(user, quickCreateProjectId, projects)} className={`rounded px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60 transition-colors ${uiV2 ? "bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700" : "bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:text-slate-100"}`}>{t("settings.save")}</button>
               </div>
             </div>
-          </div>
+          </ViewportOverlay>
         )}
 
         <TaskEditModal
@@ -1669,15 +1683,17 @@ export default function AgendaPage() {
         />
 
         {dragConflict && (
-          <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="agenda-drag-conflict-title"
-          >
+          <ViewportOverlay open onClose={() => setDragConflict(null)} zClassName="z-[200]">
             <div
               ref={dragConflictTrapRef}
-              className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="agenda-drag-conflict-title"
+              className={sheetPanelClass(
+                dragConflictNarrow,
+                "relative w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900",
+              )}
+              onClick={(e) => e.stopPropagation()}
             >
               <h2 id="agenda-drag-conflict-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
                 {t("schedule.conflictTitle")}
@@ -1711,7 +1727,7 @@ export default function AgendaPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </ViewportOverlay>
         )}
 
         <ConfirmDialog

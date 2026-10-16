@@ -7,6 +7,8 @@ import { WroketLockup, WroketMark } from "@/components/brand/WroketBrand";
 import { LandingFooter } from "@/components/marketing/LandingFooter";
 import { useLocale } from "@/lib/LocaleContext";
 import { postPricingContact } from "@/lib/api";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import type { TranslationKey } from "@/lib/i18n";
 
 // ─── Contact modal ────────────────────────────────────────────────────────────
@@ -28,6 +30,7 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const narrow = useNarrowVisualViewport(true);
 
   const lbl = {
     title: locale === "fr" ? "Nous contacter" : "Contact us",
@@ -89,22 +92,20 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
     void sendLead(true);
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="contact-modal-title"
-    >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-8",
+  );
 
-      {/* Panel */}
-      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-8">
+  return (
+    <ViewportOverlay open onClose={onClose} zClassName="z-50">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-modal-title"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           type="button"
@@ -235,7 +236,7 @@ function ContactModal({ tier, onClose, locale }: ContactModalProps) {
           </>
         )}
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }
 

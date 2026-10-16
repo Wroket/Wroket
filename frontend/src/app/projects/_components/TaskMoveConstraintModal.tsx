@@ -1,6 +1,8 @@
 "use client";
 
 import type { MoveTodoStrategy } from "@/lib/api/todos";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { TranslationKey } from "./types";
 
@@ -28,20 +30,25 @@ interface TaskMoveConstraintModalProps {
 
 export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveConstraintModalProps) {
   const trapRef = useFocusTrap(!!state);
+  const narrow = useNarrowVisualViewport(!!state);
 
   if (!state) return null;
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900",
+  );
+
   if (state.variant === "conflict") {
     return (
-      <div
-        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="task-move-conflict-title"
-      >
+      <ViewportOverlay open onClose={onClose} zClassName="z-[200]">
         <div
           ref={trapRef}
-          className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="task-move-conflict-title"
+          className={panelClass}
+          onClick={(e) => e.stopPropagation()}
         >
           <h2 id="task-move-conflict-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
             {t("schedule.conflictTitle")}
@@ -70,22 +77,21 @@ export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveC
             </button>
           </div>
         </div>
-      </div>
+      </ViewportOverlay>
     );
   }
 
   const isSlot = state.code === "TASK_PHASE_SLOT_MISMATCH";
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="task-move-constraint-title"
-    >
+    <ViewportOverlay open onClose={onClose} zClassName="z-[200]">
       <div
         ref={trapRef}
-        className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-move-constraint-title"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
       >
         <h2 id="task-move-constraint-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
           {isSlot ? t("projects.moveConstraint.slotTitle") : t("projects.moveConstraint.dateTitle")}
@@ -137,6 +143,6 @@ export default function TaskMoveConstraintModal({ state, onClose, t }: TaskMoveC
           </button>
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

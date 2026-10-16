@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import {
   downloadProjectImportTemplateCsv,
   downloadTaskImportTemplateCsv,
@@ -27,6 +29,7 @@ export default function DashboardImportModal({
   const { t } = useLocale();
   const trapRef = useFocusTrap(open);
   const fileRef = useRef<HTMLInputElement>(null);
+  const narrow = useNarrowVisualViewport(open);
 
   useModalCloseKeys(open, onClose);
 
@@ -43,9 +46,13 @@ export default function DashboardImportModal({
 
   if (!open) return null;
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md border border-zinc-200 dark:border-slate-700 p-6",
+  );
+
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden />
+    <ViewportOverlay open onClose={onClose} zClassName="z-[90]" backdropClassName="absolute inset-0 bg-black/50 backdrop-blur-sm">
       <input
         ref={fileRef}
         type="file"
@@ -58,7 +65,8 @@ export default function DashboardImportModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="dashboard-import-title"
-        className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md border border-zinc-200 dark:border-slate-700 p-6"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
       >
         <h2 id="dashboard-import-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
           {t("dashboard.importModalTitle")}
@@ -129,6 +137,6 @@ export default function DashboardImportModal({
           {t("cancel")}
         </button>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
@@ -21,18 +23,24 @@ export default function TaskBlockedModal({ open, taskTitle, blockers, onClose, o
   const { t } = useLocale();
   const trapRef = useFocusTrap(open);
   useModalCloseKeys(open, onClose);
+  const narrow = useNarrowVisualViewport(open);
 
   if (!open) return null;
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md border border-zinc-200 dark:border-slate-700 p-6",
+  );
+
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden />
+    <ViewportOverlay open onClose={onClose} zClassName="z-[95]" backdropClassName="absolute inset-0 bg-black/50 backdrop-blur-sm">
       <div
         ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-blocked-title"
-        className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md border border-zinc-200 dark:border-slate-700 p-6"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
       >
         <h2 id="task-blocked-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
           {t("dependencies.blockedTitle")}
@@ -61,6 +69,6 @@ export default function TaskBlockedModal({ open, taskTitle, blockers, onClose, o
           {t("cancel")}
         </button>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

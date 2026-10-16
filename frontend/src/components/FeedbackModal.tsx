@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/LocaleContext";
 import { postFeedback } from "@/lib/api/feedback";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 
@@ -35,6 +37,7 @@ export default function FeedbackModal({ open, onClose, user }: FeedbackModalProp
   const [ackSent, setAckSent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const narrow = useNarrowVisualViewport(open);
 
   const handleClose = () => {
     if (submitting) return;
@@ -82,19 +85,20 @@ export default function FeedbackModal({ open, onClose, user }: FeedbackModalProp
   if (!open) return null;
 
   const name = displayName(user);
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-8",
+  );
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="feedback-modal-title"
-    >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} aria-hidden="true" />
-
+    <ViewportOverlay open={open} onClose={handleClose} zClassName="z-[100]">
       <div
         ref={trapRef}
-        className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-8"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="feedback-modal-title"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
@@ -189,6 +193,6 @@ export default function FeedbackModal({ open, onClose, user }: FeedbackModalProp
           </>
         )}
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

@@ -9,6 +9,8 @@ import EarlyBirdBadge from "@/components/EarlyBirdBadge";
 import { useAuth } from "@/components/AuthContext";
 import PageHelpButton from "@/components/PageHelpButton";
 import TaskImportModal from "@/components/TaskImportModal";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { SoftLock, SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import EmptyState from "@/components/EmptyState";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
@@ -375,6 +377,7 @@ function ConnectedDevicesSection() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [revokeOthersOpen, setRevokeOthersOpen] = useState(false);
+  const revokeOthersNarrow = useNarrowVisualViewport(revokeOthersOpen);
   const [revokingOthers, setRevokingOthers] = useState(false);
 
   const dateLoc = locale === "en" ? "en-US" : "fr-FR";
@@ -512,18 +515,21 @@ function ConnectedDevicesSection() {
       )}
 
       {revokeOthersOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-default border-0 p-0"
-            aria-label={t("a11y.close")}
-            onClick={() => !revokingOthers && setRevokeOthersOpen(false)}
-          />
+        <ViewportOverlay
+          open
+          onClose={() => { if (!revokingOthers) setRevokeOthersOpen(false); }}
+          zClassName="z-[200]"
+          closeOnBackdrop={!revokingOthers}
+        >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="sessions-revoke-others-title"
-            className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-zinc-200 dark:border-slate-700 max-w-md w-full p-6"
+            className={sheetPanelClass(
+              revokeOthersNarrow,
+              "relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-zinc-200 dark:border-slate-700 max-w-md w-full p-6",
+            )}
+            onClick={(e) => e.stopPropagation()}
           >
             <h2 id="sessions-revoke-others-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
               {t("settings.sessions.revokeOthersConfirmTitle")}
@@ -550,7 +556,7 @@ function ConnectedDevicesSection() {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
     </div>
   );
@@ -571,6 +577,7 @@ function SecuritySection() {
   const [disableSuccess, setDisableSuccess] = useState(false);
   const [disableSuccessKind, setDisableSuccessKind] = useState<"totp" | "email" | null>(null);
   const [enableSuccessModalOpen, setEnableSuccessModalOpen] = useState(false);
+  const enableSuccessNarrow = useNarrowVisualViewport(enableSuccessModalOpen);
   const [enableSuccessWasEmail, setEnableSuccessWasEmail] = useState(false);
   const [emailOtp2faEnabled, setEmailOtp2faEnabled] = useState(false);
   const [totpEmailFallback, setTotpEmailFallback] = useState(true);
@@ -1058,18 +1065,16 @@ function SecuritySection() {
       )}
 
       {enableSuccessModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-default border-0 p-0"
-            aria-label={t("a11y.close")}
-            onClick={() => setEnableSuccessModalOpen(false)}
-          />
+        <ViewportOverlay open onClose={() => setEnableSuccessModalOpen(false)} zClassName="z-[200]">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="security-2fa-enabled-title"
-            className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-zinc-200 dark:border-slate-700 max-w-md w-full p-6"
+            className={sheetPanelClass(
+              enableSuccessNarrow,
+              "relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-zinc-200 dark:border-slate-700 max-w-md w-full p-6",
+            )}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
               <div className="shrink-0 w-11 h-11 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
@@ -1094,7 +1099,7 @@ function SecuritySection() {
               {t("settings.security2faEnabledModalOk")}
             </button>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
 
       <ConnectedDevicesSection />

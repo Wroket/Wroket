@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -48,13 +47,10 @@ export default function ConfirmDialog({
   const resolvedCancelLabel = cancelLabel ?? t("cancel");
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
-
-  useBodyScrollLock(open);
-  const viewport = useVisualViewportRect(open);
+  const narrow = useNarrowVisualViewport(open);
 
   useEffect(() => {
     if (!open) return;
-    // Focus the dialog panel — not Cancel — so Enter does not dismiss accidentally.
     dialogRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -85,7 +81,7 @@ export default function ConfirmDialog({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onCancel]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!open) return null;
 
   const confirmBtnClass = `px-4 py-2 text-sm rounded-md text-white transition-colors
     focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-800
@@ -97,12 +93,13 @@ export default function ConfirmDialog({
     "px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600 " +
     "text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors";
 
-  return createPortal(
-    <div
-      className="z-[9998] flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={visualViewportOverlayStyle(viewport)}
-    >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none",
+  );
+
+  return (
+    <ViewportOverlay open={open} onClose={onCancel} zClassName="z-[9998]">
       <div
         ref={dialogRef}
         role="dialog"
@@ -110,7 +107,7 @@ export default function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         tabIndex={-1}
         data-confirm
-        className="relative bg-white dark:bg-slate-800 rounded-t-lg sm:rounded-lg shadow-xl max-w-md w-full mx-0 sm:mx-4 p-6 outline-none max-h-[85dvh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        className={panelClass}
       >
         <h2
           id="confirm-dialog-title"
@@ -119,7 +116,7 @@ export default function ConfirmDialog({
           {title}
         </h2>
         <p className="mt-2 text-sm text-zinc-600 dark:text-slate-400 whitespace-pre-line">{message}</p>
-        {verticalActions ? (
+        {verticalActions || narrow ? (
           <div className="mt-6 flex flex-col gap-2">
             <button type="button" onClick={onConfirm} className={`inline-flex w-full items-center justify-center ${confirmBtnClass}`}>
               {resolvedConfirmLabel}
@@ -153,7 +150,6 @@ export default function ConfirmDialog({
           </div>
         )}
       </div>
-    </div>,
-    document.body,
+    </ViewportOverlay>
   );
 }

@@ -9,6 +9,8 @@ import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useToast } from "@/components/Toast";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useAuth } from "@/components/AuthContext";
 import { updateNoteApi, type Note } from "@/lib/api";
 
@@ -43,6 +45,7 @@ export default function TaskNoteModal({
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const narrow = useNarrowVisualViewport(!!note);
 
   noteIdRef.current = note?.id ?? null;
 
@@ -111,18 +114,19 @@ export default function TaskNoteModal({
   if (!note) return null;
 
   const isOwner = !note.userId || note.userId === user?.uid;
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative w-full max-w-3xl max-h-[90dvh] flex flex-col rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl ui-v2-fade",
+  );
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-6"
-      onClick={() => { void handleClose(); }}
-    >
+    <ViewportOverlay open onClose={() => { void handleClose(); }} zClassName="z-[100]">
       <div
         ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-note-modal-title"
-        className="relative w-full max-w-3xl max-h-[90dvh] flex flex-col rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl ui-v2-fade"
+        className={panelClass}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 flex items-start gap-3 px-4 sm:px-5 py-3 border-b border-zinc-100 dark:border-slate-800">
@@ -193,6 +197,6 @@ export default function TaskNoteModal({
           />
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

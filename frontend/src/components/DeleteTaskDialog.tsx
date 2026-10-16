@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useLocale } from "@/lib/LocaleContext";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 
 export interface DeleteTaskDialogProps {
   open: boolean;
@@ -25,6 +27,7 @@ export default function DeleteTaskDialog({
   const { t } = useLocale();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const narrow = useNarrowVisualViewport(open);
 
   useEffect(() => {
     if (!open) return;
@@ -61,10 +64,16 @@ export default function DeleteTaskDialog({
   if (!open) return null;
 
   const hasSubtasks = subtaskCount > 0;
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none",
+  );
+  const actionsClass = narrow
+    ? "mt-6 flex flex-col gap-2"
+    : `mt-6 grid gap-3 ${hasSubtasks ? "grid-cols-3" : "grid-cols-2"}`;
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+    <ViewportOverlay open={open} onClose={onCancel} zClassName="z-[9998]">
       <div
         ref={dialogRef}
         role="dialog"
@@ -72,7 +81,7 @@ export default function DeleteTaskDialog({
         aria-labelledby="delete-task-dialog-title"
         tabIndex={-1}
         data-confirm
-        className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none"
+        className={panelClass}
       >
         <h2 id="delete-task-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100">
           {t("task.deleteTitle")}
@@ -85,7 +94,7 @@ export default function DeleteTaskDialog({
             ? `${subtaskCount} ${t((subtaskCount > 1 ? "task.deleteSubtaskMany" : "task.deleteSubtaskOne"))} — ${t("task.deleteConfirmMessage")}`
             : t("task.deleteConfirmSimple")}
         </p>
-        <div className={`mt-6 grid gap-3 ${hasSubtasks ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div className={actionsClass}>
           <button
             ref={cancelRef}
             type="button"
@@ -126,6 +135,6 @@ export default function DeleteTaskDialog({
           )}
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

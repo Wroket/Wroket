@@ -16,6 +16,8 @@ import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal, { type TaskEditZone } from "@/components/TaskEditModal";
 import TaskNoteModal from "@/components/TaskNoteModal";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import TodoCard from "@/components/TodoCard";
 import AssignmentStatusBadge from "@/components/AssignmentStatusBadge";
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
@@ -835,6 +837,7 @@ export default function TodosPage() {
 
   const [meetLoadingId, setMeetLoadingId] = useState<string | null>(null);
   const [meetOptionsTodo, setMeetOptionsTodo] = useState<Todo | null>(null);
+  const meetOptionsNarrow = useNarrowVisualViewport(!!meetOptionsTodo);
   const [meetStart, setMeetStart] = useState("");
   const [meetDuration, setMeetDuration] = useState(60);
   const [meetSummary, setMeetSummary] = useState("");
@@ -2200,8 +2203,14 @@ export default function TodosPage() {
       />
 
       {meetOptionsTodo && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeMeetOptions}>
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-5" onClick={(e) => e.stopPropagation()}>
+        <ViewportOverlay open onClose={closeMeetOptions} zClassName="z-[100]">
+          <div
+            className={sheetPanelClass(
+              meetOptionsNarrow,
+              "relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-5",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100">{t("meet.optionsTitle")}</h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-slate-400 truncate">{displayTodoTitle(meetOptionsTodo.title, t("todos.untitled"))}</p>
 
@@ -2351,7 +2360,7 @@ export default function TodosPage() {
               )}
             </div>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
     </AppShell>
   );

@@ -8,6 +8,8 @@ import { createNoteApi } from "@/lib/api/notes";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { formatUserFacingError } from "@/lib/apiErrors";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useUiV2 } from "@/lib/UiVersionContext";
 
 type Mode = "nav" | "create-task" | "create-project" | "create-note";
@@ -34,6 +36,7 @@ export default function CommandPalette() {
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [highlight, setHighlight] = useState(0);
+  const narrow = useNarrowVisualViewport(open);
 
   const navItems: NavItem[] = useMemo(
     () => [
@@ -209,19 +212,25 @@ export default function CommandPalette() {
         : "text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"
     }`;
 
+  const panelClass = sheetPanelClass(
+    narrow,
+    "relative w-full max-w-lg rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl ui-v2-fade overflow-hidden",
+  );
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center pt-[12vh] px-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-[2px]"
-        aria-label="Close"
-        onClick={close}
-      />
+    <ViewportOverlay
+      open
+      onClose={close}
+      zClassName="z-[120]"
+      className={narrow ? "" : "!items-start pt-[12vh]"}
+      backdropClassName="absolute inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-[2px]"
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={t("uiV2.paletteTitle")}
-        className="relative w-full max-w-lg rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl ui-v2-fade overflow-hidden"
+        className={panelClass}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 h-12 px-3 border-b border-zinc-100 dark:border-slate-800">
           {inCreateMode && (
@@ -320,6 +329,6 @@ export default function CommandPalette() {
           )}
         </div>
       </div>
-    </div>
+    </ViewportOverlay>
   );
 }

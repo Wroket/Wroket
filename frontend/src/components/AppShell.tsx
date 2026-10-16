@@ -35,6 +35,8 @@ import { hasLocalWebPushSubscription } from "@/lib/webPushLocal";
 import { useUiV2 } from "@/lib/UiVersionContext";
 import CommandPalette from "@/components/v2/CommandPalette";
 import CreateMenu from "@/components/v2/CreateMenu";
+import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
+import { clampInVisualViewport, useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 
 interface AppShellProps {
   children: ReactNode;
@@ -262,14 +264,29 @@ function CollapsedNavGroup({
       const r = btnRef.current?.getBoundingClientRect();
       if (!r) return;
       // Flush to the rail (no gap) so the pointer never falls into dead space.
-      setMenuPos({ top: r.top, left: r.right });
+      const menuW = menuRef.current?.offsetWidth ?? 176;
+      const menuH = menuRef.current?.offsetHeight ?? 200;
+      const { top, left } = clampInVisualViewport({
+        width: menuW,
+        height: menuH,
+        preferredTop: r.top,
+        preferredLeft: r.right,
+        pad: 4,
+      });
+      setMenuPos({ top, left });
     };
     update();
+    requestAnimationFrame(update);
     window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
     return () => {
       window.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
     };
   }, [open]);
 
@@ -731,6 +748,7 @@ export default function AppShell({ children }: AppShellProps) {
   }, [router]);
 
   const [shareOpen, setShareOpen] = useState(false);
+  const shareDialogNarrow = useNarrowVisualViewport(shareOpen);
   const [shareEmail, setShareEmail] = useState("");
   const [shareSending, setShareSending] = useState(false);
   const [shareResult, setShareResult] = useState<"success" | "error" | null>(null);
@@ -1835,8 +1853,18 @@ export default function AppShell({ children }: AppShellProps) {
       )}
 
       {shareOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShareOpen(false)} onKeyDown={(e) => { if (e.key === "Escape") setShareOpen(false); }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" className={`bg-white dark:bg-slate-900 shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6 ${uiV2 ? "rounded-sm" : "rounded-2xl"}`} onClick={(e) => e.stopPropagation()}>
+        <ViewportOverlay open onClose={() => setShareOpen(false)} zClassName="z-[100]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-dialog-title"
+            className={sheetPanelClass(
+              shareDialogNarrow,
+              `relative bg-white dark:bg-slate-900 shadow-xl border border-zinc-200 dark:border-slate-700 w-full max-w-sm mx-4 p-6 ${uiV2 ? "rounded-sm" : "rounded-2xl"}`,
+            )}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === "Escape") setShareOpen(false); }}
+          >
             <h3 id="share-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-slate-100 mb-1">{t("app.share")}</h3>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mb-4">{t("app.share.placeholder")}</p>
             <ContactEmailSuggestInput
@@ -1869,7 +1897,7 @@ export default function AppShell({ children }: AppShellProps) {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportOverlay>
       )}
 
       {uiV2 && !wsAdminOnly && (
