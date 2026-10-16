@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useLocale } from "@/lib/LocaleContext";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -48,6 +50,7 @@ export default function ConfirmDialog({
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
   useBodyScrollLock(open);
+  const viewport = useVisualViewportRect(open);
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +85,7 @@ export default function ConfirmDialog({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const confirmBtnClass = `px-4 py-2 text-sm rounded-md text-white transition-colors
     focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-800
@@ -94,8 +97,11 @@ export default function ConfirmDialog({
     "px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-slate-600 " +
     "text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors";
 
-  return (
-    <div className="fixed inset-0 z-[9998] flex items-end sm:items-center justify-center p-0 sm:p-4">
+  return createPortal(
+    <div
+      className="z-[9998] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={visualViewportOverlayStyle(viewport)}
+    >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
       <div
         ref={dialogRef}
@@ -147,6 +153,7 @@ export default function ConfirmDialog({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

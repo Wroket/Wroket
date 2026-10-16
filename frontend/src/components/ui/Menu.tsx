@@ -45,7 +45,7 @@ export default function Menu({
   className,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; maxWidth: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,16 +57,22 @@ export default function Menu({
       const btn = rootRef.current?.querySelector("button");
       if (!btn) return;
       const r = btn.getBoundingClientRect();
-      const menuWidth = menuRef.current?.offsetWidth ?? 176;
+      const vv = window.visualViewport;
+      const viewLeft = vv?.offsetLeft ?? 0;
+      const viewTop = vv?.offsetTop ?? 0;
+      const viewWidth = vv?.width ?? window.innerWidth;
+      const viewHeight = vv?.height ?? window.innerHeight;
+      const maxMenuWidth = Math.max(160, viewWidth - pad * 2);
+      const menuWidth = Math.min(menuRef.current?.offsetWidth ?? 220, maxMenuWidth);
       const menuHeight =
         menuRef.current?.offsetHeight ?? Math.max(items.length, 1) * 36 + 8;
       let left = align === "right" ? r.right - menuWidth : r.left;
-      left = Math.max(pad, Math.min(left, window.innerWidth - menuWidth - pad));
+      left = Math.max(viewLeft + pad, Math.min(left, viewLeft + viewWidth - menuWidth - pad));
 
       const below = r.bottom + gap;
       const above = r.top - gap - menuHeight;
-      const fitsBelow = below + menuHeight <= window.innerHeight - pad;
-      const fitsAbove = above >= pad;
+      const fitsBelow = below + menuHeight <= viewTop + viewHeight - pad;
+      const fitsAbove = above >= viewTop + pad;
 
       let top: number;
       if (fitsBelow) {
@@ -74,21 +80,26 @@ export default function Menu({
       } else if (fitsAbove) {
         top = above;
       } else {
-        const spaceBelow = window.innerHeight - r.bottom - gap;
-        const spaceAbove = r.top - gap;
+        const spaceBelow = viewTop + viewHeight - r.bottom - gap;
+        const spaceAbove = r.top - viewTop - gap;
         top = spaceAbove > spaceBelow ? above : below;
-        top = Math.max(pad, Math.min(top, window.innerHeight - menuHeight - pad));
+        top = Math.max(viewTop + pad, Math.min(top, viewTop + viewHeight - menuHeight - pad));
       }
-      setCoords({ top, left });
+      setCoords({ top, left, maxWidth: maxMenuWidth });
     };
     update();
     // Second pass once menu is measured
     requestAnimationFrame(update);
     window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
     return () => {
       window.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
     };
   }, [open, align, items.length]);
 
@@ -147,6 +158,7 @@ export default function Menu({
               position: "fixed",
               top: coords?.top ?? 0,
               left: coords?.left ?? 0,
+              maxWidth: coords?.maxWidth,
               visibility: coords ? "visible" : "hidden",
             }}
             className="z-[200] min-w-[11rem] py-1 rounded-sm border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg ui-v2-fade"
@@ -166,7 +178,7 @@ export default function Menu({
                     setOpen(false);
                     item.onSelect();
                   }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:opacity-40 ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm whitespace-normal transition-colors disabled:opacity-40 ${
                     item.danger
                       ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                       : "text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"

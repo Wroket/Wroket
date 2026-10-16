@@ -6,6 +6,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthContext";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -96,6 +97,7 @@ export default function TaskEditModal({
   const trapRef = useFocusTrap(!!todo);
   useModalCloseKeys(!!todo, onClose);
   useBodyScrollLock(!!todo);
+  const viewport = useVisualViewportRect(!!todo);
   const [editZone, setEditZone] = useState<TaskEditZone>(initialZone);
 
   /**
@@ -466,7 +468,8 @@ export default function TaskEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
+      className="z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
+      style={visualViewportOverlayStyle(viewport)}
       onClick={() => {
         if (mentionInviteOpen) return;
         void onClose();

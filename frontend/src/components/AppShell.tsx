@@ -772,7 +772,7 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col overflow-x-clip transition-colors [--app-mobile-header:4.5rem] ${
+    <div className={`min-h-screen w-full min-w-0 max-w-full flex flex-col overflow-x-clip transition-colors [--app-mobile-header:4.5rem] ${
       uiV2
         ? "ui-v2 ui-v2-shell"
         : "bg-zinc-100 dark:bg-slate-950"

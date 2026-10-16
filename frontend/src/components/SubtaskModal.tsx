@@ -23,6 +23,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
 import type { Todo, Priority, Effort } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 import { PRIORITY_BADGES } from "@/lib/todoConstants";
@@ -171,6 +172,7 @@ export default function SubtaskModal({
 
   useModalCloseKeys(!!parent, onClose);
   useBodyScrollLock(!!parent);
+  const viewport = useVisualViewportRect(!!parent);
 
   if (!parent) return null;
 
@@ -197,7 +199,8 @@ export default function SubtaskModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
+      className="z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
+      style={visualViewportOverlayStyle(viewport)}
       onClick={onClose}
     >
       <div

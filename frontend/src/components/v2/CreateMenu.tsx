@@ -11,6 +11,7 @@ import { useToast } from "@/components/Toast";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { useVisualViewportRect } from "@/hooks/useVisualViewportRect";
 
 type CreateKind = "menu" | "task" | "project" | "note" | null;
 
@@ -25,6 +26,7 @@ export default function CreateMenu({ fab = false }: { fab?: boolean }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const viewport = useVisualViewportRect(fab);
 
   useEffect(() => {
     if (kind !== "menu") return;
@@ -119,7 +121,12 @@ export default function CreateMenu({ fab = false }: { fab?: boolean }) {
     <>
       <div
         ref={rootRef}
-        className={fab ? "fixed bottom-5 right-5 z-40 md:hidden" : "relative hidden sm:block"}
+        className={fab ? "fixed z-40 md:hidden" : "relative hidden sm:block"}
+        style={
+          fab && viewport
+            ? { top: viewport.top + viewport.height - 76, left: viewport.left + viewport.width - 76 }
+            : undefined
+        }
       >
         <button
           type="button"

@@ -1515,7 +1515,7 @@ export default function TodosPage() {
                 {mainView === "list" ? t("todos.listTitle") : t("todos.matrixTitle")}
               </h2>
               <PageHelpButton helpId={mainView === "radar" ? "todos.radar" : "todos"} />
-              <div className="max-sm:overflow-x-auto max-sm:max-w-full">
+              <div className="min-w-0 w-full max-w-full max-sm:overflow-x-auto">
                 <div className="flex rounded border border-zinc-200 dark:border-slate-600 overflow-hidden max-sm:w-max">
                 {(["all", "personal", "assigned", "delegated"] as TaskScope[]).map((s) => (
                   <button
@@ -1541,7 +1541,7 @@ export default function TodosPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3 min-w-0 max-sm:overflow-x-auto">
+            <div className="flex items-center gap-3 min-w-0 w-full max-w-full max-sm:overflow-x-auto">
               <button
                 type="button"
                 onClick={handleUndo}

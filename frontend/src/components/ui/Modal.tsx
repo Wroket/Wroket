@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
 
 interface ModalProps {
   open: boolean;
@@ -41,12 +42,14 @@ export default function Modal({
 
   useModalCloseKeys(open, onClose);
   useBodyScrollLock(open);
+  const viewport = useVisualViewportRect(open);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={visualViewportOverlayStyle(viewport)}
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : undefined}

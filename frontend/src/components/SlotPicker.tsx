@@ -17,6 +17,7 @@ import {
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useVisualViewportRect, visualViewportOverlayStyle } from "@/hooks/useVisualViewportRect";
 import { formatScheduledSlotLabel } from "@/lib/slotFormat";
 import { TAG_AUX } from "@/lib/tagPalette";
 import { toolbarAffordanceClass } from "@/components/taskToolbarStyles";
@@ -55,6 +56,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const [mounted, setMounted] = useState(false);
 
   useBodyScrollLock(open && presentation === "modal");
+  const viewport = useVisualViewportRect(open && presentation === "modal");
 
   useEffect(() => {
     setMounted(true);
@@ -629,7 +631,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
 
   const modalPortal = mounted && open && presentation === "modal" && createPortal(
     <div
-      className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={visualViewportOverlayStyle(viewport)}
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-picker-dialog-title"
