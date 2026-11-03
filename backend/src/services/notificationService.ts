@@ -202,38 +202,7 @@ function deliverProfileOutbound(
     void sendNotificationEmail(prefs.email, title, message, data);
     return;
   }
-  if (prefs.mode === "slack") {
-    if (shouldSkipProfileChatDelivery(userId, "slack", type as WebhookEvent, data, prefs.webhookUrl)) {
-      return;
-    }
-    // Prefer OAuth chat.postMessage; fall back to Incoming Webhook URL.
-    if (prefs.webhookUrl) {
-      dispatchOutboundWebhook(prefs.webhookUrl, "slack", type as WebhookEvent, title, message, data, userId);
-    } else {
-      void (async () => {
-        try {
-          const { formatWebhookPayload } = await import("./webhookService");
-          const { tryPostViaSlackOAuth } = await import("./slackApiService");
-          const body = formatWebhookPayload(
-            "slack",
-            {
-              event: type as WebhookEvent,
-              title,
-              message,
-              data,
-              timestamp: new Date().toISOString(),
-            },
-            { interactive: true, actorUid: userId },
-          );
-          await tryPostViaSlackOAuth(userId, body);
-        } catch (err) {
-          console.warn("[notifications] slack oauth outbound failed:", err);
-        }
-      })();
-    }
-    return;
-  }
-  if (prefs.mode === "teams" || prefs.mode === "google_chat") {
+  if (prefs.mode === "slack" || prefs.mode === "teams" || prefs.mode === "google_chat") {
     if (
       shouldSkipProfileChatDelivery(
         userId,
@@ -245,9 +214,15 @@ function deliverProfileOutbound(
     ) {
       return;
     }
-    if (prefs.webhookUrl) {
-      dispatchOutboundWebhook(prefs.webhookUrl, prefs.mode, type as WebhookEvent, title, message, data, userId);
-    }
+    dispatchOutboundWebhook(
+      prefs.webhookUrl,
+      prefs.mode,
+      type as WebhookEvent,
+      title,
+      message,
+      data,
+      userId,
+    );
   }
 }
 

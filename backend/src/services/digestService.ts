@@ -285,6 +285,20 @@ function flushUserDigest(userId: string): void {
         } catch (err) {
           console.warn("[digest] slack oauth failed for %s: %s", userId, (err as Error).message ?? err);
         }
+      } else if (prefs.mode === "teams") {
+        try {
+          const { tryPostViaTeamsBot } = await import("./teamsApiService");
+          if (await tryPostViaTeamsBot(userId, body)) return;
+        } catch (err) {
+          console.warn("[digest] teams bot failed for %s: %s", userId, (err as Error).message ?? err);
+        }
+      } else if (prefs.mode === "google_chat") {
+        try {
+          const { tryPostViaGoogleChat } = await import("./googleChatApiService");
+          if (await tryPostViaGoogleChat(userId, body)) return;
+        } catch (err) {
+          console.warn("[digest] google chat oauth failed for %s: %s", userId, (err as Error).message ?? err);
+        }
       }
       if (!prefs.webhookUrl) return;
       await fetch(prefs.webhookUrl, {

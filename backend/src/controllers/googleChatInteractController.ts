@@ -9,6 +9,12 @@ import {
   isGoogleChatInboundConfigured,
 } from "../services/googleChatOAuthService";
 import {
+  getGoogleChatConnectionByEmail,
+  upsertGoogleChatConnection,
+} from "../services/googleChatConnectionService";
+import { findUserByEmail } from "../services/authService";
+import { taskDeepLink } from "../services/notificationFormatting";
+import {
   googleChatSlashHelp,
   handleGoogleChatCommandText,
   parseGoogleChatCardAction,
@@ -45,6 +51,7 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
   const body = req.body as {
     type?: string;
     token?: string;
+    space?: { name?: string; displayName?: string; type?: string };
     message?: { text?: string; sender?: { email?: string } };
     user?: { email?: string };
     common?: { user?: { email?: string } };
@@ -53,7 +60,7 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
   };
 
   // URL verification handshake
-  if (body.type === "URL_VERIFICATION" || body.type === "ADDED_TO_SPACE") {
+  if (body.type === "URL_VERIFICATION") {
     res.status(200).json({});
     return;
   }
@@ -63,6 +70,37 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
     body.common?.user?.email ||
     body.message?.sender?.email ||
     null;
+
+  // Bot added to a space -> auto-attach space to user's Google Chat connection if available
+  if (body.type === "ADDED_TO_SPACE") {
+    const spaceName = body.space?.name?.trim();
+    const spaceDisplayName = body.space?.displayName?.trim() || spaceName;
+    if (email && spaceName) {
+      const existing = getGoogleChatConnectionByEmail(email);
+      const user = findUserByEmail(email);
+      if (existing) {
+        if (!existing.spaceName || existing.spaceName === "spaces/unknown") {
+          upsertGoogleChatConnection({
+            ownerUid: existing.ownerUid,
+            ownerEmail: existing.ownerEmail,
+            spaceName,
+            spaceDisplayName,
+          });
+        }
+      } else if (user) {
+        upsertGoogleChatConnection({
+          ownerUid: user.uid,
+          ownerEmail: user.email,
+          spaceName,
+          spaceDisplayName,
+        });
+      }
+    }
+    res.status(200).json({
+      text: "👋 Wroket est connecté à cet espace ! Tapez `@Wroket help` pour voir les commandes disponibles.",
+    });
+    return;
+  }
 
   // Card click
   if (body.type === "CARD_CLICKED" || body.action) {
@@ -93,6 +131,38 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
       todoId: parsed.todoId,
       action: parsed.action,
     });
+    if (result.ok) {
+      const deepLink = taskDeepLink(parsed.todoId);
+      res.status(200).json({
+        actionResponse: { type: "UPDATE_MESSAGE" },
+        text: `✅ ${result.message}`,
+        cardsV2: [
+          {
+            cardId: "wroket",
+            card: {
+              sections: [
+                {
+                  widgets: [
+                    { textParagraph: { text: `<b>✅ Action enregistrée</b><br>${result.message}` } },
+                    {
+                      buttonList: {
+                        buttons: [
+                          {
+                            text: "Ouvrir dans Wroket",
+                            onClick: { openLink: { url: deepLink } },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      });
+      return;
+    }
     res.status(200).json({ text: result.message });
     return;
   }

@@ -19,7 +19,8 @@ import {
   runTeamsTaskAction,
   teamsSlashHelp,
 } from "../services/teamsInteractService";
-import { replyTeamsText } from "../services/teamsApiService";
+import { replyTeamsText, updateTeamsConversationActivity } from "../services/teamsApiService";
+import { taskDeepLink } from "../services/notificationFormatting";
 
 function authHeader(req: Request): string | undefined {
   const h = req.header("authorization") ?? req.header("Authorization");
@@ -42,6 +43,7 @@ async function verifyOrReject(req: Request, res: Response): Promise<boolean> {
 
 interface TeamsActivity {
   id?: string;
+  replyToId?: string;
   type?: string;
   text?: string;
   name?: string;
@@ -97,6 +99,7 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
         conversationId: activity.conversation.id,
         serviceUrl: activity.serviceUrl,
         channelId: activity.channelData?.channel?.id,
+        aadObjectId: activity.from?.aadObjectId,
         userEmail: extractEmailFromActivity(activity) ?? undefined,
       });
     }
@@ -119,18 +122,79 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
         email: extractEmailFromActivity(activity),
         tenantId,
       });
-      const text =
-        "error" in resolved
-          ? resolved.error
-          : (
-              await runTeamsTaskAction({
-                actorUid: resolved.uid,
-                targetUid: submit.targetUid,
-                todoId: submit.todoId,
-                action: submit.action,
-              })
-            ).message;
-      await sendReply(activity, text);
+      if ("error" in resolved) {
+        await sendReply(activity, resolved.error);
+        if (isInvoke) {
+          ackInvoke(res);
+          return;
+        }
+        res.status(200).json({});
+        return;
+      }
+
+      const result = await runTeamsTaskAction({
+        actorUid: resolved.uid,
+        targetUid: submit.targetUid,
+        todoId: submit.todoId,
+        action: submit.action,
+      });
+
+      if (result.ok) {
+        const deepLink = taskDeepLink(submit.todoId);
+        const updatedCardContent = {
+          $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+          type: "AdaptiveCard",
+          version: "1.4",
+          body: [
+            {
+              type: "TextBlock",
+              text: "✅ Action enregistrée",
+              weight: "Bolder",
+              size: "Medium",
+            },
+            {
+              type: "TextBlock",
+              text: result.message,
+              wrap: true,
+            },
+            {
+              type: "ActionSet",
+              actions: [
+                {
+                  type: "Action.OpenUrl",
+                  title: "Ouvrir dans Wroket",
+                  url: deepLink,
+                },
+              ],
+            },
+          ],
+        };
+
+        const targetActivityId = activity.replyToId;
+        const updatedInPlace = targetActivityId
+          ? await updateTeamsConversationActivity({
+              serviceUrl: activity.serviceUrl,
+              conversationId: activity.conversation?.id,
+              activityId: targetActivityId,
+              activity: {
+                type: "message",
+                attachments: [
+                  {
+                    contentType: "application/vnd.microsoft.card.adaptive",
+                    content: updatedCardContent,
+                  },
+                ],
+              },
+            })
+          : false;
+
+        if (!updatedInPlace) {
+          await sendReply(activity, `✅ ${result.message}`);
+        }
+      } else {
+        await sendReply(activity, result.message);
+      }
+
       if (isInvoke) {
         ackInvoke(res);
         return;
@@ -152,6 +216,7 @@ export async function postTeamsInteractions(req: Request, res: Response): Promis
         conversationId: activity.conversation.id,
         serviceUrl: activity.serviceUrl,
         channelId: activity.channelData?.channel?.id,
+        aadObjectId: activity.from?.aadObjectId,
         userEmail: extractEmailFromActivity(activity) ?? undefined,
       });
     }

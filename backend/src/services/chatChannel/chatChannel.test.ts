@@ -39,10 +39,13 @@ describe("chatChannel task action helpers", () => {
 });
 
 describe("chatChannel slash help", () => {
-  it("includes PMO verbs", () => {
+  it("includes PMO, add, plan, and timer verbs", () => {
     const help = slashHelpTextForPrefix("/wroket");
     expect(help).toContain("my-week");
     expect(help).toContain("overdue");
     expect(help).toContain("team-risk");
+    expect(help).toContain("add <titre>");
+    expect(help).toContain("plan <todoId>");
+    expect(help).toContain("timer");
   });
 });

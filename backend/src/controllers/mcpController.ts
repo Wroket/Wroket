@@ -6,7 +6,47 @@ import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
 const PROTOCOL_VERSION = "2024-11-05";
-const SERVER_INFO = { name: "wroket", version: "1.0.0" };
+const SERVER_INFO = { name: "wroket", version: "2.0.0" };
+
+interface McpPromptDef {
+  name: string;
+  description: string;
+  arguments?: Array<{ name: string; description: string; required?: boolean }>;
+  buildText: (args: Record<string, string>) => string;
+}
+
+export const MCP_PROMPT_DEFS: McpPromptDef[] = [
+  {
+    name: "plan-my-week",
+    description:
+      "Analyse mes tâches de la semaine et en retard, propose des créneaux libres de mon agenda et planifie après validation.",
+    buildText: () =>
+      "Utilise l'outil `get_my_week` et `list_todos` (status='active') pour identifier mes tâches prioritaires non planifiées. Pour chacune des 5 tâches les plus urgentes sans `scheduledSlot`, appelle `propose_slots` et présente-moi un planning hebdomadaire clair avant de réserver avec `book_task_slot`.",
+  },
+  {
+    name: "prepare-steering-committee",
+    description:
+      "Génère un point d'avancement COMEX / COPIL structuré (météo projets, jalons, retards, risques d'équipe).",
+    arguments: [
+      {
+        name: "projectId",
+        description: "ID du projet cible (optionnel — sinon analyse tous les projets à risque)",
+        required: false,
+      },
+    ],
+    buildText: (args) =>
+      args.projectId
+        ? `Appelle \`get_project_steering\` pour le projet \`${args.projectId}\` ainsi que \`get_team_risk\`, puis rédige un compte-rendu de COPIL structuré : 1) Météo globale & avancement %, 2) Avancement par phase, 3) Prochains jalons, 4) Tâches critiques en retard et plan d'action.`
+        : "Appelle `list_projects` et `get_team_risk`, puis `get_project_steering` sur les projets actifs principaux. Rédige une synthèse exécutive COMEX/COPIL : météo par projet, risques majeurs, jalons à venir et décisions attendues.",
+  },
+  {
+    name: "triage-overdue",
+    description:
+      "Passe en revue toutes mes tâches en retard, identifie les dépendances bloquantes et propose un plan de rattrapage.",
+    buildText: () =>
+      "Appelle `get_overdue_tasks` pour lister mes tâches en retard. Classe-les par criticité, signale celles qui bloquent d'autres tâches ou ont des dépendances, et propose pour chacune : 1) Terminer si déjà fait, 2) Replanifier (`propose_slots`), ou 3) Déléguer (`assign_todo`).",
+  },
+];
 
 type JsonRpcId = string | number | null;
 
@@ -51,13 +91,51 @@ async function handleOne(
   if (method === "initialize") {
     return rpcResult(id, {
       protocolVersion: PROTOCOL_VERSION,
-      capabilities: { tools: { listChanged: false } },
+      capabilities: {
+        tools: { listChanged: false },
+        prompts: { listChanged: false },
+      },
       serverInfo: SERVER_INFO,
     });
   }
 
   if (method === "ping") {
     return rpcResult(id, {});
+  }
+
+  if (method === "prompts/list") {
+    return rpcResult(id, {
+      prompts: MCP_PROMPT_DEFS.map((p) => ({
+        name: p.name,
+        description: p.description,
+        arguments: p.arguments ?? [],
+      })),
+    });
+  }
+
+  if (method === "prompts/get") {
+    const params = (message.params ?? {}) as { name?: unknown; arguments?: unknown };
+    const name = typeof params.name === "string" ? params.name : "";
+    const def = MCP_PROMPT_DEFS.find((p) => p.name === name);
+    if (!def) {
+      return rpcError(id, -32602, `Unknown prompt: ${name}`);
+    }
+    const rawArgs =
+      params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments)
+        ? (params.arguments as Record<string, string>)
+        : {};
+    return rpcResult(id, {
+      description: def.description,
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: def.buildText(rawArgs),
+          },
+        },
+      ],
+    });
   }
 
   if (method === "tools/list") {
@@ -140,12 +218,23 @@ export async function handleMcpPost(req: ApiKeyAuthenticatedRequest, res: Respon
 }
 
 /** Discovery / health for agents probing the endpoint. */
-export function handleMcpGet(_req: ApiKeyAuthenticatedRequest, res: Response): void {
+export function handleMcpGet(req: ApiKeyAuthenticatedRequest, res: Response): void {
+  const accept = (req.header("accept") ?? "").toLowerCase();
+  if (accept.includes("text/event-stream") && !accept.includes("application/json")) {
+    res
+      .status(405)
+      .set("Allow", "POST")
+      .json({
+        error: "SSE stream not supported on GET /mcp; use stateless JSON-RPC POST /mcp",
+      });
+    return;
+  }
   res.status(200).json({
     name: SERVER_INFO.name,
     version: SERVER_INFO.version,
     protocolVersion: PROTOCOL_VERSION,
     transport: "streamable-http",
     tools: MCP_TOOL_DEFS.map((t) => t.name),
+    prompts: MCP_PROMPT_DEFS.map((p) => p.name),
   });
 }

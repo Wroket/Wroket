@@ -62,6 +62,38 @@ export async function replyTeamsText(opts: {
 }
 
 /**
+ * Update an existing Teams activity in place (e.g. replace Adaptive Card buttons after click).
+ */
+export async function updateTeamsConversationActivity(opts: {
+  serviceUrl?: string;
+  conversationId?: string;
+  activityId?: string;
+  activity: unknown;
+}): Promise<boolean> {
+  if (!opts.serviceUrl || !opts.conversationId || !opts.activityId) return false;
+  const token = await getTeamsBotConnectorToken();
+  if (!token) return false;
+  const base = opts.serviceUrl.replace(/\/$/, "");
+  const res = await fetch(
+    `${base}/v3/conversations/${encodeURIComponent(opts.conversationId)}/activities/${encodeURIComponent(opts.activityId)}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(opts.activity),
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
+  if (!res.ok) {
+    console.warn("[teams] connector update activity failed:", res.status, await res.text().catch(() => ""));
+    return false;
+  }
+  return true;
+}
+
+/**
  * Post an Adaptive Card / activity to the user's stored conversation via Bot Connector.
  */
 export async function tryPostViaTeamsBot(uid: string, cardOrText: unknown): Promise<boolean> {

@@ -2,6 +2,7 @@ import type { AuthUser } from "../authService";
 import {
   createTodo,
   findTodoForUser,
+  listAssignedToMe,
   listTodos,
   moveTodo,
   updateTodo,
@@ -27,6 +28,9 @@ function leanTodo(t: Todo): Record<string, unknown> {
     phaseId: t.phaseId,
     parentId: t.parentId,
     scheduledSlot: t.scheduledSlot,
+    assignedTo: t.assignedTo ?? null,
+    assignmentStatus: t.assignmentStatus ?? null,
+    blockedByTodoIds: t.blockedByTodoIds ?? [],
     updatedAt: t.updatedAt,
     createdAt: t.createdAt,
   };
@@ -50,7 +54,8 @@ const STATUS_ENUM = ["active", "completed", "cancelled", "open", "done"];
 export const todoToolDefs: McpToolDef[] = [
   {
     name: "list_todos",
-    description: "List the authenticated user's tasks. Optional status filter.",
+    description:
+      "List the authenticated user's tasks (including tasks assigned to the user unless includeAssigned is false). Optional status and projectId filters.",
     requiredScope: "todos:read",
     inputSchema: {
       type: "object",
@@ -59,6 +64,11 @@ export const todoToolDefs: McpToolDef[] = [
           type: "string",
           description: "Filter: active, completed, cancelled (aliases: open→active, done→completed)",
           enum: STATUS_ENUM,
+        },
+        projectId: { type: "string", description: "Filter by project id" },
+        includeAssigned: {
+          type: "boolean",
+          description: "Include tasks delegated/assigned to the user (default true)",
         },
         limit: { type: "number", description: "Max items (default 50, max 200)" },
       },
@@ -142,10 +152,21 @@ export const todoToolDefs: McpToolDef[] = [
 ];
 
 async function listTodosHandler(user: AuthUser, args: Record<string, unknown>) {
-  const todos = await listTodos(user.uid);
-  let filtered = todos.filter((t) => t.status !== "deleted");
+  const includeAssigned = args.includeAssigned !== false;
+  const [owned, assigned] = await Promise.all([
+    listTodos(user.uid),
+    includeAssigned ? listAssignedToMe(user.uid) : Promise.resolve([]),
+  ]);
+  const seen = new Set<string>();
+  let filtered = [...owned, ...assigned].filter((t) => {
+    if (seen.has(t.id) || t.status === "deleted") return false;
+    seen.add(t.id);
+    return true;
+  });
   const status = normalizeTodoStatus(args.status);
   if (status) filtered = filtered.filter((t) => t.status === status);
+  const projectId = optionalString(args, "projectId");
+  if (projectId) filtered = filtered.filter((t) => t.projectId === projectId);
   const limit = clampLimit(args.limit);
   return { todos: filtered.slice(0, limit).map(leanTodo), total: filtered.length };
 }

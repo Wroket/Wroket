@@ -29,7 +29,11 @@ import clientPortalRoutes from "./routes/clientPortalRoutes";
 import okrRoutes from "./routes/okrRoutes";
 import automationRoutes from "./routes/automationRoutes";
 import { postStripeWebhook } from "./controllers/stripeBillingController";
-import { postSlackInteractions, postSlackCommands } from "./controllers/slackInteractController";
+import {
+  postSlackInteractions,
+  postSlackCommands,
+  postSlackEvents,
+} from "./controllers/slackInteractController";
 import { postTeamsInteractions } from "./controllers/teamsInteractController";
 import { postGoogleChatInteractions } from "./controllers/googleChatInteractController";
 import { postDiscordInteractions } from "./controllers/discordInteractController";
@@ -96,6 +100,13 @@ app.post(
   express.raw({ type: "*/*" }),
   (req, res, next) => {
     void postSlackCommands(req, res).catch(next);
+  },
+);
+app.post(
+  "/integrations/slack/events",
+  express.raw({ type: "*/*" }),
+  (req, res, next) => {
+    void postSlackEvents(req, res).catch(next);
   },
 );
 

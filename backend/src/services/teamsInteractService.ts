@@ -12,8 +12,14 @@ import {
   type ChatChannelAdapter,
   type ChatTaskAction,
 } from "./chatChannel";
-import { getTeamsConnectionForTenant, upsertTeamsConnection } from "./teamsConnectionService";
-import { findUserByEmail } from "./authService";
+import {
+  countTeamsConnectionsForTenant,
+  getTeamsConnectionByAadObjectId,
+  getTeamsConnectionByEmail,
+  getTeamsConnectionForTenant,
+  upsertTeamsConnection,
+} from "./teamsConnectionService";
+import { findUserByEmail, findUserByUid } from "./authService";
 
 export function teamsSlashHelp(): string {
   return slashHelpTextForPrefix("/wroket");
@@ -52,22 +58,47 @@ export async function resolveWroketUserFromTeams(opts: {
   email?: string | null;
   tenantId?: string;
 }): Promise<{ uid: string; email: string } | { error: string }> {
+  // 1. Exact Entra Object ID match (multi-user safe within the same tenant)
+  if (opts.aadObjectId) {
+    const byOid = getTeamsConnectionByAadObjectId(opts.aadObjectId, opts.tenantId);
+    if (byOid) {
+      const u = findUserByUid(byOid.ownerUid);
+      if (u) return { uid: u.uid, email: u.email };
+      if (byOid.ownerEmail) return resolveUserFromChatEmail(byOid.ownerEmail);
+    }
+  }
+  // 2. Email match (direct Wroket email or connected Teams UPN/mail)
   if (opts.email) {
+    const byEmailConn = getTeamsConnectionByEmail(opts.email);
+    if (byEmailConn) {
+      const u = findUserByUid(byEmailConn.ownerUid);
+      if (u) return { uid: u.uid, email: u.email };
+    }
     return resolveUserFromChatEmail(opts.email, {
       unknownEmailHint:
         "Impossible de lire votre email Azure AD. Vérifiez le profil Entra ou reconnectez Teams dans Paramètres.",
     });
   }
-  // Fallback: connection owner for tenant (1:1 install) — prefer email identity.
+  // 3. Fallback: connection owner for tenant ONLY when a single user is connected in that tenant
   if (opts.tenantId) {
-    const conn = getTeamsConnectionForTenant(opts.tenantId);
-    if (conn?.ownerEmail) {
-      return resolveUserFromChatEmail(conn.ownerEmail);
+    const tenantCount = countTeamsConnectionsForTenant(opts.tenantId);
+    if (tenantCount === 1) {
+      const conn = getTeamsConnectionForTenant(opts.tenantId);
+      if (conn) {
+        const u = findUserByUid(conn.ownerUid);
+        if (u) return { uid: u.uid, email: u.email };
+        if (conn.ownerEmail) return resolveUserFromChatEmail(conn.ownerEmail);
+      }
+    } else if (tenantCount > 1) {
+      return {
+        error:
+          "Plusieurs comptes Wroket utilisent ce tenant Microsoft Teams. Reconnectez Teams dans Paramètres → Intégrations pour associer votre identifiant Entra (oid).",
+      };
     }
   }
   return {
     error:
-      "Identité Teams introuvable. Connectez Teams dans Paramètres → Intégrations avec le même email que Wroket.",
+      "Identité Teams introuvable. Connectez Teams dans Paramètres → Intégrations avec votre compte Wroket.",
   };
 }
 
@@ -94,22 +125,24 @@ export async function handleTeamsCommandText(opts: {
 
 /**
  * Persist conversation reference when the bot is added / messaged (enables proactive posts).
- * Prefer activity email; otherwise attach to the existing OAuth connection for this tenant.
+ * Prefer aadObjectId, then activity email; otherwise attach to the tenant connection if unique.
  */
 export function rememberTeamsConversation(opts: {
   tenantId: string;
   conversationId: string;
   serviceUrl: string;
   channelId?: string;
+  aadObjectId?: string;
   userEmail?: string;
 }): void {
-  if (opts.userEmail) {
-    const user = findUserByEmail(opts.userEmail);
-    if (user) {
+  if (opts.aadObjectId) {
+    const byOid = getTeamsConnectionByAadObjectId(opts.aadObjectId, opts.tenantId);
+    if (byOid) {
       upsertTeamsConnection({
-        ownerUid: user.uid,
-        ownerEmail: user.email,
-        tenantId: opts.tenantId,
+        ownerUid: byOid.ownerUid,
+        ownerEmail: byOid.ownerEmail,
+        tenantId: opts.tenantId || byOid.tenantId,
+        aadObjectId: opts.aadObjectId,
         conversationId: opts.conversationId,
         serviceUrl: opts.serviceUrl,
         channelId: opts.channelId,
@@ -117,13 +150,31 @@ export function rememberTeamsConversation(opts: {
       return;
     }
   }
-  // Channel messages often omit email — still store conversation on the tenant owner.
+  if (opts.userEmail) {
+    const byEmail = getTeamsConnectionByEmail(opts.userEmail);
+    const user = byEmail ? findUserByUid(byEmail.ownerUid) : findUserByEmail(opts.userEmail);
+    if (user) {
+      upsertTeamsConnection({
+        ownerUid: user.uid,
+        ownerEmail: byEmail?.ownerEmail ?? user.email,
+        tenantId: opts.tenantId,
+        aadObjectId: opts.aadObjectId ?? byEmail?.aadObjectId,
+        conversationId: opts.conversationId,
+        serviceUrl: opts.serviceUrl,
+        channelId: opts.channelId,
+      });
+      return;
+    }
+  }
+  // Channel messages often omit email — store conversation on the tenant owner if single-user tenant.
+  if (countTeamsConnectionsForTenant(opts.tenantId) > 1) return;
   const conn = getTeamsConnectionForTenant(opts.tenantId);
   if (!conn) return;
   upsertTeamsConnection({
     ownerUid: conn.ownerUid,
     ownerEmail: conn.ownerEmail,
     tenantId: opts.tenantId,
+    aadObjectId: conn.aadObjectId ?? opts.aadObjectId,
     conversationId: opts.conversationId,
     serviceUrl: opts.serviceUrl,
     channelId: opts.channelId,

@@ -24,8 +24,13 @@ import {
 import {
   deleteSlackConnectionForUser,
   getSlackConnectionSummary,
+  updateSlackChannelForUser,
 } from "../services/slackConnectionService";
-import { postSlackTestMessage, revokeSlackToken } from "../services/slackApiService";
+import {
+  listSlackChannelsForUser,
+  postSlackTestMessage,
+  revokeSlackToken,
+} from "../services/slackApiService";
 import {
   exchangeTeamsOAuthCode,
   getTeamsAuthorizeUrl,
@@ -40,10 +45,12 @@ import {
   exchangeGoogleChatOAuthCode,
   getGoogleChatAuthorizeUrl,
   isGoogleChatOAuthConfigured,
+  listGoogleChatSpacesForUser,
 } from "../services/googleChatOAuthService";
 import {
   deleteGoogleChatConnectionForUser,
   getGoogleChatConnectionSummary,
+  updateGoogleChatSpaceForUser,
 } from "../services/googleChatConnectionService";
 import { postGoogleChatTestMessage } from "../services/googleChatApiService";
 import {
@@ -836,6 +843,26 @@ export async function slackTestPost(req: AuthenticatedRequest, res: Response) {
   res.status(200).json({ ok: true });
 }
 
+export async function listSlackChannels(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const channels = await listSlackChannelsForUser(req.user!.uid);
+  res.status(200).json({ channels });
+}
+
+export async function updateSlackChannel(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const { channelId, channelName } = req.body as { channelId?: unknown; channelName?: unknown };
+  if (typeof channelId !== "string" || !channelId.trim()) {
+    throw new ValidationError("channelId est requis", "SLACK_CHANNEL_REQUIRED");
+  }
+  updateSlackChannelForUser(
+    req.user!.uid,
+    channelId.trim(),
+    typeof channelName === "string" ? channelName.trim() : undefined,
+  );
+  res.status(200).json(getSlackConnectionSummary(req.user!.uid));
+}
+
 /* ─── Microsoft Teams+ ─── */
 
 export async function teamsConnect(req: AuthenticatedRequest, res: Response) {
@@ -970,6 +997,29 @@ export async function googleChatTestPost(req: AuthenticatedRequest, res: Respons
   }
   await postGoogleChatTestMessage(req.user!.uid);
   res.status(200).json({ ok: true });
+}
+
+export async function listGoogleChatSpaces(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const spaces = await listGoogleChatSpacesForUser(req.user!.uid);
+  res.status(200).json({ spaces });
+}
+
+export async function updateGoogleChatSpace(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const { spaceName, spaceDisplayName } = req.body as {
+    spaceName?: unknown;
+    spaceDisplayName?: unknown;
+  };
+  if (typeof spaceName !== "string" || !spaceName.trim()) {
+    throw new ValidationError("spaceName est requis", "GOOGLE_CHAT_SPACE_REQUIRED");
+  }
+  updateGoogleChatSpaceForUser(
+    req.user!.uid,
+    spaceName.trim(),
+    typeof spaceDisplayName === "string" ? spaceDisplayName.trim() : undefined,
+  );
+  res.status(200).json(getGoogleChatConnectionSummary(req.user!.uid));
 }
 
 /* ─── Discord+ ─── */

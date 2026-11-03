@@ -30,6 +30,8 @@ import {
   slackStatus,
   disconnectSlack,
   slackTestPost,
+  listSlackChannels,
+  updateSlackChannel,
   teamsConnect,
   teamsCallback,
   teamsStatus,
@@ -40,6 +42,8 @@ import {
   googleChatStatus,
   disconnectGoogleChat,
   googleChatTestPost,
+  listGoogleChatSpaces,
+  updateGoogleChatSpace,
   discordConnect,
   discordCallback,
   discordStatus,
@@ -82,6 +86,8 @@ router.delete("/monday/connection", requireAuth, disconnectMonday);
 router.get("/slack/connect", requireAuth, slackConnect);
 router.get("/slack/callback", slackCallback);
 router.get("/slack/status", requireAuth, slackStatus);
+router.get("/slack/channels", requireAuth, listSlackChannels);
+router.patch("/slack/channel", requireAuth, updateSlackChannel);
 router.post("/slack/test", requireAuth, slackTestPost);
 router.delete("/slack/connection", requireAuth, disconnectSlack);
 
@@ -96,6 +102,8 @@ router.delete("/teams/connection", requireAuth, disconnectTeams);
 router.get("/google-chat/connect", requireAuth, googleChatConnect);
 router.get("/google-chat/callback", googleChatCallback);
 router.get("/google-chat/status", requireAuth, googleChatStatus);
+router.get("/google-chat/spaces", requireAuth, listGoogleChatSpaces);
+router.patch("/google-chat/space", requireAuth, updateGoogleChatSpace);
 router.post("/google-chat/test", requireAuth, googleChatTestPost);
 router.delete("/google-chat/connection", requireAuth, disconnectGoogleChat);
 

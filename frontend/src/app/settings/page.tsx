@@ -84,12 +84,18 @@ import {
   testTeamsConnection,
   testGoogleChatConnection,
   testDiscordConnection,
+  listSlackChannels,
+  updateSlackChannel,
+  listGoogleChatSpaces,
+  updateGoogleChatSpace,
   linkDiscordUserId,
   unlinkDiscordUserId,
   type AppConnectionSummary,
   type SlackConnectionStatus,
+  type SlackChannelOption,
   type TeamsConnectionStatus,
   type GoogleChatConnectionStatus,
+  type GoogleChatSpaceOption,
   type DiscordConnectionStatus,
 } from "@/lib/api/integrations";
 import {
@@ -1905,6 +1911,10 @@ function ConnectedAppsBlock({
   const [googleChatTesting, setGoogleChatTesting] = useState(false);
   const [discordTesting, setDiscordTesting] = useState(false);
   const [discordLinkInput, setDiscordLinkInput] = useState("");
+  const [slackChannels, setSlackChannels] = useState<SlackChannelOption[] | null>(null);
+  const [slackChannelBusy, setSlackChannelBusy] = useState(false);
+  const [googleChatSpaces, setGoogleChatSpaces] = useState<GoogleChatSpaceOption[] | null>(null);
+  const [googleChatSpaceBusy, setGoogleChatSpaceBusy] = useState(false);
 
   const integrationActionBtn =
     "w-full rounded-md px-3 py-2 text-xs font-medium text-center border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/25 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors";
@@ -2199,6 +2209,57 @@ function ConnectedAppsBlock({
                     {t("settings.connectionSlackChannel")}: #{slackStatus.channelName.replace(/^#/, "")}
                   </p>
                 )}
+                {slackChannels ? (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      aria-label={t("settings.connectionSlackChannel")}
+                      disabled={slackChannelBusy}
+                      value={slackStatus.channelId ?? ""}
+                      onChange={async (e) => {
+                        const nextId = e.target.value;
+                        if (!nextId) return;
+                        const found = slackChannels.find((c) => c.id === nextId);
+                        setSlackChannelBusy(true);
+                        try {
+                          const updated = await updateSlackChannel(nextId, found?.name);
+                          setSlackStatus(updated);
+                          toast.success(t("settings.connectionSlackChannelUpdated"));
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+                        } finally {
+                          setSlackChannelBusy(false);
+                        }
+                      }}
+                      className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+                    >
+                      <option value="">{t("settings.connectionSlackChangeChannel")}…</option>
+                      {slackChannels.map((ch) => (
+                        <option key={ch.id} value={ch.id}>
+                          #{ch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!hasIntegrations || slackChannelBusy}
+                    onClick={async () => {
+                      setSlackChannelBusy(true);
+                      try {
+                        const list = await listSlackChannels();
+                        setSlackChannels(list);
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+                      } finally {
+                        setSlackChannelBusy(false);
+                      }
+                    }}
+                    className={`${integrationSecondaryBtn} relative z-0`}
+                  >
+                    {slackChannelBusy ? "…" : t("settings.connectionSlackChangeChannel")}
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!hasIntegrations || slackTesting}
@@ -2266,9 +2327,18 @@ function ConnectedAppsBlock({
               <div className="min-w-0 flex-1">
                 <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionTeams")}</h5>
                 <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionTeamsDesc")}</p>
-                <Link href="/docs/integrations/teams" className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
-                  {t("settings.viewIntegrationGuide")}
-                </Link>
+                <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                  <Link href="/docs/integrations/teams" className="inline-block text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+                    {t("settings.viewIntegrationGuide")}
+                  </Link>
+                  <a
+                    href="/teams-app/wroket-teams-app.zip"
+                    download="wroket-teams-app.zip"
+                    className="inline-block text-[11px] font-medium text-zinc-600 dark:text-slate-300 hover:underline"
+                  >
+                    ↓ {t("settings.connectionTeamsDownloadZip")}
+                  </a>
+                </div>
               </div>
             </div>
             {teamsStatus?.connected ? (
@@ -2324,6 +2394,57 @@ function ConnectedAppsBlock({
                   {t("settings.connectionGoogleChatConnected")}
                   {googleChatStatus.spaceDisplayName ? ` · ${googleChatStatus.spaceDisplayName}` : ""}
                 </p>
+                {googleChatSpaces ? (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      aria-label={t("settings.connectionGoogleChatSpace")}
+                      disabled={googleChatSpaceBusy}
+                      value={googleChatStatus.spaceName ?? ""}
+                      onChange={async (e) => {
+                        const nextName = e.target.value;
+                        if (!nextName) return;
+                        const found = googleChatSpaces.find((s) => s.name === nextName);
+                        setGoogleChatSpaceBusy(true);
+                        try {
+                          const updated = await updateGoogleChatSpace(nextName, found?.displayName);
+                          setGoogleChatStatus(updated);
+                          toast.success(t("settings.connectionGoogleChatSpaceUpdated"));
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+                        } finally {
+                          setGoogleChatSpaceBusy(false);
+                        }
+                      }}
+                      className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+                    >
+                      <option value="">{t("settings.connectionGoogleChatChangeSpace")}…</option>
+                      {googleChatSpaces.map((sp) => (
+                        <option key={sp.name} value={sp.name}>
+                          {sp.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!hasIntegrations || googleChatSpaceBusy}
+                    onClick={async () => {
+                      setGoogleChatSpaceBusy(true);
+                      try {
+                        const list = await listGoogleChatSpaces();
+                        setGoogleChatSpaces(list);
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+                      } finally {
+                        setGoogleChatSpaceBusy(false);
+                      }
+                    }}
+                    className={`${integrationSecondaryBtn} relative z-0`}
+                  >
+                    {googleChatSpaceBusy ? "…" : t("settings.connectionGoogleChatChangeSpace")}
+                  </button>
+                )}
                 <button type="button" disabled={!hasIntegrations || googleChatTesting} onClick={async () => {
                   setGoogleChatTesting(true);
                   try { await testGoogleChatConnection(); toast.success(t("settings.connectionGoogleChatTestOk")); }
@@ -2486,9 +2607,19 @@ function IntegrationsSection({
   const searchParams = useSearchParams();
   const [activeSubSection, setActiveSubSection] = useState<IntegrationSubSection>(null);
   const [connections, setConnections] = useState<AppConnectionSummary[]>([]);
+  const [oauthChatReady, setOauthChatReady] = useState<{
+    slack: boolean;
+    teams: boolean;
+    google_chat: boolean;
+  }>({ slack: false, teams: false, google_chat: false });
 
   useEffect(() => {
-    if (searchParams.get("notion") === "connected" || searchParams.get("slack") === "connected") {
+    if (
+      searchParams.get("notion") === "connected" ||
+      searchParams.get("slack") === "connected" ||
+      searchParams.get("teams") === "connected" ||
+      searchParams.get("google_chat") === "connected"
+    ) {
       setActiveSubSection("connections");
     }
     const section = searchParams.get("section");
@@ -2517,10 +2648,23 @@ function IntegrationsSection({
           setDigestHour(me.notificationDigestHour ?? 8);
         }
         if (hasIntegrations) {
-          const [list, conns] = await Promise.all([getWebhooks(), getConnections()]);
+          const [list, conns, slack, teams, gchat] = await Promise.all([
+            getWebhooks(),
+            getConnections(),
+            getSlackStatus().catch(() => null),
+            getTeamsStatus().catch(() => null),
+            getGoogleChatStatus().catch(() => null),
+          ]);
           if (!cancelled) {
             setWebhooks(list);
             setConnections(conns);
+            setOauthChatReady({
+              slack: Boolean(slack?.connected && slack.channelId),
+              teams: Boolean(teams?.connected),
+              google_chat: Boolean(
+                gchat?.connected && gchat.spaceName && gchat.spaceName !== "spaces/unknown",
+              ),
+            });
           }
         }
       } catch { /* ignore */ }
@@ -2766,7 +2910,12 @@ function IntegrationsSection({
         ))}
       </div>
       {(deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && (
-        <div>
+        <div className="space-y-1.5">
+          {oauthChatReady[deliveryMode] && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+              ✓ {t("settings.deliveryOAuthActiveHint")}
+            </p>
+          )}
           <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("settings.deliveryWebhookUrl")}</label>
           <input
             type="url"
@@ -2791,7 +2940,11 @@ function IntegrationsSection({
           disabled={
             !hasIntegrations
             || savingDelivery
-            || ((deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat") && !deliveryUrl.trim())
+            || (
+              (deliveryMode === "slack" || deliveryMode === "teams" || deliveryMode === "google_chat")
+              && !deliveryUrl.trim()
+              && !oauthChatReady[deliveryMode]
+            )
           }
           className="rounded bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-400 disabled:opacity-50"
         >

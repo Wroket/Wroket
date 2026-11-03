@@ -17,6 +17,7 @@ export interface GoogleChatConnection {
   incomingWebhookUrl?: string;
   accessToken?: string;
   refreshToken?: string;
+  accessTokenExpiresAt?: string;
   installedAt: string;
   updatedAt: string;
 }
@@ -48,6 +49,15 @@ export function getGoogleChatConnectionForUser(uid: string): GoogleChatConnectio
   return connectionsByUid.get(uid) ?? null;
 }
 
+export function getGoogleChatConnectionByEmail(email: string): GoogleChatConnection | null {
+  const norm = email.trim().toLowerCase();
+  if (!norm) return null;
+  for (const conn of connectionsByUid.values()) {
+    if (conn.ownerEmail.trim().toLowerCase() === norm) return conn;
+  }
+  return null;
+}
+
 export function upsertGoogleChatConnection(input: {
   ownerUid: string;
   ownerEmail: string;
@@ -56,11 +66,23 @@ export function upsertGoogleChatConnection(input: {
   incomingWebhookUrl?: string;
   accessToken?: string;
   refreshToken?: string;
+  accessTokenExpiresAt?: string;
 }): GoogleChatConnection {
   const existing = connectionsByUid.get(input.ownerUid);
   const now = new Date().toISOString();
   if (existing) {
-    Object.assign(existing, { ...input, updatedAt: now });
+    const merged: Partial<GoogleChatConnection> = {
+      ownerUid: input.ownerUid,
+      ownerEmail: input.ownerEmail,
+      spaceName: input.spaceName,
+      updatedAt: now,
+    };
+    if (input.spaceDisplayName !== undefined) merged.spaceDisplayName = input.spaceDisplayName;
+    if (input.incomingWebhookUrl !== undefined) merged.incomingWebhookUrl = input.incomingWebhookUrl;
+    if (input.accessToken !== undefined) merged.accessToken = input.accessToken;
+    if (input.refreshToken !== undefined) merged.refreshToken = input.refreshToken;
+    if (input.accessTokenExpiresAt !== undefined) merged.accessTokenExpiresAt = input.accessTokenExpiresAt;
+    Object.assign(existing, merged);
     persist();
     return existing;
   }
@@ -71,6 +93,22 @@ export function upsertGoogleChatConnection(input: {
     updatedAt: now,
   };
   connectionsByUid.set(input.ownerUid, conn);
+  persist();
+  return conn;
+}
+
+export function updateGoogleChatSpaceForUser(
+  uid: string,
+  spaceName: string,
+  spaceDisplayName?: string,
+): GoogleChatConnection {
+  const conn = assertGoogleChatConnectionOwnedBy(uid);
+  const cleanName = spaceName.trim().startsWith("spaces/")
+    ? spaceName.trim()
+    : `spaces/${spaceName.trim()}`;
+  conn.spaceName = cleanName;
+  conn.spaceDisplayName = spaceDisplayName?.trim() || cleanName;
+  conn.updatedAt = new Date().toISOString();
   persist();
   return conn;
 }

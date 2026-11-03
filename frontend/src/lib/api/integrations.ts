@@ -110,6 +110,39 @@ export async function testSlackConnection(): Promise<void> {
   }
 }
 
+export interface SlackChannelOption {
+  id: string;
+  name: string;
+  isPrivate?: boolean;
+}
+
+export async function listSlackChannels(): Promise<SlackChannelOption[]> {
+  const res = await fetch(`${API_BASE_URL}/integrations/slack/channels`, {
+    ...apiFetchDefaults,
+  });
+  if (!res.ok) {
+    throw await parseApiErrorResponse(res, "toast.genericError");
+  }
+  const data = (await res.json()) as { channels: SlackChannelOption[] };
+  return data.channels ?? [];
+}
+
+export async function updateSlackChannel(
+  channelId: string,
+  channelName?: string,
+): Promise<SlackConnectionStatus> {
+  const res = await fetch(`${API_BASE_URL}/integrations/slack/channel`, {
+    ...apiFetchDefaults,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channelId, channelName }),
+  });
+  if (!res.ok) {
+    throw await parseApiErrorResponse(res, "toast.genericError");
+  }
+  return res.json() as Promise<SlackConnectionStatus>;
+}
+
 /* ─── Microsoft Teams+ ─── */
 
 export interface TeamsConnectionStatus {
@@ -189,6 +222,35 @@ export async function testGoogleChatConnection(): Promise<void> {
     method: "POST",
   });
   if (!res.ok) throw await parseApiErrorResponse(res, "toast.genericError");
+}
+
+export interface GoogleChatSpaceOption {
+  name: string;
+  displayName: string;
+  spaceType?: string;
+}
+
+export async function listGoogleChatSpaces(): Promise<GoogleChatSpaceOption[]> {
+  const res = await fetch(`${API_BASE_URL}/integrations/google-chat/spaces`, {
+    ...apiFetchDefaults,
+  });
+  if (!res.ok) throw await parseApiErrorResponse(res, "toast.genericError");
+  const data = (await res.json()) as { spaces: GoogleChatSpaceOption[] };
+  return data.spaces ?? [];
+}
+
+export async function updateGoogleChatSpace(
+  spaceName: string,
+  spaceDisplayName?: string,
+): Promise<GoogleChatConnectionStatus> {
+  const res = await fetch(`${API_BASE_URL}/integrations/google-chat/space`, {
+    ...apiFetchDefaults,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ spaceName, spaceDisplayName }),
+  });
+  if (!res.ok) throw await parseApiErrorResponse(res, "toast.genericError");
+  return res.json() as Promise<GoogleChatConnectionStatus>;
 }
 
 /* ─── Discord+ ─── */

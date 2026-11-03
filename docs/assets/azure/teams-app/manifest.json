@@ -28,7 +28,22 @@
       "botId": "e75f60be-547f-40fe-b910-5feb59a600bc",
       "scopes": ["team", "personal", "groupChat"],
       "supportsFiles": false,
-      "isNotificationOnly": false
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupChat"],
+          "commands": [
+            { "title": "help", "description": "Afficher l'aide des commandes Wroket" },
+            { "title": "tasks", "description": "Lister vos tâches actives et assignées" },
+            { "title": "add", "description": "Créer une tâche : add <titre>" },
+            { "title": "my-week", "description": "Digest Ma semaine (retards + échéances 7j)" },
+            { "title": "overdue", "description": "Tâches actives en retard" },
+            { "title": "team-risk", "description": "Projets d'équipe à risque / en retard" },
+            { "title": "plan", "description": "Proposer ou réserver un créneau : plan <todoId> [auto]" },
+            { "title": "timer", "description": "Voir l'état du chrono actif" }
+          ]
+        }
+      ]
     }
   ],
   "permissions": ["identity", "messageTeamMembers"],

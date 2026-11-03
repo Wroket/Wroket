@@ -123,6 +123,19 @@ export function assertSlackConnectionOwnedBy(uid: string): SlackConnection {
   return conn;
 }
 
+export function updateSlackChannelForUser(
+  uid: string,
+  channelId: string,
+  channelName?: string,
+): SlackConnection {
+  const conn = assertSlackConnectionOwnedBy(uid);
+  conn.channelId = channelId.trim();
+  conn.channelName = (channelName?.trim() || channelId.trim()).replace(/^#/, "");
+  conn.updatedAt = new Date().toISOString();
+  persist();
+  return conn;
+}
+
 export interface SlackConnectionSummary {
   connected: boolean;
   teamName: string | null;

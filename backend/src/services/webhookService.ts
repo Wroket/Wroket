@@ -982,11 +982,11 @@ export async function testWebhook(
 }
 
 /**
- * Sends one notification to a user-configured Slack, Teams, or Google Chat URL (settings → delivery channel).
- * Fire-and-forget; errors are logged only. Prefers Slack OAuth when connected.
+ * Sends one notification to a user-configured Slack, Teams, or Google Chat channel (settings → delivery channel).
+ * Fire-and-forget; errors are logged only. Prefers OAuth / Bot API when connected, falling back to Incoming Webhook URL.
  */
 export function dispatchOutboundWebhook(
-  url: string,
+  url: string | null | undefined,
   platform: "slack" | "teams" | "google_chat",
   event: WebhookEvent,
   title: string,
@@ -1016,8 +1016,34 @@ export function dispatchOutboundWebhook(
         console.warn("[webhook] outbound slack oauth failed: %s", (err as Error).message ?? err);
       }
     }
+    if (platform === "teams" && uid) {
+      try {
+        const { tryPostViaTeamsBot } = await import("./teamsApiService");
+        const oauthBody = formatWebhookPayload(platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        });
+        if (await tryPostViaTeamsBot(uid, oauthBody)) return;
+      } catch (err) {
+        console.warn("[webhook] outbound teams bot failed: %s", (err as Error).message ?? err);
+      }
+    }
+    if (platform === "google_chat" && uid) {
+      try {
+        const { tryPostViaGoogleChat } = await import("./googleChatApiService");
+        const oauthBody = formatWebhookPayload(platform, payload, {
+          interactive: true,
+          actorUid: uid,
+        });
+        if (await tryPostViaGoogleChat(uid, oauthBody)) return;
+      } catch (err) {
+        console.warn("[webhook] outbound google chat failed: %s", (err as Error).message ?? err);
+      }
+    }
+    const cleanUrl = url?.trim() ?? "";
+    if (!cleanUrl) return;
     try {
-      const validUrl = await validateWebhookUrl(url);
+      const validUrl = await validateWebhookUrl(cleanUrl);
       await fetch(validUrl.href, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

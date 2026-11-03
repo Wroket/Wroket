@@ -27,6 +27,9 @@ import {
 import { sendEmailOtpEmail } from "./emailService";
 import { validateWebhookUrl } from "./webhookService";
 import { wirePushSubscriptionUserAccess } from "./pushSubscriptionService";
+import { getSlackConnectionForUser } from "./slackConnectionService";
+import { getTeamsConnectionForUser } from "./teamsConnectionService";
+import { getGoogleChatConnectionForUser } from "./googleChatConnectionService";
 export type EffortMinutes = { light: number; medium: number; heavy: number };
 
 const DEFAULT_EFFORT_MINUTES: EffortMinutes = { light: 10, medium: 30, heavy: 60 };
@@ -543,6 +546,7 @@ export type ApiKeyScope =
   | "todos:read"
   | "todos:write"
   | "projects:read"
+  | "projects:write"
   | "notes:read"
   | "notes:write"
   | "calendar:write";
@@ -551,6 +555,7 @@ export const ALL_API_KEY_SCOPES: ApiKeyScope[] = [
   "todos:read",
   "todos:write",
   "projects:read",
+  "projects:write",
   "notes:read",
   "notes:write",
   "calendar:write",
@@ -720,6 +725,25 @@ function readEntitlementsForStoredUser(user: StoredUser): Entitlements {
   return resolveEntitlements(readBillingPlan(user), !!user.earlyBird);
 }
 
+function hasOAuthChatConnection(
+  uid: string,
+  mode: "slack" | "teams" | "google_chat",
+): boolean {
+  if (mode === "slack") {
+    const c = getSlackConnectionForUser(uid);
+    return Boolean(c?.accessToken && c.channelId);
+  }
+  if (mode === "teams") {
+    const c = getTeamsConnectionForUser(uid);
+    return Boolean(c && ((c.conversationId && c.serviceUrl) || c.incomingWebhookUrl || c.tenantId));
+  }
+  if (mode === "google_chat") {
+    const c = getGoogleChatConnectionForUser(uid);
+    return Boolean(c && ((c.accessToken && c.spaceName && c.spaceName !== "spaces/unknown") || c.incomingWebhookUrl));
+  }
+  return false;
+}
+
 /** Outbound copies (email / Slack / Teams / Google Chat) — disabled when plan has no `integrations` entitlement. */
 function effectiveNotificationDelivery(user: StoredUser): { mode: NotificationDeliveryMode; webhookUrl: string | null } {
   if (!readEntitlementsForStoredUser(user).integrations) {
@@ -728,7 +752,9 @@ function effectiveNotificationDelivery(user: StoredUser): { mode: NotificationDe
   const mode = readNotificationDeliveryMode(user);
   const url = user.notificationDeliveryWebhookUrl?.trim() || null;
   if (mode === "slack" || mode === "teams" || mode === "google_chat") {
-    if (!url) return { mode: "none", webhookUrl: null };
+    if (!url && !hasOAuthChatConnection(user.uid, mode)) {
+      return { mode: "none", webhookUrl: null };
+    }
     return { mode, webhookUrl: url };
   }
   if (mode === "email") return { mode: "email", webhookUrl: null };
@@ -819,18 +845,27 @@ function sanitizeScopes(raw: unknown): ApiKeyScope[] {
   return out.length > 0 ? out : [...ALL_API_KEY_SCOPES];
 }
 
-/** v1 default trio — keys with exactly these scopes are upgraded to the current full set. */
-const LEGACY_FULL_SCOPES = ["todos:read", "todos:write", "projects:read"] as const;
+/** v1 / v1.1 default full sets — keys with exactly these scopes are upgraded to the current full set. */
+const LEGACY_FULL_SCOPES_V1 = ["todos:read", "todos:write", "projects:read"] as const;
+const LEGACY_FULL_SCOPES_V1_1 = [
+  "todos:read",
+  "todos:write",
+  "projects:read",
+  "notes:read",
+  "notes:write",
+  "calendar:write",
+] as const;
 
 /**
- * Resolve stored scopes for auth/API. Empty → all. Exact v1 full set → current ALL_API_KEY_SCOPES.
+ * Resolve stored scopes for auth/API. Empty → all. Exact v1/v1.1 full set → current ALL_API_KEY_SCOPES.
  * Intentionally restricted subsets are preserved.
  */
 export function effectiveApiKeyScopes(stored: ApiKeyScope[] | undefined | null): ApiKeyScope[] {
   if (!Array.isArray(stored) || stored.length === 0) return [...ALL_API_KEY_SCOPES];
   const sorted = [...stored].sort().join(",");
-  const legacy = [...LEGACY_FULL_SCOPES].sort().join(",");
-  if (sorted === legacy) return [...ALL_API_KEY_SCOPES];
+  const legacyV1 = [...LEGACY_FULL_SCOPES_V1].sort().join(",");
+  const legacyV11 = [...LEGACY_FULL_SCOPES_V1_1].sort().join(",");
+  if (sorted === legacyV1 || sorted === legacyV11) return [...ALL_API_KEY_SCOPES];
   return stored.filter((s) => (ALL_API_KEY_SCOPES as string[]).includes(s));
 }
 
@@ -1387,12 +1422,16 @@ export async function updateProfile(uid: string, input: UpdateProfileInput): Pro
     }
 
     if (mode === "slack" || mode === "teams" || mode === "google_chat") {
-      if (!url) {
+      if (url) {
+        await validateWebhookUrl(url);
+        user.notificationDeliveryMode = mode;
+        user.notificationDeliveryWebhookUrl = url;
+      } else if (hasOAuthChatConnection(uid, mode)) {
+        user.notificationDeliveryMode = mode;
+        user.notificationDeliveryWebhookUrl = undefined;
+      } else {
         throw new ValidationError("URL du webhook requise pour Slack, Microsoft Teams ou Google Chat");
       }
-      await validateWebhookUrl(url);
-      user.notificationDeliveryMode = mode;
-      user.notificationDeliveryWebhookUrl = url;
     } else {
       user.notificationDeliveryMode = mode;
       user.notificationDeliveryWebhookUrl = undefined;

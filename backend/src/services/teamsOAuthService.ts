@@ -113,17 +113,27 @@ export async function exchangeTeamsOAuthCode(
   const tenantName =
     (typeof idPayload?.preferred_username === "string" && idPayload.preferred_username) ||
     email;
+  let aadObjectId =
+    (typeof idPayload?.oid === "string" && idPayload.oid) ||
+    (typeof accessPayload?.oid === "string" && accessPayload.oid) ||
+    undefined;
+  let userPrincipalName =
+    (typeof idPayload?.preferred_username === "string" && idPayload.preferred_username) ||
+    (typeof accessPayload?.upn === "string" && accessPayload.upn) ||
+    undefined;
 
-  // Capture AAD email for identity checks (may differ from Wroket email — still store tid).
+  // Capture AAD email & object id for identity checks (may differ from Wroket email — still store tid + oid).
   let graphEmail = email;
   try {
-    const me = await fetch("https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
+    const me = await fetch("https://graph.microsoft.com/v1.0/me?$select=id,mail,userPrincipalName", {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
       signal: AbortSignal.timeout(5_000),
     });
     if (me.ok) {
-      const data = (await me.json()) as { mail?: string; userPrincipalName?: string };
+      const data = (await me.json()) as { id?: string; mail?: string; userPrincipalName?: string };
       graphEmail = data.mail?.trim() || data.userPrincipalName?.trim() || email;
+      if (data.id?.trim() && !aadObjectId) aadObjectId = data.id.trim();
+      if (data.userPrincipalName?.trim()) userPrincipalName = data.userPrincipalName.trim();
     }
   } catch (err) {
     console.warn("[teams-oauth] Graph /me failed:", err);
@@ -134,6 +144,8 @@ export async function exchangeTeamsOAuthCode(
     ownerEmail: graphEmail,
     tenantId,
     tenantName: String(tenantName),
+    aadObjectId,
+    userPrincipalName,
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
   });

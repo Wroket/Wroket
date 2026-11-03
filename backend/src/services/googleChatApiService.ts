@@ -4,10 +4,14 @@
 
 import { ValidationError } from "../utils/errors";
 import { getGoogleChatConnectionForUser } from "./googleChatConnectionService";
+import { getValidGoogleChatAccessToken } from "./googleChatOAuthService";
 
 export async function tryPostViaGoogleChat(uid: string, body: unknown): Promise<boolean> {
   const conn = getGoogleChatConnectionForUser(uid);
   if (!conn?.accessToken || !conn.spaceName || conn.spaceName === "spaces/unknown") return false;
+
+  const token = await getValidGoogleChatAccessToken(uid);
+  if (!token) return false;
 
   const payload =
     typeof body === "string"
@@ -16,15 +20,24 @@ export async function tryPostViaGoogleChat(uid: string, body: unknown): Promise<
         ? body
         : { text: "Notification Wroket" };
 
-  const res = await fetch(`https://chat.googleapis.com/v1/${conn.spaceName}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${conn.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(8_000),
-  });
+  const postWithToken = (bearer: string) =>
+    fetch(`https://chat.googleapis.com/v1/${conn.spaceName}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8_000),
+    });
+
+  let res = await postWithToken(token);
+  if (res.status === 401 && conn.refreshToken) {
+    const refreshed = await getValidGoogleChatAccessToken(uid, { forceRefresh: true });
+    if (refreshed && refreshed !== token) {
+      res = await postWithToken(refreshed);
+    }
+  }
   if (!res.ok) {
     console.warn("[google-chat] post failed:", res.status, await res.text().catch(() => ""));
     return false;

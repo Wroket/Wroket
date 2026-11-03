@@ -219,4 +219,71 @@ describe("API keys + MCP tools v1.1", () => {
       }),
     ).rejects.toMatchObject({ code: "API_KEY_SCOPE" });
   });
+
+  it("exposes MCP v2.0 PMO, project write, time tracking, collaboration & OKR tools", async () => {
+    const names = MCP_TOOL_DEFS.map((d) => d.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "create_project",
+        "update_project",
+        "create_project_phase",
+        "update_project_phase",
+        "get_my_week",
+        "get_overdue_tasks",
+        "get_team_risk",
+        "get_project_steering",
+        "list_teams_and_collaborators",
+        "assign_todo",
+        "respond_task_assignment",
+        "set_todo_blockers",
+        "get_active_timer",
+        "start_timer",
+        "stop_timer",
+        "log_time",
+        "list_okrs",
+        "update_key_result",
+      ]),
+    );
+    expect(names.length).toBe(35);
+
+    const user = register({
+      email: `mcp-v2-${crypto.randomUUID().slice(0, 8)}@test.local`,
+      password: "password123",
+    });
+    const created = createApiKeyForUser(user.uid, "MCP v2 Agent");
+    const auth = authenticateApiKey(`Bearer ${created.key}`)!;
+    expect(auth.scopes).toContain("projects:write");
+
+    const proj = (await executeMcpTool(auth.user, auth.scopes, "create_project", {
+      name: "V2 Project",
+      description: "Created via MCP v2",
+    })) as { id: string; name: string };
+    expect(proj.name).toBe("V2 Project");
+
+    const phase = (await executeMcpTool(auth.user, auth.scopes, "create_project_phase", {
+      projectId: proj.id,
+      name: "Sprint 1",
+    })) as { id: string; name: string };
+    expect(phase.name).toBe("Sprint 1");
+
+    const steering = (await executeMcpTool(auth.user, auth.scopes, "get_project_steering", {
+      projectId: proj.id,
+    })) as { projectId: string; totalTasks: number };
+    expect(steering.projectId).toBe(proj.id);
+
+    const myWeek = (await executeMcpTool(auth.user, auth.scopes, "get_my_week", {})) as {
+      summary: string;
+    };
+    expect(typeof myWeek.summary).toBe("string");
+
+    const activeTimer = (await executeMcpTool(auth.user, auth.scopes, "get_active_timer", {})) as {
+      active: boolean;
+    };
+    expect(activeTimer.active).toBe(false);
+
+    const okrs = (await executeMcpTool(auth.user, auth.scopes, "list_okrs", {})) as {
+      okrs: unknown[];
+    };
+    expect(Array.isArray(okrs.okrs)).toBe(true);
+  });
 });
