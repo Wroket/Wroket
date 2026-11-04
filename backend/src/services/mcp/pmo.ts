@@ -9,6 +9,7 @@ import {
   formatOverdueDigest,
   formatTeamRiskDigest,
 } from "../pmoDigestService";
+import { search } from "../searchService";
 import { listAssignedToMe, listProjectTodos, listTodos, type Todo } from "../todoService";
 import { ForbiddenError, NotFoundError } from "../../utils/errors";
 import type { McpToolDef, McpToolHandler } from "./types";
@@ -80,6 +81,24 @@ export const pmoToolDefs: McpToolDef[] = [
         projectId: { type: "string", description: "Project id" },
       },
       required: ["projectId"],
+    },
+  },
+  {
+    name: "search_workspace",
+    description:
+      "Full-text search across the user's Wroket workspace: tasks, projects, notes, tags, contacts, and user databases (minimum 3 characters).",
+    requiredScope: "todos:read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query (min 3 chars)" },
+        type: {
+          type: "string",
+          enum: ["todo", "project", "note", "contact", "database", "tag"],
+          description: "Optional filter by entity type",
+        },
+      },
+      required: ["query"],
     },
   },
 ];
@@ -195,9 +214,22 @@ async function getProjectSteeringHandler(user: AuthUser, args: Record<string, un
   };
 }
 
+async function searchWorkspaceHandler(user: AuthUser, args: Record<string, unknown>) {
+  const query = requireString(args, "query");
+  const results = await search(user.uid, query, user.email);
+  const typeFilter = typeof args.type === "string" ? args.type : undefined;
+  const filtered = typeFilter ? results.filter((r) => r.type === typeFilter) : results;
+  return {
+    query,
+    count: filtered.length,
+    results: filtered,
+  };
+}
+
 export const pmoHandlers: Record<string, McpToolHandler> = {
   get_my_week: getMyWeekHandler,
   get_overdue_tasks: getOverdueTasksHandler,
   get_team_risk: getTeamRiskHandler,
   get_project_steering: getProjectSteeringHandler,
+  search_workspace: searchWorkspaceHandler,
 };

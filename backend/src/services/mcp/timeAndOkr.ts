@@ -1,6 +1,8 @@
 import type { AuthUser } from "../authService";
 import {
   computeOkrProgress,
+  createOkr,
+  deleteOkr,
   getOkrForOwner,
   listOkrsForOwner,
   refreshOkrFromTodos,
@@ -75,6 +77,37 @@ export const timeAndOkrToolDefs: McpToolDef[] = [
     },
   },
   {
+    name: "create_okr",
+    description:
+      "Create a new OKR objective with its Key Results (Small teams+).",
+    requiredScope: "projects:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Objective title" },
+        description: { type: "string", description: "Optional objective description" },
+        teamId: { type: ["string", "null"], description: "Optional teamId" },
+        keyResults: {
+          type: "array",
+          description: "Initial Key Results for this Objective",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              target: { type: "number", description: "Target numeric value (default 100)" },
+              current: { type: "number", description: "Starting numeric value (default 0)" },
+              unit: { type: "string", description: "Unit label, e.g. '%', 'clients', '€'" },
+              linkedTodoIds: { type: "array", items: { type: "string" } },
+              linkedProjectIds: { type: "array", items: { type: "string" } },
+            },
+            required: ["title"],
+          },
+        },
+      },
+      required: ["title"],
+    },
+  },
+  {
     name: "update_key_result",
     description:
       "Update a Key Result's current value within an OKR objective, or refresh OKR progress from linked tasks.",
@@ -89,6 +122,18 @@ export const timeAndOkrToolDefs: McpToolDef[] = [
           type: "boolean",
           description: "If true, recalculates linked Key Results from completed todos",
         },
+      },
+      required: ["okrId"],
+    },
+  },
+  {
+    name: "delete_okr",
+    description: "Delete an OKR objective by id.",
+    requiredScope: "projects:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        okrId: { type: "string", description: "OKR objective id" },
       },
       required: ["okrId"],
     },
@@ -143,6 +188,45 @@ function listOkrsHandler(user: AuthUser, _args: Record<string, unknown>) {
   return { okrs };
 }
 
+function createOkrHandler(user: AuthUser, args: Record<string, unknown>) {
+  const title = requireString(args, "title");
+  const description = optionalString(args, "description");
+  const teamId = args.teamId === null ? null : optionalString(args, "teamId") ?? null;
+  const rawKrs = Array.isArray(args.keyResults) ? args.keyResults : [];
+  const keyResults = rawKrs
+    .filter((k): k is Record<string, unknown> => Boolean(k && typeof k === "object"))
+    .map((kr) => ({
+      title: String(kr.title ?? "").trim(),
+      target: typeof kr.target === "number" && Number.isFinite(kr.target) ? kr.target : 100,
+      current: typeof kr.current === "number" && Number.isFinite(kr.current) ? kr.current : 0,
+      unit: typeof kr.unit === "string" ? kr.unit : "%",
+      linkedTodoIds: Array.isArray(kr.linkedTodoIds)
+        ? kr.linkedTodoIds.filter((id): id is string => typeof id === "string")
+        : [],
+      linkedProjectIds: Array.isArray(kr.linkedProjectIds)
+        ? kr.linkedProjectIds.filter((id): id is string => typeof id === "string")
+        : [],
+    }))
+    .filter((kr) => kr.title.length > 0);
+
+  const created = createOkr(user.uid, {
+    title,
+    description,
+    teamId,
+    keyResults,
+  });
+  return {
+    ...created,
+    progressPercent: computeOkrProgress(created),
+  };
+}
+
+function deleteOkrHandler(user: AuthUser, args: Record<string, unknown>) {
+  const okrId = requireString(args, "okrId");
+  deleteOkr(user.uid, okrId);
+  return { deleted: true, okrId };
+}
+
 async function updateKeyResultHandler(user: AuthUser, args: Record<string, unknown>) {
   const okrId = requireString(args, "okrId");
   if (args.refreshFromTodos === true) {
@@ -178,5 +262,7 @@ export const timeAndOkrHandlers: Record<string, McpToolHandler> = {
   stop_timer: stopTimerHandler,
   log_time: logTimeHandler,
   list_okrs: listOkrsHandler,
+  create_okr: createOkrHandler,
   update_key_result: updateKeyResultHandler,
+  delete_okr: deleteOkrHandler,
 };

@@ -1,12 +1,22 @@
 import type { AuthUser } from "../authService";
+import { deleteExternalBookingForTodo } from "../calendarBookingCleanup";
+import { createNote } from "../noteService";
+import {
+  createTemplate,
+  deleteTemplate,
+  listTemplates,
+} from "../templateService";
 import {
   createTodo,
+  deleteTodo,
   findTodoForUser,
   listAssignedToMe,
   listTodos,
   moveTodo,
+  permanentlyRemoveArchivedTodo,
   updateTodo,
   type MoveTodoStrategy,
+  type Recurrence,
   type Todo,
   type TodoStatus,
 } from "../todoService";
@@ -21,6 +31,7 @@ function leanTodo(t: Todo): Record<string, unknown> {
     status: t.status,
     priority: t.priority,
     effort: t.effort,
+    estimatedMinutes: t.estimatedMinutes ?? null,
     deadline: t.deadline,
     startDate: t.startDate,
     tags: t.tags,
@@ -28,12 +39,52 @@ function leanTodo(t: Todo): Record<string, unknown> {
     phaseId: t.phaseId,
     parentId: t.parentId,
     scheduledSlot: t.scheduledSlot,
+    recurrence: t.recurrence ?? null,
     assignedTo: t.assignedTo ?? null,
     assignmentStatus: t.assignmentStatus ?? null,
     blockedByTodoIds: t.blockedByTodoIds ?? [],
+    customFieldValues: t.customFieldValues ?? {},
     updatedAt: t.updatedAt,
     createdAt: t.createdAt,
   };
+}
+
+function parseRecurrence(raw: unknown): Recurrence | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ValidationError("recurrence doit être un objet { frequency, interval?, endDate? } ou null");
+  }
+  const r = raw as Record<string, unknown>;
+  const freq = r.frequency;
+  if (freq !== "daily" && freq !== "weekly" && freq !== "monthly") {
+    throw new ValidationError("recurrence.frequency doit être 'daily', 'weekly' ou 'monthly'");
+  }
+  const interval = typeof r.interval === "number" && r.interval >= 1 ? Math.round(r.interval) : 1;
+  const endDate = typeof r.endDate === "string" && r.endDate.trim() ? r.endDate.trim() : undefined;
+  return {
+    frequency: freq,
+    interval,
+    ...(endDate ? { endDate } : {}),
+  };
+}
+
+function parseCustomFieldValues(
+  raw: unknown,
+): Record<string, string | number | boolean | null> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, string | number | boolean | null> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (
+      v === null ||
+      typeof v === "string" ||
+      typeof v === "number" ||
+      typeof v === "boolean"
+    ) {
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 /** Map agent-friendly aliases to canonical TodoStatus. */
@@ -86,7 +137,8 @@ export const todoToolDefs: McpToolDef[] = [
   },
   {
     name: "create_todo",
-    description: "Create a task (title required). Supports projectId, phaseId, parentId, tags.",
+    description:
+      "Create a task (title required). Supports projectId, phaseId, parentId, tags, estimatedMinutes (15..480), recurrence, and optional notes (creates a linked task note).",
     requiredScope: "todos:write",
     inputSchema: {
       type: "object",
@@ -94,6 +146,7 @@ export const todoToolDefs: McpToolDef[] = [
         title: { type: "string" },
         priority: { type: "string", enum: ["low", "medium", "high"] },
         effort: { type: "string", enum: ["light", "medium", "heavy"] },
+        estimatedMinutes: { type: ["number", "null"], description: "Estimated duration in minutes (15..480)" },
         deadline: { type: "string", description: "ISO date YYYY-MM-DD" },
         startDate: { type: "string", description: "ISO date YYYY-MM-DD" },
         projectId: { type: "string" },
@@ -101,13 +154,65 @@ export const todoToolDefs: McpToolDef[] = [
         parentId: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
         status: { type: "string", enum: STATUS_ENUM },
+        recurrence: {
+          type: ["object", "null"],
+          description: "Recurrence rule { frequency: 'daily'|'weekly'|'monthly', interval?: number, endDate?: string }",
+          properties: {
+            frequency: { type: "string", enum: ["daily", "weekly", "monthly"] },
+            interval: { type: "number" },
+            endDate: { type: "string" },
+          },
+        },
+        notes: {
+          type: "string",
+          description: "Optional markdown description/notes to attach to the task",
+        },
       },
       required: ["title"],
     },
   },
   {
+    name: "create_todos_batch",
+    description:
+      "Batch-create up to 25 tasks (and optional subtasks) in one call. Ideal for breaking down a project or action plan.",
+    requiredScope: "todos:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "Default projectId for all items unless overridden" },
+        phaseId: { type: "string", description: "Default phaseId for all items unless overridden" },
+        tasks: {
+          type: "array",
+          description: "List of tasks to create (max 25)",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              priority: { type: "string", enum: ["low", "medium", "high"] },
+              effort: { type: "string", enum: ["light", "medium", "heavy"] },
+              estimatedMinutes: { type: "number" },
+              deadline: { type: "string" },
+              startDate: { type: "string" },
+              projectId: { type: "string" },
+              phaseId: { type: "string" },
+              tags: { type: "array", items: { type: "string" } },
+              subtasks: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional subtask titles to create under this task",
+              },
+            },
+            required: ["title"],
+          },
+        },
+      },
+      required: ["tasks"],
+    },
+  },
+  {
     name: "update_todo",
-    description: "Update title, priority, effort, dates, status, projectId, phaseId, parentId, or tags.",
+    description:
+      "Update title, priority, effort, estimatedMinutes, dates, status, projectId, phaseId, parentId, tags, recurrence, or customFieldValues.",
     requiredScope: "todos:write",
     inputSchema: {
       type: "object",
@@ -116,6 +221,7 @@ export const todoToolDefs: McpToolDef[] = [
         title: { type: "string" },
         priority: { type: "string", enum: ["low", "medium", "high"] },
         effort: { type: "string", enum: ["light", "medium", "heavy"] },
+        estimatedMinutes: { type: ["number", "null"] },
         deadline: { type: ["string", "null"] },
         startDate: { type: ["string", "null"] },
         projectId: { type: ["string", "null"] },
@@ -123,6 +229,35 @@ export const todoToolDefs: McpToolDef[] = [
         parentId: { type: ["string", "null"] },
         tags: { type: "array", items: { type: "string" } },
         status: { type: "string", enum: STATUS_ENUM },
+        recurrence: {
+          type: ["object", "null"],
+          properties: {
+            frequency: { type: "string", enum: ["daily", "weekly", "monthly"] },
+            interval: { type: "number" },
+            endDate: { type: "string" },
+          },
+        },
+        customFieldValues: {
+          type: "object",
+          description: "Key-value map of customFieldDefId -> string | number | boolean | null",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_todo",
+    description:
+      "Delete (archive to trash) or permanently remove a task, cleaning up any future external calendar booking.",
+    requiredScope: "todos:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Task id" },
+        permanent: {
+          type: "boolean",
+          description: "If true, permanently purges an archived/deleted task",
+        },
       },
       required: ["id"],
     },
@@ -147,6 +282,62 @@ export const todoToolDefs: McpToolDef[] = [
         forceCalendarConflict: { type: "boolean" },
       },
       required: ["id"],
+    },
+  },
+  {
+    name: "list_task_templates",
+    description: "List the user's reusable task templates.",
+    requiredScope: "todos:read",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "create_task_template",
+    description:
+      "Create a reusable task template (name, emoji, description, priority, effort, estimatedMinutes, tags, subtasks).",
+    requiredScope: "todos:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        emoji: { type: "string" },
+        description: { type: "string" },
+        priority: { type: "string", enum: ["low", "medium", "high"] },
+        effort: { type: "string", enum: ["light", "medium", "heavy"] },
+        estimatedMinutes: { type: ["number", "null"] },
+        tags: { type: "array", items: { type: "string" } },
+        subtasks: { type: "array", items: { type: "string" } },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "delete_task_template",
+    description: "Delete a reusable task template by id.",
+    requiredScope: "todos:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        templateId: { type: "string" },
+      },
+      required: ["templateId"],
+    },
+  },
+  {
+    name: "create_todo_from_template",
+    description:
+      "Instantiate a task (and all its subtasks + description note) from a saved task template id.",
+    requiredScope: "todos:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        templateId: { type: "string", description: "Task template id" },
+        title: { type: "string", description: "Optional title override (defaults to template name)" },
+        projectId: { type: "string" },
+        phaseId: { type: "string" },
+        deadline: { type: "string", description: "Optional YYYY-MM-DD deadline" },
+        startDate: { type: "string", description: "Optional YYYY-MM-DD start date" },
+      },
+      required: ["templateId"],
     },
   },
 ];
@@ -188,10 +379,20 @@ async function createTodoHandler(user: AuthUser, args: Record<string, unknown>) 
     args.effort === "light" || args.effort === "medium" || args.effort === "heavy"
       ? args.effort
       : undefined;
+  const estimatedMinutes =
+    args.estimatedMinutes === null
+      ? null
+      : typeof args.estimatedMinutes === "number" && Number.isFinite(args.estimatedMinutes)
+        ? Math.round(args.estimatedMinutes)
+        : undefined;
+  const recurrence = parseRecurrence(args.recurrence);
+
   const created = await createTodo(user.uid, user.email, {
     title,
     priority,
     effort,
+    ...(estimatedMinutes !== undefined ? { estimatedMinutes } : {}),
+    ...(recurrence !== undefined ? { recurrence } : {}),
     deadline: optionalString(args, "deadline") ?? null,
     startDate: optionalString(args, "startDate") ?? null,
     projectId: optionalString(args, "projectId") ?? null,
@@ -201,7 +402,96 @@ async function createTodoHandler(user: AuthUser, args: Record<string, unknown>) 
     status: normalizeTodoStatus(args.status),
     allowPastDeadline: true,
   });
-  return leanTodo(created);
+
+  const notesContent = optionalString(args, "notes");
+  let linkedNoteId: string | null = null;
+  if (notesContent) {
+    const note = createNote(user.uid, {
+      title: created.title,
+      content: notesContent,
+      todoId: created.id,
+      projectId: created.projectId ?? undefined,
+    });
+    linkedNoteId = note.id;
+  }
+
+  return {
+    ...leanTodo(created),
+    ...(linkedNoteId ? { linkedNoteId } : {}),
+  };
+}
+
+async function createTodosBatchHandler(user: AuthUser, args: Record<string, unknown>) {
+  if (!Array.isArray(args.tasks) || args.tasks.length === 0) {
+    throw new ValidationError("tasks doit être un tableau non vide");
+  }
+  if (args.tasks.length > 25) {
+    throw new ValidationError("Maximum 25 tâches par appel create_todos_batch");
+  }
+  const defaultProjectId = optionalString(args, "projectId") ?? null;
+  const defaultPhaseId = optionalString(args, "phaseId") ?? null;
+
+  const createdTasks: Array<Record<string, unknown>> = [];
+  for (const raw of args.tasks) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const title = typeof item.title === "string" ? item.title.trim() : "";
+    if (!title) continue;
+    const priority =
+      item.priority === "low" || item.priority === "medium" || item.priority === "high"
+        ? item.priority
+        : "medium";
+    const effort =
+      item.effort === "light" || item.effort === "medium" || item.effort === "heavy"
+        ? item.effort
+        : undefined;
+    const estimatedMinutes =
+      typeof item.estimatedMinutes === "number" && Number.isFinite(item.estimatedMinutes)
+        ? Math.round(item.estimatedMinutes)
+        : undefined;
+    const projectId = optionalString(item, "projectId") ?? defaultProjectId;
+    const phaseId = optionalString(item, "phaseId") ?? defaultPhaseId;
+
+    const parent = await createTodo(user.uid, user.email, {
+      title,
+      priority,
+      effort,
+      ...(estimatedMinutes !== undefined ? { estimatedMinutes } : {}),
+      deadline: optionalString(item, "deadline") ?? null,
+      startDate: optionalString(item, "startDate") ?? null,
+      projectId,
+      phaseId,
+      tags: parseTags(item.tags),
+      allowPastDeadline: true,
+    });
+
+    const createdSubtasks: Array<Record<string, unknown>> = [];
+    if (Array.isArray(item.subtasks)) {
+      for (const subRaw of item.subtasks.slice(0, 20)) {
+        const subTitle = typeof subRaw === "string" ? subRaw.trim() : "";
+        if (!subTitle) continue;
+        const sub = await createTodo(user.uid, user.email, {
+          title: subTitle,
+          priority,
+          projectId,
+          phaseId,
+          parentId: parent.id,
+          allowPastDeadline: true,
+        });
+        createdSubtasks.push(leanTodo(sub));
+      }
+    }
+
+    createdTasks.push({
+      ...leanTodo(parent),
+      ...(createdSubtasks.length > 0 ? { subtasks: createdSubtasks } : {}),
+    });
+  }
+
+  return {
+    createdCount: createdTasks.length,
+    tasks: createdTasks,
+  };
 }
 
 async function updateTodoHandler(user: AuthUser, args: Record<string, unknown>) {
@@ -213,6 +503,10 @@ async function updateTodoHandler(user: AuthUser, args: Record<string, unknown>) 
   }
   if (args.effort === "light" || args.effort === "medium" || args.effort === "heavy") {
     patch.effort = args.effort;
+  }
+  if (args.estimatedMinutes === null) patch.estimatedMinutes = null;
+  else if (typeof args.estimatedMinutes === "number" && Number.isFinite(args.estimatedMinutes)) {
+    patch.estimatedMinutes = Math.round(args.estimatedMinutes);
   }
   if (args.deadline === null) patch.deadline = null;
   else if (typeof args.deadline === "string") patch.deadline = args.deadline;
@@ -228,7 +522,33 @@ async function updateTodoHandler(user: AuthUser, args: Record<string, unknown>) 
   if (tags) patch.tags = tags;
   const status = normalizeTodoStatus(args.status);
   if (status) patch.status = status;
+  const recurrence = parseRecurrence(args.recurrence);
+  if (recurrence !== undefined) patch.recurrence = recurrence;
+  const customFieldValues = parseCustomFieldValues(args.customFieldValues);
+  if (customFieldValues) patch.customFieldValues = customFieldValues;
   return leanTodo(await updateTodo(user.uid, user.email, id, patch));
+}
+
+async function deleteTodoHandler(user: AuthUser, args: Record<string, unknown>) {
+  const id = requireString(args, "id");
+  const permanent = args.permanent === true;
+
+  if (permanent) {
+    const snapshots = await permanentlyRemoveArchivedTodo(user.uid, id);
+    for (const s of snapshots) {
+      if (s.scheduledSlot && new Date(s.scheduledSlot.start).getTime() > Date.now()) {
+        deleteExternalBookingForTodo(s).catch(() => null);
+      }
+    }
+    return { deleted: true, permanent: true, id, purgedCount: snapshots.length };
+  }
+
+  let todo = await deleteTodo(user.uid, id);
+  if (todo.scheduledSlot && new Date(todo.scheduledSlot.start).getTime() > Date.now()) {
+    deleteExternalBookingForTodo(todo).catch(() => null);
+    todo = await updateTodo(user.uid, user.email, id, { scheduledSlot: null });
+  }
+  return { deleted: true, permanent: false, todo: leanTodo(todo) };
 }
 
 async function moveTodoHandler(user: AuthUser, args: Record<string, unknown>) {
@@ -265,10 +585,109 @@ async function moveTodoHandler(user: AuthUser, args: Record<string, unknown>) {
   return leanTodo(moved);
 }
 
+function listTaskTemplatesHandler(user: AuthUser, _args: Record<string, unknown>) {
+  return { templates: listTemplates(user.uid) };
+}
+
+function createTaskTemplateHandler(user: AuthUser, args: Record<string, unknown>) {
+  const name = requireString(args, "name");
+  const priority =
+    args.priority === "low" || args.priority === "medium" || args.priority === "high"
+      ? args.priority
+      : undefined;
+  const effort =
+    args.effort === "light" || args.effort === "medium" || args.effort === "heavy"
+      ? args.effort
+      : undefined;
+  const estimatedMinutes =
+    args.estimatedMinutes === null
+      ? null
+      : typeof args.estimatedMinutes === "number" && Number.isFinite(args.estimatedMinutes)
+        ? Math.round(args.estimatedMinutes)
+        : undefined;
+  const subtasks = Array.isArray(args.subtasks)
+    ? args.subtasks.filter((s): s is string => typeof s === "string")
+    : undefined;
+  const tpl = createTemplate(user.uid, {
+    name,
+    emoji: optionalString(args, "emoji"),
+    description: optionalString(args, "description"),
+    priority,
+    effort,
+    estimatedMinutes,
+    tags: parseTags(args.tags),
+    subtasks,
+  });
+  return tpl;
+}
+
+function deleteTaskTemplateHandler(user: AuthUser, args: Record<string, unknown>) {
+  const templateId = requireString(args, "templateId");
+  deleteTemplate(user.uid, templateId);
+  return { deleted: true, templateId };
+}
+
+async function createTodoFromTemplateHandler(user: AuthUser, args: Record<string, unknown>) {
+  const templateId = requireString(args, "templateId");
+  const tpl = listTemplates(user.uid).find((t) => t.id === templateId);
+  if (!tpl) throw new NotFoundError("Template de tâche introuvable");
+
+  const title = optionalString(args, "title") ?? tpl.name;
+  const projectId = optionalString(args, "projectId") ?? null;
+  const phaseId = optionalString(args, "phaseId") ?? null;
+
+  const parent = await createTodo(user.uid, user.email, {
+    title,
+    priority: tpl.priority,
+    effort: tpl.effort,
+    estimatedMinutes: tpl.estimatedMinutes,
+    tags: tpl.tags,
+    projectId,
+    phaseId,
+    deadline: optionalString(args, "deadline") ?? null,
+    startDate: optionalString(args, "startDate") ?? null,
+    allowPastDeadline: true,
+  });
+
+  if (tpl.description?.trim()) {
+    createNote(user.uid, {
+      title: parent.title,
+      content: tpl.description.trim(),
+      todoId: parent.id,
+      projectId: projectId ?? undefined,
+    });
+  }
+
+  const createdSubtasks: Array<Record<string, unknown>> = [];
+  for (const subTitle of tpl.subtasks ?? []) {
+    if (!subTitle.trim()) continue;
+    const sub = await createTodo(user.uid, user.email, {
+      title: subTitle.trim(),
+      priority: tpl.priority,
+      projectId,
+      phaseId,
+      parentId: parent.id,
+      allowPastDeadline: true,
+    });
+    createdSubtasks.push(leanTodo(sub));
+  }
+
+  return {
+    ...leanTodo(parent),
+    subtasks: createdSubtasks,
+  };
+}
+
 export const todoHandlers: Record<string, McpToolHandler> = {
   list_todos: listTodosHandler,
   get_todo: getTodoHandler,
   create_todo: createTodoHandler,
+  create_todos_batch: createTodosBatchHandler,
   update_todo: updateTodoHandler,
+  delete_todo: deleteTodoHandler,
   move_todo: moveTodoHandler,
+  list_task_templates: listTaskTemplatesHandler,
+  create_task_template: createTaskTemplateHandler,
+  delete_task_template: deleteTaskTemplateHandler,
+  create_todo_from_template: createTodoFromTemplateHandler,
 };

@@ -242,9 +242,51 @@ describe("API keys + MCP tools v1.1", () => {
         "log_time",
         "list_okrs",
         "update_key_result",
+        "create_todos_batch",
+        "delete_todo",
+        "delete_project",
+        "delete_project_phase",
+        "seed_project_structure",
+        "list_project_milestones",
+        "create_project_milestone",
+        "update_project_milestone",
+        "delete_project_milestone",
+        "list_calendar_events",
+        "schedule_task_meeting",
+        "delete_note",
+        "search_workspace",
+        "list_task_templates",
+        "create_task_template",
+        "delete_task_template",
+        "create_todo_from_template",
+        "create_team",
+        "manage_team_member",
+        "get_team_capacity",
+        "create_okr",
+        "delete_okr",
+        "manage_project_custom_fields",
+        "list_user_databases",
+        "get_user_database",
+        "create_user_database",
+        "update_user_database",
+        "delete_user_database",
+        "add_database_row",
+        "update_database_row",
+        "delete_database_row",
+        "list_contacts",
+        "create_contact",
+        "update_contact",
+        "delete_contact",
+        "list_automation_rules",
+        "create_automation_rule",
+        "update_automation_rule",
+        "delete_automation_rule",
+        "manage_project_share_links",
+        "list_client_portals",
+        "manage_client_portal",
       ]),
     );
-    expect(names.length).toBe(35);
+    expect(names.length).toBe(77);
 
     const user = register({
       email: `mcp-v2-${crypto.randomUUID().slice(0, 8)}@test.local`,
@@ -266,6 +308,48 @@ describe("API keys + MCP tools v1.1", () => {
     })) as { id: string; name: string };
     expect(phase.name).toBe("Sprint 1");
 
+    const milestone = (await executeMcpTool(auth.user, auth.scopes, "create_project_milestone", {
+      projectId: proj.id,
+      title: "Go-Live",
+      date: "2026-12-01",
+      phaseId: phase.id,
+    })) as { id: string; title: string };
+    expect(milestone.title).toBe("Go-Live");
+
+    const batch = (await executeMcpTool(auth.user, auth.scopes, "create_todos_batch", {
+      projectId: proj.id,
+      phaseId: phase.id,
+      tasks: [
+        { title: "Batch task 1", estimatedMinutes: 45, subtasks: ["Sub 1A", "Sub 1B"] },
+        { title: "Batch task 2", priority: "high" },
+      ],
+    })) as { createdCount: number; tasks: Array<{ id: string; subtasks?: unknown[] }> };
+    expect(batch.createdCount).toBe(2);
+    expect(batch.tasks[0]?.subtasks).toHaveLength(2);
+
+    const deletedTodo = (await executeMcpTool(auth.user, auth.scopes, "delete_todo", {
+      id: batch.tasks[1]!.id,
+    })) as { deleted: boolean };
+    expect(deletedTodo.deleted).toBe(true);
+
+    const seeded = (await executeMcpTool(auth.user, auth.scopes, "seed_project_structure", {
+      projectName: "Seeded via MCP",
+      phases: [
+        {
+          name: "Discovery",
+          tasks: [{ title: "User interviews", subtasks: [{ title: "Draft script" }] }],
+        },
+      ],
+    })) as { projectId: string; phasesCreated: number; todosCreated: number };
+    expect(seeded.phasesCreated).toBe(1);
+    expect(seeded.todosCreated).toBe(2);
+
+    const calEvents = (await executeMcpTool(auth.user, auth.scopes, "list_calendar_events", {})) as {
+      wroketSlots: unknown[];
+      externalEvents: unknown[];
+    };
+    expect(Array.isArray(calEvents.wroketSlots)).toBe(true);
+
     const steering = (await executeMcpTool(auth.user, auth.scopes, "get_project_steering", {
       projectId: proj.id,
     })) as { projectId: string; totalTasks: number };
@@ -285,5 +369,67 @@ describe("API keys + MCP tools v1.1", () => {
       okrs: unknown[];
     };
     expect(Array.isArray(okrs.okrs)).toBe(true);
+
+    const tpl = (await executeMcpTool(auth.user, auth.scopes, "create_task_template", {
+      name: "Weekly Review",
+      subtasks: ["Check KPIs", "Clear inbox"],
+    })) as { id: string; name: string };
+    expect(tpl.name).toBe("Weekly Review");
+
+    const fromTpl = (await executeMcpTool(auth.user, auth.scopes, "create_todo_from_template", {
+      templateId: tpl.id,
+      projectId: proj.id,
+    })) as { id: string; subtasks: unknown[] };
+    expect(fromTpl.subtasks).toHaveLength(2);
+
+    const searchRes = (await executeMcpTool(auth.user, auth.scopes, "search_workspace", {
+      query: "Weekly",
+    })) as { count: number; results: Array<{ type: string }> };
+    expect(searchRes.count).toBeGreaterThanOrEqual(1);
+
+    const team = (await executeMcpTool(auth.user, auth.scopes, "create_team", {
+      name: "Core Squad",
+    })) as { id: string; name: string };
+    expect(team.name).toBe("Core Squad");
+
+    // Lot C: User Databases & Contacts
+    const dbRes = (await executeMcpTool(auth.user, auth.scopes, "create_user_database", {
+      name: "CRM Leads",
+      columns: [
+        { name: "Company", type: "text" },
+        { name: "DealSize", type: "number" },
+        { name: "Stage", type: "select", options: ["Lead", "Won"] },
+      ],
+    })) as { database: { id: string; columns: Array<{ id: string; name: string }> } };
+    expect(dbRes.database.columns).toHaveLength(3);
+
+    const rowRes = (await executeMcpTool(auth.user, auth.scopes, "add_database_row", {
+      databaseId: dbRes.database.id,
+      values: { Company: "Acme Corp", DealSize: 12000, Stage: "Lead" },
+    })) as { row: { id: string; values: Record<string, unknown> } };
+    expect(Object.values(rowRes.row.values)).toContain("Acme Corp");
+
+    const contactRes = (await executeMcpTool(auth.user, auth.scopes, "create_contact", {
+      firstName: "Jean",
+      lastName: "Dupont",
+      company: "Acme Corp",
+      email: "jean.dupont@acme.invalid",
+    })) as { contact: { id: string; firstName: string } };
+    expect(contactRes.contact.firstName).toBe("Jean");
+
+    // Lot D: Share Links & Automations
+    const shareRes = (await executeMcpTool(auth.user, auth.scopes, "manage_project_share_links", {
+      action: "create",
+      projectId: proj.id,
+      label: "Client Preview",
+      expiryDays: 30,
+    })) as { created: boolean; publicUrl: string };
+    expect(shareRes.created).toBe(true);
+    expect(shareRes.publicUrl).toContain("/share/project/");
+
+    const delProj = (await executeMcpTool(auth.user, auth.scopes, "delete_project", {
+      id: seeded.projectId,
+    })) as { deleted: boolean };
+    expect(delProj.deleted).toBe(true);
   });
 });

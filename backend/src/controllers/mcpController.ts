@@ -4,9 +4,10 @@ import type { ApiKeyAuthenticatedRequest } from "../middlewares/requireApiKey";
 import { executeMcpTool, MCP_TOOL_DEFS } from "../services/mcpTools";
 import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
+import { emitUserSyncEvent } from "./syncEventsController";
 
 const PROTOCOL_VERSION = "2024-11-05";
-const SERVER_INFO = { name: "wroket", version: "2.0.0" };
+const SERVER_INFO = { name: "wroket", version: "3.0.0" };
 
 interface McpPromptDef {
   name: string;
@@ -45,6 +46,20 @@ export const MCP_PROMPT_DEFS: McpPromptDef[] = [
       "Passe en revue toutes mes tâches en retard, identifie les dépendances bloquantes et propose un plan de rattrapage.",
     buildText: () =>
       "Appelle `get_overdue_tasks` pour lister mes tâches en retard. Classe-les par criticité, signale celles qui bloquent d'autres tâches ou ont des dépendances, et propose pour chacune : 1) Terminer si déjà fait, 2) Replanifier (`propose_slots`), ou 3) Déléguer (`assign_todo`).",
+  },
+  {
+    name: "setup-new-project",
+    description:
+      "Construit et crée dans Wroket un projet complet (phases, tâches, sous-tâches et jalons) à partir d'un objectif ou d'un brief.",
+    arguments: [
+      {
+        name: "projectName",
+        description: "Nom du projet à créer",
+        required: true,
+      },
+    ],
+    buildText: (args) =>
+      `Propose un découpage structuré pour le projet « ${args.projectName || "Nouveau projet"} » en 3 à 5 phases avec leurs tâches et sous-tâches, puis appelle \`seed_project_structure\` pour tout créer d'un coup dans Wroket. Ajoute ensuite les jalons clés avec \`create_project_milestone\`.`,
   },
 ];
 
@@ -163,6 +178,10 @@ async function handleOne(
     try {
       const payload = await executeMcpTool(req.user!, scopes, name, args);
       logger.info("[mcp] tool ok", { tool: name, keyId, uid });
+      const toolDef = MCP_TOOL_DEFS.find((t) => t.name === name);
+      if (toolDef && !toolDef.requiredScope.endsWith(":read")) {
+        emitUserSyncEvent(uid, { type: "mcp_mutation", tool: name });
+      }
       return rpcResult(id, toolResultContent(payload, false));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

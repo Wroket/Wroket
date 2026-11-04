@@ -56,9 +56,17 @@ export function useResourceSync(
     const onVisibility = () => {
       if (!document.hidden) schedule();
     };
+    let lastFocusAt = 0;
+    const onFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusAt < 2_000) return;
+      lastFocusAt = now;
+      schedule();
+    };
     const onOnline = () => schedule();
 
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
 
     let bc: BroadcastChannel | null = null;
@@ -81,6 +89,7 @@ export function useResourceSync(
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
       bc?.close();
       if (pollId !== null) clearInterval(pollId);

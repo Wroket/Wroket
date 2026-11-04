@@ -81,9 +81,36 @@ export default function ProjectsPage() {
     router.replace(`/projects?${params.toString()}`, { scroll: false });
   }, [searchParams, router, refreshAllTodos, loadProjects]);
 
-  // Refresh project list when another tab mutates projects; refresh aggregated todos when todos change elsewhere.
-  useResourceSync("projects", loadProjects, { pollIntervalMs: 120_000 });
-  useTodoListSync(refreshAllTodos, { pollIntervalMs: 120_000 });
+  const refreshSelectedProjectIfAny = useCallback(async () => {
+    if (!selectedProject) return;
+    try {
+      const [freshProj, todos] = await Promise.all([
+        fetchProject(selectedProject.id),
+        getProjectTodos(selectedProject.id),
+      ]);
+      setSelectedProject(freshProj);
+      setProjectTodos(todos);
+    } catch {
+      // ignore if deleted or transient error
+    }
+  }, [selectedProject]);
+
+  // Refresh project list when another tab or MCP agent mutates projects; refresh aggregated + active project todos.
+  useResourceSync(
+    "projects",
+    () => {
+      void loadProjects();
+      void refreshSelectedProjectIfAny();
+    },
+    { pollIntervalMs: 120_000 },
+  );
+  useTodoListSync(
+    () => {
+      refreshAllTodos();
+      void refreshSelectedProjectIfAny();
+    },
+    { pollIntervalMs: 120_000 },
+  );
 
   useEffect(() => {
     loadProjects().then((loadedProjects) => {

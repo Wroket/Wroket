@@ -1,8 +1,16 @@
 import type { ApiKeyScope, AuthUser } from "../authService";
 import { ValidationError } from "../../utils/errors";
+import {
+  automationsAndPortalsHandlers,
+  automationsAndPortalsToolDefs,
+} from "./automationsAndPortals";
 import { calendarHandlers, calendarToolDefs } from "./calendar";
 import { collaborationHandlers, collaborationToolDefs } from "./collaboration";
 import { commentHandlers, commentToolDefs } from "./comments";
+import {
+  databasesAndContactsHandlers,
+  databasesAndContactsToolDefs,
+} from "./databasesAndContacts";
 import { noteHandlers, noteToolDefs } from "./notes";
 import { pmoHandlers, pmoToolDefs } from "./pmo";
 import { projectHandlers, projectToolDefs } from "./projects";
@@ -21,6 +29,8 @@ export const MCP_TOOL_DEFS: McpToolDef[] = [
   ...pmoToolDefs,
   ...collaborationToolDefs,
   ...timeAndOkrToolDefs,
+  ...databasesAndContactsToolDefs,
+  ...automationsAndPortalsToolDefs,
 ];
 
 const HANDLERS: Record<string, McpToolHandler> = {
@@ -32,6 +42,8 @@ const HANDLERS: Record<string, McpToolHandler> = {
   ...pmoHandlers,
   ...collaborationHandlers,
   ...timeAndOkrHandlers,
+  ...databasesAndContactsHandlers,
+  ...automationsAndPortalsHandlers,
 };
 
 /**

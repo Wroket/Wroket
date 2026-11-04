@@ -1,15 +1,22 @@
 import { findUserByEmail, type AuthUser } from "../authService";
+import { getTeamCapacitySnapshot } from "../capacityService";
 import { runTaskAction } from "../chatChannel";
 import {
+  addCollaborator,
+  addTeamMember,
+  createTeam,
   listCollaborators,
   listKnownContactEmails,
   listUserTeams,
+  removeTeamMember,
+  updateMemberRole,
+  type TeamMember,
 } from "../teamService";
 import { getActiveBlockersForTodo, normalizeBlockedByTodoIds } from "../todoDependencyService";
 import { findTodoForUser, updateTodo } from "../todoService";
 import { NotFoundError, ValidationError } from "../../utils/errors";
 import type { McpToolDef, McpToolHandler } from "./types";
-import { requireString } from "./types";
+import { optionalString, requireString } from "./types";
 
 export const collaborationToolDefs: McpToolDef[] = [
   {
@@ -73,6 +80,61 @@ export const collaborationToolDefs: McpToolDef[] = [
         },
       },
       required: ["todoId", "blockedByTodoIds"],
+    },
+  },
+  {
+    name: "create_team",
+    description: "Create a new team with an optional list of initial member emails.",
+    requiredScope: "projects:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Team name" },
+        memberEmails: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional list of member email addresses",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "manage_team_member",
+    description:
+      "Add, remove, or change the role of a member in a team, or invite a personal collaborator (when teamId is omitted and action='invite_collaborator').",
+    requiredScope: "projects:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["add", "remove", "set_role", "invite_collaborator"],
+          description: "Operation to perform",
+        },
+        teamId: { type: "string", description: "Team id (required for add/remove/set_role)" },
+        email: { type: "string", description: "Member or collaborator email address" },
+        role: {
+          type: "string",
+          enum: ["co-owner", "admin", "super-user", "user"],
+          description: "Target role when action='set_role'",
+        },
+      },
+      required: ["action", "email"],
+    },
+  },
+  {
+    name: "get_team_capacity",
+    description:
+      "Get the weekly workload capacity snapshot for a team (estimated vs tracked minutes and overload status per member — Large teams+).",
+    requiredScope: "projects:read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        teamId: { type: "string", description: "Team id" },
+        weekStart: { type: "string", description: "Optional ISO week start date YYYY-MM-DD" },
+      },
+      required: ["teamId"],
     },
   },
 ];
@@ -163,9 +225,62 @@ async function setTodoBlockersHandler(user: AuthUser, args: Record<string, unkno
   };
 }
 
+function createTeamHandler(user: AuthUser, args: Record<string, unknown>) {
+  const name = requireString(args, "name");
+  const memberEmails = Array.isArray(args.memberEmails)
+    ? args.memberEmails.filter((e): e is string => typeof e === "string")
+    : [];
+  const team = createTeam(user.uid, name, memberEmails);
+  return {
+    id: team.id,
+    name: team.name,
+    ownerUid: team.ownerUid,
+    members: team.members,
+    createdAt: team.createdAt,
+  };
+}
+
+function manageTeamMemberHandler(user: AuthUser, args: Record<string, unknown>) {
+  const action = requireString(args, "action");
+  const email = requireString(args, "email");
+
+  if (action === "invite_collaborator") {
+    const collab = addCollaborator(user.uid, email);
+    return { action, collaborator: collab };
+  }
+
+  const teamId = requireString(args, "teamId");
+  if (action === "add") {
+    const team = addTeamMember(teamId, user.uid, user.email, email);
+    return { action, teamId: team.id, members: team.members };
+  }
+  if (action === "remove") {
+    const team = removeTeamMember(teamId, user.uid, user.email, email);
+    return { action, teamId: team.id, members: team.members };
+  }
+  if (action === "set_role") {
+    const role = requireString(args, "role") as TeamMember["role"];
+    if (!["co-owner", "admin", "super-user", "user"].includes(role)) {
+      throw new ValidationError("role invalide (attendu : co-owner, admin, super-user, user)");
+    }
+    const team = updateMemberRole(teamId, user.uid, user.email, email, role);
+    return { action, teamId: team.id, members: team.members };
+  }
+  throw new ValidationError("action invalide");
+}
+
+async function getTeamCapacityHandler(user: AuthUser, args: Record<string, unknown>) {
+  const teamId = requireString(args, "teamId");
+  const weekStart = optionalString(args, "weekStart");
+  return getTeamCapacitySnapshot(user.uid, user.email, teamId, weekStart);
+}
+
 export const collaborationHandlers: Record<string, McpToolHandler> = {
   list_teams_and_collaborators: listTeamsAndCollaboratorsHandler,
   assign_todo: assignTodoHandler,
   respond_task_assignment: respondTaskAssignmentHandler,
   set_todo_blockers: setTodoBlockersHandler,
+  create_team: createTeamHandler,
+  manage_team_member: manageTeamMemberHandler,
+  get_team_capacity: getTeamCapacityHandler,
 };

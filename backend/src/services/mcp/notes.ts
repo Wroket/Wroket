@@ -1,9 +1,11 @@
 import type { AuthUser } from "../authService";
 import {
   createNote,
+  deleteNote,
   getNote,
   listNotes,
   listNotesByTodo,
+  listNotesForProject,
   updateNote,
   type Note,
 } from "../noteService";
@@ -28,12 +30,13 @@ function leanNote(n: Note, includeContent: boolean): Record<string, unknown> {
 export const noteToolDefs: McpToolDef[] = [
   {
     name: "list_notes",
-    description: "List notes owned by the user. Optional filter by todoId.",
+    description: "List notes owned by the user. Optional filter by todoId or projectId.",
     requiredScope: "notes:read",
     inputSchema: {
       type: "object",
       properties: {
         todoId: { type: "string" },
+        projectId: { type: "string" },
         limit: { type: "number", description: "Max items (default 50, max 200)" },
       },
     },
@@ -83,11 +86,28 @@ export const noteToolDefs: McpToolDef[] = [
       required: ["id"],
     },
   },
+  {
+    name: "delete_note",
+    description: "Delete (move to archive/trash) a note by id.",
+    requiredScope: "notes:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Note id" },
+      },
+      required: ["id"],
+    },
+  },
 ];
 
 function listNotesHandler(user: AuthUser, args: Record<string, unknown>) {
   const todoId = optionalString(args, "todoId");
-  const notes = todoId ? listNotesByTodo(user.uid, todoId) : listNotes(user.uid);
+  const projectId = optionalString(args, "projectId");
+  const notes = todoId
+    ? listNotesByTodo(user.uid, todoId)
+    : projectId
+      ? listNotesForProject(user.uid, projectId)
+      : listNotes(user.uid);
   const limit = clampLimit(args.limit);
   return {
     notes: notes.slice(0, limit).map((n) => leanNote(n, false)),
@@ -132,9 +152,16 @@ function updateNoteHandler(user: AuthUser, args: Record<string, unknown>) {
   return leanNote(updateNote(user.uid, id, patch), true);
 }
 
+function deleteNoteHandler(user: AuthUser, args: Record<string, unknown>) {
+  const id = requireString(args, "id");
+  deleteNote(user.uid, id);
+  return { deleted: true, id };
+}
+
 export const noteHandlers: Record<string, McpToolHandler> = {
   list_notes: listNotesHandler,
   get_note: getNoteHandler,
   create_note: createNoteHandler,
   update_note: updateNoteHandler,
+  delete_note: deleteNoteHandler,
 };
