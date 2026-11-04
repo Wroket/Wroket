@@ -3,7 +3,6 @@ import {
   findUserByUid,
   getGoogleAccounts,
   getMicrosoftAccounts,
-  resolveBookingTarget,
   type AuthUser,
 } from "../authService";
 import { deleteExternalBookingForTodo } from "../calendarBookingCleanup";
@@ -34,6 +33,10 @@ import {
 import { ForbiddenError, NotFoundError, ValidationError } from "../../utils/errors";
 import type { McpToolDef, McpToolHandler } from "./types";
 import { optionalString, requireString } from "./types";
+import {
+  bookingTargetSchemaProperties,
+  resolveBookingTargetFromArgs,
+} from "./bookingTargetArgs";
 
 function leanSlotTodo(todo: {
   id: string;
@@ -64,7 +67,7 @@ export const calendarToolDefs: McpToolDef[] = [
   {
     name: "book_task_slot",
     description:
-      "Book a start/end ISO slot on a task. On conflict returns conflicts[]; retry with force=true to override (Agenda pattern).",
+      "Book a start/end ISO slot on a task. On conflict returns conflicts[]; retry with force=true to override (Agenda pattern). Optionally target a bookable calendar via calendarId / calendarTag / calendarLabel.",
     requiredScope: "calendar:write",
     inputSchema: {
       type: "object",
@@ -73,6 +76,7 @@ export const calendarToolDefs: McpToolDef[] = [
         start: { type: "string", description: "ISO datetime" },
         end: { type: "string", description: "ISO datetime" },
         force: { type: "boolean", description: "Override calendar conflicts" },
+        ...bookingTargetSchemaProperties,
       },
       required: ["todoId", "start", "end"],
     },
@@ -118,6 +122,7 @@ export const calendarToolDefs: McpToolDef[] = [
         },
         summary: { type: "string", description: "Optional meeting title (defaults to task title)" },
         description: { type: "string", description: "Optional meeting agenda/description" },
+        ...bookingTargetSchemaProperties,
       },
       required: ["todoId"],
     },
@@ -135,6 +140,8 @@ async function proposeSlotsHandler(user: AuthUser, args: Record<string, unknown>
     todayAvailability: result.todayAvailability,
     effectiveStartDate: result.effectiveStartDate,
     suggestedSlot: result.suggestedSlot,
+    bookableCalendars: result.bookableCalendars,
+    resolvedTarget: result.resolvedTarget,
     slots: result.slots.slice(0, 6).map((s) => ({
       start: s.start,
       end: s.end,
@@ -149,7 +156,13 @@ async function bookSlotHandler(user: AuthUser, args: Record<string, unknown>) {
   const start = requireString(args, "start");
   const end = requireString(args, "end");
   const force = args.force === true;
-  const result = await bookTodoSlot(user.uid, user.email, todoId, { start, end, force });
+  const target = resolveBookingTargetFromArgs(user.uid, args);
+  const result = await bookTodoSlot(user.uid, user.email, todoId, {
+    start,
+    end,
+    force,
+    target,
+  });
   if (!result.ok) {
     return {
       conflict: true,
@@ -276,16 +289,20 @@ async function scheduleTaskMeetingHandler(user: AuthUser, args: Record<string, u
       "CALENDAR_INTEGRATIONS_PLAN_REQUIRED",
     );
   }
-  const bookingTarget = resolveBookingTarget(user.uid);
+  const found = await findTodoForUser(user.uid, todoId);
+  if (!found) throw new NotFoundError("Tâche introuvable");
+  const { todo } = found;
+
+  const bookingTarget = resolveBookingTargetFromArgs(
+    user.uid,
+    args,
+    todo.preferredBookingTarget ?? null,
+  );
   if (!bookingTarget) {
     throw new ValidationError(
       "Aucun calendrier externe (Google Calendar ou Outlook) n'est connecté pour créer une réunion.",
     );
   }
-
-  const found = await findTodoForUser(user.uid, todoId);
-  if (!found) throw new NotFoundError("Tâche introuvable");
-  const { todo } = found;
 
   const requestStart = optionalString(args, "start");
   const requestEnd = optionalString(args, "end");

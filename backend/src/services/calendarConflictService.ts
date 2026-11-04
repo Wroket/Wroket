@@ -3,8 +3,9 @@ import {
   shouldSkipExternalConflictEvent,
 } from "./calendarConflictUtils";
 import {
-  getGoogleAccounts,
-  getMicrosoftAccounts,
+  collectEnabledExternalCalendars,
+} from "./calendarEnabledCalendars";
+import {
   findUserByUid,
 } from "./authService";
 import { getEffectiveEntitlementsForUid } from "./teamService";
@@ -18,8 +19,6 @@ export interface SlotConflictInfo {
   start: string;
   end: string;
 }
-
-const MAX_CONFLICT_CALENDAR_FETCHES = 10;
 
 /** Detect Wroket + external calendar overlaps for a time range (shared by bookSlot and moveTodo). */
 export async function findSlotConflicts(
@@ -49,64 +48,51 @@ export async function findSlotConflicts(
   for (const t of ownedTodos) checkTodo(t);
   for (const t of assignedTodos) checkTodo(t);
 
-  const accounts = getGoogleAccounts(uid);
-  if (extCal && accounts.length > 0) {
-    const timeMin = start.toISOString();
-    const timeMax = end.toISOString();
-    const fetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
-    for (const account of accounts) {
-      for (const cal of account.calendars) {
-        if (!cal.enabled || fetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
-        fetches.push(listEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax));
-      }
-    }
-    try {
-      const results = await Promise.all(fetches);
-      for (const events of results) {
-        for (const ev of events) {
-          if (ev.allDay) continue;
-          if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
-          const evStart = new Date(ev.start);
-          const evEnd = new Date(ev.end);
-          if (start < evEnd && end > evStart) {
-            conflicts.push({ id: ev.id, title: ev.summary, start: ev.start, end: ev.end });
-          }
-        }
-      }
-    } catch {
-      /* Google Calendar unavailable */
-    }
-  }
+  if (!extCal) return conflicts;
 
-  const msAccounts = getMicrosoftAccounts(uid);
-  if (extCal && msAccounts.length > 0) {
-    const timeMin = start.toISOString();
-    const timeMax = end.toISOString();
-    const msFetches: Promise<{ id: string; summary: string; start: string; end: string; allDay: boolean }[]>[] = [];
-    for (const account of msAccounts) {
-      for (const cal of account.calendars) {
-        if (!cal.enabled || msFetches.length >= MAX_CONFLICT_CALENDAR_FETCHES) continue;
-        msFetches.push(
-          listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, timeMin, timeMax).catch(() => []),
-        );
-      }
-    }
-    try {
-      const results = await Promise.all(msFetches);
-      for (const events of results) {
-        for (const ev of events) {
-          if (ev.allDay) continue;
-          if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
-          const evStart = new Date(ev.start);
-          const evEnd = new Date(ev.end);
-          if (start < evEnd && end > evStart) {
-            conflicts.push({ id: `ms:${ev.id}`, title: ev.summary, start: ev.start, end: ev.end });
-          }
+  const enabled = collectEnabledExternalCalendars(uid);
+  const timeMin = start.toISOString();
+  const timeMax = end.toISOString();
+
+  const googleFetches = enabled
+    .filter((c) => c.provider === "google")
+    .map((c) => listEventsForAccount(uid, c.accountId, c.calendarId, timeMin, timeMax).catch(() => []));
+
+  const msFetches = enabled
+    .filter((c) => c.provider === "microsoft")
+    .map((c) =>
+      listMicrosoftEventsForAccount(uid, c.accountId, c.calendarId, timeMin, timeMax).catch(() => []),
+    );
+
+  try {
+    const [googleResults, msResults] = await Promise.all([
+      Promise.all(googleFetches),
+      Promise.all(msFetches),
+    ]);
+    for (const events of googleResults) {
+      for (const ev of events) {
+        if (ev.allDay) continue;
+        if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
+        const evStart = new Date(ev.start);
+        const evEnd = new Date(ev.end);
+        if (start < evEnd && end > evStart) {
+          conflicts.push({ id: ev.id, title: ev.summary, start: ev.start, end: ev.end });
         }
       }
-    } catch {
-      /* Outlook unavailable */
     }
+    for (const events of msResults) {
+      for (const ev of events) {
+        if (ev.allDay) continue;
+        if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
+        const evStart = new Date(ev.start);
+        const evEnd = new Date(ev.end);
+        if (start < evEnd && end > evStart) {
+          conflicts.push({ id: `ms:${ev.id}`, title: ev.summary, start: ev.start, end: ev.end });
+        }
+      }
+    }
+  } catch {
+    /* External calendars unavailable */
   }
 
   return conflicts;

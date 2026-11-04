@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import type { Effort, Priority } from "@/lib/api/todos";
 import { createTodo } from "@/lib/api/todos";
+import type { PreferredBookingTarget } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
+import { useAuth } from "@/components/AuthContext";
 import { formatUserFacingError } from "@/lib/apiErrors";
+import {
+  bookingTargetKey,
+  findBookableOption,
+  formatBookableLabel,
+  getBookableCalendarsFromUser,
+} from "@/lib/bookableCalendars";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 
@@ -17,6 +25,7 @@ export interface QuickCreateTaskValues {
   projectId: string;
   /** Optional ISO start for agenda slot booking (caller handles booking). */
   startDate?: string;
+  preferredBookingTarget?: PreferredBookingTarget | null;
 }
 
 interface QuickCreateTaskProps {
@@ -54,14 +63,24 @@ export default function QuickCreateTask({
 }: QuickCreateTaskProps) {
   const { t } = useLocale();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const bookableCalendars = useMemo(() => getBookableCalendarsFromUser(user), [user]);
+  const defaultOpt = useMemo(
+    () => findBookableOption(bookableCalendars, null),
+    [bookableCalendars],
+  );
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [effort, setEffort] = useState<Effort>("medium");
   const [deadline, setDeadline] = useState(defaultDeadline);
   const [startDate] = useState(defaultStartDate);
   const [projectId, setProjectId] = useState(defaultProjectId ?? "");
+  const [calendarKey, setCalendarKey] = useState("");
   const [more, setMore] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const effectiveCalendarKey =
+    calendarKey || (defaultOpt ? bookingTargetKey(defaultOpt) : "");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -69,6 +88,10 @@ export default function QuickCreateTask({
     if (!trimmed || saving) return;
     setSaving(true);
     try {
+      const selected = bookableCalendars.find((c) => bookingTargetKey(c) === effectiveCalendarKey);
+      const preferredBookingTarget: PreferredBookingTarget | null = selected
+        ? { provider: selected.provider, accountId: selected.accountId, calendarId: selected.calendarId }
+        : null;
       const values: QuickCreateTaskValues = {
         title: trimmed,
         priority,
@@ -76,6 +99,7 @@ export default function QuickCreateTask({
         deadline,
         projectId,
         startDate: startDate || undefined,
+        preferredBookingTarget,
       };
       const todo = await createTodo({
         title: trimmed,
@@ -84,6 +108,7 @@ export default function QuickCreateTask({
         deadline: deadline || null,
         startDate: startDate || null,
         projectId: projectId || null,
+        preferredBookingTarget,
       });
       setTitle("");
       setMore(false);
@@ -174,6 +199,24 @@ export default function QuickCreateTask({
                 <option value="">{t("projects.personal")}</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {bookableCalendars.length > 0 && (
+            <div className="col-span-2 sm:col-span-4">
+              <label className="block text-[11px] font-medium text-zinc-500 dark:text-slate-400 mb-0.5">
+                {t("agenda.wroketCalendar")}
+              </label>
+              <select
+                value={effectiveCalendarKey}
+                onChange={(e) => setCalendarKey(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-xs dark:bg-slate-800 dark:text-slate-100"
+              >
+                {bookableCalendars.map((opt) => (
+                  <option key={bookingTargetKey(opt)} value={bookingTargetKey(opt)}>
+                    {formatBookableLabel(opt)}
+                  </option>
                 ))}
               </select>
             </div>

@@ -12,7 +12,10 @@ import {
   type SlotConflict,
   type Todo,
   type TodayAvailability,
+  type BookableCalendarOption,
+  type PreferredBookingTarget,
 } from "@/lib/api";
+import { bookingTargetKey, findBookableOption, formatBookableLabel } from "@/lib/bookableCalendars";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
 import { clampInVisualViewport, useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
@@ -27,6 +30,7 @@ export interface SlotPickerProps {
   todoId: string;
   scheduledSlot: ScheduledSlot | null;
   suggestedSlot?: SuggestedSlot | null;
+  preferredBookingTarget?: PreferredBookingTarget | null;
   onBooked: (todo: Todo) => void;
   onCleared: (todo: Todo) => void;
   autoOpen?: boolean;
@@ -45,7 +49,7 @@ export interface SlotPickerProps {
   onDismiss?: () => void;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker", pageModal = false, onDismiss }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, preferredBookingTarget, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker", pageModal = false, onDismiss }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [open, setOpen] = useState(pageModal);
@@ -91,6 +95,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("09:00");
   const [manualWarn, setManualWarn] = useState<"heavy_late" | "outside_hours" | null>(null);
+  const [bookableCalendars, setBookableCalendars] = useState<BookableCalendarOption[]>([]);
+  const [selectedTargetKey, setSelectedTargetKey] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
@@ -159,14 +165,23 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
       setDuration(data.duration);
       setEffort(data.effort);
       if (data.suggestedSlot) setServerSuggestedSlot(data.suggestedSlot);
+      const options = data.bookableCalendars ?? [];
+      setBookableCalendars(options);
+      const preferred =
+        preferredBookingTarget ??
+        data.resolvedTarget ??
+        null;
+      const picked = findBookableOption(options, preferred);
+      setSelectedTargetKey(picked ? bookingTargetKey(picked) : "");
     } catch {
       setSlots([]);
       setTodayAvailability(null);
       setEffectiveStartDate(null);
+      setBookableCalendars([]);
     } finally {
       setLoading(false);
     }
-  }, [todoId]);
+  }, [todoId, preferredBookingTarget]);
 
   const dismissModal = () => {
     setOpen(false);
@@ -207,10 +222,16 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
     }
   };
 
+  const selectedTarget: PreferredBookingTarget | null = (() => {
+    const opt = bookableCalendars.find((c) => bookingTargetKey(c) === selectedTargetKey);
+    if (!opt) return null;
+    return { provider: opt.provider, accountId: opt.accountId, calendarId: opt.calendarId };
+  })();
+
   const doBook = async (start: string, end: string, force?: boolean) => {
     setBooking(true);
     try {
-      const result = await bookTaskSlot(todoId, start, end, force);
+      const result = await bookTaskSlot(todoId, start, end, force, selectedTarget);
       if (result.conflict && result.conflicts?.length) {
         setConflicts(result.conflicts);
         setPendingSlot({ start, end });
@@ -354,6 +375,22 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, onBoo
             </button>
           )}
         </div>
+        {bookableCalendars.length > 0 && (
+          <label className="mt-2 block">
+            <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("agenda.targetCalendar")}</span>
+            <select
+              value={selectedTargetKey}
+              onChange={(e) => setSelectedTargetKey(e.target.value)}
+              className="mt-0.5 w-full rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs text-zinc-800 dark:text-slate-100"
+            >
+              {bookableCalendars.map((opt) => (
+                <option key={bookingTargetKey(opt)} value={bookingTargetKey(opt)}>
+                  {formatBookableLabel(opt)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <Link
           href={`/agenda?schedule=${encodeURIComponent(todoId)}`}
           onClick={() => {

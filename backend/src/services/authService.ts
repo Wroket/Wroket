@@ -67,6 +67,78 @@ export interface GoogleCalendarEntry {
   defaultForBooking?: boolean;
   canWriteBooking?: boolean;
   primary?: boolean;
+  /** User-defined display name (max 60). Falls back to `label` when empty. */
+  customLabel?: string | null;
+  /** Short identification tag e.g. Pro / Perso / Client (max 24). */
+  tag?: string | null;
+  /**
+   * Whether this calendar appears in Wroket booking / task-target pickers.
+   * When undefined (legacy data): treated as true if enabled + writable (or defaultForBooking).
+   */
+  bookable?: boolean;
+}
+
+export interface BookingTargetRequest {
+  provider?: CalendarProvider;
+  accountId?: string;
+  calendarId?: string;
+}
+
+export interface BookableCalendarOption {
+  provider: CalendarProvider;
+  accountId: string;
+  accountEmail: string;
+  calendarId: string;
+  label: string;
+  customLabel: string | null;
+  displayName: string;
+  tag: string | null;
+  color: string;
+  isDefault: boolean;
+}
+
+/** Effective bookable flag with legacy fallback. */
+export function isCalendarBookable(cal: GoogleCalendarEntry): boolean {
+  if (cal.canWriteBooking === false) return false;
+  if (cal.bookable === true) return true;
+  if (cal.bookable === false) return false;
+  // Legacy: writable + (enabled or already default) → bookable
+  return !!cal.defaultForBooking || !!cal.enabled;
+}
+
+function normalizeCustomLabel(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().slice(0, 60);
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeCalendarTag(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().slice(0, 24);
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeCalendarEntryFields(cal: GoogleCalendarEntry): GoogleCalendarEntry {
+  const canWriteBooking = cal.canWriteBooking !== false;
+  const enabled = !!cal.enabled;
+  const customLabel = normalizeCustomLabel(cal.customLabel);
+  const tag = normalizeCalendarTag(cal.tag);
+  let bookable = cal.bookable;
+  if (bookable === undefined) {
+    bookable = canWriteBooking && (enabled || !!cal.defaultForBooking);
+  }
+  if (!canWriteBooking) bookable = false;
+  if (cal.defaultForBooking && canWriteBooking) bookable = true;
+  return {
+    ...cal,
+    enabled,
+    canWriteBooking,
+    customLabel,
+    tag,
+    bookable,
+    defaultForBooking: !!cal.defaultForBooking && canWriteBooking && enabled,
+    primary: !!cal.primary,
+  };
 }
 
 /** A connected Google account with its OAuth tokens and selected calendars */
@@ -159,24 +231,30 @@ export function mergeLiveCalendarWriteAccess(
   const liveById = new Map(live.map((c) => [c.id, c]));
   const merged = stored.map((cal) => {
     const fromLive = liveById.get(cal.calendarId);
-    if (!fromLive) return cal;
-    return {
+    if (!fromLive) return normalizeCalendarEntryFields(cal);
+    return normalizeCalendarEntryFields({
       ...cal,
+      // Preserve user customLabel / tag / bookable / enabled / color
       canWriteBooking: fromLive.canWriteBooking !== false,
       primary: fromLive.primary ?? cal.primary,
-    };
+      // Keep provider label fresh when user has no customLabel
+      label: cal.customLabel ? cal.label : (fromLive.summary.length > 100 ? fromLive.summary.slice(0, 100) : fromLive.summary),
+    });
   });
   for (const c of live) {
     if (!stored.some((s) => s.calendarId === c.id)) {
-      merged.push({
-        calendarId: c.id,
-        label: c.summary.length > 100 ? c.summary.slice(0, 100) : c.summary,
-        color: c.backgroundColor,
-        enabled: !!c.primary,
-        defaultForBooking: false,
-        canWriteBooking: c.canWriteBooking !== false,
-        primary: !!c.primary,
-      });
+      merged.push(
+        normalizeCalendarEntryFields({
+          calendarId: c.id,
+          label: c.summary.length > 100 ? c.summary.slice(0, 100) : c.summary,
+          color: c.backgroundColor,
+          enabled: !!c.primary,
+          defaultForBooking: false,
+          canWriteBooking: c.canWriteBooking !== false,
+          primary: !!c.primary,
+          bookable: !!c.primary && c.canWriteBooking !== false,
+        }),
+      );
     }
   }
   return merged;
@@ -237,23 +315,26 @@ export function buildCalendarSeedEntries(
     ?? list.find((c) => c.canWriteBooking !== false)
     ?? list[0];
   if (!pick) return [];
-  return list.map((cal) => ({
-    calendarId: cal.id,
-    label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
-    color: cal.backgroundColor,
-    enabled: grantPriority
-      ? cal.id === pick.id && cal.canWriteBooking !== false
-      : !!cal.primary,
-    defaultForBooking: grantPriority && cal.id === pick.id && cal.canWriteBooking !== false,
-    canWriteBooking: cal.canWriteBooking,
-    primary: !!cal.primary,
-  }));
+  return list.map((cal) =>
+    normalizeCalendarEntryFields({
+      calendarId: cal.id,
+      label: cal.summary.length > 100 ? cal.summary.slice(0, 100) : cal.summary,
+      color: cal.backgroundColor,
+      // Always enable primary calendars so availability is never blind on new accounts
+      enabled: !!cal.primary || (grantPriority && cal.id === pick.id && cal.canWriteBooking !== false),
+      defaultForBooking: grantPriority && cal.id === pick.id && cal.canWriteBooking !== false,
+      canWriteBooking: cal.canWriteBooking,
+      primary: !!cal.primary,
+      bookable: cal.canWriteBooking !== false && (!!cal.primary || (grantPriority && cal.id === pick.id)),
+    }),
+  );
 }
 
+/** Writable + bookable calendar eligible as a booking default target. */
 function isWritableBookingCalendar(cal: GoogleCalendarEntry): boolean {
   const id = cal.calendarId.toLowerCase();
   const isSystem = id.includes("group.v.calendar.google.com") || id.includes("holiday") || id.includes("weeknum");
-  return !!cal.enabled && cal.canWriteBooking !== false && !isSystem;
+  return isCalendarBookable(cal) && cal.canWriteBooking !== false && !isSystem;
 }
 
 function normalizeGlobalBookingDefault(
@@ -263,12 +344,7 @@ function normalizeGlobalBookingDefault(
   let chosen: { accountId: string; calendarId: string } | null = null;
 
   for (const account of accounts) {
-    account.calendars = account.calendars.map((cal) => ({
-      ...cal,
-      enabled: !!cal.enabled,
-      canWriteBooking: cal.canWriteBooking !== false,
-      defaultForBooking: !!cal.defaultForBooking && isWritableBookingCalendar(cal),
-    }));
+    account.calendars = account.calendars.map((cal) => normalizeCalendarEntryFields(cal));
   }
 
   if (preferred) {
@@ -312,12 +388,19 @@ function normalizeGlobalBookingDefault(
         account.id === chosen.accountId &&
         cal.calendarId === chosen.calendarId &&
         isWritableBookingCalendar(cal),
+      bookable:
+        !!chosen &&
+        account.id === chosen.accountId &&
+        cal.calendarId === chosen.calendarId &&
+        isWritableBookingCalendar(cal)
+          ? true
+          : isCalendarBookable(cal),
     }));
   }
 }
 
 function isWritableOutlookCalendar(cal: GoogleCalendarEntry): boolean {
-  return !!cal.enabled && cal.canWriteBooking !== false;
+  return isCalendarBookable(cal) && cal.canWriteBooking !== false;
 }
 
 function normalizeMicrosoftBookingDefault(
@@ -327,12 +410,7 @@ function normalizeMicrosoftBookingDefault(
   let chosen: { accountId: string; calendarId: string } | null = null;
 
   for (const account of accounts) {
-    account.calendars = account.calendars.map((cal) => ({
-      ...cal,
-      enabled: !!cal.enabled,
-      canWriteBooking: cal.canWriteBooking !== false,
-      defaultForBooking: !!cal.defaultForBooking && isWritableOutlookCalendar(cal),
-    }));
+    account.calendars = account.calendars.map((cal) => normalizeCalendarEntryFields(cal));
   }
 
   if (preferred) {
@@ -376,6 +454,13 @@ function normalizeMicrosoftBookingDefault(
         account.id === chosen.accountId &&
         cal.calendarId === chosen.calendarId &&
         isWritableOutlookCalendar(cal),
+      bookable:
+        !!chosen &&
+        account.id === chosen.accountId &&
+        cal.calendarId === chosen.calendarId &&
+        isWritableOutlookCalendar(cal)
+          ? true
+          : isCalendarBookable(cal),
     }));
   }
 }
@@ -2143,26 +2228,8 @@ export function setGoogleAccountCalendars(uid: string, accountId: string, calend
   const account = accounts.find((a) => a.id === accountId);
   if (!account) throw new NotFoundError("Compte Google introuvable");
 
-  const globalPriority = getGlobalPriorityAccount(uid);
-  const isThisPriorityAccount =
-    globalPriority?.provider === "google" && globalPriority.accountId === accountId;
-  const wantsDefault = calendars.some((c) => c.defaultForBooking && c.canWriteBooking !== false);
-  const shouldApplyPriority = !globalPriority || isThisPriorityAccount || wantsDefault;
-
-  if (!shouldApplyPriority) {
-    account.calendars = calendars.map((cal) => ({
-      calendarId: cal.calendarId,
-      label: cal.label,
-      color: cal.color,
-      enabled: !!cal.enabled,
-      canWriteBooking: cal.canWriteBooking !== false,
-      defaultForBooking: false,
-      primary: !!cal.primary,
-    }));
-    persistUsers();
-    return;
-  }
-
+  // Multi-calendar model: any account may enable / bookable / default calendars.
+  // Setting defaultForBooking on one calendar clears it on all other Google + Microsoft calendars.
   let chosenDefault: string | null = null;
   for (const cal of calendars) {
     if (cal.defaultForBooking && cal.canWriteBooking !== false) {
@@ -2171,21 +2238,35 @@ export function setGoogleAccountCalendars(uid: string, accountId: string, calend
     }
   }
   account.calendars = calendars.map((cal) => {
-    const enabled = !!cal.enabled;
-    const canWriteBooking = cal.canWriteBooking !== false;
+    const normalized = normalizeCalendarEntryFields(cal);
     const defaultForBooking = chosenDefault
-      ? cal.calendarId === chosenDefault && enabled && canWriteBooking
+      ? cal.calendarId === chosenDefault && normalized.canWriteBooking !== false && !!normalized.enabled
       : false;
     return {
-      ...cal,
-      enabled,
-      canWriteBooking,
+      ...normalized,
       defaultForBooking,
+      bookable: defaultForBooking ? true : normalized.bookable,
     };
   });
-  normalizeGlobalBookingDefault(accounts, chosenDefault ? { accountId, calendarId: chosenDefault } : null);
-  user.preferredBookingProvider = "google";
-  clearMicrosoftBookingDefaultFlags(user);
+
+  if (chosenDefault) {
+    normalizeGlobalBookingDefault(accounts, { accountId, calendarId: chosenDefault });
+    user.preferredBookingProvider = "google";
+    clearMicrosoftBookingDefaultFlags(user);
+  } else {
+    // Do not invent a new global default when the user did not pick one — preserves FCFS
+    // across providers (e.g. Google already default, Microsoft calendars just toggled).
+    const global = getGlobalPriorityAccount(uid);
+    account.calendars = account.calendars.map((cal) => ({
+      ...normalizeCalendarEntryFields(cal),
+      defaultForBooking:
+        global?.provider === "google" &&
+        global.accountId === accountId &&
+        !!cal.defaultForBooking &&
+        cal.canWriteBooking !== false &&
+        !!cal.enabled,
+    }));
+  }
   persistUsers();
 }
 
@@ -2289,26 +2370,7 @@ export function setMicrosoftAccountCalendars(uid: string, accountId: string, cal
   const account = accounts.find((a) => a.id === accountId);
   if (!account) throw new NotFoundError("Compte Microsoft introuvable");
 
-  const globalPriority = getGlobalPriorityAccount(uid);
-  const isThisPriorityAccount =
-    globalPriority?.provider === "microsoft" && globalPriority.accountId === accountId;
-  const wantsDefault = calendars.some((c) => c.defaultForBooking && c.canWriteBooking !== false);
-  const shouldApplyPriority = !globalPriority || isThisPriorityAccount || wantsDefault;
-
-  if (!shouldApplyPriority) {
-    account.calendars = calendars.map((cal) => ({
-      calendarId: cal.calendarId,
-      label: cal.label,
-      color: cal.color,
-      enabled: !!cal.enabled,
-      canWriteBooking: cal.canWriteBooking !== false,
-      defaultForBooking: false,
-      primary: !!cal.primary,
-    }));
-    persistUsers();
-    return;
-  }
-
+  // Multi-calendar model: any Microsoft account may enable / bookable / default calendars.
   let chosenDefault: string | null = null;
   for (const cal of calendars) {
     if (cal.defaultForBooking && cal.canWriteBooking !== false) {
@@ -2317,21 +2379,33 @@ export function setMicrosoftAccountCalendars(uid: string, accountId: string, cal
     }
   }
   account.calendars = calendars.map((cal) => {
-    const enabled = !!cal.enabled;
-    const canWriteBooking = cal.canWriteBooking !== false;
+    const normalized = normalizeCalendarEntryFields(cal);
     const defaultForBooking = chosenDefault
-      ? cal.calendarId === chosenDefault && enabled && canWriteBooking
+      ? cal.calendarId === chosenDefault && normalized.canWriteBooking !== false && !!normalized.enabled
       : false;
     return {
-      ...cal,
-      enabled,
-      canWriteBooking,
+      ...normalized,
       defaultForBooking,
+      bookable: defaultForBooking ? true : normalized.bookable,
     };
   });
-  normalizeMicrosoftBookingDefault(accounts, chosenDefault ? { accountId, calendarId: chosenDefault } : null);
-  user.preferredBookingProvider = "microsoft";
-  clearGoogleBookingDefaultFlags(user);
+
+  if (chosenDefault) {
+    normalizeMicrosoftBookingDefault(accounts, { accountId, calendarId: chosenDefault });
+    user.preferredBookingProvider = "microsoft";
+    clearGoogleBookingDefaultFlags(user);
+  } else {
+    const global = getGlobalPriorityAccount(uid);
+    account.calendars = account.calendars.map((cal) => ({
+      ...normalizeCalendarEntryFields(cal),
+      defaultForBooking:
+        global?.provider === "microsoft" &&
+        global.accountId === accountId &&
+        !!cal.defaultForBooking &&
+        cal.canWriteBooking !== false &&
+        !!cal.enabled,
+    }));
+  }
   persistUsers();
 }
 
@@ -2477,10 +2551,109 @@ export type ResolvedBookingTarget =
   | { provider: "microsoft"; accountId: string; calendarId: string };
 
 /**
- * Where to write new calendar bookings. Uses preferredBookingProvider when both integrations exist;
- * otherwise picks the only connected provider or falls back to Google first then Microsoft.
+ * List calendars the user may pick as a Wroket booking target (bookable + writable).
+ * Default calendar is sorted first.
  */
-export function resolveBookingTarget(uid: string): ResolvedBookingTarget | null {
+export function listBookableCalendars(uid: string): BookableCalendarOption[] {
+  const out: BookableCalendarOption[] = [];
+
+  for (const account of getGoogleAccounts(uid)) {
+    for (const cal of account.calendars) {
+      if (!isCalendarBookable(cal) || cal.canWriteBooking === false) continue;
+      const id = cal.calendarId.toLowerCase();
+      if (id.includes("group.v.calendar.google.com") || id.includes("holiday") || id.includes("weeknum")) continue;
+      const customLabel = normalizeCustomLabel(cal.customLabel);
+      const displayName = customLabel || cal.label;
+      out.push({
+        provider: "google",
+        accountId: account.id,
+        accountEmail: account.email,
+        calendarId: cal.calendarId,
+        label: cal.label,
+        customLabel,
+        displayName,
+        tag: normalizeCalendarTag(cal.tag),
+        color: cal.color,
+        isDefault: !!cal.defaultForBooking,
+      });
+    }
+  }
+
+  for (const account of getMicrosoftAccounts(uid)) {
+    for (const cal of account.calendars) {
+      if (!isCalendarBookable(cal) || cal.canWriteBooking === false) continue;
+      const customLabel = normalizeCustomLabel(cal.customLabel);
+      const displayName = customLabel || cal.label;
+      out.push({
+        provider: "microsoft",
+        accountId: account.id,
+        accountEmail: account.email,
+        calendarId: cal.calendarId,
+        label: cal.label,
+        customLabel,
+        displayName,
+        tag: normalizeCalendarTag(cal.tag),
+        color: cal.color,
+        isDefault: !!cal.defaultForBooking,
+      });
+    }
+  }
+
+  out.sort((a, b) => {
+    if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+    return a.displayName.localeCompare(b.displayName, "fr");
+  });
+  return out;
+}
+
+function findWritableCalendarTarget(
+  uid: string,
+  requested: BookingTargetRequest,
+): ResolvedBookingTarget | null {
+  const calendarId = typeof requested.calendarId === "string" ? requested.calendarId.trim() : "";
+  if (!calendarId) return null;
+
+  const wantProvider = requested.provider;
+  const wantAccountId = typeof requested.accountId === "string" ? requested.accountId.trim() : "";
+
+  const tryGoogle = !wantProvider || wantProvider === "google";
+  const tryMicrosoft = !wantProvider || wantProvider === "microsoft";
+
+  if (tryGoogle) {
+    for (const account of getGoogleAccounts(uid)) {
+      if (wantAccountId && account.id !== wantAccountId) continue;
+      const cal = account.calendars.find((c) => c.calendarId === calendarId);
+      if (cal && isCalendarBookable(cal) && cal.canWriteBooking !== false) {
+        return { provider: "google", accountId: account.id, calendarId: cal.calendarId };
+      }
+    }
+  }
+  if (tryMicrosoft) {
+    for (const account of getMicrosoftAccounts(uid)) {
+      if (wantAccountId && account.id !== wantAccountId) continue;
+      const cal = account.calendars.find((c) => c.calendarId === calendarId);
+      if (cal && isCalendarBookable(cal) && cal.canWriteBooking !== false) {
+        return { provider: "microsoft", accountId: account.id, calendarId: cal.calendarId };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Where to write new calendar bookings.
+ * If `requested` points at a writable bookable calendar, that target wins;
+ * otherwise falls back to the global default (or first bookable calendar).
+ */
+export function resolveBookingTarget(
+  uid: string,
+  requested?: BookingTargetRequest | null,
+): ResolvedBookingTarget | null {
+  if (requested?.calendarId) {
+    const override = findWritableCalendarTarget(uid, requested);
+    if (override) return override;
+  }
+
   const user = usersByUid.get(uid);
   const pref = user?.preferredBookingProvider;
   const g = getGoogleBookingTarget(uid);

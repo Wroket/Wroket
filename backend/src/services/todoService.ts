@@ -83,6 +83,27 @@ export interface SuggestedSlot {
   end: string;
 }
 
+/** Preferred external calendar for booking this task (overrides global default when set). */
+export interface PreferredBookingTarget {
+  provider: "google" | "microsoft";
+  accountId: string;
+  calendarId: string;
+}
+
+function normalizePreferredBookingTarget(
+  raw: unknown,
+): PreferredBookingTarget | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const provider = o.provider === "microsoft" ? "microsoft" : o.provider === "google" ? "google" : null;
+  const accountId = typeof o.accountId === "string" ? o.accountId.trim() : "";
+  const calendarId = typeof o.calendarId === "string" ? o.calendarId.trim() : "";
+  if (!provider || !accountId || !calendarId) return null;
+  return { provider, accountId, calendarId };
+}
+
 export interface Todo {
   id: string;
   userId: string;
@@ -101,6 +122,8 @@ export interface Todo {
   status: TodoStatus;
   scheduledSlot: ScheduledSlot | null;
   suggestedSlot: SuggestedSlot | null;
+  /** Preferred calendar for slot booking; null/undefined = use global default. */
+  preferredBookingTarget?: PreferredBookingTarget | null;
   recurrence: Recurrence | null;
   sortOrder: number | null;
   /** Tasks that must be completed before this one (same project). Small teams+. */
@@ -138,6 +161,7 @@ export interface CreateTodoInput {
   assignmentStatus?: AssignmentStatus | null;
   scheduledSlot?: ScheduledSlot | null;
   suggestedSlot?: SuggestedSlot | null;
+  preferredBookingTarget?: PreferredBookingTarget | null;
   blockedByTodoIds?: string[];
   /** External-source identity (set by sync/import, not by end users). */
   externalRef?: ExternalRef | null;
@@ -159,6 +183,7 @@ export interface UpdateTodoInput {
   assignmentStatus?: AssignmentStatus | null;
   scheduledSlot?: ScheduledSlot | null;
   suggestedSlot?: SuggestedSlot | null;
+  preferredBookingTarget?: PreferredBookingTarget | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
   blockedByTodoIds?: string[];
@@ -580,6 +605,7 @@ export function todoToClientJson(todo: Todo): Todo {
         }
       : null,
     suggestedSlot: todo.suggestedSlot,
+    preferredBookingTarget: todo.preferredBookingTarget ?? null,
     recurrence: todo.recurrence,
     sortOrder: todo.sortOrder ?? null,
     blockedByTodoIds: [...normalizeBlockedByTodoIds(todo.blockedByTodoIds)],
@@ -1541,6 +1567,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     tags: (input.tags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 10),
     scheduledSlot: normalizedSlot,
     suggestedSlot: normalizedSuggested,
+    preferredBookingTarget: normalizePreferredBookingTarget(input.preferredBookingTarget) ?? null,
     recurrence: input.recurrence ?? null,
     sortOrder: typeof input.sortOrder === "number" ? input.sortOrder : null,
     blockedByTodoIds: [],
@@ -1891,6 +1918,10 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   if (input.suggestedSlot !== undefined) {
     if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut suggérer un créneau");
     todo.suggestedSlot = input.suggestedSlot;
+  }
+  if (input.preferredBookingTarget !== undefined) {
+    if (!isOwner) throw new ForbiddenError("Seul le propriétaire peut choisir l'agenda cible");
+    todo.preferredBookingTarget = normalizePreferredBookingTarget(input.preferredBookingTarget) ?? null;
   }
   if (input.recurrence !== undefined) {
     if (input.recurrence) {

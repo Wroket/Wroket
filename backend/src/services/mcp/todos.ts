@@ -16,6 +16,7 @@ import {
   permanentlyRemoveArchivedTodo,
   updateTodo,
   type MoveTodoStrategy,
+  type PreferredBookingTarget,
   type Recurrence,
   type Todo,
   type TodoStatus,
@@ -23,6 +24,10 @@ import {
 import { ValidationError, NotFoundError } from "../../utils/errors";
 import type { McpToolDef, McpToolHandler } from "./types";
 import { clampLimit, optionalString, requireString } from "./types";
+import {
+  bookingTargetSchemaProperties,
+  resolveBookingTargetFromArgs,
+} from "./bookingTargetArgs";
 
 function leanTodo(t: Todo): Record<string, unknown> {
   return {
@@ -39,6 +44,7 @@ function leanTodo(t: Todo): Record<string, unknown> {
     phaseId: t.phaseId,
     parentId: t.parentId,
     scheduledSlot: t.scheduledSlot,
+    preferredBookingTarget: t.preferredBookingTarget ?? null,
     recurrence: t.recurrence ?? null,
     assignedTo: t.assignedTo ?? null,
     assignmentStatus: t.assignmentStatus ?? null,
@@ -46,6 +52,29 @@ function leanTodo(t: Todo): Record<string, unknown> {
     customFieldValues: t.customFieldValues ?? {},
     updatedAt: t.updatedAt,
     createdAt: t.createdAt,
+  };
+}
+
+function preferredTargetFromArgs(
+  uid: string,
+  args: Record<string, unknown>,
+): PreferredBookingTarget | null | undefined {
+  const hasHint =
+    optionalString(args, "calendarId") ||
+    optionalString(args, "calendarTag") ||
+    optionalString(args, "tag") ||
+    optionalString(args, "calendarLabel") ||
+    optionalString(args, "customLabel") ||
+    optionalString(args, "calendarName") ||
+    optionalString(args, "provider") ||
+    optionalString(args, "accountId");
+  if (!hasHint) return undefined;
+  const resolved = resolveBookingTargetFromArgs(uid, args);
+  if (!resolved) return null;
+  return {
+    provider: resolved.provider,
+    accountId: resolved.accountId,
+    calendarId: resolved.calendarId,
   };
 }
 
@@ -138,7 +167,7 @@ export const todoToolDefs: McpToolDef[] = [
   {
     name: "create_todo",
     description:
-      "Create a task (title required). Supports projectId, phaseId, parentId, tags, estimatedMinutes (15..480), recurrence, and optional notes (creates a linked task note).",
+      "Create a task (title required). Supports projectId, phaseId, parentId, tags, estimatedMinutes (15..480), recurrence, preferred booking calendar (calendarId/calendarTag/calendarLabel), and optional notes (creates a linked task note).",
     requiredScope: "todos:write",
     inputSchema: {
       type: "object",
@@ -167,6 +196,7 @@ export const todoToolDefs: McpToolDef[] = [
           type: "string",
           description: "Optional markdown description/notes to attach to the task",
         },
+        ...bookingTargetSchemaProperties,
       },
       required: ["title"],
     },
@@ -212,7 +242,7 @@ export const todoToolDefs: McpToolDef[] = [
   {
     name: "update_todo",
     description:
-      "Update title, priority, effort, estimatedMinutes, dates, status, projectId, phaseId, parentId, tags, recurrence, or customFieldValues.",
+      "Update title, priority, effort, estimatedMinutes, dates, status, projectId, phaseId, parentId, tags, recurrence, preferred booking calendar, or customFieldValues.",
     requiredScope: "todos:write",
     inputSchema: {
       type: "object",
@@ -241,6 +271,7 @@ export const todoToolDefs: McpToolDef[] = [
           type: "object",
           description: "Key-value map of customFieldDefId -> string | number | boolean | null",
         },
+        ...bookingTargetSchemaProperties,
       },
       required: ["id"],
     },
@@ -387,12 +418,14 @@ async function createTodoHandler(user: AuthUser, args: Record<string, unknown>) 
         : undefined;
   const recurrence = parseRecurrence(args.recurrence);
 
+  const preferredBookingTarget = preferredTargetFromArgs(user.uid, args);
   const created = await createTodo(user.uid, user.email, {
     title,
     priority,
     effort,
     ...(estimatedMinutes !== undefined ? { estimatedMinutes } : {}),
     ...(recurrence !== undefined ? { recurrence } : {}),
+    ...(preferredBookingTarget !== undefined ? { preferredBookingTarget } : {}),
     deadline: optionalString(args, "deadline") ?? null,
     startDate: optionalString(args, "startDate") ?? null,
     projectId: optionalString(args, "projectId") ?? null,
@@ -526,6 +559,8 @@ async function updateTodoHandler(user: AuthUser, args: Record<string, unknown>) 
   if (recurrence !== undefined) patch.recurrence = recurrence;
   const customFieldValues = parseCustomFieldValues(args.customFieldValues);
   if (customFieldValues) patch.customFieldValues = customFieldValues;
+  const preferredBookingTarget = preferredTargetFromArgs(user.uid, args);
+  if (preferredBookingTarget !== undefined) patch.preferredBookingTarget = preferredBookingTarget;
   return leanTodo(await updateTodo(user.uid, user.email, id, patch));
 }
 

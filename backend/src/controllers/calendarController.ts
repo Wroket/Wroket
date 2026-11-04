@@ -167,18 +167,21 @@ export async function getSlots(req: AuthenticatedRequest, res: Response) {
   res.status(200).json(result);
 }
 
-interface ConflictInfo { id: string; title: string; start: string; end: string }
-
-const MAX_CONFLICT_CALENDAR_FETCHES = 10;
 const meetCreationInFlight = new Map<string, Promise<Todo>>();
 
 export async function bookSlot(req: AuthenticatedRequest, res: Response) {
   const todoId = req.params.todoId as string;
-  const { start, end, force } = req.body as { start: string; end: string; force?: unknown };
+  const { start, end, force, target } = req.body as {
+    start: string;
+    end: string;
+    force?: unknown;
+    target?: { provider?: "google" | "microsoft"; accountId?: string; calendarId?: string } | null;
+  };
   const result = await bookTodoSlot(req.user!.uid, req.user!.email ?? "", todoId, {
     start,
     end,
     force: !!force,
+    target: target ?? null,
   });
   if (!result.ok) {
     const requestId = (req as Request & { id?: string }).id;
@@ -426,6 +429,9 @@ export async function saveMicrosoftCalendarSelection(req: AuthenticatedRequest, 
     defaultForBooking: !!c.defaultForBooking,
     canWriteBooking: c.canWriteBooking !== false,
     primary: !!c.primary,
+    customLabel: typeof c.customLabel === "string" ? c.customLabel.substring(0, 60) : (c.customLabel ?? null),
+    tag: typeof c.tag === "string" ? c.tag.substring(0, 24) : (c.tag ?? null),
+    bookable: c.bookable === undefined ? undefined : !!c.bookable,
   }));
 
   setMicrosoftAccountCalendars(uid, accountId, entries);
@@ -718,6 +724,9 @@ export async function saveCalendarSelection(req: AuthenticatedRequest, res: Resp
     defaultForBooking: !!c.defaultForBooking,
     canWriteBooking: c.canWriteBooking !== false,
     primary: !!c.primary,
+    customLabel: typeof c.customLabel === "string" ? c.customLabel.substring(0, 60) : (c.customLabel ?? null),
+    tag: typeof c.tag === "string" ? c.tag.substring(0, 24) : (c.tag ?? null),
+    bookable: c.bookable === undefined ? undefined : !!c.bookable,
   }));
 
   setGoogleAccountCalendars(uid, accountId, entries);

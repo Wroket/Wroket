@@ -57,6 +57,31 @@ export interface GoogleCalendarEntry {
   primary?: boolean;
   defaultForBooking?: boolean;
   canWriteBooking?: boolean;
+  /** User-defined display name (falls back to `label`). */
+  customLabel?: string | null;
+  /** Short tag e.g. Pro / Perso / Client. */
+  tag?: string | null;
+  /** Appears in Wroket booking / task-target pickers. */
+  bookable?: boolean;
+}
+
+export interface BookableCalendarOption {
+  provider: "google" | "microsoft";
+  accountId: string;
+  accountEmail: string;
+  calendarId: string;
+  label: string;
+  customLabel: string | null;
+  displayName: string;
+  tag: string | null;
+  color: string;
+  isDefault: boolean;
+}
+
+export interface PreferredBookingTarget {
+  provider: "google" | "microsoft";
+  accountId: string;
+  calendarId: string;
 }
 
 export interface GoogleAccountPublic {

@@ -1,7 +1,13 @@
 import { parseApiErrorResponse } from "@/lib/apiErrors";
 
 import { API_BASE_URL } from "./core";
-import type { SlotProposal, SuggestedSlot, GoogleCalendarEntry } from "./core";
+import type {
+  SlotProposal,
+  SuggestedSlot,
+  GoogleCalendarEntry,
+  BookableCalendarOption,
+  PreferredBookingTarget,
+} from "./core";
 import type { Todo } from "./todos";
 
 export interface CalendarEvent {
@@ -49,6 +55,8 @@ export async function getTaskSlots(todoId: string): Promise<{
   suggestedSlot: SuggestedSlot | null;
   todayAvailability?: TodayAvailability;
   effectiveStartDate?: string | null;
+  bookableCalendars?: BookableCalendarOption[];
+  resolvedTarget?: PreferredBookingTarget | null;
 }> {
   const res = await fetch(`${API_BASE_URL}/calendar/slots/${todoId}`, { credentials: "include" });
   if (!res.ok) {
@@ -72,11 +80,17 @@ export interface BookSlotResult {
   conflicts?: SlotConflict[];
 }
 
-export async function bookTaskSlot(todoId: string, start: string, end: string, force?: boolean): Promise<BookSlotResult> {
+export async function bookTaskSlot(
+  todoId: string,
+  start: string,
+  end: string,
+  force?: boolean,
+  target?: PreferredBookingTarget | null,
+): Promise<BookSlotResult> {
   const res = await fetch(`${API_BASE_URL}/calendar/book/${todoId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ start, end, force }),
+    body: JSON.stringify({ start, end, force, ...(target ? { target } : {}) }),
     credentials: "include",
   });
   if (res.status === 409) {

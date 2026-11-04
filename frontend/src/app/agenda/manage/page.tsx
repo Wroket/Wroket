@@ -12,7 +12,6 @@ import {
   getMicrosoftAuthUrl,
   getAccountCalendars,
   saveAccountCalendars,
-  setPriorityCalendarAccount,
   disconnectGoogleAccount,
   getMicrosoftAccountCalendars,
   saveMicrosoftAccountCalendars,
@@ -22,6 +21,13 @@ import {
   type GoogleAccountPublic,
   type GoogleCalendarEntry,
 } from "@/lib/api";
+
+const TAG_SUGGESTIONS = ["Pro", "Perso", "Client", "Équipe"];
+const CAL_COLORS = [
+  "#10b981", "#8b5cf6", "#3b82f6", "#f59e0b",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1",
+  "#ef4444", "#06b6d4",
+];
 import { broadcastResourceChange } from "@/lib/useResourceSync";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
@@ -54,7 +60,7 @@ export default function ManageCalendarsPage() {
   const [accounts, setAccounts] = useState<AccountWithCals[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [prioritySavingKey, setPrioritySavingKey] = useState<string | null>(null);
+  const [editingCalKey, setEditingCalKey] = useState<string | null>(null);
   const [preferredBookingProvider, setPreferredBookingProvider] = useState<"google" | "microsoft" | undefined>();
   const [inAppSyncDialogOpen, setInAppSyncDialogOpen] = useState(false);
   const [inAppSyncPendingCount, setInAppSyncPendingCount] = useState(0);
@@ -187,7 +193,25 @@ export default function ManageCalendarsPage() {
     } catch { /* ignore */ }
   };
 
-  const toggleCalendar = (accountId: string, provider: CalProvider, calendarId: string) => {
+  const patchCalendar = (
+    accountId: string,
+    provider: CalProvider,
+    calendarId: string,
+    patch: Partial<GoogleCalendarEntry>,
+  ) => {
+    setAccounts((prev) =>
+      prev.map((a) =>
+        a.id === accountId && a.provider === provider
+          ? {
+              ...a,
+              cals: a.cals?.map((c) => (c.calendarId === calendarId ? { ...c, ...patch } : c)),
+            }
+          : a,
+      ),
+    );
+  };
+
+  const toggleConsulted = (accountId: string, provider: CalProvider, calendarId: string) => {
     setAccounts((prev) =>
       prev.map((a) =>
         a.id === accountId && a.provider === provider
@@ -208,40 +232,49 @@ export default function ManageCalendarsPage() {
     );
   };
 
-  const setDefaultBookingCalendar = (accountId: string, provider: CalProvider, calendarId: string) => {
+  const isEffectivelyBookable = (c: GoogleCalendarEntry): boolean => {
+    if (c.canWriteBooking === false) return false;
+    if (c.bookable === true || !!c.defaultForBooking) return true;
+    if (c.bookable === false) return false;
+    return !!c.enabled;
+  };
+
+  const toggleBookable = (accountId: string, provider: CalProvider, calendarId: string) => {
     setAccounts((prev) =>
       prev.map((a) =>
-        ({
-          ...a,
-          cals: a.cals?.map((c) => {
-            const selected = a.id === accountId && a.provider === provider && c.calendarId === calendarId;
-            return {
-              ...c,
-              enabled: selected ? true : c.enabled,
-              defaultForBooking: selected && c.canWriteBooking !== false,
-            };
-          }),
-        })
+        a.id === accountId && a.provider === provider
+          ? {
+              ...a,
+              cals: a.cals?.map((c) => {
+                if (c.calendarId !== calendarId || c.canWriteBooking === false) return c;
+                const currentlyBookable = isEffectivelyBookable(c);
+                return {
+                  ...c,
+                  bookable: !currentlyBookable,
+                  defaultForBooking: currentlyBookable ? false : c.defaultForBooking,
+                };
+              }),
+            }
+          : a,
       ),
     );
   };
 
-  const handleSetPriorityAccount = async (accountId: string, provider: CalProvider) => {
-    if (!canUseCalendarIntegrations) {
-      toast.error(t("agenda.calendarReadonlyPlanHint"));
-      return;
-    }
-    const key = `${provider}:${accountId}`;
-    setPrioritySavingKey(key);
-    try {
-      await setPriorityCalendarAccount(provider, accountId);
-      toast.success(t("agenda.priorityAccountSaved"));
-      await loadAccounts();
-    } catch (e) {
-      toast.error(formatUserFacingError(e, "agenda.priorityAccountSaveError"));
-    } finally {
-      setPrioritySavingKey(null);
-    }
+  const setDefaultBookingCalendar = (accountId: string, provider: CalProvider, calendarId: string) => {
+    setAccounts((prev) =>
+      prev.map((a) => ({
+        ...a,
+        cals: a.cals?.map((c) => {
+          const selected = a.id === accountId && a.provider === provider && c.calendarId === calendarId;
+          return {
+            ...c,
+            enabled: selected ? true : c.enabled,
+            bookable: selected ? true : c.bookable,
+            defaultForBooking: selected && c.canWriteBooking !== false,
+          };
+        }),
+      })),
+    );
   };
 
   const handleSave = async (accountId: string, provider: CalProvider) => {
@@ -347,9 +380,16 @@ export default function ManageCalendarsPage() {
           {!authLoading && user && !user.entitlements?.integrations && accounts.length > 0 && (
             <p className="text-xs text-zinc-600 dark:text-slate-400 mt-2">{t("agenda.calendarReadonlyPlanHint")}</p>
           )}
-          {hasBothCalendarProviders(accounts) && (
+          {accounts.length > 0 && (
             <p className="text-xs text-zinc-600 dark:text-slate-400 mt-2 rounded-lg bg-zinc-50 dark:bg-slate-800/80 px-3 py-2 border border-zinc-100 dark:border-slate-700">
-              {preferredBookingProvider === "microsoft" ? t("agenda.bookingPreferenceOutlook") : preferredBookingProvider === "google" ? t("agenda.bookingPreferenceGoogle") : t("agenda.bookingPreferenceUnset")}
+              {t("agenda.multiCalHint")}
+            </p>
+          )}
+          {hasBothCalendarProviders(accounts) && preferredBookingProvider && (
+            <p className="text-xs text-zinc-500 dark:text-slate-500 mt-1">
+              {preferredBookingProvider === "microsoft"
+                ? t("agenda.bookingPreferenceOutlook")
+                : t("agenda.bookingPreferenceGoogle")}
             </p>
           )}
         </div>
@@ -441,7 +481,6 @@ export default function ManageCalendarsPage() {
           <div className="space-y-4">
             {accounts.map((account, idx) => {
               const acctColor = ACCOUNT_COLORS[idx % ACCOUNT_COLORS.length];
-              const isPriorityAccount = account.cals?.some((c) => !!c.defaultForBooking) ?? idx === 0;
               const rowKey = `${account.provider}:${account.id}`;
               return (
                 <div key={rowKey} className="bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 rounded-lg overflow-hidden">
@@ -452,66 +491,153 @@ export default function ManageCalendarsPage() {
                       <span className="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-300">
                         {account.provider === "google" ? "Google" : "Outlook"}
                       </span>
-                      <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 ${
-                        isPriorityAccount
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                          : "bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:text-slate-300"
-                      }`}>
-                        {isPriorityAccount ? t("agenda.priorityAccount") : t("agenda.readOnlyAccount")}
-                      </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {!isPriorityAccount && (
-                        <button
-                          type="button"
-                          onClick={() => void handleSetPriorityAccount(account.id, account.provider)}
-                          disabled={!canUseCalendarIntegrations || prioritySavingKey === rowKey}
-                          className="rounded px-2.5 py-1 text-xs text-blue-600 hover:text-blue-700 border border-blue-200 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                        >
-                          {prioritySavingKey === rowKey ? t("settings.saving") : t("agenda.setPriorityAccount")}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDisconnect(account.id, account.provider)}
-                        className="rounded px-2.5 py-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                      >
-                        {t("agenda.disconnect")}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDisconnect(account.id, account.provider)}
+                      className="rounded px-2.5 py-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+                    >
+                      {t("agenda.disconnect")}
+                    </button>
                   </div>
 
                   {account.cals && account.cals.length > 0 ? (
-                    <div className="px-4 py-3 space-y-1">
-                      <p className="text-[10px] text-zinc-400 dark:text-slate-500 uppercase tracking-wide font-semibold mb-2">{t("settings.calendarSelect")}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-2">{isPriorityAccount ? t("agenda.defaultBookingCalendarHint") : t("agenda.secondaryReadonlyHint")}</p>
-                      {account.cals.map((cal) => (
-                        <div
-                          key={cal.calendarId}
-                          className="flex items-center gap-3 rounded-md px-2.5 py-2 hover:bg-zinc-50 dark:hover:bg-slate-800/50 transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={cal.enabled}
-                            onChange={() => toggleCalendar(account.id, account.provider, cal.calendarId)}
-                            disabled={!isPriorityAccount || !canUseCalendarIntegrations}
-                            className="w-4 h-4 rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
-                          />
-                          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.color }} />
-                          <span className="text-sm text-zinc-700 dark:text-slate-200 flex-1 truncate">{cal.label}</span>
-                          <label className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-slate-400 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="booking-default-global"
-                              checked={!!cal.defaultForBooking}
-                              onChange={() => setDefaultBookingCalendar(account.id, account.provider, cal.calendarId)}
-                              disabled={!isPriorityAccount || cal.canWriteBooking === false || !canUseCalendarIntegrations}
-                              className="w-3.5 h-3.5 border-zinc-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
-                            />
-                            {!isPriorityAccount || cal.canWriteBooking === false ? t("agenda.readOnlyCalendar") : t("agenda.defaultBookingCalendar")}
-                          </label>
-                        </div>
-                      ))}
+                    <div className="px-4 py-3 space-y-2">
+                      <p className="text-[10px] text-zinc-400 dark:text-slate-500 uppercase tracking-wide font-semibold mb-1">{t("settings.calendarSelect")}</p>
+                      {account.cals.map((cal) => {
+                        const calKey = `${rowKey}:${cal.calendarId}`;
+                        const displayName = (cal.customLabel?.trim() || cal.label);
+                        const writable = cal.canWriteBooking !== false;
+                        const bookable = isEffectivelyBookable(cal);
+                        const editing = editingCalKey === calKey;
+                        return (
+                          <div
+                            key={cal.calendarId}
+                            className="rounded-md border border-zinc-100 dark:border-slate-700/80 px-2.5 py-2 space-y-2 hover:bg-zinc-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.color }} />
+                              <span className="text-sm text-zinc-800 dark:text-slate-100 font-medium truncate flex-1">
+                                {displayName}
+                              </span>
+                              {cal.tag ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 px-1.5 py-0.5 shrink-0">
+                                  {cal.tag}
+                                </span>
+                              ) : null}
+                              {!writable && (
+                                <span className="text-[10px] rounded bg-zinc-100 text-zinc-500 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 shrink-0">
+                                  {t("agenda.readOnlyAvailabilityOnly")}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                title={t("agenda.renameTag")}
+                                onClick={() => setEditingCalKey(editing ? null : calKey)}
+                                disabled={!canUseCalendarIntegrations}
+                                className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-40 shrink-0"
+                              >
+                                ✎
+                              </button>
+                            </div>
+
+                            {editing && (
+                              <div className="pl-5 space-y-2">
+                                <input
+                                  type="text"
+                                  value={cal.customLabel ?? ""}
+                                  onChange={(e) =>
+                                    patchCalendar(account.id, account.provider, cal.calendarId, {
+                                      customLabel: e.target.value.slice(0, 60),
+                                    })
+                                  }
+                                  placeholder={t("agenda.customLabelPlaceholder")}
+                                  maxLength={60}
+                                  className="w-full rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs"
+                                />
+                                <input
+                                  type="text"
+                                  value={cal.tag ?? ""}
+                                  onChange={(e) =>
+                                    patchCalendar(account.id, account.provider, cal.calendarId, {
+                                      tag: e.target.value.slice(0, 24),
+                                    })
+                                  }
+                                  placeholder={t("agenda.tagPlaceholder")}
+                                  maxLength={24}
+                                  className="w-full rounded border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs"
+                                />
+                                <div className="flex flex-wrap gap-1">
+                                  {TAG_SUGGESTIONS.map((tag) => (
+                                    <button
+                                      key={tag}
+                                      type="button"
+                                      onClick={() =>
+                                        patchCalendar(account.id, account.provider, cal.calendarId, { tag })
+                                      }
+                                      className="rounded-full border border-zinc-200 dark:border-slate-600 px-2 py-0.5 text-[10px] text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800"
+                                    >
+                                      {tag}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                  {CAL_COLORS.map((color) => (
+                                    <button
+                                      key={color}
+                                      type="button"
+                                      aria-label={color}
+                                      onClick={() =>
+                                        patchCalendar(account.id, account.provider, cal.calendarId, { color })
+                                      }
+                                      className={`w-5 h-5 rounded-full ring-offset-1 ${cal.color === color ? "ring-2 ring-emerald-500" : ""}`}
+                                      style={{ backgroundColor: color }}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pl-5 text-[11px] text-zinc-600 dark:text-slate-300">
+                              <label className="inline-flex items-center gap-1.5 cursor-pointer" title={t("agenda.consultedToggleHint")}>
+                                <input
+                                  type="checkbox"
+                                  checked={!!cal.enabled}
+                                  onChange={() => toggleConsulted(account.id, account.provider, cal.calendarId)}
+                                  disabled={!canUseCalendarIntegrations}
+                                  className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                {t("agenda.consultedToggle")}
+                              </label>
+                              <label
+                                className={`inline-flex items-center gap-1.5 ${writable ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
+                                title={t("agenda.bookableToggleHint")}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={bookable}
+                                  onChange={() => toggleBookable(account.id, account.provider, cal.calendarId)}
+                                  disabled={!writable || !canUseCalendarIntegrations}
+                                  className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+                                />
+                                {t("agenda.bookableToggle")}
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setDefaultBookingCalendar(account.id, account.provider, cal.calendarId)}
+                                disabled={!writable || !canUseCalendarIntegrations}
+                                className={`rounded px-2 py-0.5 text-[11px] font-medium border transition-colors disabled:opacity-40 ${
+                                  cal.defaultForBooking
+                                    ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+                                    : "border-zinc-200 text-zinc-500 hover:border-amber-200 hover:text-amber-800 dark:border-slate-600 dark:text-slate-400"
+                                }`}
+                              >
+                                {cal.defaultForBooking ? t("agenda.isDefaultStar") : t("agenda.setDefaultStar")}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                       <div className="pt-2">
                         <button
                           type="button"

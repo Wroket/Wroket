@@ -7,6 +7,7 @@ import {
   extractApiMessage,
   type ScheduledSlot,
   type SuggestedSlot,
+  type PreferredBookingTarget,
   type ActivityLogEntry,
 } from "./core";
 import { broadcastTodosMutated } from "../todoSyncBroadcast";
@@ -52,6 +53,7 @@ export interface Todo {
   tags: string[];
   scheduledSlot: ScheduledSlot | null;
   suggestedSlot: SuggestedSlot | null;
+  preferredBookingTarget?: PreferredBookingTarget | null;
   recurrence: Recurrence | null;
   sortOrder?: number | null;
   blockedByTodoIds?: string[];
@@ -79,6 +81,7 @@ export interface CreateTodoPayload {
   assignedTo?: string | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
+  preferredBookingTarget?: PreferredBookingTarget | null;
 }
 
 export interface UpdateTodoPayload {
@@ -97,6 +100,7 @@ export interface UpdateTodoPayload {
   assignmentStatus?: AssignmentStatus | null;
   suggestedSlot?: SuggestedSlot | null;
   scheduledSlot?: ScheduledSlot | null;
+  preferredBookingTarget?: PreferredBookingTarget | null;
   recurrence?: Recurrence | null;
   sortOrder?: number | null;
   blockedByTodoIds?: string[];

@@ -1,5 +1,6 @@
 import { findAvailableSlots } from "./calendarService";
 import { findSlotConflicts } from "./calendarConflictService";
+import { collectEnabledExternalCalendars } from "./calendarEnabledCalendars";
 import { getEffectiveEntitlementsForUid } from "./teamService";
 import { findPhaseById } from "./projectService";
 import {
@@ -7,7 +8,11 @@ import {
   findUserByUid,
   getGoogleAccounts,
   getMicrosoftAccounts,
+  listBookableCalendars,
   resolveBookingTarget,
+  type BookingTargetRequest,
+  type BookableCalendarOption,
+  type ResolvedBookingTarget,
 } from "./authService";
 import { logActivity } from "./activityLogService";
 import {
@@ -48,6 +53,8 @@ export interface ProposeSlotsResult {
   suggestedSlot: Todo["suggestedSlot"];
   todayAvailability: Awaited<ReturnType<typeof findAvailableSlots>>["todayAvailability"];
   effectiveStartDate: string | null;
+  bookableCalendars: BookableCalendarOption[];
+  resolvedTarget: ResolvedBookingTarget | null;
 }
 
 /**
@@ -75,19 +82,30 @@ export async function proposeSlotsForTodo(
 
   const googleBusySlots: { start: Date; end: Date }[] = [];
   const extCal = getEffectiveEntitlementsForUid(uid, email).integrations;
-  const accounts = getGoogleAccounts(uid);
-  if (extCal && accounts.length > 0) {
+  if (extCal) {
     const now = new Date();
     const searchEnd = new Date(now.getTime() + 31 * 24 * 3600_000);
-    const fetches: Promise<{ start: string; end: string; allDay: boolean }[]>[] = [];
-    for (const account of accounts) {
-      for (const cal of account.calendars) {
-        if (!cal.enabled || fetches.length >= 10) continue;
-        fetches.push(
-          listEventsForAccount(uid, account.id, cal.calendarId, now.toISOString(), searchEnd.toISOString()),
-        );
+    const enabled = collectEnabledExternalCalendars(uid);
+    const fetches = enabled.map((c) => {
+      if (c.provider === "google") {
+        return listEventsForAccount(
+          uid,
+          c.accountId,
+          c.calendarId,
+          now.toISOString(),
+          searchEnd.toISOString(),
+        ).catch(() => [] as { start: string; end: string; allDay: boolean }[]);
       }
-    }
+      return listMicrosoftEventsForAccount(
+        uid,
+        c.accountId,
+        c.calendarId,
+        now.toISOString(),
+        searchEnd.toISOString(),
+      )
+        .then((events) => events.map((e) => ({ start: e.start, end: e.end, allDay: e.allDay })))
+        .catch(() => [] as { start: string; end: string; allDay: boolean }[]);
+    });
     try {
       const results = await Promise.all(fetches);
       for (const events of results) {
@@ -97,35 +115,7 @@ export async function proposeSlotsForTodo(
         }
       }
     } catch {
-      /* Google Calendar unavailable */
-    }
-  }
-
-  const msAccounts = getMicrosoftAccounts(uid);
-  if (extCal && msAccounts.length > 0) {
-    const now = new Date();
-    const searchEnd = new Date(now.getTime() + 31 * 24 * 3600_000);
-    const msFetches: Promise<{ start: string; end: string; allDay: boolean }[]>[] = [];
-    for (const account of msAccounts) {
-      for (const cal of account.calendars) {
-        if (!cal.enabled || msFetches.length >= 10) continue;
-        msFetches.push(
-          listMicrosoftEventsForAccount(uid, account.id, cal.calendarId, now.toISOString(), searchEnd.toISOString()).then(
-            (events) => events.map((e) => ({ start: e.start, end: e.end, allDay: e.allDay })),
-          ),
-        );
-      }
-    }
-    try {
-      const results = await Promise.all(msFetches);
-      for (const events of results) {
-        for (const ev of events) {
-          if (ev.allDay) continue;
-          googleBusySlots.push({ start: new Date(ev.start), end: new Date(ev.end) });
-        }
-      }
-    } catch {
-      /* Outlook unavailable */
+      /* External calendars unavailable */
     }
   }
 
@@ -178,6 +168,8 @@ export async function proposeSlotsForTodo(
     suggestedSlot: todo.suggestedSlot ?? null,
     todayAvailability,
     effectiveStartDate: effectiveStartDate ?? null,
+    bookableCalendars: listBookableCalendars(uid),
+    resolvedTarget: resolveBookingTarget(uid, todo.preferredBookingTarget),
   };
 }
 
@@ -189,9 +181,14 @@ export async function bookTodoSlot(
   uid: string,
   email: string,
   todoId: string,
-  input: { start: string; end: string; force?: boolean },
+  input: {
+    start: string;
+    end: string;
+    force?: boolean;
+    target?: BookingTargetRequest | null;
+  },
 ): Promise<BookTodoSlotResult> {
-  const { start, end, force } = input;
+  const { start, end, force, target } = input;
 
   if (!start || !end) throw new ValidationError("start and end required", "CALENDAR_SLOT_MISSING_RANGE");
   if (typeof start !== "string" || typeof end !== "string") {
@@ -238,7 +235,7 @@ export async function bookTodoSlot(
 
   const hasCalendarIntegration =
     getGoogleAccounts(uid).length > 0 || getMicrosoftAccounts(uid).length > 0;
-  const bookingTarget = resolveBookingTarget(uid);
+  const bookingTarget = resolveBookingTarget(uid, target ?? todo.preferredBookingTarget);
 
   if (bookingTarget && !getEffectiveEntitlementsForUid(uid, email).integrations) {
     throw new ForbiddenError(
@@ -264,8 +261,15 @@ export async function bookTodoSlot(
 
     let existingEventId = todo.scheduledSlot?.calendarEventId ?? null;
     let existingProvider = todo.scheduledSlot?.bookingProvider ?? "google";
+    const existingCalId = todo.scheduledSlot?.bookingCalendarId ?? null;
+    const existingAccountId = todo.scheduledSlot?.bookingAccountId ?? null;
+    const targetChanged =
+      !!existingEventId &&
+      (existingProvider !== bookingTarget.provider ||
+        (existingAccountId != null && existingAccountId !== bookingTarget.accountId) ||
+        (existingCalId != null && existingCalId !== bookingTarget.calendarId));
 
-    if (existingEventId && existingProvider !== bookingTarget.provider) {
+    if (existingEventId && (existingProvider !== bookingTarget.provider || targetChanged)) {
       await deleteExternalBookingForTodo(todo);
       existingEventId = null;
     }
@@ -389,6 +393,14 @@ export async function bookTodoSlot(
 
   let updated: Todo;
   try {
+    const preferredBookingTarget =
+      bookingTarget
+        ? {
+            provider: bookingTarget.provider,
+            accountId: bookingTarget.accountId,
+            calendarId: bookingTarget.calendarId,
+          }
+        : undefined;
     updated = await updateTodo(uid, email, todoId, {
       scheduledSlot: {
         start,
@@ -399,6 +411,7 @@ export async function bookTodoSlot(
         bookingAccountId,
         ...(bookingProvider ? { bookingProvider } : {}),
       },
+      ...(preferredBookingTarget ? { preferredBookingTarget } : {}),
     });
   } catch (err) {
     if (calendarEventId && bookingProvider && bookingAccountId) {

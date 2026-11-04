@@ -5,6 +5,8 @@ export type {
   SlotProposal,
   SlotReasonCode,
   GoogleCalendarEntry,
+  BookableCalendarOption,
+  PreferredBookingTarget,
   GoogleAccountPublic,
   MicrosoftAccountPublic,
   AuthMeResponse,

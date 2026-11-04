@@ -119,7 +119,7 @@ export async function archived(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function create(req: AuthenticatedRequest, res: Response) {
-  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags, sortOrder, id } = req.body as Partial<CreateTodoInput>;
+  const { title, priority, effort, estimatedMinutes, startDate, deadline, parentId, projectId, phaseId, assignedTo, recurrence, tags, sortOrder, id, preferredBookingTarget } = req.body as Partial<CreateTodoInput>;
   if (typeof title !== "string" || typeof priority !== "string") {
     throw new ValidationError("Titre et priorité requis (chaînes)");
   }
@@ -146,6 +146,7 @@ export async function create(req: AuthenticatedRequest, res: Response) {
     recurrence,
     tags,
     sortOrder,
+    preferredBookingTarget,
   });
 
   const isNew = !existingBefore;
