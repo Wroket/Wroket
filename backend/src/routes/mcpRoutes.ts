@@ -20,8 +20,10 @@ const mcpKeyLimiter = rateLimit({
 
 const mcpRoutes = Router();
 
-mcpRoutes.use(requireApiKey, requireProductAccess, mcpKeyLimiter);
+// Public metadata & Streamable HTTP GET probe (405 on Accept: text/event-stream, 200 JSON otherwise).
 mcpRoutes.get("/", handleMcpGet);
-mcpRoutes.post("/", handleMcpPost);
+
+// Authenticated JSON-RPC endpoint (tools/list, tools/call, prompts/list, prompts/get).
+mcpRoutes.post("/", requireApiKey, requireProductAccess, mcpKeyLimiter, handleMcpPost);
 
 export default mcpRoutes;
