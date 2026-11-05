@@ -36,7 +36,7 @@ En **production**, si SMTP est configuré, l’API envoie un email aux adresses 
 
 | Incident | Déclencheur |
 |----------|-------------|
-| Persistance Firestore | Échec flush `store/*` (`consecutiveFlushFailures > 0`) |
+| Persistance Firestore | Échec flush `store/*` réel (`consecutiveFlushFailures > 0` avec erreur d’écriture). Un flush 100 % commité avec dirty restant (écritures concurrentes pendant le commit) **ne** déclenche **plus** d’alerte. |
 | Flush stale | Sonde 15 min : dirty **continûment** non vide depuis > 10 min (`dirtyAgeMs`, pas `lastFlushAt`) |
 | Drift todos | Monitor horaire `todosDriftMonitor` |
 | Firestore injoignable | Sonde readiness toutes les 15 min (si ping échoue) |

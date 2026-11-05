@@ -356,13 +356,50 @@ export function getPersistenceMetrics(): SaveMetrics & {
   };
 }
 
+/**
+ * True when every op in this flush wave succeeded but the dirty sets are
+ * non-empty afterward — usually concurrent `scheduleSave` during await
+ * (e.g. note trash → notes+archivedNotes commit while activityLog/sessions
+ * is re-dirtied). That is pending work, not a Firestore failure.
+ */
+export function isSuccessfulFlushWithPendingDirty(
+  committed: number,
+  attempted: number,
+  lastErr: unknown,
+  remainingDirtyCount: number,
+): boolean {
+  return attempted > 0 && committed === attempted && lastErr == null && remainingDirtyCount > 0;
+}
+
+/** Serialize Firestore flushes — overlapping runs corrupted the dirty-set accounting and false-alerted. */
+let flushGate: Promise<void> = Promise.resolve();
+
 async function saveToFirestore(): Promise<void> {
+  const previous = flushGate;
+  let release!: () => void;
+  flushGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await previous;
+    await saveToFirestoreUnlocked();
+  } finally {
+    release();
+  }
+}
+
+async function saveToFirestoreUnlocked(): Promise<void> {
   if (!db || (dirtyDomains.size === 0 && dirtyTodoShards.size === 0)) return;
 
   // Legacy monolithic activity log is not flushed in Firestore prod (see activityLogService).
   if (!USE_LOCAL && dirtyDomains.delete("activityLog")) {
     console.log("[persistence] skipped legacy store/activityLog flush (activity_log_v2 is source of truth)");
     refreshDirtySince();
+  }
+
+  if (dirtyDomains.size === 0 && dirtyTodoShards.size === 0) {
+    saveMetrics.consecutiveFlushFailures = 0;
+    return;
   }
 
   type FlushOp = {
@@ -374,12 +411,16 @@ async function saveToFirestore(): Promise<void> {
 
   const ops: FlushOp[] = [];
 
-  for (const domain of dirtyDomains) {
+  for (const domain of [...dirtyDomains]) {
     const data = (cachedStore as Record<string, unknown>)[domain];
     if (data !== undefined) {
       ops.push({ ref: db.collection("store").doc(domain), payload: { data }, domain });
+    } else {
+      // Marked dirty but nothing to write — drop to avoid false flush_exhausted.
+      dirtyDomains.delete(domain);
     }
   }
+  refreshDirtySince();
 
   const mergedTodos = (cachedStore.todos ?? {}) as TodoBlob;
   for (const shardIndex of dirtyTodoShards) {
@@ -391,7 +432,12 @@ async function saveToFirestore(): Promise<void> {
     });
   }
 
-  if (ops.length === 0) return;
+  if (ops.length === 0) {
+    if (dirtyDomains.size === 0 && dirtyTodoShards.size === 0) {
+      saveMetrics.consecutiveFlushFailures = 0;
+    }
+    return;
+  }
 
   const startedAt = Date.now();
   let lastErr: unknown = null;
@@ -460,6 +506,24 @@ async function saveToFirestore(): Promise<void> {
 
   if (dirtyDomains.size === 0 && dirtyTodoShards.size === 0) {
     saveMetrics.consecutiveFlushFailures = 0;
+    return;
+  }
+
+  const remainingDirty = dirtyDomains.size + dirtyTodoShards.size;
+  if (isSuccessfulFlushWithPendingDirty(committed, ops.length, lastErr, remainingDirty)) {
+    // Concurrent writes dirtied more domains while we were committing — reschedule, no alert.
+    saveMetrics.consecutiveFlushFailures = 0;
+    console.log(
+      JSON.stringify({
+        event: "persistence-flush",
+        status: "ok_pending_dirty",
+        committed,
+        attempted: ops.length,
+        dirtyDomains: dirtyDomains.size,
+        dirtyShards: dirtyTodoShards.size,
+      }),
+    );
+    armDebounce();
     return;
   }
 

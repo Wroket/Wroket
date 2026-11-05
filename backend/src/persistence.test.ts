@@ -4,6 +4,7 @@ import {
   _applyTodoShardSnapshot,
   _getStoreForTest,
   _resetStoreForTest,
+  isSuccessfulFlushWithPendingDirty,
   todoShardIndex,
 } from "./persistence";
 
@@ -105,5 +106,19 @@ describe("_applyTodoShardSnapshot", () => {
     _resetStoreForTest({});
     _applyTodoShardSnapshot(`todos_${shardIndex}`, shardIndex, { [userId]: { t1: {} } });
     expect(_getStoreForTest().todos?.[userId]).toEqual({ t1: {} });
+  });
+});
+
+describe("isSuccessfulFlushWithPendingDirty", () => {
+  it("detects the note-trash false alert pattern (2/2 committed, dirty left, no error)", () => {
+    expect(isSuccessfulFlushWithPendingDirty(2, 2, null, 1)).toBe(true);
+  });
+
+  it("is false when a real write error occurred", () => {
+    expect(isSuccessfulFlushWithPendingDirty(1, 2, new Error("UNAVAILABLE"), 1)).toBe(false);
+  });
+
+  it("is false when the dirty set is clean", () => {
+    expect(isSuccessfulFlushWithPendingDirty(2, 2, null, 0)).toBe(false);
   });
 });
