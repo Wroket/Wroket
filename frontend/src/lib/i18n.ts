@@ -1482,6 +1482,12 @@ const translations = {
   "notes.ocr.loadingSource": { fr: "Préparation de l’image…", en: "Preparing image…" },
   "notes.ocr.processing": { fr: "Analyse de l’image…", en: "Analyzing image…" },
   "notes.ocr.previewLabel": { fr: "Texte reconnu (modifiable)", en: "Recognized text (editable)" },
+  "notes.ocr.autocorrect": { fr: "Corriger automatiquement", en: "Autocorrect" },
+  "notes.ocr.autocorrectHint": {
+    fr: "Fusionne les lignes et corrige les fautes OCR fréquentes (FR). Le soulignement rouge du navigateur reste disponible.",
+    en: "Joins line breaks and fixes common OCR slips (FR). Browser red underlines remain available.",
+  },
+  "notes.ocr.autocorrectDone": { fr: "Texte corrigé", en: "Text corrected" },
   "notes.ocr.detected": { fr: "Langue détectée :", en: "Detected language:" },
   "notes.ocr.noText": {
     fr: "Aucun texte détecté. Réessayez avec une photo plus nette ou choisissez la langue.",
@@ -1495,8 +1501,8 @@ const translations = {
   "notes.ocr.otherImage": { fr: "Autre image", en: "Another image" },
   "notes.ocr.attachImage": { fr: "Joindre aussi l’image à la note", en: "Also attach the image to the note" },
   "notes.ocr.privacy": {
-    fr: "Image analysée par Google Cloud Vision (UE), non conservée. Drive et Dropbox : accès limité au seul fichier choisi.",
-    en: "Image analyzed by Google Cloud Vision (EU), not stored. Drive and Dropbox: access limited to the chosen file.",
+    fr: "Cadrez tout le texte (éviter de couper les bords). Image analysée par Google Cloud Vision (UE), non conservée.",
+    en: "Frame the full text (avoid cutting edges). Image analyzed by Google Cloud Vision (EU), not stored.",
   },
   "notes.ocr.remaining": { fr: "{n} analyses restantes aujourd’hui", en: "{n} analyses left today" },
   "notes.ocr.inserted": { fr: "Texte inséré dans la note", en: "Text inserted into the note" },

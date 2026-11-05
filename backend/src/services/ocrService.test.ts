@@ -10,6 +10,7 @@ import {
   OcrProviderFailure,
   parseVisionResponse,
   recognizeImageForUser,
+  reconstructTextFromPages,
   type OcrProvider,
 } from "./ocrService";
 
@@ -154,6 +155,59 @@ describe("ocrService — recognition", () => {
   });
 });
 
+describe("reconstructTextFromPages", () => {
+  it("reorders words by geometric line (Y then X) instead of Vision block order", () => {
+    // Simulates sparse handwriting where Vision emits line2 words before finishing line1.
+    const pages = [
+      {
+        blocks: [
+          {
+            paragraphs: [
+              {
+                words: [
+                  {
+                    symbols: [{ text: "Nouvelle" }],
+                    boundingBox: { vertices: [{ x: 10, y: 10 }, { x: 80, y: 10 }, { x: 80, y: 30 }, { x: 10, y: 30 }] },
+                  },
+                  {
+                    symbols: [{ text: "Ceci" }],
+                    boundingBox: { vertices: [{ x: 10, y: 50 }, { x: 50, y: 50 }, { x: 50, y: 70 }, { x: 10, y: 70 }] },
+                  },
+                  {
+                    symbols: [{ text: "prise" }],
+                    boundingBox: { vertices: [{ x: 90, y: 10 }, { x: 140, y: 10 }, { x: 140, y: 30 }, { x: 90, y: 30 }] },
+                  },
+                  {
+                    symbols: [{ text: "est" }],
+                    boundingBox: { vertices: [{ x: 60, y: 50 }, { x: 90, y: 50 }, { x: 90, y: 70 }, { x: 60, y: 70 }] },
+                  },
+                  {
+                    symbols: [{ text: "de" }],
+                    boundingBox: { vertices: [{ x: 150, y: 10 }, { x: 175, y: 10 }, { x: 175, y: 30 }, { x: 150, y: 30 }] },
+                  },
+                  {
+                    symbols: [{ text: "un" }],
+                    boundingBox: { vertices: [{ x: 100, y: 50 }, { x: 130, y: 50 }, { x: 130, y: 70 }, { x: 100, y: 70 }] },
+                  },
+                  {
+                    symbols: [{ text: "note" }],
+                    boundingBox: { vertices: [{ x: 185, y: 10 }, { x: 230, y: 10 }, { x: 230, y: 30 }, { x: 185, y: 30 }] },
+                  },
+                  {
+                    symbols: [{ text: "test" }],
+                    boundingBox: { vertices: [{ x: 140, y: 50 }, { x: 180, y: 50 }, { x: 180, y: 70 }, { x: 140, y: 70 }] },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(reconstructTextFromPages(pages)).toBe("Nouvelle prise de note\nCeci est un test");
+  });
+});
+
 describe("parseVisionResponse", () => {
   it("extracts text and dedupes languages by best confidence", () => {
     const parsed = parseVisionResponse({
@@ -169,11 +223,48 @@ describe("parseVisionResponse", () => {
         },
       ],
     });
+    // No word boxes → falls back to fullTextAnnotation.text
     expect(parsed.text).toBe("مرحبا\nhello");
     expect(parsed.detectedLanguages).toEqual([
       { code: "ar", confidence: 0.8 },
       { code: "en", confidence: 0.3 },
     ]);
+  });
+
+  it("prefers geometry rebuild when word boxes are present", () => {
+    const parsed = parseVisionResponse({
+      responses: [
+        {
+          fullTextAnnotation: {
+            text: "wrong\norder",
+            pages: [
+              {
+                property: { detectedLanguages: [{ languageCode: "fr", confidence: 0.9 }] },
+                blocks: [
+                  {
+                    paragraphs: [
+                      {
+                        words: [
+                          {
+                            symbols: [{ text: "Bonne" }],
+                            boundingBox: { vertices: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 }] },
+                          },
+                          {
+                            symbols: [{ text: "journée" }],
+                            boundingBox: { vertices: [{ x: 50, y: 0 }, { x: 110, y: 0 }, { x: 110, y: 20 }, { x: 50, y: 20 }] },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(parsed.text).toBe("Bonne journée");
   });
 
   it("returns empty text when nothing was found", () => {

@@ -30,7 +30,7 @@ import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverla
 import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 
 function NotesPageInner() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { toast } = useToast();
   const { user: authUser } = useAuth();
   const currentUid = authUser?.uid ?? null;
@@ -1091,7 +1091,7 @@ function NotesPageInner() {
 
               {/* Document column: title, folded details, body */}
               <div className="flex-1 overflow-y-auto relative bg-white dark:bg-slate-900">
-                <div className="w-full max-w-[75ch] px-5 sm:px-8 pt-6 sm:pt-8">
+                <div className="w-full max-w-none self-stretch text-left px-4 sm:px-5 pt-4 sm:pt-5">
                   <input
                     ref={titleRef}
                     data-testid="note-title-input"
@@ -1100,7 +1100,7 @@ function NotesPageInner() {
                     onChange={(e) => !isSharedNote && handleTitleChange(e.target.value)}
                     readOnly={isSharedNote}
                     placeholder={t("notes.untitled")}
-                    className={`w-full text-2xl sm:text-[1.75rem] font-semibold tracking-tight text-zinc-900 dark:text-slate-50 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 mb-3 ${isSharedNote ? "cursor-default" : ""}`}
+                    className={`w-full text-left text-2xl sm:text-[1.75rem] font-semibold tracking-tight text-zinc-900 dark:text-slate-50 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 mb-3 ${isSharedNote ? "cursor-default" : ""}`}
                   />
 
                   {isSharedNote && (
@@ -1316,9 +1316,11 @@ function NotesPageInner() {
                     ref={contentRef}
                     contentEditable={!isSharedNote}
                     suppressContentEditableWarning
+                    spellCheck
+                    lang={locale}
                     onInput={handleEditorInput}
                     data-placeholder={isSharedNote ? "" : t("notes.contentPlaceholder")}
-                    className={`note-doc-body w-full min-h-[50vh] pb-16 text-[16px] sm:text-[17px] text-zinc-800 dark:text-slate-200 bg-transparent border-none outline-none leading-7 overflow-visible empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-300 dark:empty:before:text-slate-600 empty:before:pointer-events-none [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-zinc-900 [&_h2]:dark:text-slate-50 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_p]:my-2 ${
+                    className={`note-doc-body w-full min-h-[12rem] pb-10 text-[16px] sm:text-[17px] text-zinc-800 dark:text-slate-200 bg-transparent border-none outline-none leading-7 overflow-visible empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-300 dark:empty:before:text-slate-600 empty:before:pointer-events-none [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-zinc-900 [&_h2]:dark:text-slate-50 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_p]:my-2 ${
                       isSharedNote ? "cursor-default" : ""
                     }`}
                   />

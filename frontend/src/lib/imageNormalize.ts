@@ -10,10 +10,14 @@ export const OCR_JPEG_QUALITY = 0.9;
 export const OCR_MAX_INPUT_BYTES = 25 * 1024 * 1024;
 /** Analysis is done on a downscaled copy for speed. */
 const ANALYSIS_MAX_SIDE = 480;
-/** Keep full frame if the crop does not remove enough background. */
+/**
+ * Keep full frame when the board already fills most of the photo (close-ups)
+ * or when the crop would barely remove background. Extra padding protects
+ * handwriting near the board edge — tight crops were truncating text.
+ */
 const MIN_CROP_AREA_RATIO = 0.12;
-const MAX_CROP_AREA_RATIO = 0.92;
-const CROP_PADDING_RATIO = 0.03;
+const MAX_CROP_AREA_RATIO = 0.78;
+const CROP_PADDING_RATIO = 0.1;
 
 /** Client-side failure with a machine-readable code mapped to i18n. */
 export class ImageImportError extends Error {

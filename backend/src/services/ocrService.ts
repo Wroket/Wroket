@@ -154,20 +154,136 @@ export function normalizeOcrSource(raw: unknown): OcrSource | undefined {
 
 // ---- Providers ----
 
+interface VisionVertex {
+  x?: number;
+  y?: number;
+}
+
+interface VisionSymbol {
+  text?: string;
+  property?: { detectedBreak?: { type?: string } };
+}
+
+interface VisionWord {
+  symbols?: VisionSymbol[];
+  boundingBox?: { vertices?: VisionVertex[] };
+}
+
+interface VisionParagraph {
+  words?: VisionWord[];
+}
+
+interface VisionBlock {
+  paragraphs?: VisionParagraph[];
+}
+
+interface VisionPage {
+  property?: { detectedLanguages?: Array<{ languageCode?: string; confidence?: number }> };
+  blocks?: VisionBlock[];
+}
+
 interface VisionAnnotateResponse {
   responses?: Array<{
     fullTextAnnotation?: {
       text?: string;
-      pages?: Array<{
-        property?: { detectedLanguages?: Array<{ languageCode?: string; confidence?: number }> };
-      }>;
+      pages?: VisionPage[];
     };
     error?: { code?: number; message?: string };
   }>;
 }
 
+interface WordBox {
+  text: string;
+  cx: number;
+  cy: number;
+  height: number;
+}
+
+/** Center + height of a Vision bounding polygon (missing coords treated as 0). */
+function wordGeometry(vertices: VisionVertex[] | undefined): Omit<WordBox, "text"> | null {
+  if (!vertices || vertices.length < 2) return null;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const v of vertices) {
+    const x = v.x ?? 0;
+    const y = v.y ?? 0;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const height = Math.max(1, maxY - minY);
+  return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, height };
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
+/**
+ * Rebuild plain text by clustering Vision words on Y then sorting by X.
+ * Fixes DOCUMENT_TEXT_DETECTION reading-order bugs on sparse handwriting
+ * (words from different physical lines interleaved / one word per line).
+ */
+export function reconstructTextFromPages(pages: VisionPage[]): string {
+  const words: WordBox[] = [];
+  for (const page of pages) {
+    for (const block of page.blocks ?? []) {
+      for (const paragraph of block.paragraphs ?? []) {
+        for (const word of paragraph.words ?? []) {
+          const text = (word.symbols ?? []).map((s) => s.text ?? "").join("");
+          if (!text) continue;
+          const geo = wordGeometry(word.boundingBox?.vertices);
+          if (!geo) continue;
+          words.push({ text, ...geo });
+        }
+      }
+    }
+  }
+  if (words.length === 0) return "";
+
+  words.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+  const medH = median(words.map((w) => w.height)) || 12;
+  const lineThreshold = Math.max(8, medH * 0.65);
+
+  const lines: WordBox[][] = [];
+  for (const word of words) {
+    const current = lines[lines.length - 1];
+    if (!current) {
+      lines.push([word]);
+      continue;
+    }
+    const avgY = current.reduce((sum, w) => sum + w.cy, 0) / current.length;
+    if (Math.abs(word.cy - avgY) <= lineThreshold) current.push(word);
+    else lines.push([word]);
+  }
+
+  for (const line of lines) line.sort((a, b) => a.cx - b.cx);
+
+  // Only treat clearly larger gaps as paragraph breaks (blank line on the board).
+  const paraThreshold = Math.max(20, medH * 2.6);
+  const parts: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (i > 0) {
+      const prev = lines[i - 1]!;
+      const prevY = prev.reduce((sum, w) => sum + w.cy, 0) / prev.length;
+      const currY = line.reduce((sum, w) => sum + w.cy, 0) / line.length;
+      parts.push(currY - prevY > paraThreshold ? "\n\n" : "\n");
+    }
+    parts.push(line.map((w) => w.text).join(" "));
+  }
+  return parts.join("").trim();
+}
+
 /**
  * Extract text + detected languages from a Vision `images:annotate` response.
+ * Prefers geometry-based reconstruction when word boxes exist.
  * @throws OcrProviderFailure when the per-image response carries an error.
  */
 export function parseVisionResponse(body: VisionAnnotateResponse): Omit<OcrResult, "code"> {
@@ -175,8 +291,9 @@ export function parseVisionResponse(body: VisionAnnotateResponse): Omit<OcrResul
   if (!first) return { text: "", detectedLanguages: [] };
   if (first.error?.message) throw new OcrProviderFailure(`vision: ${first.error.message}`);
 
+  const pages = first.fullTextAnnotation?.pages ?? [];
   const best = new Map<string, number>();
-  for (const page of first.fullTextAnnotation?.pages ?? []) {
+  for (const page of pages) {
     for (const lang of page.property?.detectedLanguages ?? []) {
       if (!lang.languageCode) continue;
       const confidence = typeof lang.confidence === "number" ? lang.confidence : 0;
@@ -188,7 +305,9 @@ export function parseVisionResponse(body: VisionAnnotateResponse): Omit<OcrResul
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, MAX_DETECTED_LANGUAGES);
 
-  return { text: (first.fullTextAnnotation?.text ?? "").trim(), detectedLanguages };
+  const rebuilt = reconstructTextFromPages(pages);
+  const fallback = (first.fullTextAnnotation?.text ?? "").trim();
+  return { text: rebuilt || fallback, detectedLanguages };
 }
 
 const visionProvider: OcrProvider = {

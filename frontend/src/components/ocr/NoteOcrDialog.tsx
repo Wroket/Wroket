@@ -20,6 +20,7 @@ import {
   preloadGoogleDrivePicker,
 } from "@/lib/cloudPickers/googleDrivePicker";
 import { ImageImportError, normalizeImageForOcr } from "@/lib/imageNormalize";
+import { autocorrectOcrText } from "@/lib/ocrAutocorrect";
 
 /** Languages offered as optional hints; any BCP-47 code works server-side. */
 const LANGUAGE_HINTS = ["fr", "en", "es", "de", "it", "pt", "nl", "pl", "ru", "uk", "tr", "ar", "he", "hi", "zh", "ja", "ko"];
@@ -69,10 +70,13 @@ export default function NoteOcrDialog({
   const [languageHint, setLanguageHint] = useState(() => {
     if (typeof window === "undefined") return "";
     try {
-      return sessionStorage.getItem("wroket-ocr-lang") ?? "";
+      const stored = sessionStorage.getItem("wroket-ocr-lang");
+      if (stored !== null) return stored;
     } catch {
-      return "";
+      /* ignore */
     }
+    // Prefer UI locale as handwriting hint (auto-detect often misfires on cursive FR).
+    return locale === "fr" || locale === "en" ? locale : "";
   });
   const [result, setResult] = useState<OcrResult | null>(null);
   const [text, setText] = useState("");
@@ -119,7 +123,9 @@ export default function NoteOcrDialog({
           : await ocrNoteImage(noteId, target!.blob, { languageHint: hint || undefined, source: target!.source });
         if (run !== runRef.current) return;
         setResult(res);
-        setText(res.text);
+        const lang = hint || res.detectedLanguages?.[0]?.code || locale;
+        // Join fragmented lines + apply language lexicon by default (user can still edit).
+        setText(autocorrectOcrText(res.text, lang));
         setPhase("preview");
       } catch (err) {
         if (run !== runRef.current) return;
@@ -397,16 +403,35 @@ export default function NoteOcrDialog({
               </div>
             </div>
             {result && (
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-600 dark:text-slate-300">{t("notes.ocr.previewLabel")}</span>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label htmlFor={`${titleId}-ocr-text`} className="text-xs font-medium text-zinc-600 dark:text-slate-300">
+                    {t("notes.ocr.previewLabel")}
+                  </label>
+                  <button
+                    type="button"
+                    title={t("notes.ocr.autocorrectHint")}
+                    disabled={!text.trim()}
+                    onClick={() => {
+                      const lang = languageHint || result.detectedLanguages?.[0]?.code || locale;
+                      setText(autocorrectOcrText(text, lang));
+                    }}
+                    className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline disabled:opacity-40 disabled:no-underline"
+                  >
+                    {t("notes.ocr.autocorrect")}
+                  </button>
+                </div>
                 <textarea
+                  id={`${titleId}-ocr-text`}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   dir="auto"
+                  spellCheck
+                  lang={languageHint || result.detectedLanguages?.[0]?.code || locale}
                   rows={narrow ? 8 : 10}
-                  className="mt-1 w-full rounded-md border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-2 text-sm text-zinc-800 dark:text-slate-100 font-mono leading-relaxed"
+                  className="w-full rounded-md border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-2 text-sm text-zinc-800 dark:text-slate-100 leading-relaxed"
                 />
-              </label>
+              </div>
             )}
             {canAttach && image && onAttachImage && (
               <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-slate-300">
