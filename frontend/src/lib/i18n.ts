@@ -1456,6 +1456,77 @@ const translations = {
   "notes.attachError": { fr: "Erreur lors du téléversement", en: "Upload error" },
   "notes.attachFromTask": { fr: "Pièce jointe de la tâche liée", en: "Attachment from linked task" },
   "notes.attachTaskBadge": { fr: "tâche", en: "task" },
+  "notes.ocr.button": { fr: "Extraire le texte d’une photo", en: "Extract text from a photo" },
+  "notes.ocr.title": { fr: "Photo vers texte", en: "Photo to text" },
+  "notes.ocr.sourceDevice": { fr: "Depuis l’appareil", en: "From this device" },
+  "notes.ocr.sourceCamera": { fr: "Prendre une photo", en: "Take a photo" },
+  "notes.ocr.sourceDrive": { fr: "Google Drive", en: "Google Drive" },
+  "notes.ocr.sourceDropbox": { fr: "Dropbox", en: "Dropbox" },
+  "notes.ocr.dropHint": {
+    fr: "ou glissez-déposez une image ici, ou collez-la (Ctrl+V)",
+    en: "or drag and drop an image here, or paste it (Ctrl+V)",
+  },
+  "notes.ocr.otherSourcesHint": {
+    fr: "OneDrive, iCloud… : passez par « Depuis l’appareil » (sélecteur du téléphone ou dossier synchronisé).",
+    en: "OneDrive, iCloud…: use “From this device” (phone picker or synced folder).",
+  },
+  "notes.ocr.language": { fr: "Langue du texte", en: "Text language" },
+  "notes.ocr.languageAuto": { fr: "Détection automatique", en: "Auto-detect" },
+  "notes.ocr.loadingSource": { fr: "Préparation de l’image…", en: "Preparing image…" },
+  "notes.ocr.processing": { fr: "Analyse de l’image…", en: "Analyzing image…" },
+  "notes.ocr.previewLabel": { fr: "Texte reconnu (modifiable)", en: "Recognized text (editable)" },
+  "notes.ocr.detected": { fr: "Langue détectée :", en: "Detected language:" },
+  "notes.ocr.noText": {
+    fr: "Aucun texte détecté. Réessayez avec une photo plus nette ou choisissez la langue.",
+    en: "No text detected. Try a sharper photo or pick the language.",
+  },
+  "notes.ocr.insert": { fr: "Insérer dans la note", en: "Insert into note" },
+  "notes.ocr.copy": { fr: "Copier", en: "Copy" },
+  "notes.ocr.copied": { fr: "Texte copié", en: "Text copied" },
+  "notes.ocr.cancel": { fr: "Annuler", en: "Cancel" },
+  "notes.ocr.retry": { fr: "Relancer avec cette langue", en: "Re-run with this language" },
+  "notes.ocr.otherImage": { fr: "Autre image", en: "Another image" },
+  "notes.ocr.attachImage": { fr: "Joindre aussi l’image à la note", en: "Also attach the image to the note" },
+  "notes.ocr.privacy": {
+    fr: "Image analysée par Google Cloud Vision (UE), non conservée. Drive et Dropbox : accès limité au seul fichier choisi.",
+    en: "Image analyzed by Google Cloud Vision (EU), not stored. Drive and Dropbox: access limited to the chosen file.",
+  },
+  "notes.ocr.remaining": { fr: "{n} analyses restantes aujourd’hui", en: "{n} analyses left today" },
+  "notes.ocr.inserted": { fr: "Texte inséré dans la note", en: "Text inserted into the note" },
+  "notes.ocr.attachFailed": {
+    fr: "Texte inséré, mais l’image n’a pas pu être jointe. Ajoutez-la depuis Pièces jointes.",
+    en: "Text inserted, but the image could not be attached. Add it from Attachments.",
+  },
+  "notes.ocr.extract": { fr: "Extraire le texte", en: "Extract text" },
+  "notes.ocr.fromAttachment": { fr: "Pièce jointe :", en: "Attachment:" },
+  "notes.ocr.err.IMAGE_DECODE_FAILED": {
+    fr: "Ce navigateur ne sait pas lire cette image (HEIC ?). Faites une capture d’écran ou convertissez-la en JPEG, puis réessayez.",
+    en: "This browser cannot read this image (HEIC?). Take a screenshot or convert it to JPEG, then try again.",
+  },
+  "notes.ocr.err.IMAGE_TOO_LARGE": {
+    fr: "Image trop volumineuse (25 Mo max). Choisissez une image plus légère.",
+    en: "Image too large (25 MB max). Pick a smaller image.",
+  },
+  "notes.ocr.err.IMAGE_NOT_AN_IMAGE": {
+    fr: "Ce fichier n’est pas une image. Choisissez une photo JPEG, PNG, WebP ou HEIC.",
+    en: "This file is not an image. Pick a JPEG, PNG, WebP or HEIC photo.",
+  },
+  "notes.ocr.err.PICKER_DOWNLOAD_FAILED": {
+    fr: "Impossible de récupérer le fichier. Réessayez ou importez-le depuis l’appareil.",
+    en: "Could not fetch the file. Try again or import it from this device.",
+  },
+  "notes.ocr.err.PICKER_LOAD_FAILED": {
+    fr: "Impossible d’ouvrir le sélecteur (bloqué par le navigateur ?). Réessayez ou importez depuis l’appareil.",
+    en: "Could not open the picker (blocked by the browser?). Try again or import from this device.",
+  },
+  "notes.ocr.err.PICKER_NOT_CONFIGURED": {
+    fr: "Cette source n’est pas disponible. Importez l’image depuis l’appareil.",
+    en: "This source is not available. Import the image from this device.",
+  },
+  "notes.ocr.err.noteNotFound": {
+    fr: "Note introuvable sur le serveur. Attendez la synchronisation puis réessayez.",
+    en: "Note not found on the server. Wait for sync, then try again.",
+  },
   "notes.delete": { fr: "Supprimer", en: "Delete" },
   "notes.deleteConfirm": { fr: "Supprimer cette note ?", en: "Delete this note?" },
   "notes.pin": { fr: "Épingler", en: "Pin" },
@@ -3869,6 +3940,26 @@ const translations = {
   "errors.code.COLLAB_DECLINE_FAILED": {
     fr: "Impossible de refuser l’invitation. Réessayez.",
     en: "Could not decline the invitation. Try again.",
+  },
+  "errors.code.OCR_DISABLED": {
+    fr: "La reconnaissance de texte n’est pas encore activée pour votre compte.",
+    en: "Text recognition is not enabled for your account yet.",
+  },
+  "errors.code.OCR_UNSUPPORTED_TYPE": {
+    fr: "Format non pris en charge. Utilisez une image JPEG, PNG, WebP ou GIF de moins de 5 Mo.",
+    en: "Unsupported format. Use a JPEG, PNG, WebP or GIF image under 5 MB.",
+  },
+  "errors.code.OCR_INVALID_LANGUAGE": {
+    fr: "Langue non reconnue. Choisissez une langue dans la liste ou « Détection automatique ».",
+    en: "Unknown language. Pick one from the list or “Auto-detect”.",
+  },
+  "errors.code.OCR_QUOTA_EXCEEDED": {
+    fr: "Limite quotidienne de reconnaissance atteinte. Réessayez demain.",
+    en: "Daily text recognition limit reached. Try again tomorrow.",
+  },
+  "errors.code.OCR_PROVIDER_ERROR": {
+    fr: "Le service de reconnaissance est momentanément indisponible. Réessayez dans un instant.",
+    en: "The recognition service is temporarily unavailable. Try again in a moment.",
   },
 
   // ── Error boundary ──

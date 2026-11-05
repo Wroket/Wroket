@@ -28,6 +28,10 @@ interface NoteAttachmentsPanelProps {
   todoId?: string | null;
   /** Whether the current user owns the note (can upload / delete). */
   isOwner: boolean;
+  /** When set, image attachments get an "Extract text" (OCR) action. */
+  onExtractText?: (att: { id: string; name: string }) => void;
+  /** Bump to reload the list after an external upload. */
+  refreshKey?: number;
 }
 
 function formatBytes(bytes: number): string {
@@ -58,7 +62,20 @@ function FileIcon({ mime }: { mime: string }) {
   );
 }
 
-export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAttachmentsPanelProps) {
+function ExtractTextButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+    >
+      {label}
+    </button>
+  );
+}
+
+export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtractText, refreshKey }: NoteAttachmentsPanelProps) {
   const { t } = useLocale();
   const [data, setData] = useState<NoteAttachmentsResponse | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -69,7 +86,7 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
   useEffect(() => {
     setData(null);
     getNoteAttachments(noteId).then(setData).catch(() => setData({ noteAttachments: [], taskAttachments: [] }));
-  }, [noteId]);
+  }, [noteId, refreshKey]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -175,6 +192,12 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
             >
               {att.originalName}
             </a>
+            {onExtractText && att.mimeType.startsWith("image/") && (
+              <ExtractTextButton
+                label={t("notes.ocr.extract")}
+                onClick={() => onExtractText({ id: att.id, name: att.originalName })}
+              />
+            )}
             <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
             {isOwner && (
               <button
@@ -206,6 +229,12 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner }: NoteAt
             <span className="text-[9px] font-medium text-indigo-400 dark:text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded shrink-0">
               {t("notes.attachTaskBadge")}
             </span>
+            {onExtractText && att.mimeType.startsWith("image/") && (
+              <ExtractTextButton
+                label={t("notes.ocr.extract")}
+                onClick={() => onExtractText({ id: att.id, name: att.originalName })}
+              />
+            )}
             <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
           </li>
         ))}

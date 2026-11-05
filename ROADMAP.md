@@ -438,6 +438,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [ ] **IA orchestrateur (Phase 3)** — workflows multi-outils Notion/Monday/Calendar/Webhooks, différenciation \"orchestrateur fiable\" (après validation usage phase 1/2)
 - [ ] **Cadre décisionnel IA / gate go-no-go** — KPI adoption/ROI MCP, seuils de sécurité (zéro incident critique d’autorisation), politique RGPD et conservation des traces
 - [x] **Paramètres — panneau Abonnement (lisibilité)** — Cards (palier marketing Pro/Team, code technique, entitlements, Stripe) + mapping terminologie + lien `/pricing` (2026-06-07).
+- [ ] **OCR photo → note (POC)** — Google Cloud Vision UE, auto-langue, aperçu éditable ; sources appareil (fichier, caméra, glisser-déposer, coller), Google Drive, Dropbox, PJ existante ; flag `OCR_ENABLED` + allowlist `OCR_BETA_EMAILS`. Étude : [`docs/ocr-feasibility.md`](docs/ocr-feasibility.md). **Reste** : activation APIs GCP + clés Picker/Dropbox, smoke test beta, go/no-go ; lot 2 OneDrive, PDF, recherche, MCP
 - [ ] **Notes — édition collaborative** — Édition temps réel multi-utilisateurs sur les notes partagées (WebSocket/CRDT)
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
   - Modèle `googleAccounts[]` avec tokens + email par compte, migration automatique de l'ancien format single-account

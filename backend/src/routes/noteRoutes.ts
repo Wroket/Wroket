@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import multer from "multer";
 
 import {
@@ -29,10 +29,23 @@ import {
   removeNoteAttachment,
   downloadTaskAttachmentViaNote,
 } from "../controllers/noteAttachmentController";
+import { getOcrConfig, ocrUploadedImage, ocrNoteAttachment } from "../controllers/noteOcrController";
 import { requireAuth } from "../middlewares/requireAuth";
+import { UnprocessableEntityError } from "../utils/errors";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 const noteRoutes = Router();
+
+/** Single image upload for OCR; oversize files become a structured 422 instead of a 500. */
+const ocrUpload: RequestHandler = (req, res, next) => {
+  upload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      next(new UnprocessableEntityError("Image trop volumineuse (max 5 Mo)", "OCR_UNSUPPORTED_TYPE"));
+      return;
+    }
+    next(err as Error | undefined);
+  });
+};
 
 noteRoutes.use(requireAuth);
 
@@ -50,12 +63,17 @@ noteRoutes.delete("/archived/:id", purgeArchived);
 noteRoutes.get("/folders", listFolders);
 noteRoutes.post("/folders", createFolder);
 noteRoutes.delete("/folders/:name", removeFolder);
+noteRoutes.get("/ocr/config", getOcrConfig);
 
 // Note attachments — note-namespace files.
 noteRoutes.get("/:noteId/attachments", listNoteAttachmentsHandler);
 noteRoutes.post("/:noteId/attachments", upload.single("file"), uploadNoteAttachment);
 noteRoutes.get("/:noteId/attachments/:attachmentId", downloadNoteAttachment);
 noteRoutes.delete("/:noteId/attachments/:attachmentId", removeNoteAttachment);
+noteRoutes.post("/:noteId/attachments/:attachmentId/ocr", ocrNoteAttachment);
+
+// OCR — image → text preview, nothing persisted.
+noteRoutes.post("/:noteId/ocr", ocrUpload, ocrUploadedImage);
 
 // Task-attachment access via note context (note must be linked to the task).
 noteRoutes.get("/:noteId/task-attachments/:todoId/:attachmentId", downloadTaskAttachmentViaNote);

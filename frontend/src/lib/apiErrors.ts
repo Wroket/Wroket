@@ -78,6 +78,11 @@ const ERROR_CODE_KEYS: Record<string, TranslationKey> = {
   SHARE_LINK_INVALID: "errors.code.SHARE_LINK_INVALID",
   COLLAB_ACCEPT_FAILED: "errors.code.COLLAB_ACCEPT_FAILED",
   COLLAB_DECLINE_FAILED: "errors.code.COLLAB_DECLINE_FAILED",
+  OCR_DISABLED: "errors.code.OCR_DISABLED",
+  OCR_UNSUPPORTED_TYPE: "errors.code.OCR_UNSUPPORTED_TYPE",
+  OCR_INVALID_LANGUAGE: "errors.code.OCR_INVALID_LANGUAGE",
+  OCR_QUOTA_EXCEEDED: "errors.code.OCR_QUOTA_EXCEEDED",
+  OCR_PROVIDER_ERROR: "errors.code.OCR_PROVIDER_ERROR",
 };
 
 function extractRawMessage(body: unknown): string | undefined {

@@ -1,3 +1,4 @@
+import { throwApiError } from "@/lib/apiErrors";
 import { API_BASE_URL } from "./core";
 
 export interface Note {
@@ -276,6 +277,71 @@ export function getNoteAttachmentDownloadUrl(noteId: string, attachmentId: strin
 
 export function getTaskAttachmentViaNoteUrl(noteId: string, todoId: string, attachmentId: string): string {
   return `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/task-attachments/${encodeURIComponent(todoId)}/${encodeURIComponent(attachmentId)}`;
+}
+
+// ---- OCR (photo → text preview) ----
+
+export interface OcrConfig {
+  enabled: boolean;
+  dailyLimit: number;
+  remaining: number;
+}
+
+export type OcrSource = "device" | "camera" | "drop" | "paste" | "gdrive" | "dropbox" | "attachment";
+
+export interface OcrResult {
+  text: string;
+  detectedLanguages: Array<{ code: string; confidence: number }>;
+  code?: "OCR_NO_TEXT";
+}
+
+/** Flag + remaining daily quota; resolves to disabled on any error. */
+export async function getOcrConfig(): Promise<OcrConfig> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/notes/ocr/config`, { credentials: "include" });
+    if (!res.ok) return { enabled: false, dailyLimit: 0, remaining: 0 };
+    return (await res.json()) as OcrConfig;
+  } catch {
+    return { enabled: false, dailyLimit: 0, remaining: 0 };
+  }
+}
+
+/** OCR on a normalized image blob. @throws ApiClientError with OCR_* codes. */
+export async function ocrNoteImage(
+  noteId: string,
+  image: Blob,
+  options: { languageHint?: string; source?: OcrSource } = {},
+): Promise<OcrResult> {
+  const fd = new FormData();
+  fd.append("file", image, "ocr.jpg");
+  if (options.languageHint) fd.append("languageHint", options.languageHint);
+  if (options.source) fd.append("source", options.source);
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/ocr`, {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+  });
+  if (!res.ok) await throwApiError(res, "errors.code.OCR_PROVIDER_ERROR");
+  return (await res.json()) as OcrResult;
+}
+
+/** OCR on an existing image attachment (note or linked task). @throws ApiClientError. */
+export async function ocrNoteAttachment(
+  noteId: string,
+  attachmentId: string,
+  options: { languageHint?: string } = {},
+): Promise<OcrResult> {
+  const res = await fetch(
+    `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/attachments/${encodeURIComponent(attachmentId)}/ocr`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options.languageHint ? { languageHint: options.languageHint } : {}),
+      credentials: "include",
+    },
+  );
+  if (!res.ok) await throwApiError(res, "errors.code.OCR_PROVIDER_ERROR");
+  return (await res.json()) as OcrResult;
 }
 
 export async function deleteNoteAttachment(noteId: string, attachmentId: string): Promise<void> {

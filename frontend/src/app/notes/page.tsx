@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthContext";
 import ExportImportDropdown from "@/components/ExportImportDropdown";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
+import NoteOcrDialog from "@/components/ocr/NoteOcrDialog";
 import PageHelpButton from "@/components/PageHelpButton";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import { useToast } from "@/components/Toast";
@@ -20,7 +21,9 @@ import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi, expo
 import type { Note, Project, Todo, Team } from "@/lib/api";
 import { personalNotesCreateBlocked } from "@/lib/freeQuota";
 import { formatUserFacingError } from "@/lib/apiErrors";
+import { getOcrConfig, uploadNoteAttachment, type OcrConfig } from "@/lib/api/notes";
 import { newClientEntityId } from "@/lib/newClientId";
+import { ocrTextToHtml } from "@/lib/ocrText";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
 import { useNoteLiveCollab } from "@/hooks/useNoteLiveCollab";
 import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
@@ -58,6 +61,11 @@ function NotesPageInner() {
   const [deleteFolderChoice, setDeleteFolderChoice] = useState<"a" | "b" | "c" | "d">("a");
   const [deleteFolderTarget, setDeleteFolderTarget] = useState("");
   const [folderPickInput, setFolderPickInput] = useState("");
+  const [ocrConfig, setOcrConfig] = useState<OcrConfig | null>(null);
+  const [ocrOpen, setOcrOpen] = useState(false);
+  const [ocrAttachment, setOcrAttachment] = useState<{ id: string; name: string } | null>(null);
+  const [attachmentsRefreshKey, setAttachmentsRefreshKey] = useState(0);
+  const ocrRangeRef = useRef<Range | null>(null);
 
   const isOwnNote = useCallback(
     (n: Note) => (!currentUid ? true : !n.userId || n.userId === currentUid),
@@ -76,6 +84,7 @@ function NotesPageInner() {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
     getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
     getTeams().then(setTeams).catch(() => setTeams([]));
+    getOcrConfig().then(setOcrConfig).catch(() => {});
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
@@ -424,6 +433,60 @@ function NotesPageInner() {
     handleContentChange(contentRef.current.innerHTML);
   }, [selectedId, isSharedNote, handleContentChange]);
 
+  const openOcr = useCallback((attachment: { id: string; name: string } | null = null) => {
+    const editor = contentRef.current;
+    const sel = window.getSelection();
+    ocrRangeRef.current =
+      editor && sel && sel.rangeCount > 0 && editor.contains(sel.getRangeAt(0).commonAncestorContainer)
+        ? sel.getRangeAt(0).cloneRange()
+        : null;
+    setOcrAttachment(attachment);
+    setOcrOpen(true);
+  }, []);
+
+  const closeOcr = useCallback(() => {
+    setOcrOpen(false);
+    setOcrAttachment(null);
+    getOcrConfig().then(setOcrConfig).catch(() => {});
+  }, []);
+
+  const handleOcrInsert = useCallback((text: string) => {
+    const editor = contentRef.current;
+    if (!editor || isSharedNote) return;
+    const html = ocrTextToHtml(text);
+    if (!html) return;
+    editor.focus();
+    const sel = window.getSelection();
+    const range = ocrRangeRef.current;
+    if (sel) {
+      sel.removeAllRanges();
+      if (range && editor.contains(range.commonAncestorContainer)) {
+        sel.addRange(range);
+      } else {
+        const end = document.createRange();
+        end.selectNodeContents(editor);
+        end.collapse(false);
+        sel.addRange(end);
+      }
+    }
+    if (!document.execCommand("insertHTML", false, html)) {
+      editor.insertAdjacentHTML("beforeend", html);
+    }
+    ocrRangeRef.current = null;
+    handleContentChange(editor.innerHTML);
+    toast.success(t("notes.ocr.inserted"));
+  }, [isSharedNote, handleContentChange, toast, t]);
+
+  const handleOcrAttachImage = useCallback(async (file: File) => {
+    if (!selectedId) return;
+    try {
+      await uploadNoteAttachment(selectedId, file);
+      setAttachmentsRefreshKey((k) => k + 1);
+    } catch {
+      toast.error(t("notes.ocr.attachFailed"));
+    }
+  }, [selectedId, toast, t]);
+
   const handleSlashCreateTask = useCallback(
     async (payload: SlashTaskPayload) => {
       const todo = await createTodo({
@@ -453,6 +516,8 @@ function NotesPageInner() {
 
   useEffect(() => {
     setFolderPickInput("");
+    setOcrOpen(false);
+    setOcrAttachment(null);
   }, [selected?.id]);
 
   const formatDate = (iso: string) =>
@@ -1208,6 +1273,7 @@ function NotesPageInner() {
               {!isSharedNote && (
                 <NoteToolbar
                   editorRef={contentRef}
+                  onOcr={ocrConfig?.enabled ? () => openOcr(null) : undefined}
                 />
               )}
 
@@ -1241,7 +1307,22 @@ function NotesPageInner() {
                 noteId={selected.id}
                 todoId={selected.todoId}
                 isOwner={selected.userId === currentUid}
+                onExtractText={ocrConfig?.enabled && !isSharedNote ? (att) => openOcr(att) : undefined}
+                refreshKey={attachmentsRefreshKey}
               />
+
+              {ocrConfig?.enabled && !isSharedNote && (
+                <NoteOcrDialog
+                  open={ocrOpen}
+                  noteId={selected.id}
+                  attachment={ocrAttachment}
+                  canAttach={selected.userId === currentUid}
+                  remaining={ocrConfig.remaining}
+                  onClose={closeOcr}
+                  onInsert={handleOcrInsert}
+                  onAttachImage={handleOcrAttachImage}
+                />
+              )}
 
               {/* Footer */}
               <div className="px-4 py-1.5 border-t border-zinc-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-zinc-400 dark:text-slate-500 bg-white dark:bg-slate-900 shrink-0">

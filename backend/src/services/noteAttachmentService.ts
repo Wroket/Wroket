@@ -229,6 +229,45 @@ export async function purgeNoteAttachments(noteId: string): Promise<void> {
   }
 }
 
+async function readStreamCapped(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    total += buf.length;
+    if (total > maxBytes) {
+      stream.destroy();
+      throw new ValidationError("Fichier trop volumineux (max 5 Mo)");
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Load an attachment visible from a note (note namespace first, then the linked
+ * task's attachments) fully in memory, for OCR. Same access rules as downloads.
+ */
+export async function readNoteAttachmentForOcr(
+  noteId: string,
+  attachmentId: string,
+  requestingUid: string,
+): Promise<{ mimeType: string; buffer: Buffer }> {
+  const email = resolveUserEmail(requestingUid);
+  if (!canViewNote(requestingUid, email, noteId)) throw new NotFoundError("Note introuvable");
+
+  const own = (getNoteAttachmentStore()[noteId] ?? []).find((a) => a.id === attachmentId);
+  if (own) {
+    const { attachment, stream } = await openNoteAttachmentStream(noteId, attachmentId, requestingUid);
+    return { mimeType: attachment.mimeType, buffer: await readStreamCapped(stream, MAX_FILE_SIZE) };
+  }
+
+  const note = getNote(requestingUid, noteId);
+  if (!note.todoId) throw new NotFoundError("Pièce jointe introuvable");
+  const { attachment, stream } = await openTaskAttachmentViaNote(noteId, note.todoId, attachmentId, requestingUid);
+  return { mimeType: attachment.mimeType, buffer: await readStreamCapped(stream, MAX_FILE_SIZE) };
+}
+
 /**
  * Shared download helper for task attachments accessed via a note context.
  * Verifies the requestingUid can view the note AND the note's linked task matches todoId.

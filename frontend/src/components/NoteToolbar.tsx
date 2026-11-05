@@ -12,6 +12,8 @@ import { useLocale } from "@/lib/LocaleContext";
 interface NoteToolbarProps {
   editorRef: React.RefObject<HTMLDivElement | null>;
   disabled?: boolean;
+  /** When set, shows the "photo → text" (OCR) button. */
+  onOcr?: () => void;
 }
 
 interface FormatAction {
@@ -73,7 +75,15 @@ function OutdentIcon() {
   );
 }
 
-export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
+function ScanTextIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5" />
+    </svg>
+  );
+}
+
+export default function NoteToolbar({ editorRef, disabled, onOcr }: NoteToolbarProps) {
   const { t } = useLocale();
   const [active, setActive] = useState<Record<string, boolean>>({});
 
@@ -142,6 +152,21 @@ export default function NoteToolbar({ editorRef, disabled }: NoteToolbarProps) {
           {action.icon}
         </button>
       ))}
+      {onOcr && (
+        <>
+          <span className="mx-1 h-4 w-px bg-zinc-200 dark:bg-slate-700" aria-hidden />
+          <button
+            type="button"
+            title={t("notes.ocr.button")}
+            aria-label={t("notes.ocr.button")}
+            disabled={disabled}
+            onClick={onOcr}
+            className={btnBaseCls}
+          >
+            <ScanTextIcon />
+          </button>
+        </>
+      )}
       <div className="ml-auto text-[10px] text-zinc-300 dark:text-slate-600 hidden sm:block">
         {t("notes.fmtHint")}
       </div>
