@@ -128,11 +128,11 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
   const total = noteAtts.length + taskAtts.length;
 
   return (
-    <div className="border-t border-zinc-200 dark:border-slate-700 px-4 py-3 bg-zinc-50/70 dark:bg-slate-900/70">
-      <div className="rounded-lg border border-emerald-200/80 dark:border-emerald-900/60 bg-white dark:bg-slate-900 shadow-sm px-3 py-2.5">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="text-xs font-semibold text-zinc-700 dark:text-slate-200 tracking-wide">
-          {t("notes.attachments")} {total > 0 ? `(${total})` : ""}
+    <div className="border-t border-zinc-100 dark:border-slate-800 px-4 sm:px-6 py-3 bg-white dark:bg-slate-900">
+      <div className="max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-slate-500">
+          {t("notes.attachments")}{total > 0 ? ` · ${total}` : ""}
         </span>
         {isOwner && (
           <>
@@ -140,7 +140,7 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-600 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -175,7 +175,7 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
       )}
 
       {total === 0 && !uploading && (
-        <p className="text-xs text-zinc-600 dark:text-slate-400 rounded-md border border-dashed border-zinc-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 px-2.5 py-2">
+        <p className="text-xs text-zinc-400 dark:text-slate-500 py-1">
           {t("notes.attachNone")}
         </p>
       )}
