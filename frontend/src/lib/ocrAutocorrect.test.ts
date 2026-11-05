@@ -3,14 +3,22 @@ import { describe, expect, it } from "vitest";
 import { autocorrectOcrText, normalizeOcrLineBreaks } from "./ocrAutocorrect";
 
 describe("normalizeOcrLineBreaks", () => {
-  it("joins single newlines into spaces", () => {
-    expect(normalizeOcrLineBreaks("Bonne journer\ngrand!\nJe serai chez")).toBe(
-      "Bonne journer grand! Je serai chez",
-    );
+  it("preserves intentional handwriting lines that start with a capital", () => {
+    expect(
+      normalizeOcrLineBreaks(
+        "Nouvelle prise de note\nCeci est un test\nCECI EST UN TEST\nEssai de note",
+      ),
+    ).toBe("Nouvelle prise de note\nCeci est un test\nCECI EST UN TEST\nEssai de note");
   });
 
-  it("keeps paragraph breaks", () => {
-    expect(normalizeOcrLineBreaks("A\nB\n\nC\nD")).toBe("A B\n\nC D");
+  it("joins mid-sentence Vision wraps (lowercase continuation)", () => {
+    expect(normalizeOcrLineBreaks("Je serai\nchez Julie")).toBe("Je serai chez Julie");
+  });
+
+  it("does not glue a short exclamation onto the previous line", () => {
+    expect(normalizeOcrLineBreaks("Bonne journée\ngrand!\n\nJe serai chez Julie")).toBe(
+      "Bonne journée\ngrand!\n\nJe serai chez Julie",
+    );
   });
 
   it("returns empty for blank input", () => {
@@ -19,13 +27,13 @@ describe("normalizeOcrLineBreaks", () => {
 });
 
 describe("autocorrectOcrText", () => {
-  it("fixes common FR handwriting OCR slips", () => {
+  it("fixes FR slips without flattening capital-started lines", () => {
     expect(autocorrectOcrText("Bonne journer\nground!\nce sori", "fr")).toBe(
-      "Bonne journée grand! ce soir",
+      "Bonne journée\ngrand!\nce soir",
     );
-    expect(autocorrectOcrText("Bonne jauner\nce sor\nde nove", "fr")).toBe(
-      "Bonne journée ce soir de note",
-    );
+    expect(
+      autocorrectOcrText("Nouvelle prise de note\nCeci est un test\nEssai de nove", "fr"),
+    ).toBe("Nouvelle prise de note\nCeci est un test\nEssai de note");
   });
 
   it("does not apply FR lexicon for English", () => {

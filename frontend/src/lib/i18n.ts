@@ -1484,8 +1484,8 @@ const translations = {
   "notes.ocr.previewLabel": { fr: "Texte reconnu (modifiable)", en: "Recognized text (editable)" },
   "notes.ocr.autocorrect": { fr: "Corriger automatiquement", en: "Autocorrect" },
   "notes.ocr.autocorrectHint": {
-    fr: "Fusionne les lignes et corrige les fautes OCR fréquentes (FR). Le soulignement rouge du navigateur reste disponible.",
-    en: "Joins line breaks and fixes common OCR slips (FR). Browser red underlines remain available.",
+    fr: "Corrige les fautes OCR fréquentes (FR) en gardant les retours à la ligne. Le soulignement rouge du navigateur reste disponible.",
+    en: "Fixes common OCR slips (FR) while keeping line breaks. Browser red underlines remain available.",
   },
   "notes.ocr.autocorrectDone": { fr: "Texte corrigé", en: "Text corrected" },
   "notes.ocr.detected": { fr: "Langue détectée :", en: "Detected language:" },
@@ -1501,8 +1501,8 @@ const translations = {
   "notes.ocr.otherImage": { fr: "Autre image", en: "Another image" },
   "notes.ocr.attachImage": { fr: "Joindre aussi l’image à la note", en: "Also attach the image to the note" },
   "notes.ocr.privacy": {
-    fr: "Cadrez tout le texte (éviter de couper les bords). Image analysée par Google Cloud Vision (UE), non conservée.",
-    en: "Frame the full text (avoid cutting edges). Image analyzed by Google Cloud Vision (EU), not stored.",
+    fr: "Sur téléphone : reculez pour que tout le texte soit dans le cadre (les bords coupés ne peuvent pas être reconstruits). Image analysée par Google Cloud Vision (UE), non conservée.",
+    en: "On phone: step back so all text fits in frame (cut edges cannot be recovered). Image analyzed by Google Cloud Vision (EU), not stored.",
   },
   "notes.ocr.remaining": { fr: "{n} analyses restantes aujourd’hui", en: "{n} analyses left today" },
   "notes.ocr.inserted": { fr: "Texte inséré dans la note", en: "Text inserted into the note" },

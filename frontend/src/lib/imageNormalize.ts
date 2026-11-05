@@ -16,8 +16,11 @@ const ANALYSIS_MAX_SIDE = 480;
  * handwriting near the board edge — tight crops were truncating text.
  */
 const MIN_CROP_AREA_RATIO = 0.12;
-const MAX_CROP_AREA_RATIO = 0.78;
-const CROP_PADDING_RATIO = 0.1;
+/** Close phone photos of a whiteboard often fill most of the frame — skip crop. */
+const MAX_CROP_AREA_RATIO = 0.7;
+const CROP_PADDING_RATIO = 0.12;
+/** White margin around the final JPEG so Vision does not clip edge glyphs. */
+export const OCR_EDGE_PAD_RATIO = 0.06;
 
 /** Client-side failure with a machine-readable code mapped to i18n. */
 export class ImageImportError extends Error {
@@ -239,8 +242,29 @@ async function decode(blob: Blob): Promise<Decoded> {
 }
 
 /**
+ * Draw `source` onto a larger white canvas so OCR engines keep edge characters.
+ * Exported for unit tests.
+ */
+export function padCanvasWithWhite(
+  source: HTMLCanvasElement,
+  padRatio: number = OCR_EDGE_PAD_RATIO,
+): HTMLCanvasElement {
+  const padX = Math.max(8, Math.round(source.width * padRatio));
+  const padY = Math.max(8, Math.round(source.height * padRatio));
+  const out = document.createElement("canvas");
+  out.width = source.width + padX * 2;
+  out.height = source.height + padY * 2;
+  const ctx = out.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return source;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(source, padX, padY);
+  return out;
+}
+
+/**
  * Decode, downscale, auto-crop a bright board/paper region when confident,
- * enhance contrast, and re-encode as JPEG.
+ * enhance contrast, pad edges, and re-encode as JPEG.
  * @throws ImageImportError on non-image, oversize or undecodable input.
  */
 export async function normalizeImageForOcr(blob: Blob, name?: string): Promise<Blob> {
@@ -293,6 +317,9 @@ export async function normalizeImageForOcr(blob: Blob, name?: string): Promise<B
     const pixels = outCtx.getImageData(0, 0, w, h);
     enhanceGrayscaleContrast(pixels.data, w, h);
     outCtx.putImageData(pixels, 0, 0);
+
+    // Letterbox before JPEG — Vision often drops glyphs flush against the frame.
+    work = padCanvasWithWhite(work);
 
     const out = await new Promise<Blob | null>((resolve) => work.toBlob(resolve, "image/jpeg", OCR_JPEG_QUALITY));
     if (!out) throw new ImageImportError("IMAGE_DECODE_FAILED");

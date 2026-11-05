@@ -109,12 +109,17 @@ describe("findWhiteboardCrop", () => {
     expect(crop!.y).toBeLessThanOrEqual(board.y);
     expect(crop!.x + crop!.width).toBeGreaterThanOrEqual(board.x + board.w);
     expect(crop!.y + crop!.height).toBeGreaterThanOrEqual(board.y + board.h);
-    expect(crop!.width * crop!.height).toBeLessThan(200 * 180 * 0.78);
+    expect(crop!.width * crop!.height).toBeLessThan(200 * 180 * 0.7);
   });
 
   it("skips crop when the bright board already fills most of the frame (close-up)", () => {
     // Board leaves only a thin dark border — close phone photo.
     const data = boardOnDarkBg(200, 180, { x: 8, y: 6, w: 184, h: 168 });
+    expect(findWhiteboardCrop(data, 200, 180)).toBeNull();
+  });
+
+  it("skips crop when the board covers ~75% of the frame", () => {
+    const data = boardOnDarkBg(200, 180, { x: 15, y: 12, w: 170, h: 156 });
     expect(findWhiteboardCrop(data, 200, 180)).toBeNull();
   });
 
