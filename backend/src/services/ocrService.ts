@@ -212,7 +212,10 @@ const visionProvider: OcrProvider = {
             {
               image: { content: image.toString("base64") },
               features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
-              ...(languageHint ? { imageContext: { languageHints: [languageHint] } } : {}),
+              // languageHints bias script/lexicon (critical for FR handwriting vs Cyrillic misfires).
+              ...(languageHint
+                ? { imageContext: { languageHints: [languageHint] } }
+                : {}),
             },
           ],
         }),

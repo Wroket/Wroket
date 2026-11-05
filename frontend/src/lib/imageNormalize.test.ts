@@ -135,20 +135,21 @@ describe("scaleCropRect", () => {
 });
 
 describe("enhanceGrayscaleContrast", () => {
-  it("converts to grayscale and stretches a low-contrast board", () => {
+  it("boosts contrast without destroying ink/board separation", () => {
     const data = solid(40, 40, 200, 200, 200);
-    // ~3% dark ink-like pixels so they sit below the 1st percentile.
     for (let i = 0; i < 50; i++) {
       data[i * 4] = 80;
-      data[i * 4 + 1] = 80;
-      data[i * 4 + 2] = 80;
+      data[i * 4 + 1] = 90;
+      data[i * 4 + 2] = 100;
     }
+    const inkBefore = data[0];
+    const boardBefore = data[200];
     enhanceGrayscaleContrast(data, 40, 40);
-    // Ink moves toward black, board toward white; output is grayscale.
-    expect(data[0]).toBeLessThan(30);
-    expect(data[200]).toBeGreaterThan(220);
-    expect(data[200]).toBe(data[201]);
-    expect(data[201]).toBe(data[202]);
+    // Ink stays darker than board; mild boost keeps color channels.
+    expect(data[0]).toBeLessThan(data[200]);
+    expect(data[0]).toBeLessThanOrEqual(inkBefore);
+    expect(data[200]).toBeGreaterThanOrEqual(boardBefore);
+    expect(data[1]).not.toBe(data[0]); // color preserved (not forced grayscale)
   });
 
   it("handles flat images without crashing", () => {

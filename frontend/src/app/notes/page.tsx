@@ -1091,7 +1091,7 @@ function NotesPageInner() {
 
               {/* Document column: title, folded details, body */}
               <div className="flex-1 overflow-y-auto relative bg-white dark:bg-slate-900">
-                <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-6 sm:pt-8">
+                <div className="w-full max-w-[75ch] px-5 sm:px-8 pt-6 sm:pt-8">
                   <input
                     ref={titleRef}
                     data-testid="note-title-input"

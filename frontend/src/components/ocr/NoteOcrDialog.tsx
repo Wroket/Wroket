@@ -66,7 +66,14 @@ export default function NoteOcrDialog({
   const narrow = useNarrowVisualViewport(open);
   const [phase, setPhase] = useState<Phase>("pick");
   const [image, setImage] = useState<PreparedImage | null>(null);
-  const [languageHint, setLanguageHint] = useState("");
+  const [languageHint, setLanguageHint] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return sessionStorage.getItem("wroket-ocr-lang") ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [result, setResult] = useState<OcrResult | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -284,7 +291,20 @@ export default function NoteOcrDialog({
           <span className="shrink-0">{t("notes.ocr.language")}</span>
           <select
             value={languageHint}
-            onChange={(e) => setLanguageHint(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setLanguageHint(next);
+              try {
+                if (next) sessionStorage.setItem("wroket-ocr-lang", next);
+                else sessionStorage.removeItem("wroket-ocr-lang");
+              } catch {
+                /* ignore */
+              }
+              // Re-run immediately when a result is already on screen (hint must apply now).
+              if (phase === "preview" && (image || attachment)) {
+                void runOcr(image, next);
+              }
+            }}
             disabled={busy}
             className="flex-1 rounded-md border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs"
           >

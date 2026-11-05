@@ -129,7 +129,7 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
 
   return (
     <div className="border-t border-zinc-100 dark:border-slate-800 px-4 sm:px-6 py-3 bg-white dark:bg-slate-900">
-      <div className="max-w-3xl mx-auto">
+      <div className="w-full max-w-[75ch]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-slate-500">
           {t("notes.attachments")}{total > 0 ? ` · ${total}` : ""}

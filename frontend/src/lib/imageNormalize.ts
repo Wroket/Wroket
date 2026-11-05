@@ -176,61 +176,27 @@ export function scaleCropRect(crop: CropRect, fromW: number, fromH: number, toW:
 }
 
 /**
- * In-place grayscale + percentile contrast stretch (p1→0, p99→255).
- * Improves handwritten ink on whiteboards without destroying faint strokes.
+ * Mild in-place contrast boost, keeping color.
+ * Avoids hard grayscale stretch that breaks cursive handwriting for Vision OCR.
  */
 export function enhanceGrayscaleContrast(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): void {
   const n = width * height;
   if (n === 0 || rgba.length < n * 4) return;
 
-  const hist = new Uint32Array(256);
+  let sum = 0;
   for (let p = 0; p < n; p++) {
     const i = p * 4;
-    const y = Math.round(luma(rgba[i], rgba[i + 1], rgba[i + 2]));
-    hist[Math.max(0, Math.min(255, y))] += 1;
+    sum += luma(rgba[i], rgba[i + 1], rgba[i + 2]);
   }
-
-  // Tight percentiles: keep faint ink while lifting a dull whiteboard.
-  const lowTarget = Math.max(1, Math.floor(n * 0.01));
-  const highTarget = Math.max(lowTarget + 1, Math.floor(n * 0.99));
-  let low = 0;
-  let high = 255;
-  let seen = 0;
-  for (let v = 0; v < 256; v++) {
-    seen += hist[v];
-    if (seen >= lowTarget) {
-      low = v;
-      break;
-    }
-  }
-  seen = 0;
-  for (let v = 0; v < 256; v++) {
-    seen += hist[v];
-    if (seen >= highTarget) {
-      high = v;
-      break;
-    }
-  }
-  if (high <= low + 8) {
-    // Flat image — still convert to grayscale without stretch.
-    for (let p = 0; p < n; p++) {
-      const i = p * 4;
-      const y = Math.round(luma(rgba[i], rgba[i + 1], rgba[i + 2]));
-      rgba[i] = y;
-      rgba[i + 1] = y;
-      rgba[i + 2] = y;
-    }
-    return;
-  }
-
-  const span = high - low;
+  const mean = sum / n;
+  // Subtle S-curve around the mean — enough for dull phone photos, gentle on ink.
+  const contrast = 1.25;
   for (let p = 0; p < n; p++) {
     const i = p * 4;
-    const y = luma(rgba[i], rgba[i + 1], rgba[i + 2]);
-    const stretched = Math.max(0, Math.min(255, Math.round(((y - low) * 255) / span)));
-    rgba[i] = stretched;
-    rgba[i + 1] = stretched;
-    rgba[i + 2] = stretched;
+    for (let c = 0; c < 3; c++) {
+      const v = rgba[i + c];
+      rgba[i + c] = Math.max(0, Math.min(255, Math.round((v - mean) * contrast + mean)));
+    }
   }
 }
 
