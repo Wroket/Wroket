@@ -1,6 +1,6 @@
 # OCR « photo vers note » — étude de faisabilité
 
-*Statut : POC derrière feature flag (`OCR_ENABLED`), novembre 2026.*
+*Statut : POC validé (2026-11-05), derrière feature flag (`OCR_ENABLED`).*
 
 ## 1. Objectif utilisateur
 
