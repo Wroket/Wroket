@@ -65,7 +65,7 @@ Scope `drive.file` : **non sensible** (accès limité aux fichiers choisis par l
 Navigateur                                   wroket-api (Cloud Run)                Google
 ──────────                                   ──────────────────────                ──────
 Source (fichier/caméra/drop/coller/Drive/Dropbox)
-  → imageNormalize (canvas, JPEG ≤ 2000px)
+  → imageNormalize (recadrage zone claire, contraste gris, JPEG ≤ 2000px)
   → POST /notes/:id/ocr (multipart, languageHint, source)
                                              requireAuth → accès note (canViewNote)
                                              → flag + allowlist → quota (20/j/uid)
