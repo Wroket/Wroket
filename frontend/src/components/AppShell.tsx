@@ -535,7 +535,7 @@ export default function AppShell({ children }: AppShellProps) {
       const list = await getNotifications();
       setNotifications(list);
       setUnreadCount(list.filter((n) => !n.read).length);
-      prevUnreadCountRef.current = list.filter((n) => !n.read).length);
+      prevUnreadCountRef.current = list.filter((n) => !n.read).length;
     } catch {
       toast.error(t("toast.loadError"));
     } finally {
