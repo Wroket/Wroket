@@ -562,11 +562,6 @@ export default function DashboardPage() {
                   {t("dashboard.manageTasks")}
                 </Link>
               )}
-              {hasExternalCalendar && (
-                <Link href="/agenda/manage" className={ctaSecondaryCls}>
-                  {t("dashboard.connectCalendar")}
-                </Link>
-              )}
               <Link href="/teams" className={ctaSecondaryCls}>
                 {t("dashboard.collaborate")}
               </Link>
@@ -588,13 +583,9 @@ export default function DashboardPage() {
               <Link href={primaryCta.href} className={ctaPrimaryGridCls}>
                 {t(primaryCta.labelKey)}
               </Link>
-              {primaryCta.href !== "/todos" ? (
+              {primaryCta.href !== "/todos" && (
                 <Link href="/todos" className={ctaSecondaryGridCls}>
                   {t("dashboard.manageTasks")}
-                </Link>
-              ) : (
-                <Link href="/agenda/manage" className={ctaSecondaryGridCls}>
-                  {t("dashboard.connectCalendar")}
                 </Link>
               )}
               <Link href="/teams" className={ctaSecondaryGridCls}>

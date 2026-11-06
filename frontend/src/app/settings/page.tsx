@@ -99,7 +99,6 @@ import {
   type DiscordConnectionStatus,
 } from "@/lib/api/integrations";
 import {
-  billingPlanCodeKey,
   billingPlanMarketingKey,
   subscriptionPlanTaglineTKey,
 } from "@/lib/billingPlanLabels";
@@ -1668,7 +1667,6 @@ function SubscriptionSection() {
               <span className="text-zinc-800 dark:text-slate-100">{t(billingPlanMarketingKey(plan))}</span>
             </h3>
           </div>
-          <p className="text-xs font-mono text-zinc-500 dark:text-slate-500 mt-2">{t(billingPlanCodeKey(plan))}</p>
           <p className="text-sm text-zinc-600 dark:text-slate-400 mt-2">{t(subscriptionPlanTaglineTKey(plan))}</p>
           <div className="mt-4">
             <Link
@@ -1678,19 +1676,6 @@ function SubscriptionSection() {
               {t("settings.viewAllPlans")}
             </Link>
           </div>
-        </section>
-
-        <section className={cardCls} aria-labelledby="subscription-card-terminology-heading">
-          <h3 id="subscription-card-terminology-heading" className="text-base font-semibold text-zinc-900 dark:text-slate-100 mb-2">
-            {t("settings.planTerminologyTitle")}
-          </h3>
-          <p className="text-sm text-zinc-600 dark:text-slate-400 mb-3">{t("settings.planTerminologyDesc")}</p>
-          <ul className="text-sm text-zinc-700 dark:text-slate-300 space-y-1 list-disc list-inside">
-            <li>{t("settings.planCompareFree")}</li>
-            <li>{t("settings.planComparePro")}</li>
-            <li>{t("settings.planCompareTeam")}</li>
-            <li>{t("settings.planCompareLarge")}</li>
-          </ul>
         </section>
 
         {/* Card — entitlements */}

@@ -261,7 +261,7 @@ export async function exportNotes(req: AuthenticatedRequest, res: Response) {
   // Default: markdown
   const md = notes
     .map((n) => {
-      const hdr = `# ${n.title || "Sans titre"}\n`;
+      const hdr = `# ${(n.title || "").trim() || "Untitled"}\n`;
       const meta = n.folder ? `> Dossier: ${n.folder}\n` : "";
       const tags = n.tags?.length ? `> Tags: ${n.tags.join(", ")}\n` : "";
       return hdr + meta + tags + "\n" + (n.content || "") + "\n";

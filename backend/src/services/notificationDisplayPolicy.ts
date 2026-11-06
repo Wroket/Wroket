@@ -1,4 +1,6 @@
 import type { Notification, NotificationType } from "./notificationService";
+import { findUserByUid } from "./authService";
+import { listReceivedInvitations } from "./teamService";
 import { findTodoForUserInRam, type Todo } from "./todoService";
 
 /** Aligné sur Paramètres → Historique (`getMyActivity` days=7). */
@@ -53,9 +55,23 @@ function isUpcomingDeadlineNotification(notif: Notification, userId: string, tod
 }
 
 /**
+ * An unread invite stays visible only while a pending collaboration from that
+ * inviter still exists. A leftover notification with no invitation does not count.
+ */
+function unreadTeamInviteIsActionable(notif: Notification, userId: string): boolean {
+  const inviterEmail = notif.data?.inviterEmail?.trim().toLowerCase();
+  if (!inviterEmail) return false;
+  const email = findUserByUid(userId)?.email?.trim().toLowerCase();
+  if (!email) return false;
+  return listReceivedInvitations(userId, email).some(
+    (inv) => inv.fromEmail.trim().toLowerCase() === inviterEmail,
+  );
+}
+
+/**
  * In-app display policy:
  * - rolling window: created within the last NOTIFICATION_DISPLAY_PAST_DAYS days;
- * - plus unread team invites (action required);
+ * - plus unread team invites that still have a pending invitation;
  * - plus deadline reminders while the linked task is still due today or later.
  */
 export function isNotificationDisplayable(
@@ -65,7 +81,9 @@ export function isNotificationDisplayable(
 ): boolean {
   if (!notif.id) return false;
 
-  if (notif.type === "team_invite" && !notif.read) return true;
+  if (notif.type === "team_invite" && !notif.read) {
+    return unreadTeamInviteIsActionable(notif, userId);
+  }
 
   const todayStart = startOfLocalDay(now);
   if (isUpcomingDeadlineNotification(notif, userId, todayStart)) return true;

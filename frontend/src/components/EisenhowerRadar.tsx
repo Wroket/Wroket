@@ -423,10 +423,12 @@ export default function EisenhowerRadar({
             </div>
           )}
 
-          <span className={`absolute top-3 left-3 z-[3] font-bold text-rose-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.doFirst")}</span>
-          <span className={`absolute top-3 right-3 z-[3] font-bold text-amber-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.delegate")}</span>
-          <span className={`absolute bottom-3 left-3 z-[3] font-bold text-blue-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.schedule")}</span>
-          <span className={`absolute bottom-3 right-3 z-[3] font-bold text-zinc-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.eliminate")}</span>
+          <div className="pointer-events-none absolute inset-0 z-[3] grid grid-cols-2 grid-rows-2">
+            <span className={`p-2 text-left font-bold text-rose-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.doFirst")}</span>
+            <span className={`p-2 text-right font-bold text-amber-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.delegate")}</span>
+            <span className={`self-end p-2 text-left font-bold text-blue-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.schedule")}</span>
+            <span className={`self-end p-2 text-right font-bold text-zinc-400/70 uppercase tracking-wide ${compact ? "text-[8px]" : "text-[10px]"}`}>{t("quadrant.eliminate")}</span>
+          </div>
 
           {uiV2 && edgeLinks.length > 0 && (
             <svg className="radar-constellation-edges" aria-hidden>

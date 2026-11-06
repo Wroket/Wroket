@@ -406,6 +406,7 @@ export default function AppShell({ children }: AppShellProps) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifListLoading, setNotifListLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifTimeTick, setNotifTimeTick] = useState(0);
   const prevUnreadCountRef = useRef(0);
@@ -529,13 +530,16 @@ export default function AppShell({ children }: AppShellProps) {
   }, [accountMenuOpen]);
 
   const refreshNotificationList = useCallback(async () => {
+    setNotifListLoading(true);
     try {
       const list = await getNotifications();
       setNotifications(list);
       setUnreadCount(list.filter((n) => !n.read).length);
-      prevUnreadCountRef.current = list.filter((n) => !n.read).length;
+      prevUnreadCountRef.current = list.filter((n) => !n.read).length);
     } catch {
       toast.error(t("toast.loadError"));
+    } finally {
+      setNotifListLoading(false);
     }
   }, [toast, t]);
 
@@ -830,12 +834,7 @@ export default function AppShell({ children }: AppShellProps) {
               markContainerClassName="wroket-mark-tile w-10 h-10 bg-slate-800 dark:bg-slate-100 flex items-center justify-center shrink-0"
               wordmarkClassName="hidden sm:inline text-lg font-semibold"
             />
-            {me?.earlyBird ? (
-              <>
-                <EarlyBirdBadge className="hidden sm:inline-flex" />
-                <EarlyBirdBadge compact className="sm:hidden shrink-0" />
-              </>
-            ) : null}
+            {me?.earlyBird ? <EarlyBirdBadge className="hidden sm:inline-flex" /> : null}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
             {uiV2 && !wsAdminOnly && <CreateMenu />}
@@ -921,8 +920,10 @@ export default function AppShell({ children }: AppShellProps) {
                                 onClick={() => handleSearchResultClick(result)}
                                 className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors border-b border-zinc-50 dark:border-slate-800/50 last:border-b-0"
                               >
-                                <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
-                                {result.snippet && (
+                                <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">
+                                  {result.type === "note" ? (result.title || t("notes.untitled")) : result.title}
+                                </p>
+                                {result.type !== "note" && result.snippet && (
                                   <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>
                                 )}
                                 {result.status && (
@@ -973,6 +974,11 @@ export default function AppShell({ children }: AppShellProps) {
               </button>
               {accountMenuOpen && (
                 <div className="absolute right-0 mt-2 w-56 rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1 z-50">
+                  {me?.earlyBird ? (
+                    <div className="px-4 py-2 border-b border-zinc-100 dark:border-slate-800 sm:hidden">
+                      <EarlyBirdBadge />
+                    </div>
+                  ) : null}
                   <Link
                     href="/settings"
                     onClick={() => setAccountMenuOpen(false)}
@@ -1066,7 +1072,9 @@ export default function AppShell({ children }: AppShellProps) {
                     </div>
                   </div>
                   <div className="overflow-y-auto flex-1">
-                    {panelNotifications.length === 0 ? (
+                    {notifListLoading && panelNotifications.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("loading")}</p>
+                    ) : panelNotifications.length === 0 ? (
                       <p className="px-4 py-6 text-sm text-zinc-400 dark:text-slate-500 text-center">{t("notif.empty")}</p>
                     ) : (
                       panelNotifications.map((notif) => (
@@ -1736,7 +1744,7 @@ export default function AppShell({ children }: AppShellProps) {
           className={`flex-1 min-w-0 ${
             pathname === "/notes" || pathname.startsWith("/notes/")
               ? "py-0 px-0"
-              : "py-6 px-4 md:px-6 lg:px-8"
+              : "pt-6 pb-24 md:pb-6 px-4 md:px-6 lg:px-8"
           }`}
         >
           {me ? <FreeQuotaBanner /> : null}
@@ -1843,8 +1851,10 @@ export default function AppShell({ children }: AppShellProps) {
                           onClick={() => handleSearchResultClick(result)}
                           className="w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-slate-800 border-b border-zinc-50 dark:border-slate-800/50 last:border-b-0"
                         >
-                          <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">{result.title}</p>
-                          {result.snippet && (
+                          <p className="text-sm font-medium text-zinc-800 dark:text-slate-200 truncate">
+                            {result.type === "note" ? (result.title || t("notes.untitled")) : result.title}
+                          </p>
+                          {result.type !== "note" && result.snippet && (
                             <p className="text-xs text-zinc-400 dark:text-slate-500 truncate mt-0.5">{result.snippet}</p>
                           )}
                           {result.status && (

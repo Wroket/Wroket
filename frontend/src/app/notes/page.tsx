@@ -563,7 +563,12 @@ function NotesPageInner() {
   }, [selected?.id]);
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    new Date(iso).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const unfolderedCount = useMemo(
     () => notes.filter((n) => !n.folder?.trim()).length,
@@ -972,9 +977,6 @@ function NotesPageInner() {
                         {note.title || t("notes.untitled")}
                       </p>
                     </div>
-                    <p className="text-[11px] text-zinc-400 dark:text-slate-500 truncate mt-0.5 leading-relaxed">
-                      {stripHtml(note.content).slice(0, 80) || "..."}
-                    </p>
                     {(note.tags?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-0.5 mt-1">
                         {note.tags!.slice(0, 3).map((tag) => (

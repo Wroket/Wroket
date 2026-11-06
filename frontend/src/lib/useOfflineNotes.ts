@@ -272,7 +272,7 @@ export function useOfflineNotes() {
 
     if (online) {
       createNoteApi({
-        title: noteTitle || "Sans titre",
+        title: noteTitle,
         content: "",
         id,
         folder: folderTrim,
@@ -431,7 +431,7 @@ export function useOfflineNotes() {
         const base = Date.now();
         const payload = own.map((n, i) => ({
           id: n.id,
-          title: (n.title || "").trim() || "Sans titre",
+          title: (n.title || "").trim(),
           content: n.content ?? "",
           updatedAt: new Date(base + i).toISOString(),
           pinned: n.pinned,

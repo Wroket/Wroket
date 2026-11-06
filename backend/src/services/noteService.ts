@@ -310,7 +310,7 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
   const note: Note = {
     id: clientId ?? crypto.randomUUID(),
     userId,
-    title: title || "Sans titre",
+    title,
     content,
     pinned: false,
     folder,
@@ -374,7 +374,7 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
   if (input.title !== undefined) {
     const t = input.title.trim();
     if (t.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
-    note.title = t || "Sans titre";
+    note.title = t;
   }
   if (input.blocks !== undefined) {
     applyNoteBlocks(note, input.blocks);
@@ -526,7 +526,7 @@ export function updateNoteAsCollaborator(
   if (input.title !== undefined) {
     const t = input.title.trim();
     if (t.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
-    note.title = t || "Sans titre";
+    note.title = t;
   }
   if (input.blocks !== undefined) {
     applyNoteBlocks(note, input.blocks);
@@ -599,7 +599,7 @@ export function syncNotes(
     const existing = map.get(item.id);
     if (existing) {
       if (new Date(item.updatedAt) > new Date(existing.updatedAt)) {
-        existing.title = (item.title || "").trim().slice(0, 200) || "Sans titre";
+        existing.title = (item.title || "").trim().slice(0, 200);
         if (Array.isArray(item.blocks)) {
           applyNoteBlocks(existing, item.blocks);
         } else {
@@ -628,7 +628,7 @@ export function syncNotes(
       const note: Note = {
         id: item.id,
         userId,
-        title: (item.title || "").trim().slice(0, 200) || "Sans titre",
+        title: (item.title || "").trim().slice(0, 200),
         content: (item.content || "").slice(0, 50_000),
         pinned: item.pinned ?? false,
         folder: folderTrim,

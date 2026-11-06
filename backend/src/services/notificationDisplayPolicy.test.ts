@@ -15,7 +15,9 @@ import {
   filterNotificationsForDisplay,
   isNotificationDisplayable,
 } from "./notificationDisplayPolicy";
+import * as authService from "./authService";
 import { createNotification, type Notification } from "./notificationService";
+import * as teamService from "./teamService";
 import { createTodo, _resetTodosForTests } from "./todoService";
 
 function uid(prefix: string): string {
@@ -69,8 +71,27 @@ describe("notificationDisplayPolicy", () => {
     expect(isNotificationDisplayable(recent, userId)).toBe(true);
   });
 
-  it("keeps unread team invites beyond the rolling window", () => {
+  it("hides an unread team invite when the invitation is gone", () => {
     const userId = uid("u");
+    vi.spyOn(authService, "findUserByUid").mockReturnValue({ email: "me@test.com" } as authService.AuthUser);
+    vi.spyOn(teamService, "listReceivedInvitations").mockReturnValue([]);
+    const invite: Notification = {
+      id: "n-invite",
+      userId,
+      type: "team_invite",
+      title: "Invite",
+      message: "Join",
+      read: false,
+      data: { inviterEmail: "a@test.com" },
+      createdAt: daysAgoIso(NOTIFICATION_DISPLAY_PAST_DAYS + 3),
+    };
+    expect(isNotificationDisplayable(invite, userId)).toBe(false);
+  });
+
+  it("keeps an unread team invite while that invitation is still pending", () => {
+    const userId = uid("u");
+    vi.spyOn(authService, "findUserByUid").mockReturnValue({ email: "me@test.com" } as authService.AuthUser);
+    vi.spyOn(teamService, "listReceivedInvitations").mockReturnValue([{ fromEmail: "A@test.com" }]);
     const invite: Notification = {
       id: "n-invite",
       userId,

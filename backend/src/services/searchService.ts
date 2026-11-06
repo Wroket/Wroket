@@ -98,13 +98,10 @@ export async function search(uid: string, query: string, userEmail: string): Pro
     const noteTags = note.tags ?? [];
     collectMatchingTags(noteTags);
     if (includesQ(title, q) || includesQ(content, q) || tagMatches(noteTags, q)) {
-      const idx = content.toLowerCase().indexOf(q);
-      const snippetStart = idx >= 0 ? Math.max(0, idx - 30) : 0;
       results.push({
         type: "note",
         id: note.id,
-        title: title || "Sans titre",
-        snippet: content ? content.substring(snippetStart, snippetStart + 80) : undefined,
+        title,
       });
     }
   }

@@ -3,6 +3,7 @@
  * Off unless `DIAGRAM_ENABLED=true`. The image and the model output are not logged.
  */
 import { getGcpAccessToken } from "./gcpAccessToken";
+import { vertexFailureReason } from "./vertexHttp";
 import type { NoteDiagramEdge, NoteDiagramNode } from "./noteService";
 import { AppError, UnprocessableEntityError } from "../utils/errors";
 import { logger } from "../utils/logger";
@@ -210,7 +211,7 @@ async function vertexProposal(buffer: Buffer, mimeType: string): Promise<Diagram
         },
       }),
     });
-    if (!res.ok) throw new Error(`vertex HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await vertexFailureReason(res));
     const body = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };

@@ -3,6 +3,7 @@
  * Off unless `TASK_SUGGEST_ENABLED=true`. The note text and the model output are not logged.
  */
 import { getGcpAccessToken } from "./gcpAccessToken";
+import { vertexFailureReason } from "./vertexHttp";
 import type { Priority } from "./todoService";
 import { AppError, ValidationError } from "../utils/errors";
 import { logger } from "../utils/logger";
@@ -154,7 +155,7 @@ async function vertexSuggestions(text: string): Promise<SuggestedTask[]> {
         },
       }),
     });
-    if (!res.ok) throw new Error(`vertex HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await vertexFailureReason(res));
     const body = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
