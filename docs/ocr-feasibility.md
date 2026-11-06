@@ -108,7 +108,7 @@ Codes d'erreur :
 - **Drive** : scope `drive.file`, jeton d'accès en mémoire uniquement (jamais stocké ni envoyé à l'API Wroket). **Dropbox** : lien direct éphémère, pas d'OAuth.
 - **Contrôle d'accès** : l'appel OCR exige la lecture de la note (`canViewNote`) ; le bouton n'est visible que si l'utilisateur peut éditer.
 - **CSP** élargie aux seuls domaines officiels Google (`apis.google.com`, `accounts.google.com/gsi/client`, `docs.google.com`, `drive.google.com`, `www.googleapis.com`, `content.googleapis.com`, `*.googleusercontent.com`) et Dropbox (`www.dropbox.com`, `dl.dropboxusercontent.com`).
-- **À faire avant ouverture générale** : ajouter une ligne « Reconnaissance de texte (Google Cloud Vision, UE) » dans la politique de confidentialité.
+- **Politique de confidentialité** : Vision (UE), Gemini (point d'accès mondial) et absence de conservation de la lecture sont décrits dans `/privacy` (2026-11-06).
 
 ## 8. Coûts
 

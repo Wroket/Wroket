@@ -124,11 +124,11 @@ function TermsFr() {
         aucun contrôle.
       </p>
       <p>
-        Lorsque vous utilisez « Proposer une liste » ou « Numériser », le texte de la note ou l&apos;image choisie est transmis à
-        Google pour produire la proposition. La lecture du texte se fait en Europe. La lecture d&apos;un schéma utilise le point
-        d&apos;accès mondial, la Belgique ne proposant plus ce modèle. Cette lecture ne conserve ni le texte ni l&apos;image.
-        L&apos;image n&apos;est enregistrée dans la note que si vous choisissez de la joindre. Aucune tâche n&apos;est créée sans
-        votre confirmation.
+        Lorsque vous utilisez « Numériser », l&apos;image choisie est envoyée à Google. La lecture du texte (Cloud Vision) se fait
+        en Europe. La lecture du schéma (Gemini) utilise le point d&apos;accès mondial, la Belgique ne proposant plus ce modèle.
+        Lorsque vous utilisez « Proposer une liste », le texte de la note est envoyé à ce même point d&apos;accès mondial. Ces
+        lectures ne conservent ni le texte ni l&apos;image. L&apos;image n&apos;est enregistrée dans la note que si vous choisissez
+        de la joindre. Aucune tâche n&apos;est créée sans votre confirmation.
       </p>
 
       <h2>7. Tarifs, abonnement et facturation</h2>
@@ -264,10 +264,10 @@ function TermsEn() {
         Microsoft&apos;s terms and policies, over which we have no control.
       </p>
       <p>
-        When you use “Suggest a list” or “Digitize”, the note text or the chosen image is sent to Google to produce the
-        proposal. Text is read in Europe. Diagram reading uses the global endpoint, because Belgium no longer offers this model.
-        This reading stores neither the text nor the image. The image is saved on the note only if you choose to attach it.
-        No task is created without your confirmation.
+        When you use “Digitize”, the chosen image is sent to Google. Text reading (Cloud Vision) happens in Europe. Diagram
+        reading (Gemini) uses the global endpoint, because Belgium no longer offers this model. When you use “Suggest a list”,
+        the note text is sent to that same global endpoint. These readings store neither the text nor the image. The image is
+        saved on the note only if you choose to attach it. No task is created without your confirmation.
       </p>
 
       <h2>7. Pricing, subscription and billing</h2>

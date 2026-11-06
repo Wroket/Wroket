@@ -56,7 +56,7 @@ export default function PrivacyPage() {
   );
 }
 
-const LAST_UPDATED = "2026-08-11";
+const LAST_UPDATED = "2026-11-06";
 
 function PrivacyFr() {
   return (
@@ -117,6 +117,7 @@ function PrivacyFr() {
       <h2>3. Finalités et bases légales</h2>
       <ul>
         <li>Fourniture du service (exécution du contrat) : création de compte, gestion des tâches, projets et agendas, réservation de créneaux dans Wroket, et synchronisation explicite vers Google Calendar si vous la déclenchez.</li>
+        <li>Lecture que vous demandez (exécution du contrat) : « Numériser » envoie la photo choisie, « Proposer une liste » envoie le texte de la note. Aucune tâche n&apos;est créée sans votre confirmation.</li>
         <li>Sécurité (intérêt légitime) : journaux, détection d&apos;abus.</li>
         <li>Communication transactionnelle (exécution du contrat) : e-mails de vérification, réinitialisation de mot de passe, notifications d&apos;invitation.</li>
         <li>Amélioration du service (intérêt légitime) : statistiques agrégées et anonymisées.</li>
@@ -142,6 +143,8 @@ function PrivacyFr() {
       <p>Nous ne vendons pas vos données. Nous partageons uniquement avec :</p>
       <ul>
         <li><strong>Google Cloud Platform</strong> (sous-traitant d&apos;hébergement, région Europe : Belgique / Pays-Bas), pour l&apos;exécution de l&apos;infrastructure.</li>
+        <li><strong>Google Cloud Vision</strong> (reconnaissance de texte, endpoint Union européenne), lorsque vous numérisez une photo. Cette lecture ne conserve pas l&apos;image.</li>
+        <li><strong>Google Gemini</strong> (point d&apos;accès mondial), lorsque vous demandez un schéma à partir d&apos;une photo ou une liste de tâches à partir du texte d&apos;une note. La Belgique ne propose plus ce modèle. Wroket ne conserve pas le contenu envoyé pour cette lecture et ne l&apos;utilise pas pour entraîner un modèle.</li>
         <li><strong>Fournisseur d&apos;envoi d&apos;e-mails transactionnels</strong> : SMTP configuré côté serveur (ex. Gmail SMTP / compte opérationnel Wroket).</li>
         <li>Autorités, sur réquisition légale uniquement.</li>
       </ul>
@@ -150,7 +153,8 @@ function PrivacyFr() {
       <ul>
         <li>Données de compte : tant que le compte est actif. Suppression définitive immédiate (sous quelques heures) après votre demande de suppression de compte.</li>
         <li>Données Google Calendar : non stockées de manière persistante au-delà du nécessaire (cache court terme pour l&apos;affichage agenda et le calcul de disponibilités). Les jetons OAuth sont chiffrés au repos et révoqués automatiquement quand vous déconnectez votre agenda.</li>
-        <li>Journaux techniques : 90 jours maximum.</li>
+        <li>Lectures Vision et Gemini : le texte et l&apos;image transmis pour une proposition ne sont pas enregistrés. Seul ce que vous insérez ensuite dans une note, ou une tâche que vous confirmez, est conservé comme donnée applicative. L&apos;image n&apos;est jointe à la note que si vous le choisissez.</li>
+        <li>Journaux techniques : 90 jours maximum. Ils contiennent un identifiant, une durée et une taille, pas le texte reconnu ni le contenu envoyé au modèle.</li>
         <li>Sauvegardes : 30 jours maximum.</li>
       </ul>
 
@@ -179,8 +183,7 @@ function PrivacyFr() {
 
       <h2>9. Transferts internationaux</h2>
       <p>
-        Vos données sont hébergées en Europe. Si un transfert hors UE devient nécessaire (support, sous-traitant tiers),
-        il sera encadré par les Clauses Contractuelles Types de la Commission européenne.
+        Les données de compte sont hébergées en Europe (Belgique / Pays-Bas). La reconnaissance de texte d&apos;une photo reste sur l&apos;endpoint Vision en Union européenne. La lecture d&apos;un schéma et la proposition de tâches à partir d&apos;une note passent par le point d&apos;accès mondial de Gemini, hors d&apos;une région européenne unique, parce que la Belgique ne propose plus ce modèle. Ce transfert est couvert par le contrat de traitement Google Cloud et, lorsqu&apos;elles s&apos;appliquent, par les Clauses Contractuelles Types de la Commission européenne.
       </p>
 
       <h2>10. Mineurs</h2>
@@ -260,6 +263,7 @@ function PrivacyEn() {
       <h2>3. Purposes and legal bases</h2>
       <ul>
         <li>Service delivery (performance of contract): account creation, task, project, and calendar management, slot booking in Wroket, and explicit synchronization to Google Calendar when triggered by you.</li>
+        <li>A reading you request (performance of contract): “Digitize” sends the chosen photo, “Suggest a list” sends the note text. No task is created without your confirmation.</li>
         <li>Security (legitimate interest): logs, abuse detection.</li>
         <li>Transactional communication (performance of contract): verification emails, password resets, invitation notifications.</li>
         <li>Service improvement (legitimate interest): aggregated and anonymized statistics.</li>
@@ -285,6 +289,8 @@ function PrivacyEn() {
       <p>We do not sell your data. We share only with:</p>
       <ul>
         <li><strong>Google Cloud Platform</strong> (hosting sub-processor, EU region: Belgium / Netherlands), for infrastructure execution.</li>
+        <li><strong>Google Cloud Vision</strong> (text recognition, European Union endpoint), when you digitize a photo. This reading does not store the image.</li>
+        <li><strong>Google Gemini</strong> (global endpoint), when you ask for a diagram from a photo or a task list from a note’s text. Belgium no longer offers this model. Wroket does not store the content sent for this reading and does not use it to train a model.</li>
         <li><strong>Transactional email provider</strong>: server-configured SMTP (e.g. Gmail SMTP / Wroket ops account).</li>
         <li>Authorities, only upon legal request.</li>
       </ul>
@@ -293,7 +299,8 @@ function PrivacyEn() {
       <ul>
         <li>Account data: as long as the account is active. Permanently deleted immediately (within a few hours) after your account deletion request.</li>
         <li>Google Calendar data: not stored persistently beyond what is needed (short-term cache for agenda display and availability computation). OAuth tokens are encrypted at rest and automatically revoked when you disconnect your calendar.</li>
-        <li>Technical logs: at most 90 days.</li>
+        <li>Vision and Gemini readings: the text and image sent for a proposal are not stored. Only what you then insert into a note, or a task you confirm, is kept as application data. The image is attached to the note only if you choose to.</li>
+        <li>Technical logs: at most 90 days. They contain an identifier, a duration and a size, not the recognized text or the content sent to the model.</li>
         <li>Backups: at most 30 days.</li>
       </ul>
 
@@ -322,8 +329,7 @@ function PrivacyEn() {
 
       <h2>9. International transfers</h2>
       <p>
-        Your data is hosted in the EU. If a non-EU transfer becomes necessary (support, third-party sub-processor),
-        it will be governed by the European Commission&apos;s Standard Contractual Clauses.
+        Account data is hosted in the EU (Belgium / Netherlands). Text recognition on a photo stays on the Vision endpoint in the European Union. Diagram reading and task suggestions from a note use Gemini&apos;s global endpoint, outside a single European region, because Belgium no longer offers this model. This transfer is covered by the Google Cloud data-processing terms and, where they apply, by the European Commission&apos;s Standard Contractual Clauses.
       </p>
 
       <h2>10. Minors</h2>
