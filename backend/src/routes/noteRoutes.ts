@@ -30,6 +30,9 @@ import {
   downloadTaskAttachmentViaNote,
 } from "../controllers/noteAttachmentController";
 import { getOcrConfig, ocrUploadedImage, ocrNoteAttachment } from "../controllers/noteOcrController";
+import { spawnedTasks, spawnTasks } from "../controllers/noteSpawnController";
+import { getDiagramConfig, recognizeDiagram, saveDiagram } from "../controllers/noteDiagramController";
+import { getTaskSuggestConfig, suggestTasks } from "../controllers/taskSuggestController";
 import { requireAuth } from "../middlewares/requireAuth";
 import { UnprocessableEntityError } from "../utils/errors";
 
@@ -64,6 +67,8 @@ noteRoutes.get("/folders", listFolders);
 noteRoutes.post("/folders", createFolder);
 noteRoutes.delete("/folders/:name", removeFolder);
 noteRoutes.get("/ocr/config", getOcrConfig);
+noteRoutes.get("/diagram/config", getDiagramConfig);
+noteRoutes.get("/task-suggestions/config", getTaskSuggestConfig);
 
 // Note attachments — note-namespace files.
 noteRoutes.get("/:noteId/attachments", listNoteAttachmentsHandler);
@@ -74,6 +79,13 @@ noteRoutes.post("/:noteId/attachments/:attachmentId/ocr", ocrNoteAttachment);
 
 // OCR — image → text preview, nothing persisted.
 noteRoutes.post("/:noteId/ocr", ocrUpload, ocrUploadedImage);
+
+// Tasks proposed from the note, and photo → workflow graph.
+noteRoutes.get("/:noteId/spawned-tasks", spawnedTasks);
+noteRoutes.post("/:noteId/spawn-tasks", spawnTasks);
+noteRoutes.post("/:noteId/task-suggestions", suggestTasks);
+noteRoutes.post("/:noteId/diagram", ocrUpload, recognizeDiagram);
+noteRoutes.put("/:noteId/diagram", saveDiagram);
 
 // Task-attachment access via note context (note must be linked to the task).
 noteRoutes.get("/:noteId/task-attachments/:todoId/:attachmentId", downloadTaskAttachmentViaNote);

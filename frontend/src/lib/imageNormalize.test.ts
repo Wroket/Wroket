@@ -123,6 +123,35 @@ describe("findWhiteboardCrop", () => {
     expect(findWhiteboardCrop(data, 200, 180)).toBeNull();
   });
 
+  it("keeps a shaded sheet instead of the sunlit strip", () => {
+    const width = 200;
+    const height = 180;
+    const data = solid(width, height, 30, 30, 30);
+    const board = { x: 30, y: 30, w: 100, h: 80 };
+    for (let y = board.y; y < board.y + board.h; y++) {
+      for (let x = board.x; x < board.x + board.w; x++) {
+        const o = (y * width + x) * 4;
+        data[o] = 150;
+        data[o + 1] = 150;
+        data[o + 2] = 150;
+      }
+    }
+    for (let y = 40; y < 80; y++) {
+      for (let x = 90; x < 120; x++) {
+        const o = (y * width + x) * 4;
+        data[o] = 230;
+        data[o + 1] = 230;
+        data[o + 2] = 230;
+      }
+    }
+    const crop = findWhiteboardCrop(data, width, height);
+    if (crop) {
+      expect(crop.x).toBeLessThanOrEqual(board.x);
+      expect(crop.x + crop.width).toBeGreaterThanOrEqual(board.x + board.w);
+      expect(crop.width).toBeGreaterThan(70);
+    }
+  });
+
   it("returns null for a uniform bright page (already full-frame content)", () => {
     const data = solid(100, 100, 250, 250, 250);
     expect(findWhiteboardCrop(data, 100, 100)).toBeNull();

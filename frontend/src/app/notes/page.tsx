@@ -11,6 +11,9 @@ import ExportImportDropdown from "@/components/ExportImportDropdown";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
 import NoteOcrDialog from "@/components/ocr/NoteOcrDialog";
+import DiagramImportDialog from "@/components/notes/DiagramImportDialog";
+import NoteDocument from "@/components/notes/NoteDocument";
+import SpawnTasksDialog from "@/components/notes/SpawnTasksDialog";
 import PageHelpButton from "@/components/PageHelpButton";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import { useToast } from "@/components/Toast";
@@ -21,8 +24,10 @@ import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi, expo
 import type { Note, Project, Todo, Team } from "@/lib/api";
 import { personalNotesCreateBlocked } from "@/lib/freeQuota";
 import { formatUserFacingError } from "@/lib/apiErrors";
-import { getOcrConfig, uploadNoteAttachment, type OcrConfig } from "@/lib/api/notes";
+import { getDiagramConfig, getOcrConfig, listSpawnedTasks, uploadNoteAttachment, type DiagramConfig, type OcrConfig } from "@/lib/api/notes";
+import { parseNoteTaskLines } from "@/lib/noteTaskLines";
 import { newClientEntityId } from "@/lib/newClientId";
+import { appendCapture, resolveNoteBlocks, textHtmlFromBlocks } from "@/lib/noteBlocks";
 import { ocrTextToHtml } from "@/lib/ocrText";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
 import { useNoteLiveCollab } from "@/hooks/useNoteLiveCollab";
@@ -48,6 +53,7 @@ function NotesPageInner() {
   const [collabEmailInput, setCollabEmailInput] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [focusedTextId, setFocusedTextId] = useState<string | null>(null);
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
   type NotesHomeView = "tiles" | "list" | "databases";
@@ -62,7 +68,11 @@ function NotesPageInner() {
   const [deleteFolderTarget, setDeleteFolderTarget] = useState("");
   const [folderPickInput, setFolderPickInput] = useState("");
   const [ocrConfig, setOcrConfig] = useState<OcrConfig | null>(null);
+  const [diagramConfig, setDiagramConfig] = useState<DiagramConfig | null>(null);
   const [ocrOpen, setOcrOpen] = useState(false);
+  const [spawnOpen, setSpawnOpen] = useState(false);
+  const [diagramOpen, setDiagramOpen] = useState(false);
+  const [spawnedTasks, setSpawnedTasks] = useState<Todo[]>([]);
   const [ocrAttachment, setOcrAttachment] = useState<{ id: string; name: string } | null>(null);
   const [attachmentsRefreshKey, setAttachmentsRefreshKey] = useState(0);
   const [metaOpen, setMetaOpen] = useState(false);
@@ -86,6 +96,7 @@ function NotesPageInner() {
     getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
     getTeams().then(setTeams).catch(() => setTeams([]));
     getOcrConfig().then(setOcrConfig).catch(() => {});
+    getDiagramConfig().then(setDiagramConfig).catch(() => setDiagramConfig({ enabled: false, dailyLimit: 0, remaining: 0 }));
   }, []);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
@@ -102,7 +113,11 @@ function NotesPageInner() {
       setCollabCanWrite(canWrite);
       if (!selectedId) return;
       // Soft merge: update content if remote is newer (handled by hook gate)
-      saveNote(remote.id, { title: remote.title, content: remote.content });
+      saveNote(remote.id, {
+        title: remote.title,
+        content: remote.content,
+        blocks: remote.blocks?.length ? remote.blocks : null,
+      });
     },
   });
 
@@ -317,9 +332,15 @@ function NotesPageInner() {
   }, [selectedId, saveNote]);
 
   const handleContentChange = useCallback((value: string) => {
-    if (!selectedId) return;
-    saveNote(selectedId, { content: value });
-  }, [selectedId, saveNote]);
+    if (!selectedId || !selected) return;
+    const blocks = resolveNoteBlocks(selected);
+    const textId = focusedTextId ?? blocks.find((block) => block.type === "text")?.id;
+    if (!textId) return;
+    const next = blocks.map((block) => (
+      block.type === "text" && block.id === textId ? { ...block, html: value } : block
+    ));
+    saveNote(selectedId, { blocks: next, content: textHtmlFromBlocks(next) });
+  }, [selectedId, selected, focusedTextId, saveNote]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) return;
@@ -429,10 +450,10 @@ function NotesPageInner() {
     saveNote(selectedId, { tags: current.filter((t) => t !== tag) });
   }, [selectedId, selected, saveNote]);
 
-  const handleEditorInput = useCallback(() => {
-    if (!selectedId || !contentRef.current || isSharedNote) return;
-    handleContentChange(contentRef.current.innerHTML);
-  }, [selectedId, isSharedNote, handleContentChange]);
+  const commitBlocks = useCallback((blocks: ReturnType<typeof resolveNoteBlocks>) => {
+    if (!selectedId) return;
+    saveNote(selectedId, { blocks, content: textHtmlFromBlocks(blocks) });
+  }, [selectedId, saveNote]);
 
   const openOcr = useCallback((attachment: { id: string; name: string } | null = null) => {
     const editor = contentRef.current;
@@ -488,38 +509,57 @@ function NotesPageInner() {
     }
   }, [selectedId, toast, t]);
 
-  const handleSlashCreateTask = useCallback(
-    async (payload: SlashTaskPayload) => {
-      const todo = await createTodo({
-        id: newClientEntityId(),
-        title: payload.title,
-        priority: payload.priority,
-        effort: "medium",
-        deadline: payload.deadline ? `${payload.deadline}T12:00:00` : null,
-        projectId: payload.projectId ?? null,
-        assignedTo: payload.assignedTo ?? null,
-      });
-      if (selectedId) {
-        saveNote(selectedId, { todoId: todo.id });
-      }
-      getTodos().then((t) => setTodos(t.filter((x) => x.status === "active"))).catch(() => {});
-    },
-    [selectedId, saveNote],
-  );
+  const refreshSpawned = useCallback((noteId: string) => {
+    listSpawnedTasks(noteId).then(setSpawnedTasks).catch(() => setSpawnedTasks([]));
+  }, []);
 
   useEffect(() => {
-    if (!contentRef.current || !selected) return;
-    const current = contentRef.current.innerHTML;
-    if (current !== selected.content) {
-      contentRef.current.innerHTML = selected.content || "";
+    if (!selectedId || isSharedNote) {
+      setSpawnedTasks([]);
+      return;
     }
-  }, [selected]);
+    refreshSpawned(selectedId);
+  }, [selectedId, isSharedNote, refreshSpawned]);
+
+  const handleSlashCreateTask = useCallback(
+    async (payload: SlashTaskPayload) => {
+      const isDocument = Boolean(selected?.projectId || stripHtml(selected?.content ?? "").trim());
+      if (selectedId && isDocument) {
+        const { spawnTasksFromNote } = await import("@/lib/api/notes");
+        await spawnTasksFromNote(selectedId, {
+          projectId: payload.projectId ?? selected?.projectId ?? null,
+          items: [{
+            clientKey: `slash-${newClientEntityId()}`,
+            title: payload.title,
+            priority: payload.priority,
+            deadline: payload.deadline ?? null,
+            assignedTo: payload.assignedTo ?? null,
+          }],
+        });
+        refreshSpawned(selectedId);
+      } else {
+        const todo = await createTodo({
+          id: newClientEntityId(),
+          title: payload.title,
+          priority: payload.priority,
+          effort: "medium",
+          deadline: payload.deadline ? `${payload.deadline}T12:00:00` : null,
+          projectId: payload.projectId ?? null,
+          assignedTo: payload.assignedTo ?? null,
+        });
+        if (selectedId) saveNote(selectedId, { todoId: todo.id });
+      }
+      getTodos().then((rows) => setTodos(rows.filter((x) => x.status === "active"))).catch(() => {});
+    },
+    [selectedId, selected, saveNote, refreshSpawned],
+  );
 
   useEffect(() => {
     setFolderPickInput("");
     setOcrOpen(false);
     setOcrAttachment(null);
     setMetaOpen(false);
+    setFocusedTextId(null);
   }, [selected?.id]);
 
   const formatDate = (iso: string) =>
@@ -1074,7 +1114,9 @@ function NotesPageInner() {
               {!isSharedNote && (
                 <NoteToolbar
                   editorRef={contentRef}
-                  onOcr={ocrConfig?.enabled ? () => openOcr(null) : undefined}
+                  onOcr={ocrConfig?.enabled && diagramConfig?.enabled === false ? () => openOcr(null) : undefined}
+                  onSpawnTasks={() => setSpawnOpen(true)}
+                  onDiagram={diagramConfig?.enabled ? () => setDiagramOpen(true) : undefined}
                 />
               )}
 
@@ -1086,6 +1128,7 @@ function NotesPageInner() {
                   projects={projects}
                   onCreateTask={handleSlashCreateTask}
                   bindingNoteId={selected.id}
+                  listenKey={focusedTextId}
                 />
               )}
 
@@ -1296,6 +1339,21 @@ function NotesPageInner() {
                           </>
                         )}
 
+                        {spawnedTasks.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.spawn.listTitle")}</p>
+                            <ul className="space-y-0.5">
+                              {spawnedTasks.map((task) => (
+                                <li key={task.id} className="flex items-center justify-between gap-2 text-[12px] text-zinc-700 dark:text-slate-200">
+                                  <span className="truncate">{task.title}</span>
+                                  <Link href={`/agenda?schedule=${encodeURIComponent(task.id)}`} className="shrink-0 text-emerald-700 dark:text-emerald-300 hover:underline">
+                                    {t("notes.spawn.plan")}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         {selected.todoId && (() => {
                           const linkedTask = todos.find((td) => td.id === selected.todoId);
                           return linkedTask ? (
@@ -1312,17 +1370,21 @@ function NotesPageInner() {
                     )}
                   </div>
 
-                  <div
-                    ref={contentRef}
-                    contentEditable={!isSharedNote}
-                    suppressContentEditableWarning
-                    spellCheck
-                    lang={locale}
-                    onInput={handleEditorInput}
-                    data-placeholder={isSharedNote ? "" : t("notes.contentPlaceholder")}
-                    className={`note-doc-body w-full min-h-[12rem] pb-10 text-[16px] sm:text-[17px] text-zinc-800 dark:text-slate-200 bg-transparent border-none outline-none leading-7 overflow-visible empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-300 dark:empty:before:text-slate-600 empty:before:pointer-events-none [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-zinc-900 [&_h2]:dark:text-slate-50 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_p]:my-2 ${
-                      isSharedNote ? "cursor-default" : ""
-                    }`}
+                  <NoteDocument
+                    key={selected.id}
+                    noteId={selected.id}
+                    blocks={resolveNoteBlocks(selected)}
+                    readOnly={isSharedNote}
+                    refreshKey={attachmentsRefreshKey}
+                    editorRef={contentRef}
+                    onFocusText={setFocusedTextId}
+                    onCommit={commitBlocks}
+                    diagramApply={{
+                      projects,
+                      defaultProjectId: selected.projectId,
+                      parentId: todos.find((task) => task.id === selected.todoId)?.scheduledSlot?.meetingUrl ? selected.todoId : null,
+                      onCreated: () => refreshSpawned(selected.id),
+                    }}
                   />
                 </div>
 
@@ -1345,6 +1407,45 @@ function NotesPageInner() {
                   onClose={closeOcr}
                   onInsert={handleOcrInsert}
                   onAttachImage={handleOcrAttachImage}
+                />
+              )}
+              {!isSharedNote && (
+                <SpawnTasksDialog
+                  open={spawnOpen}
+                  noteId={selected.id}
+                  lines={parseNoteTaskLines(selected.content || "")}
+                  sourceHtml={selected.content || ""}
+                  projects={projects}
+                  defaultProjectId={selected.projectId}
+                  onClose={() => setSpawnOpen(false)}
+                  onCreated={() => refreshSpawned(selected.id)}
+                />
+              )}
+              {!isSharedNote && (
+                <DiagramImportDialog
+                  open={diagramOpen}
+                  noteId={selected.id}
+                  projects={projects}
+                  defaultProjectId={selected.projectId}
+                  canAttach={selected.userId === currentUid}
+                  replacesDiagram={(selected.diagram?.nodes.length ?? 0) > 0}
+                  onClose={() => {
+                    setDiagramOpen(false);
+                    getDiagramConfig().then(setDiagramConfig).catch(() => {});
+                  }}
+                  onUseOcr={() => {
+                    setDiagramOpen(false);
+                    if (ocrConfig?.enabled) openOcr(null);
+                    else toast.error(t("errors.code.OCR_DISABLED"));
+                  }}
+                  onAttachImage={handleOcrAttachImage}
+                  onImport={({ nodes, edges, text }) => {
+                    const html = text.trim() ? ocrTextToHtml(text) : "";
+                    const next = appendCapture(resolveNoteBlocks(selected), nodes, edges, html);
+                    saveNote(selected.id, { blocks: next, content: textHtmlFromBlocks(next) });
+                    toast.success(t("notes.diagram.kept"));
+                  }}
+                  onTasksCreated={() => refreshSpawned(selected.id)}
                 />
               )}
 

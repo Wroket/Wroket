@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 import { useLocale } from "@/lib/LocaleContext";
@@ -35,6 +37,13 @@ export default function TaskEditEssentialsZone({
 
   return (
     <div id="zone-essentials" className={className}>
+      {todo.originNoteId && (
+        <p className="mb-2 text-xs">
+          <Link href={`/notes?id=${encodeURIComponent(todo.originNoteId)}`} className="text-emerald-700 dark:text-emerald-300 hover:underline">
+            {t("notes.spawn.origin")}
+          </Link>
+        </p>
+      )}
       {isTaskOwner &&
         !viewOnly &&
         todo.scheduledSlot?.start &&

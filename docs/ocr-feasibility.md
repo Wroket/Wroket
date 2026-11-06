@@ -144,12 +144,25 @@ Développement local : `OCR_ENABLED=true` et `OCR_PROVIDER=mock` (réponse facti
 
 Smoke test (≈ 12 photos) : tableau blanc, carnet manuscrit, document imprimé, ticket, langue non latine (arabe ou japonais), source Drive, source Dropbox, capture collée, PJ existante, photo HEIC (iPhone), photo floue (attendu : `OCR_NO_TEXT` ou texte partiel), quota atteint.
 
+### Mesure du 2026-11-06 (logs Cloud Run, 60 jours)
+
+Source : `wroket-api`, messages `[ocr] recognized` et `[ocr] provider failure`. Le texte reconnu n'est pas dans les logs.
+
+| Critère | Constat | Seuil |
+|---|---|---|
+| Latence | 23 lectures, 0 échec. p50 238 ms, p95 384 ms, max 390 ms | Tenu |
+| Coût | 23 images sur le mois, sous les 1000 unités gratuites (0 USD) | Tenu |
+| Usage | 1 compte, un seul jour (5 nov., 17:28–21:35 UTC). Caméra 15, fichier 7, pièce jointe 1 | Pas tenu |
+| Qualité | Pas de note sur l'échantillon de 12 photos. Les logs ne permettent pas de juger la retouche | Pas mesuré |
+
+**Verdict : pas d'ouverture générale.** La latence et le coût ne bloquent pas. L'usage n'a pas deux semaines, et la qualité n'a pas été notée. Le flag et l'allowlist restent en place. Drive, Dropbox, collage, HEIC, photo floue, langue non latine et quota atteint ne figurent pas dans ces 23 lectures.
+
 ## 11. Limites connues du POC
 
 - Quota en mémoire par instance (max 2) : à migrer dans Firestore avant ouverture large.
 - HEIC : dépend du navigateur (Safari décode, Chrome desktop pas toujours) → message actionnable.
 - Glisser-déposer et coller fonctionnent **dans la modale OCR** ; le comportement natif de l'éditeur n'est pas modifié.
-- `TaskNoteModal` et les notes partagées en lecture seule n'exposent pas l'OCR.
+- `TaskNoteModal` expose l'OCR pour le propriétaire de la note. Une note partagée en lecture seule ne l'expose pas.
 - PDF non pris en charge dans le POC.
 - Validation E2E réelle uniquement après déploiement (serveur de métadonnées, clés liées au domaine).
 

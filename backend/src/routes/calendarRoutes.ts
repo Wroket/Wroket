@@ -10,6 +10,7 @@ import {
   createMeet, updateMeet, clearMeet,
   getInAppScheduledSlotsCount, syncInAppScheduledSlots, syncSingleInAppScheduledSlot,
 } from "../controllers/calendarController";
+import { getDayReorder, postDayReorder } from "../controllers/dayReorderController";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const calendarRoutes = Router();
@@ -18,6 +19,8 @@ calendarRoutes.get("/google/callback", googleCallback);
 calendarRoutes.get("/microsoft/callback", microsoftCalendarCallback);
 
 calendarRoutes.use(requireAuth);
+calendarRoutes.get("/day-reorder", getDayReorder);
+calendarRoutes.post("/day-reorder/apply", postDayReorder);
 calendarRoutes.get("/slots/:todoId", getSlots);
 calendarRoutes.post("/book/:todoId", bookSlot);
 calendarRoutes.delete("/slot/:todoId", clearSlot);

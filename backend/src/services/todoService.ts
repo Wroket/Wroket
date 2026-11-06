@@ -132,6 +132,10 @@ export interface Todo {
   customFieldValues?: Record<string, string | number | boolean | null>;
   /** External-source identity when this task is mirrored from Notion/Monday. */
   externalRef?: ExternalRef | null;
+  /** Note that proposed this task (batch capture). Distinct from the 1:1 task note (`Note.todoId`). */
+  originNoteId?: string;
+  /** Stable key of the source line or diagram node, to avoid creating the same task twice. */
+  originNodeId?: string;
   statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -165,6 +169,9 @@ export interface CreateTodoInput {
   blockedByTodoIds?: string[];
   /** External-source identity (set by sync/import, not by end users). */
   externalRef?: ExternalRef | null;
+  /** Set only by note spawn. Ignored by the public create controller. */
+  originNoteId?: string;
+  originNodeId?: string;
 }
 
 export interface UpdateTodoInput {
@@ -503,6 +510,16 @@ export function normalizeTodoFromV2Row(row: Record<string, unknown>, docId: stri
   } else {
     todo.blockedByTodoIds = normalizeBlockedByTodoIds(todo.blockedByTodoIds);
   }
+  if (typeof todo.originNoteId !== "string" || !todo.originNoteId.trim()) {
+    delete todo.originNoteId;
+  } else {
+    todo.originNoteId = todo.originNoteId.trim().slice(0, 80);
+  }
+  if (typeof todo.originNodeId !== "string" || !todo.originNodeId.trim()) {
+    delete todo.originNodeId;
+  } else {
+    todo.originNodeId = todo.originNodeId.trim().slice(0, 80);
+  }
   if ((todo as unknown as Record<string, unknown>).customFieldValues === undefined) {
     todo.customFieldValues = undefined;
   }
@@ -611,6 +628,8 @@ export function todoToClientJson(todo: Todo): Todo {
     blockedByTodoIds: [...normalizeBlockedByTodoIds(todo.blockedByTodoIds)],
     customFieldValues: todo.customFieldValues ? { ...todo.customFieldValues } : undefined,
     externalRef: todo.externalRef ? { ...todo.externalRef } : undefined,
+    originNoteId: todo.originNoteId,
+    originNodeId: todo.originNodeId,
     status: todo.status,
     statusChangedAt: todo.statusChangedAt,
     createdAt: todo.createdAt,
@@ -1572,6 +1591,8 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     sortOrder: typeof input.sortOrder === "number" ? input.sortOrder : null,
     blockedByTodoIds: [],
     externalRef: normalizeExternalRef(input.externalRef) ?? undefined,
+    originNoteId: input.originNoteId?.trim().slice(0, 80) || undefined,
+    originNodeId: input.originNodeId?.trim().slice(0, 80) || undefined,
     status,
     statusChangedAt: now,
     createdAt: now,

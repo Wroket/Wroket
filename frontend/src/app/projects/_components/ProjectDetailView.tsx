@@ -142,7 +142,7 @@ export default function ProjectDetailView({
   const [, setCollaborators] = useState<Collaborator[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
-  const [taskNoteModal, setTaskNoteModal] = useState<{ note: Note; taskTitle: string } | null>(null);
+  const [taskNoteModal, setTaskNoteModal] = useState<{ note: Note; taskTitle: string; todo: Todo } | null>(null);
 
   useEffect(() => {
     getCollaborators()
@@ -1156,7 +1156,7 @@ export default function ProjectDetailView({
     try {
       if (existingNoteId) {
         const note = await getNoteApi(existingNoteId);
-        setTaskNoteModal({ note, taskTitle: todo.title });
+        setTaskNoteModal({ note, taskTitle: todo.title, todo });
         return;
       }
       const note = await createNoteApi({
@@ -1167,7 +1167,7 @@ export default function ProjectDetailView({
       });
       setTodoNoteIds((prev) => ({ ...prev, [todo.id]: note.id }));
       toast.success(t("notes.noteCreated"));
-      setTaskNoteModal({ note, taskTitle: todo.title });
+      setTaskNoteModal({ note, taskTitle: todo.title, todo });
     } catch {
       toast.error(t("toast.noteCreateError") as string);
     }
@@ -2810,6 +2810,7 @@ export default function ProjectDetailView({
         <TaskNoteModal
           note={taskNoteModal?.note ?? null}
           taskTitle={taskNoteModal?.taskTitle}
+          linkedTodo={taskNoteModal?.todo ?? null}
           onClose={() => setTaskNoteModal(null)}
           onNoteUpdated={(updated) => {
             setTaskNoteModal((prev) => (prev ? { ...prev, note: updated } : prev));

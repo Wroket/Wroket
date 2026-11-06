@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import ImageSourceMenu from "@/components/ocr/ImageSourceMenu";
+import { HourglassStatus } from "@/components/notes/HourglassStatus";
 import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useLocale } from "@/lib/LocaleContext";
@@ -347,10 +348,7 @@ export default function NoteOcrDialog({
         )}
 
         {busy && (
-          <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-slate-300" role="status" aria-live="polite">
-            <span className="w-4 h-4 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" aria-hidden />
-            {phase === "loading" ? t("notes.ocr.loadingSource") : t("notes.ocr.processing")}
-          </div>
+          <HourglassStatus label={phase === "loading" ? t("notes.ocr.loadingSource") : t("notes.ocr.processing")} />
         )}
 
         {error && (

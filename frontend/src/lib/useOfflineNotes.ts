@@ -302,6 +302,7 @@ export function useOfflineNotes() {
     teamId?: string | null;
     sharedWithEmail?: string | null;
     collaboratorWrite?: boolean;
+    blocks?: import("@/lib/api/notes").NoteBlock[] | null;
   }) => {
     const now = new Date().toISOString();
 
@@ -328,6 +329,9 @@ export function useOfflineNotes() {
         raw.sharedWithEmail = undefined;
       }
       // Individual share: clear team share in local state
+      if (updates.blocks === null) {
+        delete raw.blocks;
+      }
       if (updates.sharedWithEmail !== undefined) {
         if (updates.sharedWithEmail === null) {
           raw.sharedWithUid = undefined;
@@ -368,6 +372,7 @@ export function useOfflineNotes() {
     delete rest.shared;
     delete rest.teamId;
     delete rest.sharedWithEmail;
+    if (rest.blocks === null) delete rest.blocks;
     const restKeys = Object.keys(rest).filter((k) => rest[k] !== undefined);
     if (restKeys.length === 0) return;
 
@@ -431,6 +436,7 @@ export function useOfflineNotes() {
           updatedAt: new Date(base + i).toISOString(),
           pinned: n.pinned,
           ...(n.folder ? { folder: n.folder } : {}),
+          ...(n.blocks?.length ? { blocks: n.blocks } : {}),
         }));
         for (let offset = 0; offset < payload.length; offset += 200) {
           await syncNotesApi(payload.slice(offset, offset + 200));

@@ -54,6 +54,8 @@ export interface SlashCommandMenuProps {
   onCreateTask?: (payload: SlashTaskPayload) => Promise<void>;
   /** When this changes (e.g. selected note id), any open slash UI closes. */
   bindingNoteId?: string | null;
+  /** Rebind key and input listeners when focus moves to another text zone. */
+  listenKey?: string | null;
 }
 
 /* ─── Built-in command definitions (locale-agnostic) ─── */
@@ -80,6 +82,7 @@ export default function SlashCommandMenu({
   projects,
   onCreateTask,
   bindingNoteId,
+  listenKey,
 }: SlashCommandMenuProps) {
   const { t, locale } = useLocale();
   const { uiV2 } = useUiV2();
@@ -404,6 +407,7 @@ export default function SlashCommandMenu({
     closeMenu,
     activePanel,
     onContentChange,
+    listenKey,
   ]);
 
   /* ── Global Escape for panels ── */

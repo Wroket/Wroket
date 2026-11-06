@@ -1,5 +1,6 @@
 import { throwApiError } from "@/lib/apiErrors";
 import { API_BASE_URL } from "./core";
+import type { Todo } from "./todos";
 
 export interface Note {
   id: string;
@@ -25,7 +26,53 @@ export interface Note {
   updatedAt: string;
   /** Present when the note is listed from the archive (soft-deleted). */
   archivedAt?: string;
+  /** Workflow graph saved from a photo. Mirrors the first diagram block. */
+  diagram?: NoteDiagram | null;
+  /** Ordered text and diagram zones. Absent until the note is saved with blocks. */
+  blocks?: NoteBlock[];
 }
+
+export interface NoteDiagramNode {
+  id: string;
+  label: string;
+  column?: string;
+  /** Box on the source photo, as fractions of the frame (0–1). */
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  /** rect, round, ellipse, or diamond. */
+  shape?: "rect" | "round" | "ellipse" | "diamond";
+  /** Named ink. The canvas maps it to a fixed color. */
+  color?: "emerald" | "sky" | "amber" | "rose" | "violet" | "zinc";
+}
+
+export interface NoteDiagramEdge {
+  from: string;
+  to: string;
+}
+
+export interface NoteDiagram {
+  nodes: NoteDiagramNode[];
+  edges: NoteDiagramEdge[];
+  updatedAt?: string;
+}
+
+export interface NoteTextBlock {
+  id: string;
+  type: "text";
+  html: string;
+}
+
+export interface NoteDiagramBlock {
+  id: string;
+  type: "diagram";
+  nodes: NoteDiagramNode[];
+  edges: NoteDiagramEdge[];
+  updatedAt?: string;
+}
+
+export type NoteBlock = NoteTextBlock | NoteDiagramBlock;
 
 export interface NoteFolderSummary {
   name: string;
@@ -131,6 +178,7 @@ export async function updateNoteApi(id: string, input: {
   teamId?: string;
   sharedWithEmail?: string | null;
   collaboratorWrite?: boolean;
+  blocks?: NoteBlock[];
 }): Promise<Note> {
   const res = await fetch(`${API_BASE_URL}/notes/${id}`, {
     method: "PUT",
@@ -174,6 +222,7 @@ export async function syncNotesApi(notes: Array<{
   updatedAt: string;
   pinned?: boolean;
   folder?: string;
+  blocks?: NoteBlock[];
 }>): Promise<Note[]> {
   const res = await fetch(`${API_BASE_URL}/notes/sync`, {
     method: "POST",
@@ -342,6 +391,148 @@ export async function ocrNoteAttachment(
   );
   if (!res.ok) await throwApiError(res, "errors.code.OCR_PROVIDER_ERROR");
   return (await res.json()) as OcrResult;
+}
+
+export interface SpawnTaskItem {
+  clientKey: string;
+  title: string;
+  deadline?: string | null;
+  priority?: "low" | "medium" | "high";
+  column?: string | null;
+  assignedTo?: string | null;
+}
+
+export interface SpawnTasksResult {
+  created: Array<{ clientKey: string; id: string; title: string; alreadyExisted: boolean }>;
+  failed: Array<{ clientKey: string; message: string; code?: string }>;
+  dependenciesApplied: boolean;
+  dependencySkipped?: string;
+  phasesCreated: string[];
+}
+
+/** Tasks already created from this note by the current user. */
+export async function listSpawnedTasks(noteId: string): Promise<Todo[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/spawned-tasks`, {
+    credentials: "include",
+  });
+  if (!res.ok) await throwApiError(res, "errors.fallback.generic");
+  return (await res.json()) as Todo[];
+}
+
+/**
+ * Create the confirmed lines as tasks. Does not change the note's `todoId`.
+ * Broadcasts a todo refresh so project and agenda views pick them up.
+ */
+export async function spawnTasksFromNote(
+  noteId: string,
+  body: {
+    projectId?: string | null;
+    phaseId?: string | null;
+    parentId?: string | null;
+    createPhases?: boolean;
+    items: SpawnTaskItem[];
+    edges?: NoteDiagramEdge[];
+  },
+): Promise<SpawnTasksResult> {
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/spawn-tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) await throwApiError(res, "errors.fallback.generic");
+  const result = (await res.json()) as SpawnTasksResult;
+  const { broadcastTodosMutated } = await import("../todoSyncBroadcast");
+  broadcastTodosMutated();
+  if (result.phasesCreated.length > 0) {
+    const { broadcastResourceChange } = await import("../useResourceSync");
+    broadcastResourceChange("projects");
+  }
+  return result;
+}
+
+export interface TaskSuggestConfig {
+  enabled: boolean;
+  dailyLimit: number;
+  remaining: number;
+}
+
+export interface SuggestedTask {
+  title: string;
+  deadline: string;
+  priority: "low" | "medium" | "high";
+}
+
+export async function getTaskSuggestConfig(): Promise<TaskSuggestConfig> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/notes/task-suggestions/config`, { credentials: "include" });
+    if (!res.ok) return { enabled: false, dailyLimit: 0, remaining: 0 };
+    return (await res.json()) as TaskSuggestConfig;
+  } catch {
+    return { enabled: false, dailyLimit: 0, remaining: 0 };
+  }
+}
+
+/** Ask for a task list from note text. Stores nothing. */
+export async function suggestTasksFromNote(noteId: string, text: string): Promise<SuggestedTask[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/task-suggestions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ consent: "yes", text }),
+  });
+  if (!res.ok) await throwApiError(res, "errors.code.TASK_SUGGEST_PROVIDER_ERROR");
+  const body = (await res.json()) as { tasks?: SuggestedTask[] };
+  return body.tasks ?? [];
+}
+
+export interface DiagramConfig {
+  enabled: boolean;
+  dailyLimit: number;
+  remaining: number;
+}
+
+export async function getDiagramConfig(): Promise<DiagramConfig> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/notes/diagram/config`, { credentials: "include" });
+    if (!res.ok) return { enabled: false, dailyLimit: 0, remaining: 0 };
+    return (await res.json()) as DiagramConfig;
+  } catch {
+    return { enabled: false, dailyLimit: 0, remaining: 0 };
+  }
+}
+
+/** Propose a workflow graph. Requires `consent`. Nothing is stored. */
+export async function recognizeNoteDiagram(
+  noteId: string,
+  image: Blob,
+): Promise<{ nodes: NoteDiagramNode[]; edges: NoteDiagramEdge[]; aside?: string; provider?: "mock" | "vertex" }> {
+  const fd = new FormData();
+  fd.append("file", image, "diagram.jpg");
+  fd.append("consent", "yes");
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/diagram`, {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+  });
+  if (!res.ok) await throwApiError(res, "errors.code.DIAGRAM_PROVIDER_ERROR");
+  return (await res.json()) as { nodes: NoteDiagramNode[]; edges: NoteDiagramEdge[]; aside?: string; provider?: "mock" | "vertex" };
+}
+
+/** Persist a confirmed graph, or clear it when `diagram` is null. */
+export async function saveNoteDiagram(
+  noteId: string,
+  diagram: { nodes: NoteDiagramNode[]; edges: NoteDiagramEdge[] } | null,
+  blockId?: string,
+): Promise<Note> {
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/diagram`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(blockId ? { diagram, blockId } : { diagram }),
+  });
+  if (!res.ok) await throwApiError(res, "errors.fallback.generic");
+  return (await res.json()) as Note;
 }
 
 export async function deleteNoteAttachment(noteId: string, attachmentId: string): Promise<void> {

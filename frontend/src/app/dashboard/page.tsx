@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import DashboardImportModal from "@/components/DashboardImportModal";
+import DayReorderOffer from "@/components/DayReorderOffer";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
+import { sortUnscheduledTodos } from "@/components/AgendaUnscheduledRail";
 import PageHelpButton from "@/components/PageHelpButton";
 import PageScheduleModal from "@/components/PageScheduleModal";
 import TaskEditModal from "@/components/TaskEditModal";
@@ -512,6 +514,11 @@ export default function DashboardPage() {
     };
   }, [active]);
 
+  const unscheduledTodos = useMemo(
+    () => sortUnscheduledTodos(active.filter((td) => !td.scheduledSlot?.start && (!meUid || td.userId === meUid))).slice(0, 8),
+    [active, meUid],
+  );
+
   const hasExternalCalendar =
     (user?.googleAccounts?.length ?? 0) > 0 || (user?.microsoftAccounts?.length ?? 0) > 0;
   const primaryCta = !hasExternalCalendar
@@ -535,6 +542,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
+      <DayReorderOffer />
       <div className="max-w-[1200px] mx-auto space-y-6">
         {uiV2 ? (
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
@@ -661,6 +669,7 @@ export default function DashboardPage() {
                   todos={weekFocusTodos}
                   totalCount={totalUpcomingPanelCount}
                   maxShown={UPCOMING_DEADLINES_MAX}
+                  unscheduled={unscheduledTodos}
                   onOpen={openRadarEdit}
                   t={t}
                 />
@@ -796,6 +805,7 @@ export default function DashboardPage() {
                   todos={weekFocusTodos}
                   totalCount={totalUpcomingPanelCount}
                   maxShown={UPCOMING_DEADLINES_MAX}
+                  unscheduled={unscheduledTodos}
                   onOpen={openRadarEdit}
                   t={t}
                 />
@@ -982,12 +992,14 @@ function WeekFocusPanel({
   todos,
   totalCount,
   maxShown,
+  unscheduled,
   onOpen,
   t,
 }: {
   todos: Todo[];
   totalCount: number;
   maxShown: number;
+  unscheduled: Todo[];
   onOpen: (todo: Todo) => void;
   t: TranslationFunction;
 }) {
@@ -1057,6 +1069,29 @@ function WeekFocusPanel({
           {t("dashboard.upcomingDeadlinesMore").replace("{count}", String(totalCount - maxShown))}
         </p>
       )}
+      <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-slate-800">
+        <h4 className="text-xs font-semibold text-zinc-700 dark:text-slate-200 mb-2">{t("dashboard.unscheduledTitle")}</h4>
+        {unscheduled.length === 0 ? (
+          <p className="text-sm text-zinc-400 dark:text-slate-500">
+            {t("dashboard.unscheduledEmpty")}{" "}
+            <Link href="/todos" className="text-emerald-700 dark:text-emerald-300 hover:underline">{t("dashboard.weekFocusOpenTasks")}</Link>
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {unscheduled.map((todo) => (
+              <li key={todo.id} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-zinc-800 dark:text-slate-200 truncate">{displayTodoTitle(todo.title, t("todos.untitled"))}</span>
+                <Link
+                  href={`/agenda?schedule=${encodeURIComponent(todo.id)}`}
+                  className="shrink-0 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 hover:underline"
+                >
+                  {t("dashboard.unscheduledPlan")}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </>
   );
 }

@@ -14,6 +14,10 @@ interface NoteToolbarProps {
   disabled?: boolean;
   /** When set, shows “Import from photo” (OCR). */
   onOcr?: () => void;
+  /** Propose tasks from the note text. */
+  onSpawnTasks?: () => void;
+  /** Import a workflow photo. */
+  onDiagram?: () => void;
 }
 
 interface FormatAction {
@@ -112,7 +116,7 @@ function ToolbarDivider() {
   return <span className="mx-1 h-5 w-px bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden />;
 }
 
-export default function NoteToolbar({ editorRef, disabled, onOcr }: NoteToolbarProps) {
+export default function NoteToolbar({ editorRef, disabled, onOcr, onSpawnTasks, onDiagram }: NoteToolbarProps) {
   const { t } = useLocale();
   const [active, setActive] = useState<Record<string, boolean>>({});
 
@@ -203,21 +207,44 @@ export default function NoteToolbar({ editorRef, disabled, onOcr }: NoteToolbarP
       <div className="flex items-center gap-0.5">{renderGroup(styleActions)}</div>
       <ToolbarDivider />
       <div className="flex items-center gap-0.5">{renderGroup(structureActions)}</div>
-      {onOcr && (
-        <>
-          <ToolbarDivider />
-          <button
-            type="button"
-            title={t("notes.ocr.importPhoto")}
-            aria-label={t("notes.ocr.importPhoto")}
-            disabled={disabled}
-            onClick={onOcr}
-            className="inline-flex items-center gap-1.5 h-8 rounded-md px-2.5 text-xs font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-900/50 transition-colors disabled:opacity-40"
-          >
-            <ScanTextIcon />
-            <span className="hidden sm:inline">{t("notes.ocr.importPhoto")}</span>
-          </button>
-        </>
+      {(onOcr || onSpawnTasks || onDiagram) && <ToolbarDivider />}
+      {onDiagram && (
+        <button
+          type="button"
+          title={t("notes.diagram.button")}
+          aria-label={t("notes.diagram.button")}
+          disabled={disabled}
+          onClick={onDiagram}
+          className="inline-flex items-center gap-1.5 h-8 rounded-md px-2.5 text-xs font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-900/50 transition-colors disabled:opacity-40"
+        >
+          <ScanTextIcon />
+          <span className="hidden sm:inline">{t("notes.diagram.button")}</span>
+        </button>
+      )}
+      {onSpawnTasks && (
+        <button
+          type="button"
+          title={t("notes.spawn.button")}
+          aria-label={t("notes.spawn.button")}
+          disabled={disabled}
+          onClick={onSpawnTasks}
+          className="inline-flex items-center gap-1.5 h-8 rounded-md px-2.5 text-xs font-medium text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 border border-zinc-200 dark:border-slate-700 transition-colors disabled:opacity-40"
+        >
+          <span className="hidden sm:inline">{t("notes.spawn.button")}</span>
+        </button>
+      )}
+      {onOcr && !onDiagram && (
+        <button
+          type="button"
+          title={t("notes.ocr.importPhoto")}
+          aria-label={t("notes.ocr.importPhoto")}
+          disabled={disabled}
+          onClick={onOcr}
+          className="inline-flex items-center gap-1.5 h-8 rounded-md px-2.5 text-xs font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-900/50 transition-colors disabled:opacity-40"
+        >
+          <ScanTextIcon />
+          <span className="hidden sm:inline">{t("notes.ocr.importPhoto")}</span>
+        </button>
       )}
       <div className="ml-auto text-[10px] text-zinc-400 dark:text-slate-500 hidden md:block pl-2">
         {t("notes.fmtHint")}

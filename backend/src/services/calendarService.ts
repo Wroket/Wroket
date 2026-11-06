@@ -75,7 +75,7 @@ function getUtcOffsetMs(date: Date, tz: string): number {
 /**
  * Extract date/time components as seen in a given IANA timezone.
  */
-function getPartsInTz(date: Date, tz: string) {
+export function getPartsInTz(date: Date, tz: string) {
   const parts = new Intl.DateTimeFormat("en", { ...TZ_FMT, timeZone: tz }).formatToParts(date);
 
   let h = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
@@ -110,7 +110,7 @@ function getPartsInTz(date: Date, tz: string) {
  * Convert a "local wall-clock" time in a given timezone to a UTC Date.
  * e.g. 09:00 Europe/Paris → 07:00 UTC (during CEST).
  */
-function tzLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
+export function tzLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
   const asUtc = new Date(Date.UTC(year, month, day, hour, minute, 0));
   const offsetMs = getUtcOffsetMs(asUtc, tz);
   return new Date(asUtc.getTime() - offsetMs);

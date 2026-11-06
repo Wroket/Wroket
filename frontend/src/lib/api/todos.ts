@@ -59,6 +59,9 @@ export interface Todo {
   blockedByTodoIds?: string[];
   customFieldValues?: Record<string, string | number | boolean | null>;
   externalRef?: ExternalRef | null;
+  /** Note that proposed this task. Distinct from the task's own linked note. */
+  originNoteId?: string;
+  originNodeId?: string;
   status: TodoStatus;
   statusChangedAt: string;
   createdAt: string;

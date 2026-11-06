@@ -80,6 +80,18 @@ body {
   animation: ui-fade-in 0.2s ease-out;
 }
 
+@keyframes hourglass-flip {
+  0%, 18% { transform: rotate(0deg); }
+  42%, 68% { transform: rotate(180deg); }
+  92%, 100% { transform: rotate(360deg); }
+}
+
+.hourglass-flip {
+  display: inline-flex;
+  animation: hourglass-flip 1.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
 /* ── UI V2 (restored after network-mesh rollback) ── */
 
 /**

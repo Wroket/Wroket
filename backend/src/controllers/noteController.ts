@@ -118,6 +118,9 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   if (body.teamId !== undefined && typeof body.teamId !== "string") {
     throw new ValidationError("teamId doit être une chaîne");
   }
+  if (body.blocks !== undefined && !Array.isArray(body.blocks)) {
+    throw new ValidationError("blocks doit être une liste");
+  }
   if (body.pinned !== undefined && typeof body.pinned !== "boolean") {
     throw new ValidationError("pinned doit être un booléen");
   }
@@ -147,6 +150,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
     note = updateNoteAsCollaborator(uid, req.user!.email ?? "", id, {
       title: typeof body.title === "string" ? body.title : undefined,
       content: typeof body.content === "string" ? body.content : undefined,
+      blocks: Array.isArray(body.blocks) ? body.blocks as UpdateNoteInput["blocks"] : undefined,
     });
   }
 

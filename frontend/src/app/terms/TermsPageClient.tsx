@@ -54,7 +54,7 @@ export default function TermsPage() {
   );
 }
 
-const LAST_UPDATED = "2026-08-11";
+const LAST_UPDATED = "2026-11-06";
 
 function TermsFr() {
   return (
@@ -122,6 +122,13 @@ function TermsFr() {
         l&apos;écriture dans Google Calendar ou Outlook n&apos;intervient qu&apos;après une action explicite de votre part. L&apos;utilisation
         de ces services tiers reste régie par les conditions et politiques de Google et Microsoft, sur lesquelles nous n&apos;avons
         aucun contrôle.
+      </p>
+      <p>
+        Lorsque vous utilisez « Proposer une liste » ou « Numériser », le texte de la note ou l&apos;image choisie est transmis à
+        Google pour produire la proposition. La lecture du texte se fait en Europe. La lecture d&apos;un schéma utilise le point
+        d&apos;accès mondial, la Belgique ne proposant plus ce modèle. Cette lecture ne conserve ni le texte ni l&apos;image.
+        L&apos;image n&apos;est enregistrée dans la note que si vous choisissez de la joindre. Aucune tâche n&apos;est créée sans
+        votre confirmation.
       </p>
 
       <h2>7. Tarifs, abonnement et facturation</h2>
@@ -255,6 +262,12 @@ function TermsEn() {
         or from Wroket. Slots can be booked in Wroket without a third-party calendar; writing to Google Calendar or Outlook
         occurs only after an explicit action by you. Use of these third-party services remains governed by Google&apos;s and
         Microsoft&apos;s terms and policies, over which we have no control.
+      </p>
+      <p>
+        When you use “Suggest a list” or “Digitize”, the note text or the chosen image is sent to Google to produce the
+        proposal. Text is read in Europe. Diagram reading uses the global endpoint, because Belgium no longer offers this model.
+        This reading stores neither the text nor the image. The image is saved on the note only if you choose to attach it.
+        No task is created without your confirmation.
       </p>
 
       <h2>7. Pricing, subscription and billing</h2>

@@ -9,15 +9,25 @@ import { useModalCloseKeys } from "@/lib/useModalCloseKeys";
 import { useToast } from "@/components/Toast";
 import NoteAttachmentsPanel from "@/components/NoteAttachmentsPanel";
 import NoteToolbar from "@/components/NoteToolbar";
+import DiagramImportDialog from "@/components/notes/DiagramImportDialog";
+import NoteDocument from "@/components/notes/NoteDocument";
+import SpawnTasksDialog from "@/components/notes/SpawnTasksDialog";
+import NoteOcrDialog from "@/components/ocr/NoteOcrDialog";
 import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useAuth } from "@/components/AuthContext";
-import { updateNoteApi, type Note } from "@/lib/api";
+import { getProjects, updateNoteApi, type Note, type Project, type Todo } from "@/lib/api";
+import { getDiagramConfig, getOcrConfig, uploadNoteAttachment, type DiagramConfig, type NoteBlock, type OcrConfig } from "@/lib/api/notes";
+import { appendCapture, resolveNoteBlocks, textHtmlFromBlocks } from "@/lib/noteBlocks";
+import { parseNoteTaskLines } from "@/lib/noteTaskLines";
+import { ocrTextToHtml } from "@/lib/ocrText";
 
 export interface TaskNoteModalProps {
   note: Note | null;
   /** Display title of the linked task (optional). */
   taskTitle?: string;
+  /** Meeting tasks turn confirmed lines into subtasks. */
+  linkedTodo?: Pick<Todo, "id" | "projectId" | "phaseId" | "scheduledSlot"> | null;
   onClose: () => void;
   onNoteUpdated?: (note: Note) => void;
 }
@@ -29,6 +39,7 @@ export interface TaskNoteModalProps {
 export default function TaskNoteModal({
   note,
   taskTitle,
+  linkedTodo,
   onClose,
   onNoteUpdated,
 }: TaskNoteModalProps) {
@@ -39,15 +50,38 @@ export default function TaskNoteModal({
   const contentRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<{ title?: string; content?: string }>({});
+  const pendingRef = useRef<{ title?: string; content?: string; blocks?: NoteBlock[] }>({});
   const noteIdRef = useRef<string | null>(null);
+  const blocksRef = useRef<NoteBlock[]>([]);
+  const focusedTextId = useRef<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [ocrOpen, setOcrOpen] = useState(false);
+  const [spawnOpen, setSpawnOpen] = useState(false);
+  const [diagramOpen, setDiagramOpen] = useState(false);
+  const [ocrConfig, setOcrConfig] = useState<OcrConfig | null>(null);
+  const [diagramConfig, setDiagramConfig] = useState<DiagramConfig | null>(null);
+  const [blocks, setBlocks] = useState<NoteBlock[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const narrow = useNarrowVisualViewport(!!note);
 
   noteIdRef.current = note?.id ?? null;
+
+  useEffect(() => {
+    if (!note) return;
+    getOcrConfig().then(setOcrConfig).catch(() => setOcrConfig(null));
+    getDiagramConfig().then(setDiagramConfig).catch(() => setDiagramConfig({ enabled: false, dailyLimit: 0, remaining: 0 }));
+    getProjects().then((rows) => setProjects(rows.filter((item) => item.status === "active"))).catch(() => {});
+  }, [note]);
+
+  useEffect(() => {
+    if (!note) return;
+    const next = resolveNoteBlocks(note);
+    blocksRef.current = next;
+    setBlocks(next);
+  }, [note?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- keep local edits if the parent note refreshes
 
   const flushSave = useCallback(async () => {
     if (saveTimer.current) {
@@ -56,7 +90,7 @@ export default function TaskNoteModal({
     }
     const id = noteIdRef.current;
     const pending = pendingRef.current;
-    if (!id || (pending.title === undefined && pending.content === undefined)) return;
+    if (!id || (pending.title === undefined && pending.content === undefined && pending.blocks === undefined)) return;
     const payload = { ...pending };
     pendingRef.current = {};
     setSaving(true);
@@ -72,7 +106,7 @@ export default function TaskNoteModal({
   }, [onNoteUpdated, t, toast]);
 
   const scheduleSave = useCallback(
-    (patch: { title?: string; content?: string }) => {
+    (patch: { title?: string; content?: string; blocks?: NoteBlock[] }) => {
       pendingRef.current = { ...pendingRef.current, ...patch };
       setDirty(true);
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -90,9 +124,6 @@ export default function TaskNoteModal({
     setDirty(false);
     // Sync contenteditable after mount / note change
     requestAnimationFrame(() => {
-      if (contentRef.current && contentRef.current.innerHTML !== (note.content || "")) {
-        contentRef.current.innerHTML = note.content || "";
-      }
       titleRef.current?.focus();
       titleRef.current?.select();
     });
@@ -174,21 +205,33 @@ export default function TaskNoteModal({
           </div>
         </div>
 
-        {isOwner && <NoteToolbar editorRef={contentRef} />}
+        {isOwner && (
+          <NoteToolbar
+            editorRef={contentRef}
+            onOcr={ocrConfig?.enabled && diagramConfig?.enabled === false ? () => setOcrOpen(true) : undefined}
+            onSpawnTasks={() => setSpawnOpen(true)}
+            onDiagram={diagramConfig?.enabled ? () => setDiagramOpen(true) : undefined}
+          />
+        )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <div
-            ref={contentRef}
-            contentEditable={isOwner}
-            suppressContentEditableWarning
-            onInput={() => {
-              if (!contentRef.current) return;
-              scheduleSave({ content: contentRef.current.innerHTML });
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4">
+          <NoteDocument
+            key={note.id}
+            noteId={note.id}
+            blocks={blocks}
+            readOnly={!isOwner}
+            editorRef={contentRef}
+            onFocusText={(blockId) => { focusedTextId.current = blockId; }}
+            diagramApply={{
+              projects,
+              defaultProjectId: linkedTodo?.projectId ?? note.projectId,
+              parentId: linkedTodo?.scheduledSlot?.meetingUrl ? linkedTodo.id : null,
             }}
-            data-placeholder={isOwner ? t("notes.contentPlaceholder") : ""}
-            className={`min-h-[220px] px-4 sm:px-5 py-4 text-sm text-zinc-800 dark:text-slate-200 outline-none leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400 dark:empty:before:text-slate-500 ${
-              isOwner ? "" : "cursor-default"
-            }`}
+            onCommit={(next) => {
+              blocksRef.current = next;
+              setBlocks(next);
+              scheduleSave({ blocks: next, content: textHtmlFromBlocks(next) });
+            }}
           />
           <NoteAttachmentsPanel
             noteId={note.id}
@@ -197,6 +240,68 @@ export default function TaskNoteModal({
           />
         </div>
       </div>
+      {note && isOwner && ocrConfig?.enabled && (
+        <NoteOcrDialog
+          open={ocrOpen}
+          noteId={note.id}
+          canAttach={isOwner}
+          remaining={ocrConfig.remaining}
+          onClose={() => setOcrOpen(false)}
+          onInsert={(text) => {
+            const html = ocrTextToHtml(text);
+            const editor = contentRef.current;
+            if (!editor || !html) return;
+            editor.focus();
+            editor.insertAdjacentHTML("beforeend", html);
+            const textId = focusedTextId.current ?? blocksRef.current.find((block) => block.type === "text")?.id;
+            if (!textId) return;
+            const next = blocksRef.current.map((block) => (
+              block.type === "text" && block.id === textId ? { ...block, html: editor.innerHTML } : block
+            ));
+            blocksRef.current = next;
+            setBlocks(next);
+            scheduleSave({ blocks: next, content: textHtmlFromBlocks(next) });
+          }}
+          onAttachImage={async (file) => { await uploadNoteAttachment(note.id, file); }}
+        />
+      )}
+      {note && isOwner && (
+        <SpawnTasksDialog
+          open={spawnOpen}
+          noteId={note.id}
+          lines={parseNoteTaskLines(textHtmlFromBlocks(blocks) || note.content || "")}
+          sourceHtml={textHtmlFromBlocks(blocks) || note.content || ""}
+          projects={projects}
+          defaultProjectId={linkedTodo?.projectId ?? note.projectId}
+          parentId={linkedTodo?.scheduledSlot?.meetingUrl ? linkedTodo.id : null}
+          onClose={() => setSpawnOpen(false)}
+        />
+      )}
+      {note && isOwner && (
+        <DiagramImportDialog
+          open={diagramOpen}
+          noteId={note.id}
+          projects={projects}
+          defaultProjectId={linkedTodo?.projectId ?? note.projectId}
+          parentId={linkedTodo?.scheduledSlot?.meetingUrl ? linkedTodo.id : null}
+          canAttach={isOwner}
+          replacesDiagram={blocks.some((block) => block.type === "diagram" && block.nodes.length > 0)}
+          onClose={() => {
+            setDiagramOpen(false);
+            getDiagramConfig().then(setDiagramConfig).catch(() => {});
+          }}
+          onUseOcr={() => { setDiagramOpen(false); setOcrOpen(true); }}
+          onAttachImage={async (file) => { await uploadNoteAttachment(note.id, file); }}
+          onImport={({ nodes, edges, text }) => {
+            const html = text.trim() ? ocrTextToHtml(text) : "";
+            const next = appendCapture(blocksRef.current, nodes, edges, html);
+            blocksRef.current = next;
+            setBlocks(next);
+            scheduleSave({ blocks: next, content: textHtmlFromBlocks(next) });
+            toast.success(t("notes.diagram.kept"));
+          }}
+        />
+      )}
     </ViewportOverlay>
   );
 }

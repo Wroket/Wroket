@@ -80,6 +80,71 @@ export interface BookSlotResult {
   conflicts?: SlotConflict[];
 }
 
+export interface DayReorderMove {
+  todoId: string;
+  title: string;
+  from: { start: string; end: string };
+  to: { start: string; end: string } | null;
+}
+
+export interface DayReorderPlan {
+  date: string;
+  triggers: { id: string; title: string; start: string; end: string }[];
+  moves: DayReorderMove[];
+  signature: string;
+}
+
+const DAY_REORDER_IGNORE_KEY = "wroket.dayReorder.ignore";
+
+export function dayReorderIgnored(signature: string): boolean {
+  try {
+    return localStorage.getItem(DAY_REORDER_IGNORE_KEY) === signature;
+  } catch {
+    return false;
+  }
+}
+
+export function ignoreDayReorder(signature: string): void {
+  try {
+    localStorage.setItem(DAY_REORDER_IGNORE_KEY, signature);
+  } catch {
+    /* private mode */
+  }
+}
+
+/** Today's proposal. Null when the call fails. An empty move list means nothing to show. */
+export async function getDayReorder(): Promise<DayReorderPlan | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/calendar/day-reorder`, { credentials: "include" });
+    if (!res.ok) return null;
+    return (await res.json()) as DayReorderPlan;
+  } catch {
+    return null;
+  }
+}
+
+export async function applyDayReorder(signature: string): Promise<
+  | { stale: true; plan: DayReorderPlan }
+  | { stale: false; applied: { todoId: string; title: string }[]; failed: { todoId: string; title: string; message: string }[] }
+> {
+  const res = await fetch(`${API_BASE_URL}/calendar/day-reorder/apply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ signature }),
+  });
+  if (res.status === 409) {
+    const body = (await res.json()) as { plan?: DayReorderPlan };
+    if (body.plan) return { stale: true, plan: body.plan };
+  }
+  if (!res.ok) await throwCalendarHttpError(res);
+  const body = (await res.json()) as {
+    applied?: { todoId: string; title: string }[];
+    failed?: { todoId: string; title: string; message: string }[];
+  };
+  return { stale: false, applied: body.applied ?? [], failed: body.failed ?? [] };
+}
+
 export async function bookTaskSlot(
   todoId: string,
   start: string,

@@ -214,7 +214,7 @@ export default function TodosPage() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({});
   const [todoNoteIds, setTodoNoteIds] = useState<Record<string, string>>({});
-  const [taskNoteModal, setTaskNoteModal] = useState<{ note: Note; taskTitle: string } | null>(null);
+  const [taskNoteModal, setTaskNoteModal] = useState<{ note: Note; taskTitle: string; todo: Todo } | null>(null);
 
   type TaskScope = "all" | "personal" | "assigned" | "delegated";
   const [scope, setScope] = useState<TaskScope>("all");
@@ -991,7 +991,7 @@ export default function TodosPage() {
     try {
       if (existingNoteId) {
         const note = await getNoteApi(existingNoteId);
-        setTaskNoteModal({ note, taskTitle: todo.title });
+        setTaskNoteModal({ note, taskTitle: todo.title, todo });
         return;
       }
       const note = await createNoteApi({
@@ -1002,7 +1002,7 @@ export default function TodosPage() {
       });
       setTodoNoteIds((prev) => ({ ...prev, [todo.id]: note.id }));
       toast.success(t("notes.noteCreated"));
-      setTaskNoteModal({ note, taskTitle: todo.title });
+      setTaskNoteModal({ note, taskTitle: todo.title, todo });
     } catch {
       toast.error(t("toast.noteCreateError"));
     }
@@ -2138,6 +2138,7 @@ export default function TodosPage() {
       <TaskNoteModal
         note={taskNoteModal?.note ?? null}
         taskTitle={taskNoteModal?.taskTitle}
+        linkedTodo={taskNoteModal?.todo ?? null}
         onClose={() => setTaskNoteModal(null)}
         onNoteUpdated={(updated) => {
           setTaskNoteModal((prev) => (prev ? { ...prev, note: updated } : prev));

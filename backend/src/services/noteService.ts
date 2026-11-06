@@ -8,9 +8,42 @@ import { FREE_QUOTA_CODE_NOTES, FREE_TIER_MAX_PERSONAL_NOTES } from "./freeTierQ
 import { ensureNoteFolder } from "./noteFolderService";
 import { getProjectById } from "./projectService";
 import { normalizeExternalRef, type ExternalRef, type ExternalProvider } from "./externalRef";
+import { sanitizeDiagramProposal } from "./diagramService";
+import {
+  blocksFromLegacy,
+  firstDiagramFromBlocks,
+  sanitizeNoteBlocks,
+  textHtmlFromBlocks,
+  type NoteBlock,
+} from "./noteBlocks";
 
 /** Aligné sur `noteFolderService` — nom de dossier max. */
 const MAX_NOTE_FOLDER_NAME_LEN = 80;
+
+/** Editable workflow captured from a photo, then adjusted in the note. */
+export interface NoteDiagramNode {
+  id: string;
+  label: string;
+  column?: string;
+  /** Box on the source photo, as fractions of the frame (0–1). */
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  shape?: "rect" | "round" | "ellipse" | "diamond";
+  color?: "emerald" | "sky" | "amber" | "rose" | "violet" | "zinc";
+}
+
+export interface NoteDiagramEdge {
+  from: string;
+  to: string;
+}
+
+export interface NoteDiagram {
+  nodes: NoteDiagramNode[];
+  edges: NoteDiagramEdge[];
+  updatedAt: string;
+}
 
 export interface Note {
   id: string;
@@ -36,6 +69,10 @@ export interface Note {
   archivedAt?: string;
   /** External source identity (Monday doc, future Notion page, …). */
   externalRef?: ExternalRef | null;
+  /** Last confirmed workflow graph. Absent until the user saves one. Mirrors the first diagram block. */
+  diagram?: NoteDiagram;
+  /** Ordered text and diagram zones. Absent on notes that still use content + diagram only. */
+  blocks?: NoteBlock[];
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +103,7 @@ export interface UpdateNoteInput {
   sharedWithEmail?: string | null;
   /** Allow the direct collaborator to edit (write). */
   collaboratorWrite?: boolean;
+  blocks?: NoteBlock[];
 }
 
 const notesByUser = new Map<string, Map<string, Note>>();
@@ -291,6 +329,45 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
   return note;
 }
 
+function applyStoredBlocks(note: Note, blocks: NoteBlock[]): void {
+  const html = textHtmlFromBlocks(blocks);
+  if (html.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
+  note.blocks = blocks;
+  note.content = html;
+  note.diagram = firstDiagramFromBlocks(blocks);
+}
+
+function applyNoteBlocks(note: Note, raw: NoteBlock[]): void {
+  let blocks: NoteBlock[];
+  try {
+    blocks = sanitizeNoteBlocks(raw, sanitizeDiagramProposal);
+  } catch (err) {
+    if (err instanceof Error && err.message === "TEXT_TOO_LONG") {
+      throw new ValidationError("Contenu trop long (max 50 000 caractères)");
+    }
+    throw err;
+  }
+  applyStoredBlocks(note, blocks);
+}
+
+/** A content-only write updates the single text block and leaves other blocks in place. */
+function applyNoteContent(note: Note, content: string): void {
+  if (content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
+  const textBlocks = (note.blocks ?? []).filter((block) => block.type === "text");
+  if (textBlocks.length > 1) return;
+  if (textBlocks.length === 0 && note.blocks && note.blocks.length > 0) {
+    applyStoredBlocks(note, [...note.blocks, { id: "text", type: "text", html: content }]);
+    return;
+  }
+  if (textBlocks.length === 1 && note.blocks) {
+    applyStoredBlocks(note, note.blocks.map((block) => (
+      block.type === "text" ? { ...block, html: content } : block
+    )));
+    return;
+  }
+  note.content = content;
+}
+
 export function updateNote(userId: string, noteId: string, input: UpdateNoteInput): Note {
   const note = getNote(userId, noteId);
 
@@ -299,9 +376,10 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
     if (t.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
     note.title = t || "Sans titre";
   }
-  if (input.content !== undefined) {
-    if (input.content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
-    note.content = input.content;
+  if (input.blocks !== undefined) {
+    applyNoteBlocks(note, input.blocks);
+  } else if (input.content !== undefined) {
+    applyNoteContent(note, input.content);
   }
   if (input.pinned !== undefined) {
     note.pinned = input.pinned;
@@ -366,6 +444,49 @@ export function updateNote(userId: string, noteId: string, input: UpdateNoteInpu
 }
 
 /**
+ * Store or clear the workflow graph on a note the caller can already edit.
+ * Does not create tasks.
+ */
+export function saveNoteDiagram(
+  ownerUid: string,
+  noteId: string,
+  diagram: NoteDiagram | null,
+  blockId?: string,
+): Note {
+  const note = getNote(ownerUid, noteId);
+  const blocks = note.blocks && note.blocks.length > 0
+    ? note.blocks.map((block) => ({ ...block }))
+    : blocksFromLegacy(note);
+  if (diagram == null) {
+    const next = blockId
+      ? blocks.filter((block) => block.id !== blockId)
+      : blocks.filter((block) => block.type !== "diagram");
+    applyStoredBlocks(note, next.length > 0 ? next : [{ id: "text", type: "text", html: note.content || "" }]);
+  } else {
+    const chosen = blockId
+      ? blocks.find((block) => block.id === blockId && block.type === "diagram")
+      : blocks.find((block) => block.type === "diagram");
+    if (chosen && chosen.type === "diagram") {
+      chosen.nodes = diagram.nodes;
+      chosen.edges = diagram.edges;
+      chosen.updatedAt = diagram.updatedAt;
+    } else {
+      blocks.push({
+        id: blockId || `diagram-${blocks.length + 1}`,
+        type: "diagram",
+        nodes: diagram.nodes,
+        edges: diagram.edges,
+        updatedAt: diagram.updatedAt,
+      });
+    }
+    applyStoredBlocks(note, blocks);
+  }
+  note.updatedAt = new Date().toISOString();
+  persist();
+  return note;
+}
+
+/**
  * Locate a note the user can read (own or shared). Returns owner uid + write flag.
  */
 export function resolveNoteAccess(
@@ -396,7 +517,7 @@ export function updateNoteAsCollaborator(
   uid: string,
   userEmail: string,
   noteId: string,
-  input: Pick<UpdateNoteInput, "title" | "content">,
+  input: Pick<UpdateNoteInput, "title" | "content" | "blocks">,
 ): Note {
   const access = resolveNoteAccess(uid, userEmail, noteId);
   if (!access) throw new NotFoundError("Note introuvable");
@@ -407,9 +528,10 @@ export function updateNoteAsCollaborator(
     if (t.length > 200) throw new ValidationError("Titre trop long (max 200 caractères)");
     note.title = t || "Sans titre";
   }
-  if (input.content !== undefined) {
-    if (input.content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
-    note.content = input.content;
+  if (input.blocks !== undefined) {
+    applyNoteBlocks(note, input.blocks);
+  } else if (input.content !== undefined) {
+    applyNoteContent(note, input.content);
   }
   note.updatedAt = new Date().toISOString();
   persist();
@@ -463,7 +585,7 @@ export function permanentlyDeleteArchivedNote(userId: string, noteId: string): v
  */
 export function syncNotes(
   userId: string,
-  incoming: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean; folder?: string }>,
+  incoming: Array<{ id: string; title: string; content: string; updatedAt: string; pinned?: boolean; folder?: string; blocks?: NoteBlock[] }>,
 ): Note[] {
   const map = getUserNotes(userId);
   const now = new Date().toISOString();
@@ -478,7 +600,11 @@ export function syncNotes(
     if (existing) {
       if (new Date(item.updatedAt) > new Date(existing.updatedAt)) {
         existing.title = (item.title || "").trim().slice(0, 200) || "Sans titre";
-        existing.content = (item.content || "").slice(0, 50_000);
+        if (Array.isArray(item.blocks)) {
+          applyNoteBlocks(existing, item.blocks);
+        } else {
+          applyNoteContent(existing, (item.content || "").slice(0, 50_000));
+        }
         existing.pinned = item.pinned ?? existing.pinned;
         existing.updatedAt = item.updatedAt;
         if (item.folder !== undefined) {

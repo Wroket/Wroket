@@ -14,6 +14,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
 import AgendaUnscheduledRail from "@/components/AgendaUnscheduledRail";
+import DayReorderOffer from "@/components/DayReorderOffer";
 import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -29,6 +30,8 @@ import {
   getMe,
   getTodos,
   getAssignedTodos,
+  getTodoNoteMap,
+  createNoteApi,
   getProjects,
   createTodo,
   updateTodo,
@@ -545,6 +548,22 @@ export default function AgendaPage() {
 
   // ── Task editing ──
 
+  const openMeetingMinutes = async (ev: CalendarEvent) => {
+    if (ev.source !== "wroket" || !ev.meetingUrl) return;
+    const realId = ev.recurring ? ev.id.split("_rec_")[0] : ev.id;
+    try {
+      const map = await getTodoNoteMap();
+      let noteId = map[realId];
+      if (!noteId) {
+        const note = await createNoteApi({ title: ev.summary, content: "", todoId: realId });
+        noteId = note.id;
+      }
+      router.push(`/notes?id=${encodeURIComponent(noteId)}`);
+    } catch {
+      toast.error(t("toast.noteCreateError"));
+    }
+  };
+
   const openWroketTaskFromCalendarEvent = async (ev: CalendarEvent) => {
     if (ev.source !== "wroket") return;
     try {
@@ -904,6 +923,7 @@ export default function AgendaPage() {
 
   return (
     <AppShell>
+      <DayReorderOffer />
       <div className="flex flex-col h-[calc(100vh-120px)]">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -1228,6 +1248,18 @@ export default function AgendaPage() {
                                   {t(meetingJoinI18nKey(ev.meetingProvider))}
                                 </button>
                               )}
+                              {isWroket && ev.meetingUrl && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void openMeetingMinutes(ev);
+                                  }}
+                                  className="mt-0.5 ml-1 text-[9px] underline underline-offset-2 opacity-90 hover:opacity-100"
+                                >
+                                  {t("agenda.meetingNote")}
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -1350,6 +1382,19 @@ export default function AgendaPage() {
                                   {t(meetingJoinI18nKey(ev.meetingProvider))}
                                 </button>
                               )}
+                              {isWroket && ev.meetingUrl && (
+                                <button
+                                  type="button"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void openMeetingMinutes(ev);
+                                  }}
+                                  className="text-[9px] underline underline-offset-2 opacity-90 hover:opacity-100 mt-0.5 ml-1"
+                                >
+                                  {t("agenda.meetingNote")}
+                                </button>
+                              )}
                               {pos.height >= 44 && (
                                 <div className="text-[10px] opacity-80 mt-0.5 font-medium">
                                   {new Date(ev.start).toLocaleTimeString(locale === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" })}
@@ -1467,6 +1512,18 @@ export default function AgendaPage() {
                                   title={t(meetingJoinI18nKey(ev.meetingProvider))}
                                 >
                                   {t(meetingJoinI18nKey(ev.meetingProvider))}
+                                </button>
+                              )}
+                              {isWroket && ev.meetingUrl && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void openMeetingMinutes(ev);
+                                  }}
+                                  className="block text-[8px] underline underline-offset-2 opacity-90 hover:opacity-100"
+                                >
+                                  {t("agenda.meetingNote")}
                                 </button>
                               )}
                             </div>

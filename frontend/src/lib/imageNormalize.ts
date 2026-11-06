@@ -55,6 +55,44 @@ export function computeTargetSize(
 
 const IMAGE_EXT_RE = /\.(jpe?g|png|webp|gif|heic|heif|bmp|tiff?)$/i;
 
+/**
+ * Brightness that still counts as paper. A fixed 170 treated a shaded sheet
+ * as background and kept only the sunlit strip — the rest of the drawing was cut off.
+ * Otsu sits in the valley between the dark room and the paper, then clamped so a
+ * specular highlight cannot raise the bar above the sheet itself.
+ */
+export function surfaceThreshold(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): number {
+  const n = width * height;
+  if (n === 0 || rgba.length < n * 4) return 140;
+  const hist = new Uint32Array(256);
+  let sum = 0;
+  for (let p = 0; p < n; p++) {
+    const i = p * 4;
+    const v = Math.max(0, Math.min(255, Math.round(luma(rgba[i], rgba[i + 1], rgba[i + 2]))));
+    hist[v] += 1;
+    sum += v;
+  }
+  let backgroundWeight = 0;
+  let backgroundSum = 0;
+  let best = -1;
+  let threshold = 140;
+  for (let t = 0; t < 256; t++) {
+    backgroundWeight += hist[t];
+    if (backgroundWeight === 0) continue;
+    const foregroundWeight = n - backgroundWeight;
+    if (foregroundWeight === 0) break;
+    backgroundSum += t * hist[t];
+    const meanBack = backgroundSum / backgroundWeight;
+    const meanFore = (sum - backgroundSum) / foregroundWeight;
+    const variance = backgroundWeight * foregroundWeight * (meanBack - meanFore) ** 2;
+    if (variance > best) {
+      best = variance;
+      threshold = t;
+    }
+  }
+  return Math.max(60, Math.min(160, threshold));
+}
+
 /** True when the blob looks like an image (MIME, or extension when MIME is empty). */
 export function looksLikeImage(type: string, name?: string): boolean {
   if (type) return type.startsWith("image/");
@@ -119,8 +157,7 @@ export function findWhiteboardCrop(
 ): CropRect | null {
   if (width < 8 || height < 8 || rgba.length < width * height * 4) return null;
 
-  // Fraction of "surface" pixels (bright enough to be board/paper, not ink/background).
-  const SURFACE = 170;
+  const SURFACE = surfaceThreshold(rgba, width, height);
   const rowScore = new Float64Array(height);
   for (let y = 0; y < height; y++) {
     let bright = 0;
@@ -267,7 +304,11 @@ export function padCanvasWithWhite(
  * enhance contrast, pad edges, and re-encode as JPEG.
  * @throws ImageImportError on non-image, oversize or undecodable input.
  */
-export async function normalizeImageForOcr(blob: Blob, name?: string): Promise<Blob> {
+export async function normalizeImageForOcr(
+  blob: Blob,
+  name?: string,
+  options?: { crop?: boolean; faithful?: boolean },
+): Promise<Blob> {
   if (!looksLikeImage(blob.type, name)) throw new ImageImportError("IMAGE_NOT_AN_IMAGE");
   if (blob.size > OCR_MAX_INPUT_BYTES) throw new ImageImportError("IMAGE_TOO_LARGE");
 
@@ -294,7 +335,9 @@ export async function normalizeImageForOcr(blob: Blob, name?: string): Promise<B
     if (!aCtx) throw new ImageImportError("IMAGE_DECODE_FAILED");
     aCtx.drawImage(canvas, 0, 0, analysis.width, analysis.height);
     const analysisData = aCtx.getImageData(0, 0, analysis.width, analysis.height);
-    const cropSmall = findWhiteboardCrop(analysisData.data, analysis.width, analysis.height);
+    const cropSmall = options?.crop === false
+      ? null
+      : findWhiteboardCrop(analysisData.data, analysis.width, analysis.height);
 
     let work = canvas;
     let w = width;
@@ -312,14 +355,15 @@ export async function normalizeImageForOcr(blob: Blob, name?: string): Promise<B
       h = crop.height;
     }
 
-    const outCtx = work.getContext("2d", { willReadFrequently: true });
-    if (!outCtx) throw new ImageImportError("IMAGE_DECODE_FAILED");
-    const pixels = outCtx.getImageData(0, 0, w, h);
-    enhanceGrayscaleContrast(pixels.data, w, h);
-    outCtx.putImageData(pixels, 0, 0);
-
-    // Letterbox before JPEG — Vision often drops glyphs flush against the frame.
-    work = padCanvasWithWhite(work);
+    if (!options?.faithful) {
+      const outCtx = work.getContext("2d", { willReadFrequently: true });
+      if (!outCtx) throw new ImageImportError("IMAGE_DECODE_FAILED");
+      const pixels = outCtx.getImageData(0, 0, w, h);
+      enhanceGrayscaleContrast(pixels.data, w, h);
+      outCtx.putImageData(pixels, 0, 0);
+      // Letterbox before JPEG — Vision often drops glyphs flush against the frame.
+      work = padCanvasWithWhite(work);
+    }
 
     const out = await new Promise<Blob | null>((resolve) => work.toBlob(resolve, "image/jpeg", OCR_JPEG_QUALITY));
     if (!out) throw new ImageImportError("IMAGE_DECODE_FAILED");

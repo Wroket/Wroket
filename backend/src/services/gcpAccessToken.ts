@@ -1,10 +1,12 @@
 /**
- * GCP access token for REST calls to Google APIs (Cloud Vision, …).
+ * GCP access token for REST calls to Google APIs (Cloud Vision, Vertex, …).
  *
  * Production (Cloud Run): token of the attached service account (`wroket-run`),
  * fetched from the metadata server and cached until shortly before expiry.
- * Local dev: `OCR_DEV_ACCESS_TOKEN` (e.g. `gcloud auth print-access-token`).
+ * Local dev: `OCR_DEV_ACCESS_TOKEN`, otherwise `gcloud auth print-access-token`.
  */
+import { execFile } from "child_process";
+
 import { logger } from "../utils/logger";
 
 const METADATA_TOKEN_URL =
@@ -40,6 +42,17 @@ export async function getGcpAccessToken(): Promise<string> {
     };
     return cached.token;
   } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        const token = await tokenFromGcloud();
+        cached = { token, expiresAt: Date.now() + 50 * 60 * 1000 };
+        return token;
+      } catch (gcloudErr) {
+        logger.error("[gcpAccessToken] gcloud token failed", {
+          error: gcloudErr instanceof Error ? gcloudErr.message : String(gcloudErr),
+        });
+      }
+    }
     logger.error("[gcpAccessToken] token fetch failed", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -47,6 +60,29 @@ export async function getGcpAccessToken(): Promise<string> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** User credential from the local gcloud CLI. Not used on Cloud Run. */
+function tokenFromGcloud(): Promise<string> {
+  const command = process.platform === "win32" ? "gcloud.cmd" : "gcloud";
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      ["auth", "print-access-token"],
+      { timeout: 20_000, windowsHide: true, shell: process.platform === "win32" },
+      (err, stdout) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      const token = stdout.trim();
+      if (!token) {
+        reject(new Error("gcloud returned an empty token"));
+        return;
+      }
+      resolve(token);
+    });
+  });
 }
 
 /** Test helper: drop the cached token. */

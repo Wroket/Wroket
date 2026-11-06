@@ -323,9 +323,14 @@ const visionProvider: OcrProvider = {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), VISION_TIMEOUT_MS);
     try {
+      const quotaProject = process.env.GOOGLE_CLOUD_PROJECT?.trim() || process.env.GCLOUD_PROJECT?.trim();
       const res = await fetch(VISION_ENDPOINT, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          ...(quotaProject ? { "x-goog-user-project": quotaProject } : {}),
+        },
         body: JSON.stringify({
           requests: [
             {
