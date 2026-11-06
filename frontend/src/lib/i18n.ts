@@ -1656,6 +1656,7 @@ const translations = {
     fr: "Ajouté à la fin de la note. Les mots déjà écrits dans les cases ne sont pas recopiés. Le texte déjà dans la note n’est pas remplacé.",
     en: "Added at the end of the note. Words already written in the boxes are not copied again. Existing note text is left in place.",
   },
+  "notes.diagram.edit": { fr: "Modifier", en: "Edit" },
   "notes.diagram.canvasSave": { fr: "Enregistrer le schéma", en: "Save the diagram" },
   "notes.diagram.canvasSaving": { fr: "Enregistrement…", en: "Saving…" },
   "notes.diagram.reading": { fr: "Numérisation…", en: "Digitizing…" },

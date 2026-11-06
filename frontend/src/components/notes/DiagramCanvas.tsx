@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { stickyAnchor } from "@/components/notes/diagramAnchors";
 import { diagramColor, diagramPaint, diagramShape, diagramShapeClass, type DiagramColor, type DiagramShape } from "@/components/notes/diagramStyle";
 import type { NoteDiagramEdge } from "@/lib/api/notes";
 
@@ -59,19 +60,6 @@ function hitNode(x: number, y: number, nodes: CanvasBox[], except?: string): Can
   return undefined;
 }
 
-/** Point where a center-to-center segment meets the box edge. */
-function borderPoint(node: CanvasBox, towardX: number, towardY: number): { x: number; y: number } {
-  const cx = node.x + node.w / 2;
-  const cy = node.y + node.h / 2;
-  const dx = towardX - cx;
-  const dy = towardY - cy;
-  if (dx === 0 && dy === 0) return { x: cx, y: cy };
-  const sx = dx !== 0 ? (node.w / 2) / Math.abs(dx) : Infinity;
-  const sy = dy !== 0 ? (node.h / 2) / Math.abs(dy) : Infinity;
-  const scale = Math.min(sx, sy);
-  return { x: cx + dx * scale, y: cy + dy * scale };
-}
-
 interface PixelBox {
   x: number;
   y: number;
@@ -127,7 +115,7 @@ export default function DiagramCanvas({
     | null
   >(null);
   const [draft, setDraft] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const [linkDraft, setLinkDraft] = useState<{ from: string; x: number; y: number } | null>(null);
+  const [linkDraft, setLinkDraft] = useState<{ from: string; x: number; y: number; ox: number; oy: number } | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -269,8 +257,10 @@ export default function DiagramCanvas({
           const from = byId.get(edge.from);
           const to = byId.get(edge.to);
           if (!from || !to) return null;
-          const start = linePoint(borderPoint(from, to.x + to.w / 2, to.y + to.h / 2).x, borderPoint(from, to.x + to.w / 2, to.y + to.h / 2).y);
-          const end = linePoint(borderPoint(to, from.x + from.w / 2, from.y + from.h / 2).x, borderPoint(to, from.x + from.w / 2, from.y + from.h / 2).y);
+          const startAnchor = stickyAnchor(from, to.x + to.w / 2, to.y + to.h / 2);
+          const endAnchor = stickyAnchor(to, from.x + from.w / 2, from.y + from.h / 2);
+          const start = linePoint(startAnchor.x, startAnchor.y);
+          const end = linePoint(endAnchor.x, endAnchor.y);
           return (
             <g key={`${edge.from}>${edge.to}`}>
               <line
@@ -305,9 +295,8 @@ export default function DiagramCanvas({
             </g>
           );
         })}
-        {linkDraft && byId.get(linkDraft.from) && (() => {
-          const from = byId.get(linkDraft.from)!;
-          const start = linePoint(borderPoint(from, linkDraft.x, linkDraft.y).x, borderPoint(from, linkDraft.x, linkDraft.y).y);
+        {linkDraft && byId.has(linkDraft.from) && (() => {
+          const start = linePoint(linkDraft.ox, linkDraft.oy);
           const end = linePoint(linkDraft.x, linkDraft.y);
           return (
             <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="#0284c7" strokeWidth="1.6" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" markerEnd={`url(#${markerId})`} style={{ pointerEvents: "none" }} />
@@ -393,7 +382,7 @@ export default function DiagramCanvas({
             onPointerDown={(event) => {
               event.stopPropagation();
               drag.current = { kind: "link", from: node.id };
-              setLinkDraft({ from: node.id, x: anchor.x, y: anchor.y });
+              setLinkDraft({ from: node.id, x: anchor.x, y: anchor.y, ox: anchor.x, oy: anchor.y });
               onSelect(node.id);
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
@@ -401,7 +390,7 @@ export default function DiagramCanvas({
               const current = drag.current;
               if (!current || current.kind !== "link" || current.from !== node.id) return;
               const cursor = point(event);
-              setLinkDraft({ from: node.id, x: cursor.x, y: cursor.y });
+              setLinkDraft((current) => current ? { ...current, x: cursor.x, y: cursor.y } : current);
               setHoverId(hitNode(cursor.x, cursor.y, nodes, node.id)?.id ?? null);
             }}
             onPointerUp={(event) => {

@@ -108,6 +108,7 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
   const [canvasHeight, setCanvasHeight] = useState(CANVAS_DEFAULT);
   const [tool, setTool] = useState<{ shape: DiagramShape; color: DiagramColor }>({ shape: "rect", color: "emerald" });
   const [applyOpen, setApplyOpen] = useState(false);
+  const [editing, setEditing] = useState(() => diagram.nodes.length === 0);
   const heightDrag = useRef<{ y: number; h: number } | null>(null);
 
   useEffect(() => {
@@ -118,6 +119,7 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
     setSavedMark(snapshot(nextNodes, nextEdges));
     setSelectedId(null);
     setLabelEditId(null);
+    setEditing(nextNodes.length === 0);
     // Local edits must survive parent re-renders. Reload replaces `updatedAt`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, diagram.updatedAt]);
@@ -171,6 +173,7 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
       };
       await saveNoteDiagram(noteId, saved, blockId);
       setSavedMark(snapshot(nodes, edges));
+      setEditing(false);
       toast.success(t("notes.diagram.kept"));
       onSaved?.(saved);
     } catch (err) {
@@ -219,7 +222,7 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
       <div className="overflow-hidden rounded-md border border-zinc-200 dark:border-slate-700">
       <DiagramCanvas
         imageUrl={imageUrl}
-        editable={!readOnly}
+        editable={!readOnly && editing}
         height={canvasHeight}
         drawShape={selected?.shape ?? tool.shape}
         drawColor={selected?.color ?? tool.color}
@@ -277,7 +280,16 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
       >
         <span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-slate-600" />
       </div>
-      {!readOnly && (
+      {!readOnly && !editing && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-800 dark:text-slate-100"
+        >
+          {t("notes.diagram.edit")}
+        </button>
+      )}
+      {!readOnly && editing && (
         <div className="space-y-2">
           <DiagramStyleBar
             shape={selected?.shape ?? tool.shape}
