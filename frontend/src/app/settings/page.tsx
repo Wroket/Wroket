@@ -1686,6 +1686,7 @@ function SubscriptionSection() {
           <div className="space-y-3">
             <EntitlementRow ok={!!ent?.integrations} label={t("settings.entitlementIntegrations")} />
             <EntitlementRow ok={!!ent?.teamReporting} label={t("settings.entitlementTeamReporting")} />
+            <EntitlementRow ok={!!ent?.workCapture} label={t("settings.entitlementWorkCapture")} />
           </div>
         </section>
 

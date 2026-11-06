@@ -251,6 +251,7 @@ describe("externalSyncService", () => {
       integrations: true,
       teamReporting: false,
       clientPortal: false,
+      workCapture: false,
     });
 
     const owner = uid("owner");

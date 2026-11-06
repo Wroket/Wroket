@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   __resetOcrQuota,
@@ -13,6 +13,14 @@ import {
   reconstructTextFromPages,
   type OcrProvider,
 } from "./ocrService";
+import * as teamService from "./teamService";
+
+const entitled = {
+  integrations: true,
+  teamReporting: true,
+  clientPortal: true,
+  workCapture: true,
+};
 
 const ENV_KEYS = ["OCR_ENABLED", "OCR_BETA_EMAILS", "OCR_DAILY_LIMIT", "OCR_PROVIDER"] as const;
 const savedEnv: Record<string, string | undefined> = {};
@@ -49,6 +57,7 @@ beforeEach(() => {
   delete process.env.OCR_DAILY_LIMIT;
   __resetOcrQuota();
   __setOcrProviderForTests(okProvider);
+  vi.spyOn(teamService, "getEffectiveEntitlementsForUid").mockReturnValue(entitled);
 });
 
 afterEach(() => {
@@ -57,21 +66,26 @@ afterEach(() => {
     else process.env[k] = savedEnv[k];
   }
   __setOcrProviderForTests(null);
+  vi.restoreAllMocks();
 });
 
-describe("ocrService — flag and allowlist", () => {
+describe("ocrService — flag and entitlement", () => {
   it("is disabled unless OCR_ENABLED=true", async () => {
     process.env.OCR_ENABLED = "false";
-    expect(isOcrEnabledFor("a@test.com")).toBe(false);
+    expect(isOcrEnabledFor("u1", "a@test.com")).toBe(false);
     await expectCode(recognizeImageForUser(input()), 503, "OCR_DISABLED");
   });
 
-  it("restricts to the beta allowlist (comma or semicolon, case-insensitive)", () => {
-    process.env.OCR_BETA_EMAILS = "A@test.com; b@test.com,c@test.com";
-    expect(isOcrEnabledFor("a@test.com")).toBe(true);
-    expect(isOcrEnabledFor("c@test.com")).toBe(true);
-    expect(isOcrEnabledFor("z@test.com")).toBe(false);
-    expect(isOcrEnabledFor(undefined)).toBe(false);
+  it("stays off without the work-capture entitlement, even if an allowlist email is set", () => {
+    process.env.OCR_BETA_EMAILS = "a@test.com";
+    vi.mocked(teamService.getEffectiveEntitlementsForUid).mockReturnValue({
+      integrations: false,
+      teamReporting: false,
+      clientPortal: false,
+      workCapture: false,
+    });
+    expect(isOcrEnabledFor("u1", "a@test.com")).toBe(false);
+    expect(isOcrEnabledFor(undefined, "a@test.com")).toBe(false);
   });
 
   it("reports config with remaining quota", () => {

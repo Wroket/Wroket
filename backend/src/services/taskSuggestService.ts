@@ -3,6 +3,7 @@
  * Off unless `TASK_SUGGEST_ENABLED=true`. The note text and the model output are not logged.
  */
 import { getGcpAccessToken } from "./gcpAccessToken";
+import { getEffectiveEntitlementsForUid } from "./teamService";
 import { vertexFailureReason } from "./vertexHttp";
 import type { Priority } from "./todoService";
 import { AppError, ValidationError } from "../utils/errors";
@@ -30,21 +31,11 @@ function dailyLimit(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_DAILY_LIMIT;
 }
 
-function allowlist(): Set<string> {
-  return new Set(
-    (process.env.TASK_SUGGEST_BETA_EMAILS ?? "")
-      .split(/[,;]/)
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-/** True when the flag is on and the user is allowed (empty allowlist = everyone). */
-export function isTaskSuggestEnabledFor(email: string | undefined): boolean {
+/** True when the kill switch is on and the user has the work-capture entitlement. */
+export function isTaskSuggestEnabledFor(uid: string | undefined, email: string | undefined): boolean {
   if (process.env.TASK_SUGGEST_ENABLED !== "true") return false;
-  const allow = allowlist();
-  if (allow.size === 0) return true;
-  return !!email && allow.has(email.trim().toLowerCase());
+  if (!uid) return false;
+  return getEffectiveEntitlementsForUid(uid, email ?? "").workCapture;
 }
 
 function usedToday(uid: string): number {
@@ -71,7 +62,7 @@ export function getTaskSuggestConfigFor(uid: string, email: string | undefined):
   dailyLimit: number;
   remaining: number;
 } {
-  const enabled = isTaskSuggestEnabledFor(email);
+  const enabled = isTaskSuggestEnabledFor(uid, email);
   const limit = dailyLimit();
   return { enabled, dailyLimit: limit, remaining: enabled ? Math.max(0, limit - usedToday(uid)) : 0 };
 }
@@ -178,7 +169,7 @@ export async function suggestTasksForUser(input: {
   consent: unknown;
   requestId?: string;
 }): Promise<{ tasks: SuggestedTask[]; provider: "mock" | "vertex" }> {
-  if (!isTaskSuggestEnabledFor(input.email)) {
+  if (!isTaskSuggestEnabledFor(input.uid, input.email)) {
     throw new AppError(503, "La proposition de tâches n'est pas activée pour ce compte", "TASK_SUGGEST_DISABLED");
   }
   if (input.consent !== "yes") {

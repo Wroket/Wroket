@@ -28,7 +28,7 @@ export async function getDiagramConfig(req: AuthenticatedRequest, res: Response)
 export async function recognizeDiagram(req: AuthenticatedRequest, res: Response) {
   const user = req.user!;
   const noteId = req.params.noteId as string;
-  assertDiagramEnabledFor(user.email);
+  assertDiagramEnabledFor(user.uid, user.email);
   const access = resolveNoteAccess(user.uid, user.email ?? "", noteId);
   if (!access?.canWrite) throw new NotFoundError("Note introuvable");
   const consent = (req.body as Record<string, unknown> | undefined)?.consent;

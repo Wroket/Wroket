@@ -13,6 +13,11 @@ export interface Entitlements {
   teamReporting: boolean;
   /** Client Portal multi-projets — Large+, ou early bird. */
   clientPortal: boolean;
+  /**
+   * Capture de travail : reconnaissance de texte, lecture de schéma, proposition de tâches.
+   * Large, ou early bird. Le flag d'environnement reste un coupe-circuit global.
+   */
+  workCapture: boolean;
 }
 
 const DEFAULT_PLAN_FOR_LEGACY_USER: BillingPlan = "first";
@@ -34,16 +39,18 @@ export function getEntitlements(plan: BillingPlan): Entitlements {
   const integrations = plan === "small" || plan === "large";
   const teamReporting = plan === "large";
   const clientPortal = plan === "large";
-  return { integrations, teamReporting, clientPortal };
+  const workCapture = plan === "large";
+  return { integrations, teamReporting, clientPortal, workCapture };
 }
 
 /**
- * Droits effectifs : si `earlyBird` (attribué uniquement par un admin), accès complet intégrations + reporting ;
+ * Droits effectifs : si `earlyBird` (attribué uniquement par un admin), accès complet
+ * (intégrations, reporting, portail client, capture de travail) ;
  * sinon uniquement {@link getEntitlements}(plan).
  */
 export function resolveEntitlements(plan: BillingPlan, earlyBird: boolean): Entitlements {
   if (earlyBird) {
-    return { integrations: true, teamReporting: true, clientPortal: true };
+    return { integrations: true, teamReporting: true, clientPortal: true, workCapture: true };
   }
   return getEntitlements(plan);
 }
@@ -62,5 +69,6 @@ export function resolveEffectiveEntitlements(
     integrations: personal.integrations || team.integrations,
     teamReporting: personal.teamReporting || team.teamReporting,
     clientPortal: personal.clientPortal || team.clientPortal,
+    workCapture: personal.workCapture || team.workCapture,
   };
 }

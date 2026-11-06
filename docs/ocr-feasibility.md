@@ -68,7 +68,7 @@ Source (fichier/caméra/drop/coller/Drive/Dropbox)
   → imageNormalize (recadrage zone claire, contraste gris, JPEG ≤ 2000px)
   → POST /notes/:id/ocr (multipart, languageHint, source)
                                              requireAuth → accès note (canViewNote)
-                                             → flag + allowlist → quota (20/j/uid)
+                                             → flag + palier (Large / Early Bird) → quota (20/j/uid)
                                              → ocrService.recognize ─────────────→ eu-vision.googleapis.com
                                              ← { text, detectedLanguages, code? } ←
   ← Modale d'aperçu éditable → Insérer / Copier / Annuler
@@ -125,7 +125,8 @@ Le quota POC (20 OCR / jour / utilisateur) borne le risque. Picker API, Drive AP
 1. `gcloud services enable vision.googleapis.com drive.googleapis.com picker.googleapis.com --project=involuted-reach-490718-h4`
 2. Vérifier que `wroket-run` a `roles/serviceusage.serviceUsageConsumer`.
 3. Activer le flag (non écrasé par Cloud Build) :
-   `gcloud run services update wroket-api --region=europe-west1 --update-env-vars "^##^OCR_ENABLED=true##OCR_BETA_EMAILS=francois@broudeur.com;team@wroket.com"`
+   `gcloud run services update wroket-api --region=europe-west1 --update-env-vars "OCR_ENABLED=true"`
+   `OCR_ENABLED` est un coupe-circuit global. Une fois à `true`, l'accès suit le palier : Large et Early Bird, y compris un siège dans une équipe Large. `OCR_BETA_EMAILS` ne donne plus l'accès.
 4. **Google Drive** :
    - créer une clé API restreinte aux référents `https://wroket.com/*`, `https://www.wroket.com/*` et à l'API Google Picker ;
    - ajouter le scope `drive.file` dans Google Auth Platform → Data Access ;
@@ -155,7 +156,7 @@ Source : `wroket-api`, messages `[ocr] recognized` et `[ocr] provider failure`. 
 | Usage | 1 compte, un seul jour (5 nov., 17:28–21:35 UTC). Caméra 15, fichier 7, pièce jointe 1 | Pas tenu |
 | Qualité | Pas de note sur l'échantillon de 12 photos. Les logs ne permettent pas de juger la retouche | Pas mesuré |
 
-**Verdict : pas d'ouverture générale.** La latence et le coût ne bloquent pas. L'usage n'a pas deux semaines, et la qualité n'a pas été notée. Le flag et l'allowlist restent en place. Drive, Dropbox, collage, HEIC, photo floue, langue non latine et quota atteint ne figurent pas dans ces 23 lectures.
+**Verdict : pas d'ouverture générale.** La latence et le coût ne bloquent pas. L'usage n'a pas deux semaines, et la qualité n'a pas été notée. Le flag reste le coupe-circuit ; l'accès suit le palier Large et Early Bird. Drive, Dropbox, collage, HEIC, photo floue, langue non latine et quota atteint ne figurent pas dans ces 23 lectures.
 
 ## 11. Limites connues du POC
 

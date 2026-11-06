@@ -58,16 +58,23 @@ function fakeRes() {
 }
 
 function fakeReq(
-  uid: string,
+  user: { uid: string; email: string },
   params: Record<string, string>,
   extra: { file?: { buffer: Buffer; mimetype: string }; body?: Record<string, unknown> } = {},
 ): AuthenticatedRequest {
   return {
-    user: { uid, email: `${uid}@test.com` },
+    user,
     params,
     body: extra.body ?? {},
     file: extra.file,
   } as unknown as AuthenticatedRequest;
+}
+
+async function largeOwner(): Promise<{ uid: string; email: string }> {
+  const auth = await import("../services/authService");
+  const user = auth.register({ email: `${uniq("owner")}@test.com`, password: "password123" });
+  auth.setBillingPlanForUid(user.uid, "large");
+  return { uid: user.uid, email: user.email };
 }
 
 async function seedNote(ownerUid: string): Promise<string> {
@@ -80,8 +87,8 @@ const image = { buffer: Buffer.from("fake-jpeg"), mimetype: "image/jpeg" };
 describe("noteOcrController", () => {
   it("returns OCR text for the note owner", async () => {
     const ctrl = await import("./noteOcrController");
-    const owner = uniq("owner");
-    const noteId = await seedNote(owner);
+    const owner = await largeOwner();
+    const noteId = await seedNote(owner.uid);
     const res = fakeRes();
 
     await ctrl.ocrUploadedImage(fakeReq(owner, { noteId }, { file: image, body: { languageHint: "fr" } }), res as unknown as Response);
@@ -92,26 +99,41 @@ describe("noteOcrController", () => {
 
   it("returns 404 when the user cannot view the note", async () => {
     const ctrl = await import("./noteOcrController");
-    const noteId = await seedNote(uniq("owner"));
+    const owner = await largeOwner();
+    const noteId = await seedNote(owner.uid);
+    const intruder = await largeOwner();
     await expect(
-      ctrl.ocrUploadedImage(fakeReq(uniq("intruder"), { noteId }, { file: image }), fakeRes() as unknown as Response),
+      ctrl.ocrUploadedImage(fakeReq(intruder, { noteId }, { file: image }), fakeRes() as unknown as Response),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it("returns 503 OCR_DISABLED when the flag is off", async () => {
     process.env.OCR_ENABLED = "false";
     const ctrl = await import("./noteOcrController");
-    const owner = uniq("owner");
-    const noteId = await seedNote(owner);
+    const owner = await largeOwner();
+    const noteId = await seedNote(owner.uid);
     await expect(
       ctrl.ocrUploadedImage(fakeReq(owner, { noteId }, { file: image }), fakeRes() as unknown as Response),
     ).rejects.toMatchObject({ statusCode: 503, code: "OCR_DISABLED" });
   });
 
+  it("returns 503 for a free account even when the flag is on", async () => {
+    const ctrl = await import("./noteOcrController");
+    const auth = await import("../services/authService");
+    const user = auth.register({ email: `${uniq("free")}@test.com`, password: "password123" });
+    const noteId = await seedNote(user.uid);
+    await expect(
+      ctrl.ocrUploadedImage(
+        fakeReq({ uid: user.uid, email: user.email }, { noteId }, { file: image }),
+        fakeRes() as unknown as Response,
+      ),
+    ).rejects.toMatchObject({ statusCode: 503, code: "OCR_DISABLED" });
+  });
+
   it("rejects a missing file and an invalid language hint with 422", async () => {
     const ctrl = await import("./noteOcrController");
-    const owner = uniq("owner");
-    const noteId = await seedNote(owner);
+    const owner = await largeOwner();
+    const noteId = await seedNote(owner.uid);
     await expect(
       ctrl.ocrUploadedImage(fakeReq(owner, { noteId }), fakeRes() as unknown as Response),
     ).rejects.toMatchObject({ statusCode: 422, code: "OCR_UNSUPPORTED_TYPE" });
@@ -126,10 +148,10 @@ describe("noteOcrController", () => {
   it("runs OCR on an existing image attachment and refuses non-images", async () => {
     const ctrl = await import("./noteOcrController");
     const attSvc = await import("../services/noteAttachmentService");
-    const owner = uniq("owner");
-    const noteId = await seedNote(owner);
+    const owner = await largeOwner();
+    const noteId = await seedNote(owner.uid);
 
-    const img = await attSvc.addNoteAttachment(noteId, owner, {
+    const img = await attSvc.addNoteAttachment(noteId, owner.uid, {
       originalname: "board.png",
       mimetype: "image/png",
       size: 9,
@@ -143,7 +165,7 @@ describe("noteOcrController", () => {
     expect(res.statusCode).toBe(200);
     expect((res.body as { text: string }).text).toContain("mock");
 
-    const txt = await attSvc.addNoteAttachment(noteId, owner, {
+    const txt = await attSvc.addNoteAttachment(noteId, owner.uid, {
       originalname: "doc.txt",
       mimetype: "text/plain",
       size: 4,
@@ -157,9 +179,9 @@ describe("noteOcrController", () => {
   it("returns 404 for an attachment of a note the user cannot view", async () => {
     const ctrl = await import("./noteOcrController");
     const attSvc = await import("../services/noteAttachmentService");
-    const owner = uniq("owner");
-    const noteId = await seedNote(owner);
-    const img = await attSvc.addNoteAttachment(noteId, owner, {
+    const owner = await largeOwner();
+    const noteId = await seedNote(owner.uid);
+    const img = await attSvc.addNoteAttachment(noteId, owner.uid, {
       originalname: "board.png",
       mimetype: "image/png",
       size: 9,
@@ -167,7 +189,7 @@ describe("noteOcrController", () => {
     });
     await expect(
       ctrl.ocrNoteAttachment(
-        fakeReq(uniq("intruder"), { noteId, attachmentId: img.attachment!.id }),
+        fakeReq(await largeOwner(), { noteId, attachmentId: img.attachment!.id }),
         fakeRes() as unknown as Response,
       ),
     ).rejects.toMatchObject({ statusCode: 404 });

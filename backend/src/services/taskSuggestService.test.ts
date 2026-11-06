@@ -1,20 +1,40 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   __resetTaskSuggestQuota,
   sanitizeTaskSuggestions,
   suggestTasksForUser,
 } from "./taskSuggestService";
+import * as teamService from "./teamService";
 
 beforeEach(() => {
   __resetTaskSuggestQuota();
   delete process.env.TASK_SUGGEST_ENABLED;
   delete process.env.TASK_SUGGEST_PROVIDER;
   delete process.env.TASK_SUGGEST_BETA_EMAILS;
+  vi.spyOn(teamService, "getEffectiveEntitlementsForUid").mockReturnValue({
+    integrations: true,
+    teamReporting: true,
+    clientPortal: true,
+    workCapture: true,
+  });
 });
 
 describe("task suggestions", () => {
   it("stays off unless the flag is exactly true", async () => {
+    await expect(
+      suggestTasksForUser({ uid: "u1", email: "a@test.com", text: "Appeler Julie", consent: "yes" }),
+    ).rejects.toMatchObject({ code: "TASK_SUGGEST_DISABLED" });
+  });
+
+  it("stays off for a plan without work capture", async () => {
+    process.env.TASK_SUGGEST_ENABLED = "true";
+    vi.mocked(teamService.getEffectiveEntitlementsForUid).mockReturnValue({
+      integrations: true,
+      teamReporting: false,
+      clientPortal: false,
+      workCapture: false,
+    });
     await expect(
       suggestTasksForUser({ uid: "u1", email: "a@test.com", text: "Appeler Julie", consent: "yes" }),
     ).rejects.toMatchObject({ code: "TASK_SUGGEST_DISABLED" });

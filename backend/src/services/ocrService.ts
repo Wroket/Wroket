@@ -5,13 +5,14 @@
  *   - `vision`: Google Cloud Vision `DOCUMENT_TEXT_DETECTION`, EU endpoint, REST + SA token.
  *   - `mock`:   deterministic fake text (tests, local dev).
  *
- * Guard rails: feature flag `OCR_ENABLED`, optional allowlist `OCR_BETA_EMAILS`
- * (separated by `,` or `;`), per-user daily quota (in-memory, per instance).
+ * Guard rails: feature flag `OCR_ENABLED` (global kill switch), entitlement `workCapture`
+ * (Large or Early Bird, including a Large team seat), per-user daily quota (in-memory, per instance).
  * The recognized text is never logged.
  */
 import { AppError, UnprocessableEntityError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { getGcpAccessToken } from "./gcpAccessToken";
+import { getEffectiveEntitlementsForUid } from "./teamService";
 
 export const OCR_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/jpeg",
@@ -69,26 +70,16 @@ function dailyLimit(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_DAILY_LIMIT;
 }
 
-function betaAllowlist(): Set<string> {
-  return new Set(
-    (process.env.OCR_BETA_EMAILS ?? "")
-      .split(/[,;]/)
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-/** True when the flag is on and the user is in the allowlist (empty allowlist = everyone). */
-export function isOcrEnabledFor(email: string | undefined): boolean {
+/** True when the kill switch is on and the user has the work-capture entitlement. */
+export function isOcrEnabledFor(uid: string | undefined, email: string | undefined): boolean {
   if (process.env.OCR_ENABLED !== "true") return false;
-  const allow = betaAllowlist();
-  if (allow.size === 0) return true;
-  return !!email && allow.has(email.trim().toLowerCase());
+  if (!uid) return false;
+  return getEffectiveEntitlementsForUid(uid, email ?? "").workCapture;
 }
 
 /** @throws AppError `OCR_DISABLED` (503) when OCR is off for this user. */
-export function assertOcrEnabledFor(email: string | undefined): void {
-  if (!isOcrEnabledFor(email)) {
+export function assertOcrEnabledFor(uid: string | undefined, email: string | undefined): void {
+  if (!isOcrEnabledFor(uid, email)) {
     throw new AppError(503, "La reconnaissance de texte n'est pas activée pour ce compte", "OCR_DISABLED");
   }
 }
@@ -122,7 +113,7 @@ function refundQuota(uid: string): void {
 
 /** Public config for the client (flag + remaining quota). */
 export function getOcrConfigFor(uid: string, email: string | undefined): OcrConfig {
-  const enabled = isOcrEnabledFor(email);
+  const enabled = isOcrEnabledFor(uid, email);
   const limit = dailyLimit();
   return { enabled, dailyLimit: limit, remaining: enabled ? Math.max(0, limit - usedToday(uid)) : 0 };
 }
@@ -408,7 +399,7 @@ export interface RecognizeImageInput {
  *   `OCR_QUOTA_EXCEEDED` (429), `OCR_PROVIDER_ERROR` (502)
  */
 export async function recognizeImageForUser(input: RecognizeImageInput): Promise<OcrResult> {
-  assertOcrEnabledFor(input.email);
+  assertOcrEnabledFor(input.uid, input.email);
   if (!OCR_ALLOWED_MIME_TYPES.has(input.mimeType)) {
     throw new UnprocessableEntityError("Format d'image non pris en charge", "OCR_UNSUPPORTED_TYPE", {
       mimeType: input.mimeType,

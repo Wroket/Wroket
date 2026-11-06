@@ -1,19 +1,44 @@
 /**
  * Diagram capture stays off by default and never returns more than 25 nodes.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetDiagramQuota, proposeDiagramForUser, sanitizeDiagramProposal } from "./diagramService";
+import * as teamService from "./teamService";
 
 beforeEach(() => {
   __resetDiagramQuota();
   delete process.env.DIAGRAM_ENABLED;
   delete process.env.DIAGRAM_PROVIDER;
   delete process.env.DIAGRAM_BETA_EMAILS;
+  vi.spyOn(teamService, "getEffectiveEntitlementsForUid").mockReturnValue({
+    integrations: true,
+    teamReporting: true,
+    clientPortal: true,
+    workCapture: true,
+  });
 });
 
 describe("diagramService", () => {
   it("is disabled unless DIAGRAM_ENABLED=true", async () => {
+    await expect(
+      proposeDiagramForUser({
+        uid: "u1",
+        email: "a@test.com",
+        buffer: Buffer.from("x"),
+        mimeType: "image/jpeg",
+      }),
+    ).rejects.toMatchObject({ code: "DIAGRAM_DISABLED" });
+  });
+
+  it("stays off for a plan without work capture", async () => {
+    process.env.DIAGRAM_ENABLED = "true";
+    vi.mocked(teamService.getEffectiveEntitlementsForUid).mockReturnValue({
+      integrations: true,
+      teamReporting: false,
+      clientPortal: false,
+      workCapture: false,
+    });
     await expect(
       proposeDiagramForUser({
         uid: "u1",

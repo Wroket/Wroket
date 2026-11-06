@@ -118,6 +118,8 @@ export interface Entitlements {
   integrations: boolean;
   teamReporting: boolean;
   clientPortal: boolean;
+  /** Photo text, diagram reading and task suggestions. Large or Early Bird. */
+  workCapture: boolean;
 }
 
 export interface FreeQuotaSnapshot {

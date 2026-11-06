@@ -3,6 +3,7 @@
  * Off unless `DIAGRAM_ENABLED=true`. The image and the model output are not logged.
  */
 import { getGcpAccessToken } from "./gcpAccessToken";
+import { getEffectiveEntitlementsForUid } from "./teamService";
 import { vertexFailureReason } from "./vertexHttp";
 import type { NoteDiagramEdge, NoteDiagramNode } from "./noteService";
 import { AppError, UnprocessableEntityError } from "../utils/errors";
@@ -36,25 +37,15 @@ function dailyLimit(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_DAILY_LIMIT;
 }
 
-function allowlist(): Set<string> {
-  return new Set(
-    (process.env.DIAGRAM_BETA_EMAILS ?? "")
-      .split(/[,;]/)
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-/** True when the flag is on and the user is allowed (empty allowlist = everyone). */
-export function isDiagramEnabledFor(email: string | undefined): boolean {
+/** True when the kill switch is on and the user has the work-capture entitlement. */
+export function isDiagramEnabledFor(uid: string | undefined, email: string | undefined): boolean {
   if (process.env.DIAGRAM_ENABLED !== "true") return false;
-  const allow = allowlist();
-  if (allow.size === 0) return true;
-  return !!email && allow.has(email.trim().toLowerCase());
+  if (!uid) return false;
+  return getEffectiveEntitlementsForUid(uid, email ?? "").workCapture;
 }
 
-export function assertDiagramEnabledFor(email: string | undefined): void {
-  if (!isDiagramEnabledFor(email)) {
+export function assertDiagramEnabledFor(uid: string | undefined, email: string | undefined): void {
+  if (!isDiagramEnabledFor(uid, email)) {
     throw new AppError(503, "La lecture de schémas n'est pas activée pour ce compte", "DIAGRAM_DISABLED");
   }
 }
@@ -83,7 +74,7 @@ export function getDiagramConfigFor(uid: string, email: string | undefined): {
   dailyLimit: number;
   remaining: number;
 } {
-  const enabled = isDiagramEnabledFor(email);
+  const enabled = isDiagramEnabledFor(uid, email);
   const limit = dailyLimit();
   return { enabled, dailyLimit: limit, remaining: enabled ? Math.max(0, limit - usedToday(uid)) : 0 };
 }
@@ -234,7 +225,7 @@ export async function proposeDiagramForUser(input: {
   mimeType: string;
   requestId?: string;
 }): Promise<DiagramProposal> {
-  assertDiagramEnabledFor(input.email);
+  assertDiagramEnabledFor(input.uid, input.email);
   if (!ALLOWED_MIME.has(input.mimeType)) {
     throw new UnprocessableEntityError("Utiliser une image JPEG, PNG, WebP ou GIF", "DIAGRAM_UNSUPPORTED_TYPE");
   }

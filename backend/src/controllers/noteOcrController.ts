@@ -26,7 +26,7 @@ export async function getOcrConfig(req: AuthenticatedRequest, res: Response) {
 export async function ocrUploadedImage(req: AuthenticatedRequest, res: Response) {
   const user = req.user!;
   const noteId = req.params.noteId as string;
-  assertOcrEnabledFor(user.email);
+  assertOcrEnabledFor(user.uid, user.email);
   if (!canViewNote(user.uid, user.email, noteId)) throw new NotFoundError("Note introuvable");
   if (!req.file) {
     throw new UnprocessableEntityError("Image manquante", "OCR_UNSUPPORTED_TYPE");
@@ -53,7 +53,7 @@ export async function ocrNoteAttachment(req: AuthenticatedRequest, res: Response
   const user = req.user!;
   const noteId = req.params.noteId as string;
   const attachmentId = req.params.attachmentId as string;
-  assertOcrEnabledFor(user.email);
+  assertOcrEnabledFor(user.uid, user.email);
   const languageHint = normalizeLanguageHint((req.body as Record<string, unknown> | undefined)?.languageHint);
 
   const { mimeType, buffer } = await readNoteAttachmentForOcr(noteId, attachmentId, user.uid);

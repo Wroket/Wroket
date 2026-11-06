@@ -928,6 +928,10 @@ const translations = {
   "settings.entitlementsHeading": { fr: "Options incluses", en: "Included capabilities" },
   "settings.entitlementIntegrations": { fr: "Pack intégrations (webhooks, notifications externes, calendriers Google/Outlook)", en: "Integrations pack (webhooks, external notifications, Google/Outlook calendars)" },
   "settings.entitlementTeamReporting": { fr: "Reporting équipe", en: "Team reporting" },
+  "settings.entitlementWorkCapture": {
+    fr: "Capture depuis une note (photo, schéma, proposition de tâches)",
+    en: "Note capture (photo, diagram, task suggestions)",
+  },
   "settings.yes": { fr: "Oui", en: "Yes" },
   "settings.no": { fr: "Non", en: "No" },
   "settings.stripeStatusHeading": { fr: "Statut abonnement Stripe", en: "Stripe subscription status" },
