@@ -122,7 +122,7 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
 
   if (event.kind === "added_to_space") {
     const spaceName = event.spaceName;
-    const spaceDisplayName = event.spaceDisplayName || spaceName;
+    const spaceDisplayName = event.spaceDisplayName || spaceName || undefined;
     if (email && spaceName) {
       const existing = getGoogleChatConnectionByEmail(email);
       const user = findUserByEmail(email);
