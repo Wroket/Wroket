@@ -186,11 +186,21 @@ export async function testTeamsConnection(): Promise<void> {
 
 /* ─── Google Chat+ ─── */
 
+export interface GoogleChatAppMembership {
+  ok: boolean;
+  alreadyMember?: boolean;
+  code?: string;
+  detail?: string;
+  hint?: string;
+}
+
 export interface GoogleChatConnectionStatus {
   connected: boolean;
   spaceDisplayName: string | null;
   spaceName: string | null;
   installedAt: string | null;
+  /** Present after PATCH /space — whether the Chat app was added as space member. */
+  appMembership?: GoogleChatAppMembership;
 }
 
 export async function getGoogleChatStatus(): Promise<GoogleChatConnectionStatus> {

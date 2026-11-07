@@ -23,13 +23,17 @@ const CHAT_REDIRECT_URI =
   process.env.GOOGLE_CHAT_REDIRECT_URI ??
   "http://localhost:3001/integrations/google-chat/callback";
 
-/** Chat API scopes — chat.spaces + messages for posting; email for identity. */
+/**
+ * Chat API scopes — spaces + messages for posting; memberships.app to add the
+ * Wroket Chat app into the selected space (required for inbound MESSAGE events).
+ */
 const CHAT_SCOPES = [
   "openid",
   "email",
   "profile",
   "https://www.googleapis.com/auth/chat.spaces",
   "https://www.googleapis.com/auth/chat.messages",
+  "https://www.googleapis.com/auth/chat.memberships.app",
 ].join(" ");
 
 export function isGoogleChatOAuthConfigured(): boolean {
@@ -275,4 +279,70 @@ export async function listGoogleChatSpacesForUser(uid: string): Promise<GoogleCh
     });
   }
   return out;
+}
+
+export type EnsureGoogleChatAppMembershipResult =
+  | { ok: true; alreadyMember?: boolean }
+  | { ok: false; status: number; code: string; detail: string };
+
+/**
+ * Add the calling Chat app (`users/app`) to a space so Google delivers inbound events.
+ * Requires `chat.memberships.app` on the user OAuth token (reconnect if missing).
+ */
+export async function ensureGoogleChatAppInSpace(
+  uid: string,
+  spaceName: string,
+): Promise<EnsureGoogleChatAppMembershipResult> {
+  const name = spaceName.trim();
+  if (!name || name === "spaces/unknown") {
+    return { ok: false, status: 400, code: "GOOGLE_CHAT_SPACE_REQUIRED", detail: "spaceName invalide" };
+  }
+  const token = await getValidGoogleChatAccessToken(uid);
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      code: "GOOGLE_CHAT_NOT_CONNECTED",
+      detail: "Jeton Google Chat manquant — reconnectez Google Chat.",
+    };
+  }
+
+  const postMember = (bearer: string) =>
+    fetch(`https://chat.googleapis.com/v1/${name}/members`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        member: { name: "users/app", type: "BOT" },
+      }),
+      signal: AbortSignal.timeout(8_000),
+    });
+
+  let res = await postMember(token);
+  if (res.status === 401) {
+    const refreshed = await getValidGoogleChatAccessToken(uid, { forceRefresh: true });
+    if (refreshed) res = await postMember(refreshed);
+  }
+
+  if (res.ok || res.status === 409) {
+    // 409 = already a member
+    return { ok: true, alreadyMember: res.status === 409 };
+  }
+
+  const raw = await res.text().catch(() => "");
+  let detail = raw.slice(0, 400);
+  try {
+    const parsed = JSON.parse(raw) as { error?: { message?: string; status?: string } };
+    if (parsed.error?.message) detail = parsed.error.message;
+  } catch {
+    /* keep raw */
+  }
+  console.warn("[google-chat] ensure app membership failed:", res.status, detail);
+  const code =
+    res.status === 403
+      ? "GOOGLE_CHAT_APP_MEMBERSHIP_FORBIDDEN"
+      : "GOOGLE_CHAT_APP_MEMBERSHIP_FAILED";
+  return { ok: false, status: res.status, code, detail };
 }

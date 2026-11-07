@@ -50,6 +50,17 @@ export async function postGoogleChatTestMessage(uid: string): Promise<void> {
   if (!conn) {
     throw new ValidationError("Google Chat n'est pas connecté", "GOOGLE_CHAT_NOT_CONNECTED");
   }
+  if (conn.spaceName && conn.spaceName !== "spaces/unknown") {
+    const { ensureGoogleChatAppInSpace } = await import("./googleChatOAuthService");
+    const membership = await ensureGoogleChatAppInSpace(uid, conn.spaceName);
+    if (!membership.ok) {
+      console.warn(
+        "[google-chat] test: app not in space:",
+        membership.code,
+        membership.detail,
+      );
+    }
+  }
   const text = "Test Wroket — connexion Google Chat OK ✅";
   if (await tryPostViaGoogleChat(uid, { text })) return;
   if (conn.incomingWebhookUrl) {

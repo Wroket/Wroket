@@ -2394,7 +2394,16 @@ function ConnectedAppsBlock({
                         try {
                           const updated = await updateGoogleChatSpace(nextName, found?.displayName);
                           setGoogleChatStatus(updated);
-                          toast.success(t("settings.connectionGoogleChatSpaceUpdated"));
+                          if (updated.appMembership && !updated.appMembership.ok) {
+                            toast.error(
+                              updated.appMembership.hint ||
+                                t("settings.connectionGoogleChatAppMembershipFailed"),
+                            );
+                          } else if (updated.appMembership?.ok && !updated.appMembership.alreadyMember) {
+                            toast.success(t("settings.connectionGoogleChatAppAdded"));
+                          } else {
+                            toast.success(t("settings.connectionGoogleChatSpaceUpdated"));
+                          }
                         } catch (err) {
                           toast.error(err instanceof Error ? err.message : t("toast.genericError"));
                         } finally {

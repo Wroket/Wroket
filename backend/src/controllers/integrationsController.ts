@@ -42,6 +42,7 @@ import {
 } from "../services/teamsConnectionService";
 import { postTeamsTestMessage } from "../services/teamsApiService";
 import {
+  ensureGoogleChatAppInSpace,
   exchangeGoogleChatOAuthCode,
   getGoogleChatAuthorizeUrl,
   isGoogleChatOAuthConfigured,
@@ -1014,12 +1015,33 @@ export async function updateGoogleChatSpace(req: AuthenticatedRequest, res: Resp
   if (typeof spaceName !== "string" || !spaceName.trim()) {
     throw new ValidationError("spaceName est requis", "GOOGLE_CHAT_SPACE_REQUIRED");
   }
+  const trimmed = spaceName.trim();
   updateGoogleChatSpaceForUser(
     req.user!.uid,
-    spaceName.trim(),
+    trimmed,
     typeof spaceDisplayName === "string" ? spaceDisplayName.trim() : undefined,
   );
-  res.status(200).json(getGoogleChatConnectionSummary(req.user!.uid));
+  const membership = await ensureGoogleChatAppInSpace(req.user!.uid, trimmed);
+  const summary = getGoogleChatConnectionSummary(req.user!.uid);
+  if (!membership.ok) {
+    res.status(200).json({
+      ...summary,
+      appMembership: {
+        ok: false,
+        code: membership.code,
+        detail: membership.detail,
+        hint:
+          membership.code === "GOOGLE_CHAT_APP_MEMBERSHIP_FORBIDDEN"
+            ? "Reconnectez Google Chat pour autoriser l’ajout de l’app à l’espace, puis réessayez."
+            : "Ajoutez manuellement l’app Wroket à l’espace Chat (Apps → Ajouter), puis réessayez @Wroket help.",
+      },
+    });
+    return;
+  }
+  res.status(200).json({
+    ...summary,
+    appMembership: { ok: true, alreadyMember: Boolean(membership.alreadyMember) },
+  });
 }
 
 /* ─── Discord+ ─── */

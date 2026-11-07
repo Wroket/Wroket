@@ -1145,6 +1145,14 @@ const translations = {
   "settings.connectionGoogleChatSpace": { fr: "Espace", en: "Space" },
   "settings.connectionGoogleChatChangeSpace": { fr: "Choisir l’espace", en: "Select space" },
   "settings.connectionGoogleChatSpaceUpdated": { fr: "Espace Google Chat mis à jour.", en: "Google Chat space updated." },
+  "settings.connectionGoogleChatAppAdded": {
+    fr: "App Wroket ajoutée à l’espace Chat (commandes @Wroket actives).",
+    en: "Wroket app added to the Chat space (@Wroket commands active).",
+  },
+  "settings.connectionGoogleChatAppMembershipFailed": {
+    fr: "Espace enregistré, mais l’app n’a pas pu être ajoutée. Reconnectez Google Chat puis réessayez, ou ajoutez Wroket manuellement dans l’espace.",
+    en: "Space saved, but the app could not be added. Reconnect Google Chat and retry, or add Wroket manually in the space.",
+  },
   "settings.connectionGoogleChatTest": { fr: "Envoyer un test", en: "Send a test" },
   "settings.connectionGoogleChatTestOk": { fr: "Message de test Google Chat envoyé.", en: "Google Chat test message sent." },
   "settings.connectionGoogleChatReconnect": { fr: "Reconnecter", en: "Reconnect" },
