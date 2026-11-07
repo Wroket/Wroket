@@ -245,7 +245,16 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
         setOpen(false);
         trackFunnelEvent("first_slot_booked", { todoId, source: analyticsSource });
         onBooked(result.todo);
-        toast.success(t("schedule.booked"));
+        const meta = result.bookingMeta;
+        if (meta?.invitedAssigneeEmail) {
+          toast.success(
+            t("schedule.bookedFreeInvite").replace("{{email}}", meta.invitedAssigneeEmail),
+          );
+        } else if (meta?.organizerShowAsFree) {
+          toast.success(t("schedule.bookedFreeOrganizer"));
+        } else {
+          toast.success(t("schedule.booked"));
+        }
       }
     } catch (e) {
       setPresentation("modal");

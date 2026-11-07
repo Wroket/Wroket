@@ -868,7 +868,7 @@ export default function TeamDashboardPage() {
                 {t("teamDash.sharedNotes")}
               </h2>
               <Link
-                href="/notes"
+                href="/notes?shared=1"
                 className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-slate-800/80 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -916,7 +916,9 @@ export default function TeamDashboardPage() {
                               </button>
                             </td>
                             <td className="px-4 py-3 text-zinc-500 dark:text-slate-400 text-xs align-top">
-                              {data.memberMap[todo.userId] ?? "—"}
+                              {todo.assignedTo
+                                ? (data.memberMap[todo.assignedTo] ?? "—")
+                                : "—"}
                             </td>
                             <td className={`px-4 py-3 text-xs align-top ${isOverdue ? "text-red-500 font-semibold" : "text-zinc-500 dark:text-slate-400"}`}>
                               {todo.deadline ? formatDate(todo.deadline) : "—"}

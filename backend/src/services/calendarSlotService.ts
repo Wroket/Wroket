@@ -42,8 +42,27 @@ import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors"
 export type SlotConflictInfo = { id: string; title: string; start: string; end: string };
 
 export type BookTodoSlotResult =
-  | { ok: true; todo: Todo }
+  | { ok: true; todo: Todo; invitedAssigneeEmail?: string | null; organizerShowAsFree?: boolean }
   | { ok: false; code: "CALENDAR_SLOT_CONFLICT"; conflicts: SlotConflictInfo[] };
+
+/**
+ * When the booker is not the assignee, invite the assignee by email and keep the
+ * organizer copy free so the PM is not blocked in free/busy.
+ */
+function resolveDelegatedAssigneeInvite(
+  todo: Todo,
+  bookerUid: string,
+): { attendees: string[]; showAsFree: boolean; invitedEmail: string | null } {
+  const assigneeUid = typeof todo.assignedTo === "string" ? todo.assignedTo.trim() : "";
+  if (!assigneeUid || assigneeUid === bookerUid) {
+    return { attendees: [], showAsFree: false, invitedEmail: null };
+  }
+  const email = findUserByUid(assigneeUid)?.email?.trim().toLowerCase() ?? "";
+  if (!email.includes("@")) {
+    return { attendees: [], showAsFree: true, invitedEmail: null };
+  }
+  return { attendees: [email], showAsFree: true, invitedEmail: email };
+}
 
 export interface ProposeSlotsResult {
   slots: Awaited<ReturnType<typeof findAvailableSlots>>["slots"];
@@ -253,6 +272,15 @@ export async function bookTodoSlot(
 
   const user = findUserByUid(uid);
   const tz = user?.workingHours?.timezone ?? DEFAULT_WORKING_HOURS.timezone;
+  const delegated = resolveDelegatedAssigneeInvite(todo, uid);
+  const writeOpts = {
+    attendees: delegated.attendees,
+    showAsFree: delegated.showAsFree,
+  };
+  const inviteesForSlot =
+    delegated.attendees.length > 0
+      ? delegated.attendees
+      : todo.scheduledSlot?.meetingInvitees ?? null;
 
   if (bookingTarget) {
     bookingCalendarId = bookingTarget.calendarId;
@@ -281,6 +309,11 @@ export async function bookTodoSlot(
           todo.scheduledSlot?.bookingCalendarId ?? bookingCalendarId ?? "primary";
         const existingBookingAccountId = todo.scheduledSlot?.bookingAccountId ?? bookingAccountId;
         const hasMeet = !!todo.scheduledSlot?.meetingUrl;
+        const patchAttendees = hasMeet
+          ? (todo.scheduledSlot?.meetingInvitees ?? writeOpts.attendees)
+          : writeOpts.attendees.length > 0
+            ? writeOpts.attendees
+            : undefined;
         const patched = await patchGoogleCalendarEvent(
           uid,
           existingEventId,
@@ -291,8 +324,8 @@ export async function bookTodoSlot(
           undefined,
           existingBookingCalendarId,
           existingBookingAccountId ?? undefined,
-          hasMeet ? (todo.scheduledSlot?.meetingInvitees ?? undefined) : undefined,
-          { preserveConference: hasMeet },
+          patchAttendees,
+          { preserveConference: hasMeet, showAsFree: writeOpts.showAsFree },
         );
         if (patched) {
           calendarEventId = existingEventId;
@@ -313,6 +346,8 @@ export async function bookTodoSlot(
             tz,
             undefined,
             googleTarget,
+            undefined,
+            writeOpts,
           );
         }
       } else {
@@ -324,6 +359,8 @@ export async function bookTodoSlot(
           tz,
           undefined,
           googleTarget,
+          undefined,
+          writeOpts,
         );
       }
       if (!calendarEventId) {
@@ -353,6 +390,9 @@ export async function bookTodoSlot(
           todo.title,
           start,
           end,
+          undefined,
+          writeOpts.attendees.length > 0 ? writeOpts.attendees : undefined,
+          { showAsFree: writeOpts.showAsFree, responseRequested: writeOpts.attendees.length > 0 },
         );
         if (patched) {
           calendarEventId = existingEventId;
@@ -367,6 +407,9 @@ export async function bookTodoSlot(
             todo.title,
             start,
             end,
+            undefined,
+            undefined,
+            writeOpts,
           );
           bookingAccountId = msAccountId;
           bookingCalendarId = msCalId;
@@ -379,6 +422,9 @@ export async function bookTodoSlot(
           todo.title,
           start,
           end,
+          undefined,
+          undefined,
+          writeOpts,
         );
       }
       if (!calendarEventId) {
@@ -410,6 +456,7 @@ export async function bookTodoSlot(
         bookingCalendarId,
         bookingAccountId,
         ...(bookingProvider ? { bookingProvider } : {}),
+        ...(inviteesForSlot ? { meetingInvitees: inviteesForSlot } : {}),
       },
       ...(preferredBookingTarget ? { preferredBookingTarget } : {}),
     });
@@ -438,12 +485,19 @@ export async function bookTodoSlot(
       end,
       bookingProvider: bookingProvider ?? null,
       calendarEventId,
+      invitedAssigneeEmail: delegated.invitedEmail,
+      organizerShowAsFree: delegated.showAsFree,
     });
   } catch (err) {
     console.warn("[calendar.bookTodoSlot] activity log failed:", err);
   }
 
-  return { ok: true, todo: updated };
+  return {
+    ok: true,
+    todo: updated,
+    invitedAssigneeEmail: delegated.invitedEmail,
+    organizerShowAsFree: delegated.showAsFree,
+  };
 }
 
 /**

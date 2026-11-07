@@ -193,7 +193,18 @@ export async function bookSlot(req: AuthenticatedRequest, res: Response) {
     });
     return;
   }
-  res.status(200).json(todoToClientJson(result.todo));
+  const todoJson = todoToClientJson(result.todo);
+  if (result.invitedAssigneeEmail || result.organizerShowAsFree) {
+    res.status(200).json({
+      ...todoJson,
+      bookingMeta: {
+        invitedAssigneeEmail: result.invitedAssigneeEmail ?? null,
+        organizerShowAsFree: !!result.organizerShowAsFree,
+      },
+    });
+    return;
+  }
+  res.status(200).json(todoJson);
 }
 
 export async function clearSlot(req: AuthenticatedRequest, res: Response) {
@@ -1170,6 +1181,19 @@ async function pushScheduledSlotToCalendar(
     let bookingAccountId: string | null = bookingTarget.accountId;
     const bookingProvider = bookingTarget.provider;
 
+    const assigneeUid = typeof todo.assignedTo === "string" ? todo.assignedTo.trim() : "";
+    const delegated =
+      assigneeUid && assigneeUid !== uid
+        ? (() => {
+            const inviteEmail = findUserByUid(assigneeUid)?.email?.trim().toLowerCase() ?? "";
+            return {
+              attendees: inviteEmail.includes("@") ? [inviteEmail] : [],
+              showAsFree: true,
+            };
+          })()
+        : { attendees: [] as string[], showAsFree: false };
+    const writeOpts = { attendees: delegated.attendees, showAsFree: delegated.showAsFree };
+
     if (bookingTarget.provider === "google") {
       const googleTarget = { accountId: bookingTarget.accountId, calendarId: bookingTarget.calendarId };
       calendarEventId = await createGoogleCalendarEvent(
@@ -1180,6 +1204,8 @@ async function pushScheduledSlotToCalendar(
         options.tz,
         undefined,
         googleTarget,
+        undefined,
+        writeOpts,
       );
       if (!calendarEventId) {
         const msg = "Google Calendar: impossible de créer l'événement";
@@ -1204,6 +1230,9 @@ async function pushScheduledSlotToCalendar(
         todo.title,
         start,
         end,
+        undefined,
+        undefined,
+        writeOpts,
       );
       bookingCalendarId = msCalId;
       if (!calendarEventId) {
@@ -1223,6 +1252,7 @@ async function pushScheduledSlotToCalendar(
         bookingCalendarId,
         bookingAccountId,
         bookingProvider,
+        ...(delegated.attendees.length > 0 ? { meetingInvitees: delegated.attendees } : {}),
       },
     });
     const reloaded = await findTodoForUser(uid, todo.id);

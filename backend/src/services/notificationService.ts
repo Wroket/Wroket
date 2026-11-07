@@ -254,6 +254,29 @@ export function markAllAsRead(userId: string): void {
   persist();
 }
 
+/**
+ * When an assignee accepts/declines from todos (not from the notification row),
+ * mark matching `task_assigned` notifications read and stamp the final status
+ * so Accepter/Refuser buttons disappear.
+ */
+export function resolveTaskAssignedNotifications(
+  userId: string,
+  todoId: string,
+  status: "accepted" | "declined",
+): number {
+  const list = getUserNotifications(userId);
+  let updated = 0;
+  for (const n of list) {
+    if (n.type !== "task_assigned") continue;
+    if (n.data?.todoId !== todoId) continue;
+    n.read = true;
+    n.data = { ...(n.data ?? {}), assignmentStatus: status };
+    updated++;
+  }
+  if (updated > 0) persist();
+  return updated;
+}
+
 /** Removes a notification from the user's feed (dismiss / hide). */
 export function deleteNotification(userId: string, notifId: string): void {
   const list = getUserNotifications(userId);

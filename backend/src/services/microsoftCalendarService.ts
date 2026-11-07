@@ -38,7 +38,16 @@ export interface MicrosoftCalendarEvent {
   end: string;
   allDay: boolean;
   source: "microsoft";
+  /** Graph showAs; `free` / `workingElsewhere` should not block capacity. */
+  showAs?: string;
 }
+
+/** Options for plain (non-Teams) Outlook event create/patch. */
+export type MicrosoftCalendarEventWriteOptions = {
+  attendees?: string[];
+  /** Organizer copy shows as available (delegated assignee booking). */
+  showAsFree?: boolean;
+};
 
 export function isMicrosoftCalendarOAuthConfigured(): boolean {
   return Boolean(MICROSOFT_CLIENT_ID.trim() && MICROSOFT_CLIENT_SECRET.trim());
@@ -261,6 +270,7 @@ export async function listMicrosoftEventsForAccount(
         seriesMasterId?: string;
         subject?: string;
         isAllDay?: boolean;
+        showAs?: string;
         start?: { dateTime?: string; timeZone?: string };
         end?: { dateTime?: string; timeZone?: string };
       }>;
@@ -291,6 +301,7 @@ export async function listMicrosoftEventsForAccount(
         allDay,
         source: "microsoft" as const,
         ...(item.seriesMasterId ? { seriesMasterId: item.seriesMasterId } : {}),
+        ...(item.showAs ? { showAs: item.showAs } : {}),
       };
     });
   } catch {
@@ -304,6 +315,7 @@ export type MicrosoftCalendarPatchOptions = {
   /** When set, event body is HTML and includes a clickable Teams join link (recommended for external invitees). */
   joinUrl?: string;
   responseRequested?: boolean;
+  showAsFree?: boolean;
 };
 
 function escapeHtmlText(text: string): string {
@@ -364,27 +376,39 @@ export async function createMicrosoftCalendarEvent(
   end: string,
   description: string = WROKET_OUTLOOK_BOOKING_NOTE,
   recurrence?: MicrosoftGraphRecurrence | null,
+  options?: MicrosoftCalendarEventWriteOptions,
 ): Promise<string | null> {
   const accessToken = await getValidAccessTokenForMicrosoftAccount(uid, accountId);
   if (!accessToken) return null;
 
   const calSeg = encodeURIComponent(calendarId);
   const { start: startBody, end: endBody } = graphUtcBody(start, end);
+  const attendees = (options?.attendees ?? [])
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.includes("@"));
 
   try {
+    const body: Record<string, unknown> = {
+      subject: summary,
+      body: { contentType: "text", content: description },
+      start: startBody,
+      end: endBody,
+      ...(recurrence !== undefined ? { recurrence: recurrence ?? null } : {}),
+    };
+    if (options?.showAsFree) {
+      body.showAs = "free";
+    }
+    if (attendees.length > 0) {
+      body.attendees = buildMicrosoftTeamsAttendees(attendees);
+      body.responseRequested = true;
+    }
     const res = await fetch(`https://graph.microsoft.com/v1.0/me/calendars/${calSeg}/events`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        subject: summary,
-        body: { contentType: "text", content: description },
-        start: startBody,
-        end: endBody,
-        ...(recurrence !== undefined ? { recurrence: recurrence ?? null } : {}),
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const details = await res.text().catch(() => "");
@@ -428,6 +452,9 @@ export async function patchMicrosoftCalendarEvent(
     };
     if (options?.responseRequested !== undefined) {
       body.responseRequested = options.responseRequested;
+    }
+    if (options?.showAsFree) {
+      body.showAs = "free";
     }
     if (attendees !== undefined) {
       body.attendees = buildMicrosoftTeamsAttendees(attendees);

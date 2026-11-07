@@ -72,8 +72,14 @@ export interface SlotConflict {
   end: string;
 }
 
+export interface BookSlotBookingMeta {
+  invitedAssigneeEmail: string | null;
+  organizerShowAsFree: boolean;
+}
+
 export interface BookSlotResult {
   todo?: Todo;
+  bookingMeta?: BookSlotBookingMeta;
   conflict?: true;
   code?: string;
   requestId?: string;
@@ -164,8 +170,9 @@ export async function bookTaskSlot(
   if (!res.ok) {
     throw await parseApiErrorResponse(res, "errors.fallback.generic");
   }
-  const todo = await res.json() as Todo;
-  return { todo };
+  const body = (await res.json()) as Todo & { bookingMeta?: BookSlotBookingMeta };
+  const { bookingMeta, ...todoFields } = body;
+  return { todo: todoFields as Todo, bookingMeta };
 }
 
 export async function clearTaskSlot(todoId: string): Promise<Todo> {

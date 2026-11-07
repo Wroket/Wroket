@@ -35,7 +35,7 @@ import {
 } from "../services/commentService";
 import { findUserByEmail, normalizeEmail } from "../services/authService";
 import { enqueuePendingMention } from "../services/pendingMentionService";
-import { createNotification } from "../services/notificationService";
+import { createNotification, resolveTaskAssignedNotifications } from "../services/notificationService";
 import { isActiveCollaborator } from "../services/teamService";
 import { getAttachmentCounts } from "../services/attachmentService";
 import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
@@ -257,6 +257,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
       todo.assignedTo === req.user!.uid &&
       todo.userId !== req.user!.uid
     ) {
+      resolveTaskAssignedNotifications(req.user!.uid, todo.id, "declined");
       createNotification(
         todo.userId,
         "task_declined",
@@ -271,6 +272,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
       todo.assignedTo === req.user!.uid &&
       todo.userId !== req.user!.uid
     ) {
+      resolveTaskAssignedNotifications(req.user!.uid, todo.id, "accepted");
       createNotification(
         todo.userId,
         "task_accepted",

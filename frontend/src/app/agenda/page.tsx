@@ -644,7 +644,14 @@ export default function AgendaPage() {
           setDragConflict(null);
           broadcastTodosMutated();
           broadcastResourceChange("agenda");
-          toast.success(t("agenda.slotMoved"));
+          const meta = result.bookingMeta;
+          if (meta?.invitedAssigneeEmail) {
+            toast.success(
+              t("schedule.bookedFreeInvite").replace("{{email}}", meta.invitedAssigneeEmail),
+            );
+          } else {
+            toast.success(t("agenda.slotMoved"));
+          }
           setAgendaTodoById((prev) => {
             const next = new Map(prev);
             next.set(todoId, result.todo!);

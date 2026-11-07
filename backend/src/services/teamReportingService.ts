@@ -125,7 +125,8 @@ export function computeTeamReportingSnapshot(args: {
     if (todo.status === "deleted") continue;
     if (!todo.projectId || !args.projectIdSet.has(todo.projectId)) continue;
 
-    const ownerEmail = args.memberEmailByUid[todo.userId] ?? todo.userId;
+    const workloadUid = (todo.assignedTo?.trim() || todo.userId) as string;
+    const ownerEmail = args.memberEmailByUid[workloadUid] ?? workloadUid;
     const m = getMemberRow(ownerEmail);
     const p = getProjectRow(todo.projectId);
 

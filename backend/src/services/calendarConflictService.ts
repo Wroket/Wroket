@@ -72,6 +72,7 @@ export async function findSlotConflicts(
     for (const events of googleResults) {
       for (const ev of events) {
         if (ev.allDay) continue;
+        if (ev.transparency === "transparent") continue;
         if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
         const evStart = new Date(ev.start);
         const evEnd = new Date(ev.end);
@@ -83,6 +84,8 @@ export async function findSlotConflicts(
     for (const events of msResults) {
       for (const ev of events) {
         if (ev.allDay) continue;
+        const showAs = (ev.showAs ?? "").toLowerCase();
+        if (showAs === "free" || showAs === "workingelsewhere") continue;
         if (shouldSkipExternalConflictEvent(ev.id, wroketExternalIds)) continue;
         const evStart = new Date(ev.start);
         const evEnd = new Date(ev.end);

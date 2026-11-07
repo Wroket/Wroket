@@ -42,7 +42,16 @@ export interface GoogleCalendarEvent {
   source: "google";
   /** Parent series id when this row is an expanded recurrence instance. */
   recurringEventId?: string;
+  /** When `transparent`, the event does not block free/busy for the organizer. */
+  transparency?: "opaque" | "transparent";
 }
+
+/** Options for plain (non-Meet) Google Calendar event create/patch. */
+export type GoogleCalendarEventWriteOptions = {
+  attendees?: string[];
+  /** Organizer copy shows as available (delegated assignee booking). */
+  showAsFree?: boolean;
+};
 
 /**
  * Generate the Google OAuth2 consent URL.
@@ -273,6 +282,7 @@ async function fetchEvents(
         id: string;
         recurringEventId?: string;
         summary?: string;
+        transparency?: "opaque" | "transparent";
         start?: { dateTime?: string; date?: string };
         end?: { dateTime?: string; date?: string };
       }>;
@@ -285,6 +295,7 @@ async function fetchEvents(
       allDay: !item.start?.dateTime,
       source: "google" as const,
       ...(item.recurringEventId ? { recurringEventId: item.recurringEventId } : {}),
+      ...(item.transparency ? { transparency: item.transparency } : {}),
     }));
   } catch {
     return [];
@@ -323,6 +334,7 @@ export async function createGoogleCalendarEvent(
   description: string = WROKET_CALENDAR_BOOKING_NOTE,
   target?: { accountId?: string; calendarId?: string },
   recurrence?: string[] | null,
+  options?: GoogleCalendarEventWriteOptions,
 ): Promise<string | null> {
   const preferred = target?.accountId && target?.calendarId
     ? { accountId: target.accountId, calendarId: target.calendarId }
@@ -344,29 +356,46 @@ export async function createGoogleCalendarEvent(
   const tz = timezone || "UTC";
   const startLocal = toGoogleCalendarDateTime(start, tz);
   const endLocal = toGoogleCalendarDateTime(end, tz);
+  const attendees = (options?.attendees ?? [])
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.includes("@"));
 
   try {
-    const res = await fetch(
+    const url = new URL(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          summary,
-          description,
-          start: { dateTime: startLocal, timeZone: tz },
-          end: { dateTime: endLocal, timeZone: tz },
-          ...(recurrence !== undefined
-            ? { recurrence: recurrence === null ? [] : recurrence }
-            : {}),
-        }),
-      },
     );
+    if (attendees.length > 0) {
+      url.searchParams.set("sendUpdates", "all");
+    }
+    const body: Record<string, unknown> = {
+      summary,
+      description,
+      start: { dateTime: startLocal, timeZone: tz },
+      end: { dateTime: endLocal, timeZone: tz },
+      ...(recurrence !== undefined
+        ? { recurrence: recurrence === null ? [] : recurrence }
+        : {}),
+    };
+    if (options?.showAsFree) {
+      body.transparency = "transparent";
+    }
+    if (attendees.length > 0) {
+      body.attendees = attendees.map((email) => ({ email }));
+    }
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const details = await res.text().catch(() => "");
+      console.error("[google-cal] create event failed", res.status, details.slice(0, 400));
+      return null;
+    }
     const data = await res.json() as { id: string };
     return data.id;
   } catch {
@@ -486,7 +515,7 @@ export async function patchGoogleCalendarEvent(
   calendarId: string = "primary",
   accountId?: string,
   attendees?: string[],
-  options?: { preserveConference?: boolean },
+  options?: { preserveConference?: boolean; showAsFree?: boolean },
   recurrence?: string[] | null,
 ): Promise<boolean> {
   let accessToken: string | null = null;
@@ -518,6 +547,9 @@ export async function patchGoogleCalendarEvent(
     };
     if (recurrence !== undefined) {
       body.recurrence = recurrence === null ? [] : recurrence;
+    }
+    if (options?.showAsFree) {
+      body.transparency = "transparent";
     }
     if (attendees) body.attendees = attendees.map((email) => ({ email }));
     const res = await fetch(url.toString(), {

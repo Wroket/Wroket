@@ -159,12 +159,19 @@ export function useOfflineNotes() {
     return result;
   }, []);
 
+  const [sharedSyncError, setSharedSyncError] = useState<string | null>(null);
+
   const fetchAndSync = useCallback(async () => {
     try {
+      let sharedFailed = false;
       const [serverNotes, sharedNotes] = await Promise.all([
         getNotes(),
-        getSharedNotes().catch((): Note[] => []),
+        getSharedNotes().catch((): Note[] => {
+          sharedFailed = true;
+          return [];
+        }),
       ]);
+      setSharedSyncError(sharedFailed ? "shared_fetch_failed" : null);
       const dirtyIds = getDirtyIds();
       const deletedIds = getDeletedIds();
 
@@ -502,6 +509,7 @@ export function useOfflineNotes() {
     loading,
     online,
     syncing,
+    sharedSyncError,
     addNote,
     saveNote,
     removeNote,

@@ -339,7 +339,8 @@ export async function getTeamDashboard(req: AuthenticatedRequest, res: Response)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
   for (const todo of todos) {
-    const email = memberMap2[todo.userId] ?? todo.userId;
+    const workloadUid = (todo.assignedTo?.trim() || todo.userId) as string;
+    const email = memberMap2[workloadUid] ?? workloadUid;
     if (!stats.byMember[email]) stats.byMember[email] = { total: 0, overdue: 0 };
     stats.byMember[email].total++;
 

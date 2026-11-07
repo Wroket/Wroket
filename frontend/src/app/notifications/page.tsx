@@ -280,8 +280,12 @@ export default function NotificationsPage() {
               const busy = actionBusyId === notif.id;
               const showInviteActions =
                 notif.type === "team_invite" && !notif.read && !!notif.data?.inviterEmail;
+              const assignStatus = notif.data?.assignmentStatus;
               const showAssignActions =
-                notif.type === "task_assigned" && !notif.read && !!notif.data?.todoId;
+                notif.type === "task_assigned" &&
+                !notif.read &&
+                !!notif.data?.todoId &&
+                (assignStatus === undefined || assignStatus === "pending");
               const hideOpenWhileActions = showInviteActions;
 
               return (

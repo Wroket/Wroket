@@ -1712,6 +1712,23 @@ const translations = {
   "notes.modalLinkedTask": { fr: "Liée à : {{title}}", en: "Linked to: {{title}}" },
   "notes.modalSaving": { fr: "Enregistrement…", en: "Saving…" },
   "notes.shareWith": { fr: "Partager avec l'équipe", en: "Share with team" },
+  "notes.shareWithReadOnlyHint": {
+    fr: "Les membres de l’équipe peuvent lire la note, pas la modifier. Pour co-éditer, utilisez le partage collaborateur ci-dessous.",
+    en: "Team members can read the note, not edit it. To co-edit, use collaborator sharing below.",
+  },
+  "notes.shareExclusiveHint": {
+    fr: "Le partage collaborateur remplace le partage équipe (et inversement).",
+    en: "Collaborator sharing replaces team sharing (and vice versa).",
+  },
+  "notes.sharedFolderTile": { fr: "Notes partagées", en: "Shared notes" },
+  "notes.sharedFolderHint": {
+    fr: "Notes partagées avec vous (équipe ou collaborateur)",
+    en: "Notes shared with you (team or collaborator)",
+  },
+  "notes.sharedFetchError": {
+    fr: "Impossible de charger les notes partagées. Réessayez via resync.",
+    en: "Could not load shared notes. Retry with resync.",
+  },
   "notes.teamShareSection": { fr: "Équipe", en: "Team" },
   "notes.teamShareNoTeams": {
     fr: "Aucune équipe — créez-en une dans Collaboration.",
@@ -2387,6 +2404,14 @@ const translations = {
   "schedule.badgeExternal": { fr: "Sur le calendrier", en: "On calendar" },
   "schedule.select": { fr: "Sélectionner", en: "Select" },
   "schedule.booked": { fr: "Planifié", en: "Scheduled" },
+  "schedule.bookedFreeInvite": {
+    fr: "Créneau sur votre agenda (libre) — invitation envoyée à {{email}}",
+    en: "Slot on your calendar (free) — invite sent to {{email}}",
+  },
+  "schedule.bookedFreeOrganizer": {
+    fr: "Créneau sur votre agenda (libre) — l’assigné n’a pas d’email invitables",
+    en: "Slot on your calendar (free) — assignee has no invitable email",
+  },
   "schedule.remove": { fr: "Retirer", en: "Remove" },
   "schedule.reschedule": { fr: "Replanifier", en: "Reschedule" },
   "schedule.duration": { fr: "Durée", en: "Duration" },

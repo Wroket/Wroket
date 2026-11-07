@@ -40,7 +40,24 @@ function NotesPageInner() {
   const { user: authUser } = useAuth();
   const currentUid = authUser?.uid ?? null;
   const searchParams = useSearchParams();
-  const { notes, folders, loading, online, syncing, addNote, saveNote, removeNote, togglePin, createFolder, removeFolder, reload, pushToServer } = useOfflineNotes();
+  const {
+    notes,
+    folders,
+    loading,
+    online,
+    syncing,
+    sharedSyncError,
+    addNote,
+    saveNote,
+    removeNote,
+    togglePin,
+    createFolder,
+    removeFolder,
+    reload,
+    pushToServer,
+  } = useOfflineNotes();
+  /** Sentinel activeFolder value for notes shared with the current user. */
+  const SHARED_SCOPE = "__shared__";
   const [resyncing, setResyncing] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -89,7 +106,17 @@ function NotesPageInner() {
     if (section === "databases") {
       setHomeView("databases");
     }
+    if (searchParams.get("shared") === "1" || section === "shared") {
+      setActiveFolder(SHARED_SCOPE);
+      setHomeView("list");
+    }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (sharedSyncError) {
+      toast.error(t("notes.sharedFetchError"));
+    }
+  }, [sharedSyncError, toast, t]);
 
   useEffect(() => {
     getProjects().then((p) => setProjects(p.filter((x) => x.status === "active"))).catch(() => {});
@@ -134,9 +161,15 @@ function NotesPageInner() {
   );
 
   const folderNoteCount = useCallback(
-    (name: string) => folders.find((f) => f.name === name)?.noteCount
-      ?? notes.filter((n) => n.folder === name).length,
-    [folders, notes],
+    (name: string) =>
+      folders.find((f) => f.name === name)?.noteCount
+      ?? notes.filter((n) => isOwnNote(n) && n.folder === name).length,
+    [folders, notes, isOwnNote],
+  );
+
+  const sharedNotes = useMemo(
+    () => notes.filter((n) => currentUid && n.userId && n.userId !== currentUid),
+    [notes, currentUid],
   );
 
   const isProjectLinkedFolder = useCallback(
@@ -156,10 +189,14 @@ function NotesPageInner() {
 
   const listScoped = useMemo(() => {
     if (homeView !== "list") return [];
-    return notes.filter((n) =>
-      activeFolder === null ? !n.folder?.trim() : n.folder === activeFolder,
-    );
-  }, [notes, homeView, activeFolder]);
+    if (activeFolder === SHARED_SCOPE) {
+      return sharedNotes;
+    }
+    return notes.filter((n) => {
+      if (!isOwnNote(n)) return false;
+      return activeFolder === null ? !n.folder?.trim() : n.folder === activeFolder;
+    });
+  }, [notes, homeView, activeFolder, sharedNotes, isOwnNote]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return listScoped;
@@ -177,8 +214,13 @@ function NotesPageInner() {
       toast.error(t("quota.free.noteLimitHint"));
       return;
     }
+    if (activeFolder === SHARED_SCOPE) {
+      setActiveFolder(null);
+    }
     const opts =
-      homeView === "list" && activeFolder ? { folder: activeFolder } : undefined;
+      homeView === "list" && activeFolder && activeFolder !== SHARED_SCOPE
+        ? { folder: activeFolder }
+        : undefined;
     const id = addNote(undefined, opts);
     setHomeView("list");
     setSelectedId(id);
@@ -571,22 +613,22 @@ function NotesPageInner() {
     });
 
   const unfolderedCount = useMemo(
-    () => notes.filter((n) => !n.folder?.trim()).length,
-    [notes],
+    () => notes.filter((n) => isOwnNote(n) && !n.folder?.trim()).length,
+    [notes, isOwnNote],
   );
 
   const latestUpdatedInFolder = useCallback(
     (folder: string | null): string | null => {
       const subset =
         folder === null
-          ? notes.filter((n) => !n.folder?.trim())
-          : notes.filter((n) => n.folder === folder);
+          ? notes.filter((n) => isOwnNote(n) && !n.folder?.trim())
+          : notes.filter((n) => isOwnNote(n) && n.folder === folder);
       if (subset.length === 0) return null;
       return subset.reduce((best, n) =>
         new Date(n.updatedAt) > new Date(best.updatedAt) ? n : best,
       ).updatedAt;
     },
-    [notes],
+    [notes, isOwnNote],
   );
 
   return (
@@ -711,6 +753,23 @@ function NotesPageInner() {
                   {latestUpdatedInFolder(null) && (
                     <span className="text-[11px] text-zinc-400 dark:text-slate-500 mt-auto pt-3">
                       {formatDate(latestUpdatedInFolder(null)!)}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenFolderTile(SHARED_SCOPE)}
+                  className="text-left rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/60 dark:bg-indigo-950/20 p-4 shadow-sm hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all min-h-[120px] flex flex-col"
+                  data-testid="notes-shared-tile"
+                >
+                  <span className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("notes.sharedFolderTile")}</span>
+                  <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2">{t("notes.sharedFolderHint")}</span>
+                  <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2">
+                    {t("notes.folderCount").replace("{{count}}", String(sharedNotes.length))}
+                  </span>
+                  {sharedNotes[0]?.updatedAt && (
+                    <span className="text-[11px] text-zinc-400 dark:text-slate-500 mt-auto pt-3">
+                      {formatDate(sharedNotes[0].updatedAt)}
                     </span>
                   )}
                 </button>
@@ -841,9 +900,11 @@ function NotesPageInner() {
               </button>
               <div className="flex-1 min-w-0">
                 <h1 className="text-base font-bold text-zinc-900 dark:text-slate-100 truncate leading-tight">
-                  {activeFolder ?? t("notes.folderUntitled")}
+                  {activeFolder === SHARED_SCOPE
+                    ? t("notes.sharedFolderTile")
+                    : (activeFolder ?? t("notes.folderUntitled"))}
                 </h1>
-                {activeFolder && !isProjectLinkedFolder(activeFolder) && (
+                {activeFolder && activeFolder !== SHARED_SCOPE && !isProjectLinkedFolder(activeFolder) && (
                   <button
                     type="button"
                     onClick={() => promptDeleteFolder(activeFolder)}
@@ -1281,12 +1342,18 @@ function NotesPageInner() {
                                       <option key={tm.id} value={tm.id}>{tm.name}</option>
                                     ))}
                                   </select>
+                                  {!!selected.shared && !!selected.teamId && (
+                                    <p className="w-full text-[11px] text-zinc-500 dark:text-slate-400">
+                                      {t("notes.shareWithReadOnlyHint")}
+                                    </p>
+                                  )}
                                 </>
                               )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.collaboratorShareSection")}</span>
+                              <p className="w-full text-[11px] text-zinc-400 dark:text-slate-500">{t("notes.shareExclusiveHint")}</p>
                               {selected.sharedWithEmail ? (
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-[12px] text-zinc-700 dark:text-slate-300 bg-zinc-50 dark:bg-slate-800 border border-zinc-200 dark:border-slate-700 rounded px-1.5 py-0.5">
