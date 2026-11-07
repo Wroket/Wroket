@@ -340,6 +340,8 @@ export default function AgendaPage() {
   );
 
   const allEvents = useMemo(
+    // Wroket bookings come from wroketEvents; provider buckets are already
+    // filtered server-side against scheduledSlot.calendarEventId (no double paint).
     () => [...wroketEvents, ...visibleGoogleEvents, ...visibleMicrosoftEvents],
     [wroketEvents, visibleGoogleEvents, visibleMicrosoftEvents],
   );

@@ -567,8 +567,14 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
     allGoogleEvents = results.flat();
   }
 
-  // External event ids already represented as wroketEvents (Google or Microsoft).
-  // Filter them out of provider buckets so the UI does not double-render bookings.
+  /**
+   * Dedup contract for Agenda UI:
+   * - Bookings Wroket live in `wroketEvents` (source of truth for slots / invites).
+   * - `googleEvents` / `microsoftEvents` keep provider-native events only.
+   * - Ids in `scheduledSlot.calendarEventId` (Google or Graph) are stripped from
+   *   provider buckets so the same booking is not painted twice.
+   * - Legitimate Graph/Google events that are NOT a Wroket booking stay visible.
+   */
   const wroketExternalEventIds = new Set<string>();
   for (const t of ownedTodos) {
     if (t.scheduledSlot?.calendarEventId) wroketExternalEventIds.add(t.scheduledSlot.calendarEventId);

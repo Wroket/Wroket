@@ -8,6 +8,17 @@ export const NOTIFICATION_DISPLAY_PAST_DAYS = 7;
 
 const UPCOMING_DEADLINE_TYPES = new Set<NotificationType>(["deadline_today", "deadline_approaching"]);
 
+/** Task-linked types that should vanish when the todo is gone / archived for the viewer. */
+const ORPHAN_HIDE_TYPES = new Set<NotificationType>([
+  "task_assigned",
+  "task_accepted",
+  "task_declined",
+  "task_completed",
+  "task_cancelled",
+  "comment_mention",
+  "dependency_blocked",
+]);
+
 function startOfLocalDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -74,6 +85,17 @@ function unreadTeamInviteIsActionable(notif: Notification, userId: string): bool
  * - plus unread team invites that still have a pending invitation;
  * - plus deadline reminders while the linked task is still due today or later.
  */
+function isOrphanTaskNotification(notif: Notification, userId: string): boolean {
+  if (!ORPHAN_HIDE_TYPES.has(notif.type)) return false;
+  const todoId = notif.data?.todoId;
+  if (!todoId) return false;
+  const found = findTodoForUserInRam(userId, todoId);
+  if (!found) return true;
+  // Soft-deleted todos stay in store; hide assignment actions for them.
+  if (found.todo.status === "deleted") return true;
+  return false;
+}
+
 export function isNotificationDisplayable(
   notif: Notification,
   userId: string,
@@ -84,6 +106,8 @@ export function isNotificationDisplayable(
   if (notif.type === "team_invite" && !notif.read) {
     return unreadTeamInviteIsActionable(notif, userId);
   }
+
+  if (isOrphanTaskNotification(notif, userId)) return false;
 
   const todayStart = startOfLocalDay(now);
   if (isUpcomingDeadlineNotification(notif, userId, todayStart)) return true;

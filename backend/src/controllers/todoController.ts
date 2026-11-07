@@ -35,7 +35,11 @@ import {
 } from "../services/commentService";
 import { findUserByEmail, normalizeEmail } from "../services/authService";
 import { enqueuePendingMention } from "../services/pendingMentionService";
-import { createNotification, resolveTaskAssignedNotifications } from "../services/notificationService";
+import {
+  createNotification,
+  purgeNotificationsForTodo,
+  resolveTaskAssignedNotifications,
+} from "../services/notificationService";
 import { isActiveCollaborator } from "../services/teamService";
 import { getAttachmentCounts } from "../services/attachmentService";
 import { deleteExternalBookingForTodo } from "../services/calendarBookingCleanup";
@@ -381,6 +385,13 @@ export async function purgeAllArchived(req: AuthenticatedRequest, res: Response)
   const email = req.user!.email ?? "";
   const snapshots = await permanentlyRemoveAllArchivedTodosOwned(uid, email);
   scheduleCalendarCleanupForSnapshots(snapshots);
+  for (const s of snapshots) {
+    try {
+      purgeNotificationsForTodo(s.id);
+    } catch (err) {
+      console.warn("[todo.purgeAllArchived] notification purge failed:", err);
+    }
+  }
   try {
     const rootTitles = snapshots
       .filter((s) => !s.parentId)
@@ -403,6 +414,13 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
   if (permanent) {
     const snapshots = await permanentlyRemoveArchivedTodo(req.user!.uid, id);
     scheduleCalendarCleanupForSnapshots(snapshots);
+    for (const s of snapshots) {
+      try {
+        purgeNotificationsForTodo(s.id);
+      } catch (err) {
+        console.warn("[todo.remove permanent] notification purge failed:", err);
+      }
+    }
     try {
       const root = snapshots.find((s) => s.id === id);
       logActivity(req.user!.uid, req.user!.email ?? "", "delete", "todo", id, {
@@ -427,6 +445,12 @@ export async function remove(req: AuthenticatedRequest, res: Response) {
       console.warn("[todo.remove] External calendar event cleanup failed:", err);
     });
     todo = await updateTodo(req.user!.uid, req.user!.email ?? "", id, { scheduledSlot: null });
+  }
+
+  try {
+    purgeNotificationsForTodo(todo.id);
+  } catch (err) {
+    console.warn("[todo.remove] notification purge failed:", err);
   }
 
   try {

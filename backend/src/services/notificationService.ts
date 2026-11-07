@@ -48,12 +48,51 @@ export interface Notification {
 
 const notificationsByUser = new Map<string, Notification[]>();
 
+/** Short in-app dedup window for identical (recipient, type, resource) creates. */
+export const NOTIFICATION_DEDUP_WINDOW_MS = 60_000;
+
+const TASK_TODO_LINKED_TYPES = new Set<NotificationType>([
+  "task_assigned",
+  "task_completed",
+  "task_cancelled",
+  "task_declined",
+  "task_accepted",
+  "deadline_approaching",
+  "deadline_today",
+  "dependency_blocked",
+]);
+
 function persist(): void {
   const obj: Record<string, Notification[]> = {};
   notificationsByUser.forEach((list, uid) => { obj[uid] = list; });
   const store = getStore();
   store.notifications = obj;
   scheduleSave("notifications");
+}
+
+/**
+ * Stable resource key for dedup: todo → note → team → project.
+ * Returns null when no resource id is present (dedup skipped).
+ */
+export function notificationResourceKey(data?: Record<string, string>): string | null {
+  if (!data) return null;
+  const key = data.todoId || data.noteId || data.teamId || data.projectId;
+  return key && key.trim() ? key.trim() : null;
+}
+
+function findRecentDuplicate(
+  list: Notification[],
+  type: NotificationType,
+  resourceKey: string,
+  nowMs: number,
+): Notification | undefined {
+  return list.find((n) => {
+    if (n.type !== type) return false;
+    if (notificationResourceKey(n.data) !== resourceKey) return false;
+    const createdMs = new Date(n.createdAt).getTime();
+    if (Number.isNaN(createdMs)) return false;
+    return nowMs - createdMs <= NOTIFICATION_DEDUP_WINDOW_MS;
+  });
 }
 
 (function hydrate() {
@@ -112,6 +151,15 @@ export function createNotification(
   const payloadData: Record<string, string> | undefined =
     Object.keys(enriched).length > 0 ? enriched : undefined;
 
+  const list = getUserNotifications(userId);
+  const resourceKey = notificationResourceKey(payloadData);
+  if (resourceKey) {
+    const dup = findRecentDuplicate(list, type, resourceKey, Date.now());
+    if (dup) {
+      return dup;
+    }
+  }
+
   const notif: Notification = {
     id: crypto.randomUUID(),
     userId,
@@ -122,7 +170,6 @@ export function createNotification(
     data: payloadData,
     createdAt: new Date().toISOString(),
   };
-  const list = getUserNotifications(userId);
   list.unshift(notif);
   if (list.length > 100) list.length = 100;
   persist();
@@ -284,4 +331,31 @@ export function deleteNotification(userId: string, notifId: string): void {
   if (idx === -1) throw new NotFoundError("Notification introuvable");
   list.splice(idx, 1);
   persist();
+}
+
+/**
+ * Purge in-app notifications that reference a deleted todo across all users.
+ * Covers assignee `task_assigned` leftovers after owner delete/archive.
+ */
+export function purgeNotificationsForTodo(todoId: string): number {
+  if (!todoId) return 0;
+  let removed = 0;
+  for (const [, list] of notificationsByUser) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const n = list[i]!;
+      if (n.data?.todoId !== todoId) continue;
+      if (!TASK_TODO_LINKED_TYPES.has(n.type) && n.type !== "comment_mention") continue;
+      list.splice(i, 1);
+      removed++;
+    }
+  }
+  if (removed > 0) persist();
+  return removed;
+}
+
+/** Test helper: clear in-memory notification store. */
+export function _resetNotificationsForTests(): void {
+  notificationsByUser.clear();
+  const store = getStore();
+  store.notifications = {};
 }

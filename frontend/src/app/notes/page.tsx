@@ -1107,10 +1107,10 @@ function NotesPageInner() {
                   ? t("notes.synced")
                   : t("notes.offline")}
             </span>
-            <span className="ml-auto text-zinc-400 dark:text-slate-500">
-              {t("notes.ownNotesCount").replace("{{count}}", String(notes.filter((n) => isOwnNote(n)).length))}
-              {" · "}
-              {t("notes.sharedNotesCount").replace("{{count}}", String(sharedNotes.length))}
+            <span className="ml-auto text-zinc-400 dark:text-slate-500" data-testid="notes-status-counts">
+              {t("notes.statusBarCounts")
+                .replace("{{own}}", String(notes.filter((n) => isOwnNote(n)).length))
+                .replace("{{shared}}", String(sharedNotes.length))}
             </span>
           </div>
         </div>

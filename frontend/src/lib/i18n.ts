@@ -1463,7 +1463,11 @@ const translations = {
   "notes.sharedCanEditBadge": { fr: "Édition", en: "Can edit" },
   "notes.ownNotesCount": { fr: "{{count}} à moi", en: "{{count}} mine" },
   "notes.sharedNotesCount": { fr: "{{count}} reçues", en: "{{count}} received" },
-  "teamDash.sharedNotesCount": { fr: "{{count}} reçue(s)", en: "{{count}} received" },
+  "notes.statusBarCounts": {
+    fr: "{{own}} à moi · {{shared}} reçues",
+    en: "{{own}} mine · {{shared}} received",
+  },
+  "teamDash.sharedNotesCount": { fr: "{{count}} reçues", en: "{{count}} received" },
   "notes.linkAccountData": { fr: "Compte & données", en: "Account & data" },
   "notes.attachments": { fr: "Pièces jointes", en: "Attachments" },
   "notes.attachUpload": { fr: "Ajouter", en: "Add" },
