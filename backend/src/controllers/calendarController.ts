@@ -567,16 +567,18 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
     allGoogleEvents = results.flat();
   }
 
-  const wroketGoogleIds = new Set<string>();
+  // External event ids already represented as wroketEvents (Google or Microsoft).
+  // Filter them out of provider buckets so the UI does not double-render bookings.
+  const wroketExternalEventIds = new Set<string>();
   for (const t of ownedTodos) {
-    if (t.scheduledSlot?.calendarEventId) wroketGoogleIds.add(t.scheduledSlot.calendarEventId);
+    if (t.scheduledSlot?.calendarEventId) wroketExternalEventIds.add(t.scheduledSlot.calendarEventId);
   }
   for (const t of assignedTodos) {
-    if (t.scheduledSlot?.calendarEventId) wroketGoogleIds.add(t.scheduledSlot.calendarEventId);
+    if (t.scheduledSlot?.calendarEventId) wroketExternalEventIds.add(t.scheduledSlot.calendarEventId);
   }
   const filteredGoogleEvents = allGoogleEvents.filter((e) => {
-    if (wroketGoogleIds.has(e.id)) return false;
-    if (e.recurringEventId && wroketGoogleIds.has(e.recurringEventId)) return false;
+    if (wroketExternalEventIds.has(e.id)) return false;
+    if (e.recurringEventId && wroketExternalEventIds.has(e.recurringEventId)) return false;
     return true;
   });
 
@@ -623,8 +625,8 @@ export async function getCalendarEvents(req: AuthenticatedRequest, res: Response
   }
 
   const filteredMicrosoftEvents = allMicrosoftEvents.filter((e) => {
-    if (wroketGoogleIds.has(e.id)) return false;
-    if (e.seriesMasterId && wroketGoogleIds.has(e.seriesMasterId)) return false;
+    if (wroketExternalEventIds.has(e.id)) return false;
+    if (e.seriesMasterId && wroketExternalEventIds.has(e.seriesMasterId)) return false;
     return true;
   });
 

@@ -29,6 +29,7 @@ import {
   patchTeamFeaturesApi,
   getProjects,
   getCommentCounts,
+  getSharedNotes,
   updateTodo,
   deleteTodo,
   lookupUser,
@@ -77,6 +78,7 @@ export default function TeamDashboardPage() {
       : user?.entitlements?.teamReporting === true;
 
   const [extCollaborators, setExtCollaborators] = useState<TeamCollaborator[]>([]);
+  const [sharedInboxCount, setSharedInboxCount] = useState(0);
   const [newCollabEmail, setNewCollabEmail] = useState("");
   const [collabSubmitting, setCollabSubmitting] = useState(false);
   const [billingPortalBusy, setBillingPortalBusy] = useState(false);
@@ -105,6 +107,9 @@ export default function TeamDashboardPage() {
     getProjects()
       .then((list) => setProjects(list.filter((p) => p.status === "active")))
       .catch(() => {});
+    getSharedNotes()
+      .then((list) => setSharedInboxCount(Array.isArray(list) ? list.length : 0))
+      .catch(() => setSharedInboxCount(0));
   }, []);
 
   useEffect(() => {
@@ -880,6 +885,9 @@ export default function TeamDashboardPage() {
                     <p className="text-xs text-zinc-500 dark:text-slate-400 truncate">{t("teamDash.sharedNotesHint")}</p>
                   </div>
                 </div>
+                <span className="text-xs font-medium text-zinc-500 dark:text-slate-400 shrink-0 tabular-nums">
+                  {t("teamDash.sharedNotesCount").replace("{{count}}", String(sharedInboxCount))}
+                </span>
                 <svg className="w-5 h-5 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>

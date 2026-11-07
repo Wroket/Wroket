@@ -99,6 +99,13 @@ async function upsertWithCondition(dbConn: Firestore, todo: TodoDocWrite): Promi
  * `TODOS_STORAGE_MODE=v2` (i.e. v2 IS the source of truth). In dual/legacy mode
  * we accept that `todos_v2` may carry tombstones until full v2 cutover.
  */
+/** Single-doc mirror for hot paths (assign / update / book) — avoids O(N) owner sync. */
+export async function syncTodoV2(todo: TodoDocWrite): Promise<void> {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await upsertWithCondition(dbConn, todo);
+}
+
 export async function syncOwnerTodosV2(ownerUid: string, todos: TodoDocWrite[]): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) return;

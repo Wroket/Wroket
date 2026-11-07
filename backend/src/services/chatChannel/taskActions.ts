@@ -62,9 +62,44 @@ export async function runTaskAction(opts: {
           message: `Assignation déjà traitée (${todo.assignmentStatus ?? "aucune"}).`,
         };
       }
+      const nextStatus = opts.action === "accept" ? "accepted" : "declined";
       await updateTodo(opts.actorUid, user.email, opts.todoId, {
-        assignmentStatus: opts.action === "accept" ? "accepted" : "declined",
+        assignmentStatus: nextStatus,
       });
+      // Mirror HTTP update: notify owner once (pending → terminal only; guarded above).
+      if (todo.userId && todo.userId !== opts.actorUid) {
+        const { createNotification, resolveTaskAssignedNotifications } = await import(
+          "../notificationService"
+        );
+        resolveTaskAssignedNotifications(opts.actorUid, todo.id, nextStatus);
+        if (nextStatus === "accepted") {
+          createNotification(
+            todo.userId,
+            "task_accepted",
+            "Tâche acceptée",
+            `${user.email} a accepté la tâche "${todo.title}"`,
+            {
+              todoId: todo.id,
+              todoTitle: todo.title,
+              accepterEmail: user.email,
+              actorEmail: user.email,
+            },
+          );
+        } else {
+          createNotification(
+            todo.userId,
+            "task_declined",
+            "Tâche refusée",
+            `${user.email} a refusé la tâche "${todo.title}"`,
+            {
+              todoId: todo.id,
+              todoTitle: todo.title,
+              declinerEmail: user.email,
+              actorEmail: user.email,
+            },
+          );
+        }
+      }
       return {
         ok: true,
         todoTitle: todo.title,

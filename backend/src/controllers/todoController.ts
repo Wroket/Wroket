@@ -254,6 +254,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 
     if (
       input.assignmentStatus === "declined" &&
+      previousTodo?.assignmentStatus !== "declined" &&
       todo.assignedTo === req.user!.uid &&
       todo.userId !== req.user!.uid
     ) {
@@ -269,6 +270,7 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 
     if (
       input.assignmentStatus === "accepted" &&
+      previousTodo?.assignmentStatus !== "accepted" &&
       todo.assignedTo === req.user!.uid &&
       todo.userId !== req.user!.uid
     ) {

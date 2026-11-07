@@ -129,9 +129,10 @@ function NotesPageInner() {
   const selected = notes.find((n) => n.id === selectedId) ?? null;
   const isForeignNote = !!(selected && currentUid && selected.userId && selected.userId !== currentUid);
   const [collabCanWrite, setCollabCanWrite] = useState(false);
+  /** Foreign + read-only (hides owner chrome). Co-editors keep edit UI. */
   const isSharedNote = isForeignNote && !collabCanWrite;
 
-  const { presence: notePresence } = useNoteLiveCollab({
+  const { presence: notePresence, canWrite: liveCanWrite } = useNoteLiveCollab({
     noteId: selectedId,
     displayName: authUser?.email ?? currentUid ?? "user",
     localUpdatedAt: selected?.updatedAt ?? null,
@@ -149,8 +150,12 @@ function NotesPageInner() {
   });
 
   useEffect(() => {
-    if (!isForeignNote) setCollabCanWrite(false);
-  }, [isForeignNote, selectedId]);
+    if (!isForeignNote) {
+      setCollabCanWrite(false);
+      return;
+    }
+    setCollabCanWrite(liveCanWrite);
+  }, [isForeignNote, liveCanWrite, selectedId]);
 
   const stripHtml = (value: string): string =>
     value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -967,6 +972,7 @@ function NotesPageInner() {
                     </svg>
                   )}
                 </button>
+                {activeFolder !== SHARED_SCOPE && (
                 <button
                   type="button"
                   onClick={handleNew}
@@ -979,6 +985,7 @@ function NotesPageInner() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                 </button>
+                )}
             </div>
             <input
               type="text"
@@ -997,8 +1004,13 @@ function NotesPageInner() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 px-4 space-y-3">
-                <p className="text-sm text-zinc-400 dark:text-slate-500">{t("notes.empty")}</p>
-                <p className="text-xs text-zinc-400 dark:text-slate-500">{t("notes.emptyHint")}</p>
+                <p className="text-sm text-zinc-400 dark:text-slate-500">
+                  {activeFolder === SHARED_SCOPE ? t("notes.sharedInboxEmpty") : t("notes.empty")}
+                </p>
+                <p className="text-xs text-zinc-400 dark:text-slate-500">
+                  {activeFolder === SHARED_SCOPE ? t("notes.sharedInboxEmptyHint") : t("notes.emptyHint")}
+                </p>
+                {activeFolder !== SHARED_SCOPE && (
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                   <button
                     type="button"
@@ -1015,10 +1027,16 @@ function NotesPageInner() {
                     {t("notes.emptyImport")}
                   </Link>
                 </div>
+                )}
               </div>
             ) : (
               <div className="py-1">
-                {filtered.map((note) => (
+                {filtered.map((note) => {
+                  const isIncoming = !!(currentUid && note.userId && note.userId !== currentUid);
+                  const teamName = note.teamId
+                    ? teams.find((tm) => tm.id === note.teamId)?.name
+                    : undefined;
+                  return (
                   <button
                     key={note.id}
                     type="button"
@@ -1038,6 +1056,29 @@ function NotesPageInner() {
                         {note.title || t("notes.untitled")}
                       </p>
                     </div>
+                    {isIncoming && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        <span className="text-[9px] text-zinc-500 dark:text-slate-400 truncate max-w-full">
+                          {note.ownerEmail
+                            ? `${t("notes.sharedBy")} ${note.ownerEmail}`
+                            : t("notes.sharedBy")}
+                        </span>
+                        {note.teamId ? (
+                          <span className="inline-block bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 text-[9px] px-1 py-0.5 rounded">
+                            {teamName || t("notes.sharedTeamBadge")}
+                          </span>
+                        ) : (
+                          <span className="inline-block bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[9px] px-1 py-0.5 rounded">
+                            {t("notes.sharedDirectBadge")}
+                          </span>
+                        )}
+                        {note.collaboratorWrite && (
+                          <span className="inline-block bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] px-1 py-0.5 rounded">
+                            {t("notes.sharedCanEditBadge")}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {(note.tags?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-0.5 mt-1">
                         {note.tags!.slice(0, 3).map((tag) => (
@@ -1050,7 +1091,8 @@ function NotesPageInner() {
                       {formatDate(note.updatedAt)}
                     </p>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1065,7 +1107,11 @@ function NotesPageInner() {
                   ? t("notes.synced")
                   : t("notes.offline")}
             </span>
-            <span className="ml-auto text-zinc-400 dark:text-slate-500">{notes.length} notes</span>
+            <span className="ml-auto text-zinc-400 dark:text-slate-500">
+              {t("notes.ownNotesCount").replace("{{count}}", String(notes.filter((n) => isOwnNote(n)).length))}
+              {" · "}
+              {t("notes.sharedNotesCount").replace("{{count}}", String(sharedNotes.length))}
+            </span>
           </div>
         </div>
 
@@ -1127,7 +1173,7 @@ function NotesPageInner() {
                     ))}
                   </div>
                 )}
-                {!isSharedNote && (
+                {!isForeignNote && (
                   <button
                     type="button"
                     onClick={() => togglePin(selected.id)}
@@ -1143,7 +1189,7 @@ function NotesPageInner() {
                     </svg>
                   </button>
                 )}
-                {!isSharedNote && (
+                {!isForeignNote && (
                   deleteConfirm === selected.id ? (
                     <div className="flex items-center gap-1">
                       <button
@@ -1251,12 +1297,12 @@ function NotesPageInner() {
                           {(selected.tags ?? []).map((tag) => (
                             <span key={tag} className="inline-flex items-center gap-0.5 bg-zinc-100 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
                               {tag}
-                              {!isSharedNote && (
+                              {!isForeignNote && (
                                 <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
                               )}
                             </span>
                           ))}
-                          {!isSharedNote && (
+                          {!isForeignNote && (
                             <input
                               type="text"
                               value={tagInput}
@@ -1273,7 +1319,7 @@ function NotesPageInner() {
                           )}
                         </div>
 
-                        {!isSharedNote && (
+                        {!isForeignNote && (
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.folderLabel")}</span>
                             <select
@@ -1303,7 +1349,7 @@ function NotesPageInner() {
                           </div>
                         )}
 
-                        {!isSharedNote && (
+                        {!isForeignNote && (
                           <>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
@@ -1532,7 +1578,10 @@ function NotesPageInner() {
                 <svg className="w-16 h-16 mx-auto text-emerald-200 dark:text-emerald-900/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                <p className="text-sm text-zinc-400 dark:text-slate-500 mt-3">{t("notes.emptyHint")}</p>
+                <p className="text-sm text-zinc-400 dark:text-slate-500 mt-3">
+                  {activeFolder === SHARED_SCOPE ? t("notes.sharedInboxEmptyHint") : t("notes.emptyHint")}
+                </p>
+                {activeFolder !== SHARED_SCOPE && (
                 <button
                   type="button"
                   onClick={handleNew}
@@ -1540,6 +1589,7 @@ function NotesPageInner() {
                 >
                   {t("notes.new")}
                 </button>
+                )}
               </div>
             </div>
           )}

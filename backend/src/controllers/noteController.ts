@@ -49,7 +49,9 @@ export async function listShared(req: AuthenticatedRequest, res: Response) {
 
 export async function get(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
-  res.status(200).json(getNote(req.user!.uid, id));
+  const access = resolveNoteAccess(req.user!.uid, req.user!.email ?? "", id);
+  if (!access) throw new NotFoundError("Note introuvable");
+  res.status(200).json(access.note);
 }
 
 export async function byTodo(req: AuthenticatedRequest, res: Response) {

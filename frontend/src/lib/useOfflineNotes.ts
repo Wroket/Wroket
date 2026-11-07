@@ -160,17 +160,23 @@ export function useOfflineNotes() {
   }, []);
 
   const [sharedSyncError, setSharedSyncError] = useState<string | null>(null);
+  /** Last successful inbox payload — retained when `/notes/shared` fails transiently. */
+  const lastGoodSharedRef = useRef<Note[]>([]);
 
   const fetchAndSync = useCallback(async () => {
     try {
       let sharedFailed = false;
-      const [serverNotes, sharedNotes] = await Promise.all([
+      const [serverNotes, sharedNotesRaw] = await Promise.all([
         getNotes(),
         getSharedNotes().catch((): Note[] => {
           sharedFailed = true;
-          return [];
+          return lastGoodSharedRef.current;
         }),
       ]);
+      const sharedNotes = sharedFailed ? lastGoodSharedRef.current : sharedNotesRaw;
+      if (!sharedFailed) {
+        lastGoodSharedRef.current = sharedNotesRaw;
+      }
       setSharedSyncError(sharedFailed ? "shared_fetch_failed" : null);
       const dirtyIds = getDirtyIds();
       const deletedIds = getDeletedIds();

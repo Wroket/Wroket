@@ -9,6 +9,7 @@ import { findPhaseById, getProjectById, canAccessProject, canEditProjectContent 
 import { scheduleExternalCleanupForFutureSlots } from "./calendarBookingCleanup";
 import {
   syncOwnerTodosV2,
+  syncTodoV2,
   loadAllTodosV2ByOwner,
   listTodosV2ByOwner,
   listTodosV2ByAssignedTo,
@@ -677,6 +678,24 @@ async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
       }));
       await syncOwnerTodosV2(ownerUid, docs);
     }
+  }
+}
+
+/**
+ * Persist a single mutated todo (hot path: assign / field update / book).
+ * Legacy shard flush still runs; todos_v2 writes only this document (not full owner set).
+ */
+async function persistTodoMutation(todo: Todo): Promise<void> {
+  if (TODOS_STORAGE_MODE !== "v2") {
+    const store = getStore();
+    if (!store.todos) store.todos = {};
+    if (!store.todos[todo.userId]) store.todos[todo.userId] = {};
+    store.todos[todo.userId][todo.id] = todoToPersisted(todo);
+    scheduleTodoShardPersist([todoShardIndex(todo.userId)]);
+    await flushNow();
+  }
+  if (TODOS_STORAGE_MODE !== "legacy") {
+    await syncTodoV2({ ...todoToPersisted(todo), ownerUid: todo.userId });
   }
 }
 
@@ -1965,6 +1984,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
 
+  let spawnedRecurrenceClone = false;
   if (
     input.status === "completed" &&
     todo.recurrence &&
@@ -2012,10 +2032,15 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
       };
       ownerTodos.set(clone.id, clone);
       ownerIndex.set(clone.id, todo.userId);
+      spawnedRecurrenceClone = true;
     }
   }
 
-  await persistTodos(todo.userId);
+  if (spawnedRecurrenceClone) {
+    await persistTodos(todo.userId);
+  } else {
+    await persistTodoMutation(todo);
+  }
 
   if (input.status === "completed") {
     try {

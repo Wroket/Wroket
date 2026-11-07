@@ -195,12 +195,20 @@ export async function getTeams(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function postCreateTeam(req: AuthenticatedRequest, res: Response) {
-  const { name, members } = req.body as { name?: string; members?: string[] };
+  const { name, members, memberEmails: memberEmailsAlt } = req.body as {
+    name?: string;
+    members?: string[];
+    memberEmails?: string[];
+  };
   if (!name || typeof name !== "string") {
     throw new ValidationError("Nom requis");
   }
 
-  const memberEmails = Array.isArray(members) ? members : [];
+  const memberEmails = Array.isArray(members)
+    ? members
+    : Array.isArray(memberEmailsAlt)
+      ? memberEmailsAlt
+      : [];
   const team = createTeam(req.user!.uid, name, memberEmails);
 
   try {
