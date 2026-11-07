@@ -35,7 +35,10 @@ import {
   postSlackEvents,
 } from "./controllers/slackInteractController";
 import { postTeamsInteractions } from "./controllers/teamsInteractController";
-import { postGoogleChatInteractions } from "./controllers/googleChatInteractController";
+import {
+  getGoogleChatInteractions,
+  postGoogleChatInteractions,
+} from "./controllers/googleChatInteractController";
 import { postDiscordInteractions } from "./controllers/discordInteractController";
 import billingRoutes from "./routes/billingRoutes";
 import marketingRoutes from "./routes/marketingRoutes";
@@ -125,6 +128,7 @@ app.use(express.json({ limit: "128kb" }));
 app.post("/integrations/teams/interactions", (req, res, next) => {
   void postTeamsInteractions(req, res).catch(next);
 });
+app.get("/integrations/google-chat/interactions", getGoogleChatInteractions);
 app.post("/integrations/google-chat/interactions", (req, res, next) => {
   void postGoogleChatInteractions(req, res).catch(next);
 });

@@ -113,6 +113,13 @@ Same semantics as the product DnD API:
 4. `create_note` linked to a todo; `add_comment` on the same todo.
 5. Revoke the key; same Bearer must return 401.
 
+### Prod smoke — 2026-11-07 (Professionnel / Cloud Run)
+
+- [x] Key `smoke-mcp-2026-11-07` created → `tools/list` 200 (v1.1 tools)
+- [x] `list_todos` (limit 3) 200; `create_todo` « MCP smoke 2026-11-07 » 200
+- [x] Revoke in UI → Bearer returns **401**; Clés actives = « Aucune clé »
+- [ ] Optional deeper: `list_projects` → phases → note/comment (not blocking go)
+
 ## Out of scope (v1.1)
 
 - In-app chat / embeddings

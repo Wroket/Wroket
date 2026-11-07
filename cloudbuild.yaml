@@ -71,7 +71,7 @@ steps:
       # rollback (revert this line to `dual`, redeploy) but are no longer written.
       # Pre-flight before cutover: drift audit returned 0 for every uid
       # (see backend/src/scripts/reconcileLegacyV2Drift.ts).
-      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,MICROSOFT_TENANT_ID=common,MICROSOFT_SSO_REDIRECT_URI=https://api.wroket.com/auth/microsoft/callback,MICROSOFT_GRAPH_REDIRECT_URI=https://api.wroket.com/calendar/microsoft/callback,NOTION_REDIRECT_URI=https://api.wroket.com/integrations/notion/callback,MONDAY_REDIRECT_URI=https://api.wroket.com/integrations/monday/callback,MONDAY_OAUTH_SCOPES=boards:read docs:read,SLACK_REDIRECT_URI=https://api.wroket.com/integrations/slack/callback,TEAMS_REDIRECT_URI=https://api.wroket.com/integrations/teams/callback,GOOGLE_CHAT_REDIRECT_URI=https://api.wroket.com/integrations/google-chat/callback,DISCORD_REDIRECT_URI=https://api.wroket.com/integrations/discord/callback,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs,TODOS_STORAGE_MODE=v2,TODOS_READ_SOURCE=firestore,TODOS_BOOT_HYDRATION=lazy,TODOS_DOC_COLLECTION=todos_v2,VAPID_SUBJECT=mailto:team@wroket.com,OCR_PROVIDER=vision'
+      - 'COOKIE_SECURE=true,ALLOWED_ORIGINS=https://wroket.com;https://www.wroket.com,FRONTEND_URL=https://wroket.com,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_SSO_REDIRECT_URI=https://api.wroket.com/auth/google/callback,GOOGLE_REDIRECT_URI=https://api.wroket.com/calendar/google/callback,MICROSOFT_TENANT_ID=common,MICROSOFT_SSO_REDIRECT_URI=https://api.wroket.com/auth/microsoft/callback,MICROSOFT_GRAPH_REDIRECT_URI=https://api.wroket.com/calendar/microsoft/callback,NOTION_REDIRECT_URI=https://api.wroket.com/integrations/notion/callback,MONDAY_REDIRECT_URI=https://api.wroket.com/integrations/monday/callback,MONDAY_OAUTH_SCOPES=boards:read docs:read,SLACK_REDIRECT_URI=https://api.wroket.com/integrations/slack/callback,TEAMS_REDIRECT_URI=https://api.wroket.com/integrations/teams/callback,GOOGLE_CHAT_REDIRECT_URI=https://api.wroket.com/integrations/google-chat/callback,GOOGLE_CHAT_PROJECT_NUMBER=846885741813,GOOGLE_CHAT_SERVICE_ACCOUNT_EMAIL=service-846885741813@gcp-sa-gsuiteaddons.iam.gserviceaccount.com,GOOGLE_CHAT_HTTP_ENDPOINT=https://api.wroket.com/integrations/google-chat/interactions,DISCORD_REDIRECT_URI=https://api.wroket.com/integrations/discord/callback,ATTACHMENTS_BUCKET=wroket-attachments,ATTACHMENTS_BACKEND=gcs,TODOS_STORAGE_MODE=v2,TODOS_READ_SOURCE=firestore,TODOS_BOOT_HYDRATION=lazy,TODOS_DOC_COLLECTION=todos_v2,VAPID_SUBJECT=mailto:team@wroket.com,OCR_PROVIDER=vision'
       # OCR on/off (OCR_ENABLED, OCR_BETA_EMAILS) is intentionally NOT set here so a deploy never
       # resets it — toggle via `gcloud run services update` (see docs/ocr-feasibility.md §9).
       # Required in production (server.ts): OAuth state signing + Microsoft SSO + Web Push VAPID + Notion/Monday/Slack OAuth from Secret Manager.
@@ -79,19 +79,16 @@ steps:
       # Notion: NOTION_CLIENT_ID + NOTION_CLIENT_SECRET (Secret Manager) + NOTION_REDIRECT_URI (env above).
       # Monday: MONDAY_CLIENT_ID + MONDAY_CLIENT_SECRET (Secret Manager) + MONDAY_REDIRECT_URI (env above).
       # Slack: SLACK_CLIENT_ID + SLACK_CLIENT_SECRET + SLACK_SIGNING_SECRET in --set-secrets (Secret Manager).
-      # Teams+: create secrets via scripts/ops-create-teams-secrets.sh then APPEND to --set-secrets:
-      #   TEAMS_BOT_APP_ID=TEAMS_BOT_APP_ID:latest,TEAMS_BOT_APP_PASSWORD=TEAMS_BOT_APP_PASSWORD:latest
-      #   (Until then, OAuth/bot reuse MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET via code fallback.)
-      # Google Chat+: create via scripts/ops-create-google-chat-secrets.sh then APPEND:
-      #   GOOGLE_CHAT_VERIFICATION_TOKEN=GOOGLE_CHAT_VERIFICATION_TOKEN:latest
-      #   (+ optional GOOGLE_CHAT_CLIENT_ID / GOOGLE_CHAT_CLIENT_SECRET)
-      # Discord+: DISCORD_CLIENT_ID/SECRET + DISCORD_PUBLIC_KEY + DISCORD_BOT_TOKEN — same rule.
+      # Teams+: TEAMS_BOT_* in Secret Manager (App ID = Entra Wroket; password synced from MICROSOFT_CLIENT_SECRET).
+      # Google Chat+: Workspace add-on uses OIDC Bearer (GOOGLE_CHAT_PROJECT_NUMBER / SA email / HTTP endpoint as plain env above).
+      # Classic Verification Token secret is optional; only mount GOOGLE_CHAT_VERIFICATION_TOKEN if the console still shows one.
+      # Discord+: DISCORD_CLIENT_ID/SECRET + DISCORD_PUBLIC_KEY + DISCORD_BOT_TOKEN — same rule (not mounted yet).
       # Checklist: docs/ops-chat-integrations.md
       # SLACK_REDIRECT_URI / TEAMS_REDIRECT_URI / GOOGLE_CHAT_REDIRECT_URI / DISCORD_REDIRECT_URI are plain env above.
       # Grant wroket-run@… Secret Accessor on each secret. --set-secrets replaces the full list (see .cursor/rules/cloudbuild.mdc).
-      # Do NOT add TEAMS_BOT_* / GOOGLE_CHAT_* here until Secret Manager secrets exist (deploy fails otherwise).
+      # Do NOT add DISCORD_* / optional GOOGLE_CHAT_VERIFICATION_TOKEN here until Secret Manager secrets exist (deploy fails otherwise).
       - '--set-secrets'
-      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,NOTION_CLIENT_ID=NOTION_CLIENT_ID:latest,NOTION_CLIENT_SECRET=NOTION_CLIENT_SECRET:latest,MONDAY_CLIENT_ID=MONDAY_CLIENT_ID:latest,MONDAY_CLIENT_SECRET=MONDAY_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,SLACK_CLIENT_ID=SLACK_CLIENT_ID:latest,SLACK_CLIENT_SECRET=SLACK_CLIENT_SECRET:latest,SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest'
+      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,NOTION_CLIENT_ID=NOTION_CLIENT_ID:latest,NOTION_CLIENT_SECRET=NOTION_CLIENT_SECRET:latest,MONDAY_CLIENT_ID=MONDAY_CLIENT_ID:latest,MONDAY_CLIENT_SECRET=MONDAY_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,SLACK_CLIENT_ID=SLACK_CLIENT_ID:latest,SLACK_CLIENT_SECRET=SLACK_CLIENT_SECRET:latest,SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest,TEAMS_BOT_APP_ID=TEAMS_BOT_APP_ID:latest,TEAMS_BOT_APP_PASSWORD=TEAMS_BOT_APP_PASSWORD:latest'
 
   # Single-var update: comma inside ADMIN_EMAILS needs alternate delimiter (gcloud topic escaping).
   - name: 'gcr.io/cloud-builders/gcloud'

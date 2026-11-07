@@ -1,5 +1,6 @@
 /**
  * Google Chat app HTTP endpoint (events + card clicks).
+ * Supports classic Chat events and Workspace add-on envelopes (OIDC + DataActions).
  */
 
 import { Request, Response } from "express";
@@ -8,12 +9,17 @@ import {
   getGoogleChatVerificationToken,
   isGoogleChatInboundConfigured,
 } from "../services/googleChatOAuthService";
+import { verifyGoogleChatOidcBearerDetailed } from "../services/googleChatSignature";
 import {
   getGoogleChatConnectionByEmail,
   upsertGoogleChatConnection,
 } from "../services/googleChatConnectionService";
 import { findUserByEmail } from "../services/authService";
 import { taskDeepLink } from "../services/notificationFormatting";
+import {
+  buildGoogleChatTextReply,
+  normalizeGoogleChatEvent,
+} from "../services/googleChatEventNormalize";
 import {
   googleChatSlashHelp,
   handleGoogleChatCommandText,
@@ -22,17 +28,65 @@ import {
   runGoogleChatTaskAction,
 } from "../services/googleChatInteractService";
 
-function verifyToken(req: Request): boolean {
+/**
+ * Accept classic verification token OR Workspace add-on OIDC Bearer / systemIdToken.
+ */
+async function verifyChatRequest(
+  req: Request,
+  systemIdToken: string | null,
+): Promise<boolean> {
   const expected = getGoogleChatVerificationToken();
-  if (!expected) {
-    // Allow when only OAuth configured and skip flag set (local).
-    return process.env.NODE_ENV !== "production" && process.env.GOOGLE_CHAT_SKIP_VERIFY === "true";
+  if (expected) {
+    const token =
+      (typeof req.body?.token === "string" && req.body.token) ||
+      req.header("x-goog-channel-token") ||
+      "";
+    if (token === expected) return true;
   }
-  const token =
-    (typeof req.body?.token === "string" && req.body.token) ||
-    req.header("x-goog-channel-token") ||
-    "";
-  return token === expected;
+
+  const headerResult = await verifyGoogleChatOidcBearerDetailed(
+    req.header("authorization") ?? undefined,
+  );
+  if (headerResult.ok) return true;
+
+  if (systemIdToken) {
+    const bodyResult = await verifyGoogleChatOidcBearerDetailed(systemIdToken);
+    if (bodyResult.ok) return true;
+    console.warn("[google-chat] oidc_reject", {
+      headerReason: headerResult.reason,
+      bodyReason: bodyResult.reason,
+    });
+    return false;
+  }
+
+  console.warn("[google-chat] oidc_reject", { reason: headerResult.reason });
+
+  // Local-only bypass when explicitly opted in.
+  return process.env.NODE_ENV !== "production" && process.env.GOOGLE_CHAT_SKIP_VERIFY === "true";
+}
+
+function replyJson(
+  res: Response,
+  isAddOn: boolean,
+  text: string,
+  extraClassic?: Record<string, unknown>,
+): void {
+  if (isAddOn || !extraClassic) {
+    res.status(200).json(buildGoogleChatTextReply({ isAddOn, text }));
+    return;
+  }
+  res.status(200).json({ ...extraClassic, text });
+}
+
+/**
+ * GET /integrations/google-chat/interactions — probe / health (Google and browsers may GET).
+ */
+export function getGoogleChatInteractions(_req: Request, res: Response): void {
+  res.status(200).json({
+    ok: true,
+    service: "google-chat-interactions",
+    inboundConfigured: isGoogleChatInboundConfigured(),
+  });
 }
 
 /**
@@ -43,38 +97,32 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
     res.status(503).json({ error: "google_chat_not_configured" });
     return;
   }
-  if (!verifyToken(req)) {
+
+  const event = normalizeGoogleChatEvent(req.body);
+  console.info("[google-chat] inbound", {
+    kind: event.kind,
+    isAddOn: event.isAddOn,
+    hasEmail: Boolean(event.email),
+    hasText: Boolean(event.messageText),
+    hasSystemIdToken: Boolean(event.systemIdToken),
+    hasAuthHeader: Boolean(req.header("authorization")),
+  });
+
+  if (!(await verifyChatRequest(req, event.systemIdToken))) {
     res.status(401).json({ error: "invalid_google_chat_token" });
     return;
   }
 
-  const body = req.body as {
-    type?: string;
-    token?: string;
-    space?: { name?: string; displayName?: string; type?: string };
-    message?: { text?: string; sender?: { email?: string } };
-    user?: { email?: string };
-    common?: { user?: { email?: string } };
-    action?: { actionMethodName?: string; parameters?: unknown[] };
-    // Cards v2
-  };
-
-  // URL verification handshake
-  if (body.type === "URL_VERIFICATION") {
+  if (event.kind === "url_verification") {
     res.status(200).json({});
     return;
   }
 
-  const email =
-    body.user?.email ||
-    body.common?.user?.email ||
-    body.message?.sender?.email ||
-    null;
+  const email = event.email;
 
-  // Bot added to a space -> auto-attach space to user's Google Chat connection if available
-  if (body.type === "ADDED_TO_SPACE") {
-    const spaceName = body.space?.name?.trim();
-    const spaceDisplayName = body.space?.displayName?.trim() || spaceName;
+  if (event.kind === "added_to_space") {
+    const spaceName = event.spaceName;
+    const spaceDisplayName = event.spaceDisplayName || spaceName;
     if (email && spaceName) {
       const existing = getGoogleChatConnectionByEmail(email);
       const user = findUserByEmail(email);
@@ -96,33 +144,28 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
         });
       }
     }
-    res.status(200).json({
-      text: "👋 Wroket est connecté à cet espace ! Tapez `@Wroket help` pour voir les commandes disponibles.",
-    });
+    replyJson(
+      res,
+      event.isAddOn,
+      "👋 Wroket est connecté à cet espace ! Tapez `@Wroket help` pour voir les commandes disponibles.",
+    );
     return;
   }
 
-  // Card click
-  if (body.type === "CARD_CLICKED" || body.action) {
-    const paramsObj: Record<string, unknown> = {
-      actionMethodName: body.action?.actionMethodName,
-    };
-    if (Array.isArray(body.action?.parameters)) {
-      for (const p of body.action.parameters) {
-        if (p && typeof p === "object" && "key" in p && "value" in p) {
-          const row = p as { key: string; value: string };
-          paramsObj[row.key] = row.value;
-        }
-      }
-    }
-    const parsed = parseGoogleChatCardAction(paramsObj);
+  if (event.kind === "removed_from_space") {
+    res.status(200).json({});
+    return;
+  }
+
+  if (event.kind === "card_clicked") {
+    const parsed = parseGoogleChatCardAction(event.actionParams ?? {});
     if (!parsed) {
-      res.status(200).json({ text: "Action Wroket non reconnue." });
+      replyJson(res, event.isAddOn, "Action Wroket non reconnue.");
       return;
     }
     const resolved = await resolveWroketUserFromGoogleChat({ email });
     if ("error" in resolved) {
-      res.status(200).json({ text: resolved.error });
+      replyJson(res, event.isAddOn, resolved.error);
       return;
     }
     const result = await runGoogleChatTaskAction({
@@ -133,6 +176,15 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
     });
     if (result.ok) {
       const deepLink = taskDeepLink(parsed.todoId);
+      if (event.isAddOn) {
+        res.status(200).json(
+          buildGoogleChatTextReply({
+            isAddOn: true,
+            text: `✅ ${result.message}\n${deepLink}`,
+          }),
+        );
+        return;
+      }
       res.status(200).json({
         actionResponse: { type: "UPDATE_MESSAGE" },
         text: `✅ ${result.message}`,
@@ -163,29 +215,32 @@ export async function postGoogleChatInteractions(req: Request, res: Response): P
       });
       return;
     }
-    res.status(200).json({ text: result.message });
+    replyJson(res, event.isAddOn, result.message);
     return;
   }
 
-  // MESSAGE
-  if (body.type === "MESSAGE" || body.message?.text) {
+  if (event.kind === "message") {
     const resolved = await resolveWroketUserFromGoogleChat({ email });
     if ("error" in resolved) {
-      res.status(200).json({ text: resolved.error });
+      replyJson(res, event.isAddOn, resolved.error);
       return;
     }
     try {
       const reply = await handleGoogleChatCommandText({
         actorUid: resolved.uid,
-        text: body.message?.text ?? "",
+        text: event.messageText ?? "",
       });
-      res.status(200).json({ text: reply || googleChatSlashHelp() });
+      replyJson(res, event.isAddOn, reply || googleChatSlashHelp());
     } catch (err) {
       console.warn("[google-chat] command failed:", err);
-      res.status(200).json({ text: "Erreur lors du traitement de la commande." });
+      replyJson(res, event.isAddOn, "Erreur lors du traitement de la commande.");
     }
     return;
   }
 
+  console.warn("[google-chat] unknown_event_shape", {
+    isAddOn: event.isAddOn,
+    rootKeys: req.body && typeof req.body === "object" ? Object.keys(req.body as object) : [],
+  });
   res.status(200).json({});
 }

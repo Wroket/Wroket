@@ -34,10 +34,11 @@ Redirect env : `https://api.wroket.com/integrations/slack/callback`.
 
 ### Smoke
 
-- [ ] Paramètres → Connecter Slack → choisir un canal
-- [ ] **Envoyer un test**
+- [x] Paramètres → Connecter Slack → choisir un canal — **2026-11-07** (Profil 5 NomPrenom + Profil 3 Test1/bebroudeur + Professionnel → `#notifications-wroket`)
+- [x] **Envoyer un test** — messages « Test Wroket — connexion Slack OK ✅ » (16:43 ×2, 17:03, 18:17 Professionnel, 18:26 Profil 3 toast ; retest Professionnel 20:01–20:02 UTC+1 → API `slack/test` 200 ×3 ; retest 20:21 Professionnel + 20:24 NomPrenom toast « Message de test envoyé. » → `#notifications-wroket`)
 - [ ] Cliquer un bouton (accept/decline/complete) sur une notif OAuth
-- [ ] `/wroket help` puis `/wroket my-week`
+- [x] `/wroket help` — Professionnel 18:19 (éphémère Commandes /wroket)
+- [x] `/wroket my-week` — Profil 5 (semaine vide) + Profil 3 (17:04 « Ma semaine (1) ») + Professionnel 18:19 « Ma semaine (4) » retards
 
 Détail technique : [slack-plus.md](./slack-plus.md)
 
@@ -47,7 +48,8 @@ Détail technique : [slack-plus.md](./slack-plus.md)
 
 **Déjà fait (partiel) :** bot `wroket-teams`, endpoint messaging, App ID `e75f60be-547f-40fe-b910-5feb59a600bc`, OAuth Teams + redirect callback.
 
-**Bloquant multi-clients :** bot encore **Client unique** → passer **Multilocataire**.
+**Bloquant multi-clients :** bot encore **Client unique** → passer **Multilocataire**.  
+*Note 2026-11-07 :* portal Azure demande le mot de passe Microsoft (`francois@broudeur.com` / login.live) — **bloqué sans auth interactive** ; reprendre Multilocataire dès session Azure ouverte.
 
 ### Entra — inscription **Wroket** (`e75f60be-547f-40fe-b910-5feb59a600bc`)
 
@@ -61,7 +63,7 @@ Détail technique : [slack-plus.md](./slack-plus.md)
 
 ### Azure Bot `wroket-teams`
 
-- [ ] **Configuration** → type de bot → **Multilocataire** (plus Client unique)
+- [ ] **Configuration** → type de bot → **Multilocataire** (plus Client unique) — *bloqué 2026-11-07 : login Azure (`francois.broudeur@hotmail.fr`) non complété (autofill / mot de passe)*
 - [ ] Messaging endpoint : `https://api.wroket.com/integrations/teams/interactions`
 - [ ] **Canaux** → Microsoft Teams → activer → **Appliquer**
 - [ ] **Profil de bot** → icône : `docs/assets/azure/wroket-bot-color-192.png` (outline 32px : `wroket-bot-outline-32.png`)
@@ -87,6 +89,8 @@ echo -n "<CLIENT_SECRET_VALUE>" | gcloud secrets versions add TEAMS_BOT_APP_PASS
 # Puis ajouter TEAMS_BOT_APP_ID / TEAMS_BOT_APP_PASSWORD à --set-secrets dans cloudbuild.yaml
 ```
 
+**Fait 2026-11-07 :** secrets `TEAMS_BOT_APP_ID` / `TEAMS_BOT_APP_PASSWORD` créés (password = copie `MICROSOFT_CLIENT_SECRET`), IAM `wroket-run`, montés sur Cloud Run (`wroket-api-00451-vkh` via `--update-secrets`) + noms ajoutés dans `cloudbuild.yaml` pour les prochains deploys.
+
 **Code :** replies inbound via Bot Connector — déployer `main` après merge (voir §4).
 
 Détail : [teams-plus.md](./teams-plus.md), [microsoft-azure.md](./microsoft-azure.md)
@@ -95,24 +99,27 @@ Détail : [teams-plus.md](./teams-plus.md), [microsoft-azure.md](./microsoft-azu
 
 ## 3. Google Chat — Cloud Console (`involuted-reach-490718-h4`)
 
-**Pas encore commencé.** Env déjà : `GOOGLE_CHAT_REDIRECT_URI`. Fallback OAuth : `GOOGLE_CLIENT_*`.
+Env déjà : `GOOGLE_CHAT_REDIRECT_URI`. Fallback OAuth : `GOOGLE_CLIENT_*`.
 
-- [ ] Activer **Google Chat API**
-- [ ] Configurer l’app Chat :
-  - HTTP endpoint : `https://api.wroket.com/integrations/google-chat/interactions`
-  - Copier le **Verification Token**
-- [ ] OAuth client (existant ou dédié) — redirect :
-  - `https://api.wroket.com/integrations/google-chat/callback`
-- [ ] Scopes : `openid` `email` `profile` +  
-  `https://www.googleapis.com/auth/chat.spaces` +  
-  `https://www.googleapis.com/auth/chat.messages`
+- [x] Activer **Google Chat API** — **2026-11-07** (`chat.googleapis.com` Enabled, projet `involuted-reach-490718-h4`)
+- [x] Configurer l’app Chat (Configuration) — **2026-11-07** (Professionnel / `francois@broudeur.com`) :
+  - App name `Wroket`, avatar `https://wroket.com/wroket-icon.png`, description `PMO tasks and planning for teams`
+  - Workspace add-on **coché** (irréversible si décoché — laisser)
+  - Interactive ON, Join spaces **coché**
+  - Common HTTP endpoint : `https://api.wroket.com/integrations/google-chat/interactions`
+  - Visibility Broudeur : `francois@broudeur.com`
+  - Service account : `service-846885741813@gcp-sa-gsuiteaddons.iam.gserviceaccount.com`
+  - **Pas de Verification Token** dans l’UI add-on → auth = **OIDC Bearer** (audience = HTTP endpoint, email = SA)
+- [x] OAuth client (existant) — redirect `https://api.wroket.com/integrations/google-chat/callback` — **2026-11-07** consent Chat scopes OK
+- [x] Scopes Chat (spaces + messages) accordés — Professionnel `francois@broudeur.com` **2026-11-07** 18:30 toast « Google Chat connecté »
 - [ ] App installable hors domaine Wroket (autres Workspace)
-- [ ] Secret Manager :
-  - `GOOGLE_CHAT_VERIFICATION_TOKEN`
-  - (si client dédié) `GOOGLE_CHAT_CLIENT_ID` / `GOOGLE_CHAT_CLIENT_SECRET`
-  - IAM `wroket-run` Secret Accessor
-- [ ] Monter dans `cloudbuild.yaml` `--set-secrets` **seulement après** création
-- [ ] Smoke : compte **Google Workspace** → Connecter → ajouter l’app à un espace → test + `@Wroket overdue`
+- [x] Env Cloud Run (plain, pas Secret Manager) — via `cloudbuild.yaml` :
+  - `GOOGLE_CHAT_PROJECT_NUMBER=846885741813`
+  - `GOOGLE_CHAT_SERVICE_ACCOUNT_EMAIL=service-846885741813@gcp-sa-gsuiteaddons.iam.gserviceaccount.com`
+  - `GOOGLE_CHAT_HTTP_ENDPOINT=https://api.wroket.com/integrations/google-chat/interactions`
+- [x] Connexion Wroket : Professionnel `francois@broudeur.com` → **Connecté · Site FTB - Aug 19** (espace déjà sélectionné) — **2026-11-07** 18:30
+- [x] **Envoyer un test** depuis Connexions — Professionnel **2026-11-07** 20:05 UTC+1 → API `google-chat/test` **200** ; message « Test Wroket — connexion Google Chat OK ✅ » visible dans l’espace **Site FTB - Aug 19** (chat.google.com)
+- [ ] Smoke E2E restant : `@Wroket overdue` (OIDC inbound) — **2026-11-07** : aucun POST Cloud Logging sur `/interactions` (seulement GET 404 historiques) ; env OIDC Cloud Run OK. Fix code : normaliser payload **Workspace add-on** + réponse `DataActions` + GET health + logs OIDC (à déployer puis retester `@Wroket help` / `overdue`)
 
 Sans Workspace : Chat+ non testable (Gmail seul hors cible).
 

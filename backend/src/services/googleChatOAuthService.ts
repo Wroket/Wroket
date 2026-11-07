@@ -40,11 +40,19 @@ export function getGoogleChatVerificationToken(): string {
   return process.env.GOOGLE_CHAT_VERIFICATION_TOKEN?.trim() || "";
 }
 
+/**
+ * Inbound Chat HTTP is ready when classic verification token is set,
+ * or Workspace add-on OIDC can be verified (project number / SA email).
+ * OAuth alone is not enough for interactions (Bearer / token check still required).
+ */
 export function isGoogleChatInboundConfigured(): boolean {
+  const projectNumber = process.env.GOOGLE_CHAT_PROJECT_NUMBER?.trim();
+  const saEmail = process.env.GOOGLE_CHAT_SERVICE_ACCOUNT_EMAIL?.trim();
   return Boolean(
     getGoogleChatVerificationToken() ||
-      process.env.GOOGLE_CHAT_PROJECT_NUMBER?.trim() ||
-      isGoogleChatOAuthConfigured(),
+      projectNumber ||
+      saEmail ||
+      (isGoogleChatOAuthConfigured() && process.env.GOOGLE_CHAT_SKIP_VERIFY === "true"),
   );
 }
 
