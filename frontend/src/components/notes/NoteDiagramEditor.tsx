@@ -83,6 +83,31 @@ const CANVAS_MIN = 280;
 const CANVAS_MAX = 1600;
 const CANVAS_DEFAULT = 520;
 
+/** Help control kept beside the “Diagram” label. */
+export function DiagramCanvasHelp() {
+  const { t } = useLocale();
+  const hintId = useId();
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label={t("notes.diagram.canvasHelp")}
+        aria-describedby={hintId}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold leading-none text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
+      >
+        i
+      </button>
+      <span
+        id={hintId}
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-72 rounded-md bg-zinc-900 p-2 text-xs leading-snug text-white opacity-0 shadow-lg group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {t("notes.diagram.canvasHint")}
+      </span>
+    </span>
+  );
+}
+
 function snapshot(nodes: DraftNode[], edges: NoteDiagramEdge[]): string {
   return JSON.stringify({
     nodes: nodes.map((node) => ({ id: node.id, label: node.label.trim(), column: node.column.trim(), x: node.x, y: node.y, w: node.w, h: node.h, shape: node.shape, color: node.color })),
@@ -97,7 +122,6 @@ function snapshot(nodes: DraftNode[], edges: NoteDiagramEdge[]): string {
 export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, refreshKey = 0, onSaved, blockId, apply }: NoteDiagramEditorProps) {
   const { t, locale } = useLocale();
   const { toast } = useToast();
-  const hintId = useId();
   const [nodes, setNodes] = useState<DraftNode[]>(() => layoutNodes(diagram));
   const [edges, setEdges] = useState<NoteDiagramEdge[]>(diagram.edges);
   const [savedMark, setSavedMark] = useState(() => snapshot(layoutNodes(diagram), diagram.edges));
@@ -187,29 +211,22 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
 
   return (
     <div className="mb-4 space-y-2">
-      <div className="relative z-20 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          {!blockId && <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.blocks.diagram")}</p>}
-          {!readOnly && (
-            <span className="group relative inline-flex">
-              <button
-                type="button"
-                aria-label={t("notes.diagram.canvasHelp")}
-                aria-describedby={hintId}
-                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold leading-none text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                i
-              </button>
-              <span
-                id={hintId}
-                role="tooltip"
-                className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-72 rounded-md bg-zinc-900 p-2 text-xs leading-snug text-white opacity-0 shadow-lg group-hover:opacity-100 group-focus-within:opacity-100"
-              >
-                {t("notes.diagram.canvasHint")}
-              </span>
-            </span>
-          )}
-        </div>
+      <div className="relative z-20 flex items-center justify-end gap-2">
+        {!blockId && (
+          <div className="mr-auto flex items-center gap-1">
+            <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.blocks.diagram")}</p>
+            {!readOnly && <DiagramCanvasHelp />}
+          </div>
+        )}
+        {!readOnly && !editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-800 dark:border-slate-600 dark:text-slate-100"
+          >
+            {t("notes.diagram.edit")}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setCanvasHeight((current) => (current >= 900 ? CANVAS_DEFAULT : 960))}
@@ -280,15 +297,6 @@ export default function NoteDiagramEditor({ noteId, diagram, readOnly = false, r
       >
         <span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-slate-600" />
       </div>
-      {!readOnly && !editing && (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-zinc-800 dark:text-slate-100"
-        >
-          {t("notes.diagram.edit")}
-        </button>
-      )}
       {!readOnly && editing && (
         <div className="space-y-2">
           <DiagramStyleBar

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import NoteDiagramEditor from "@/components/notes/NoteDiagramEditor";
+import NoteDiagramEditor, { DiagramCanvasHelp } from "@/components/notes/NoteDiagramEditor";
 import { useLocale } from "@/lib/LocaleContext";
 import type { NoteBlock, NoteDiagramEdge, NoteDiagramNode } from "@/lib/api/notes";
 import type { Project } from "@/lib/api/projects";
@@ -92,6 +92,7 @@ export default function NoteDocument({
               <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">
                 {block.type === "text" ? t("notes.blocks.text") : t("notes.blocks.diagram")}
               </span>
+              {block.type === "diagram" && <DiagramCanvasHelp />}
               {blocks.length > 1 && askRemoveId !== block.id && (
                 <button
                   type="button"
