@@ -16,7 +16,7 @@ import {
  */
 function withBotFrom(activity: unknown): Record<string, unknown> {
   const { appId } = getTeamsBotCredentials();
-  const base =
+  const base: Record<string, unknown> =
     activity && typeof activity === "object"
       ? { ...(activity as Record<string, unknown>) }
       : { type: "message" };
