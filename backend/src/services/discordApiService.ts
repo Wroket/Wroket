@@ -119,17 +119,27 @@ export async function postDiscordTestMessage(uid: string): Promise<void> {
   );
 }
 
-export async function fetchDiscordUserEmail(accessToken: string): Promise<string | null> {
+export async function fetchDiscordUserMe(
+  accessToken: string,
+): Promise<{ id: string; email: string | null } | null> {
   try {
     const res = await fetch("https://discord.com/api/v10/users/@me", {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { email?: string };
+    const data = (await res.json()) as { id?: string; email?: string };
+    const id = data.id?.trim();
+    if (!id) return null;
     const email = data.email?.trim();
-    return email && email.includes("@") ? email : null;
+    return { id, email: email && email.includes("@") ? email : null };
   } catch {
     return null;
   }
+}
+
+/** @deprecated Prefer fetchDiscordUserMe */
+export async function fetchDiscordUserEmail(accessToken: string): Promise<string | null> {
+  const me = await fetchDiscordUserMe(accessToken);
+  return me?.email ?? null;
 }

@@ -3,7 +3,7 @@
  */
 
 import { createOAuthState } from "../utils/oauthState";
-import { upsertDiscordConnection } from "./discordConnectionService";
+import { linkDiscordAccount, upsertDiscordConnection } from "./discordConnectionService";
 
 const DISCORD_CLIENT_ID = () => process.env.DISCORD_CLIENT_ID?.trim() || "";
 const DISCORD_CLIENT_SECRET = () => process.env.DISCORD_CLIENT_SECRET?.trim() || "";
@@ -85,6 +85,20 @@ export async function exchangeDiscordOAuthCode(
     refreshToken: tokens.refresh_token,
     botInstalled: true,
   });
+
+  // Slash interactions do not include email — auto-link Discord user id from OAuth identify.
+  try {
+    const meRes = await fetch("https://discord.com/api/v10/users/@me", {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (meRes.ok) {
+      const me = (await meRes.json()) as { id?: string };
+      if (me.id?.trim()) linkDiscordAccount(uid, me.id.trim());
+    }
+  } catch (err) {
+    console.warn("[discord-oauth] auto account link failed:", err);
+  }
 
   return { guildName };
 }

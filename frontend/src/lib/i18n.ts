@@ -1179,8 +1179,8 @@ const translations = {
 
   "settings.connectionDiscord": { fr: "Discord", en: "Discord" },
   "settings.connectionDiscordDesc": {
-    fr: "Bot Discord + slash /wroket (Small teams+). À l’installation OAuth, choisissez le serveur. Si Discord ne partage pas l’email, liez votre ID utilisateur ci-dessous.",
-    en: "Discord bot + /wroket slash (Small teams+). Pick the server during OAuth install. If Discord does not share email, link your user ID below.",
+    fr: "Bot Discord + slash /wroket (Small teams+). À l’installation OAuth, choisissez le serveur — votre compte Discord est lié automatiquement. Sinon, collez votre ID utilisateur (Mode développeur Discord).",
+    en: "Discord bot + /wroket slash (Small teams+). Pick the server during OAuth install — your Discord account is linked automatically. Otherwise paste your user ID (Discord Developer Mode).",
   },
   "settings.connectionDiscordConnected": { fr: "Connecté", en: "Connected" },
   "settings.connectionDiscordTest": { fr: "Envoyer un test", en: "Send a test" },

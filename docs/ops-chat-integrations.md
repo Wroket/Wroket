@@ -171,10 +171,10 @@ Détail : [discord-plus.md](./discord-plus.md). Code prêt ; **secrets Cloud Run
 ### Smoke
 
 - [x] Paramètres → Connecter Discord → serveur **Wroket** — **2026-11-09** (`discord=connected`)
-- [ ] Salon texte (auto au callback / Test, ou « Changer de salon »)
-- [ ] Lier Discord user ID si pas d’email OAuth
-- [ ] Envoyer un test → message dans le salon
-- [ ] `/wroket help` + `/wroket my-week`
+- [x] Salon texte auto + Test message OK — **2026-11-09** (`#aide-aux-devoirs`)
+- [ ] Liaison compte pour `/wroket` : auto au (re)Connect OAuth via `/users/@me` ; sinon coller l’ID Discord (Mode développeur)
+- [x] Envoyer un test → message dans le salon — **2026-11-09**
+- [ ] `/wroket help` + `/wroket my-week` (après lien compte)
 - [ ] Bouton accept/decline/complete sur une notif (si applicable)
 
 ---
