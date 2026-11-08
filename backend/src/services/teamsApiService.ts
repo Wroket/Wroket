@@ -4,7 +4,36 @@
 
 import { ValidationError } from "../utils/errors";
 import { getTeamsConnectionForUser } from "./teamsConnectionService";
-import { getTeamsBotConnectorToken, isTeamsBotConfigured } from "./teamsOAuthService";
+import {
+  getTeamsBotConnectorToken,
+  getTeamsBotCredentials,
+  isTeamsBotConfigured,
+} from "./teamsOAuthService";
+
+/**
+ * Bot Framework Connector requires `Activity.From` (MissingProperty 400 without it).
+ * Inject the bot App ID when the caller omitted it.
+ */
+function withBotFrom(activity: unknown): Record<string, unknown> {
+  const { appId } = getTeamsBotCredentials();
+  const base =
+    activity && typeof activity === "object"
+      ? { ...(activity as Record<string, unknown>) }
+      : { type: "message" };
+  const existing = base.from;
+  if (
+    existing &&
+    typeof existing === "object" &&
+    typeof (existing as { id?: unknown }).id === "string" &&
+    (existing as { id: string }).id.trim()
+  ) {
+    return base;
+  }
+  if (appId) {
+    base.from = { id: appId, name: "Wroket" };
+  }
+  return base;
+}
 
 /**
  * Reply (or proactive post) to a Bot Framework conversation via Connector API.
@@ -28,12 +57,13 @@ export async function postTeamsConversationActivity(opts: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(opts.activity),
+      body: JSON.stringify(withBotFrom(opts.activity)),
       signal: AbortSignal.timeout(8_000),
     },
   );
   if (!res.ok) {
-    console.warn("[teams] connector post failed:", res.status, await res.text().catch(() => ""));
+    const errBody = await res.text().catch(() => "");
+    console.warn(`[teams] connector post failed: ${res.status} ${errBody}`);
     return false;
   }
   return true;
@@ -82,12 +112,13 @@ export async function updateTeamsConversationActivity(opts: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(opts.activity),
+      body: JSON.stringify(withBotFrom(opts.activity)),
       signal: AbortSignal.timeout(8_000),
     },
   );
   if (!res.ok) {
-    console.warn("[teams] connector update activity failed:", res.status, await res.text().catch(() => ""));
+    const errBody = await res.text().catch(() => "");
+    console.warn(`[teams] connector update activity failed: ${res.status} ${errBody}`);
     return false;
   }
   return true;
