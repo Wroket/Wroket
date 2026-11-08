@@ -98,6 +98,9 @@ const ERROR_CODE_KEYS: Record<string, TranslationKey> = {
   TASK_SUGGEST_PROVIDER_ERROR: "errors.code.TASK_SUGGEST_PROVIDER_ERROR",
   TASK_SUGGEST_TIMEOUT: "errors.code.TASK_SUGGEST_TIMEOUT",
   DEPENDENCIES_PLAN_REQUIRED: "errors.code.DEPENDENCIES_PLAN_REQUIRED",
+  TEAMS_TEST_FAILED: "errors.code.TEAMS_TEST_FAILED",
+  TEAMS_NOT_CONNECTED: "errors.code.TEAMS_NOT_CONNECTED",
+  GOOGLE_CHAT_TEST_FAILED: "errors.code.GOOGLE_CHAT_TEST_FAILED",
 };
 
 function extractRawMessage(body: unknown): string | undefined {

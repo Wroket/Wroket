@@ -151,6 +151,10 @@ export interface TeamsConnectionStatus {
   channelName: string | null;
   channelId: string | null;
   installedAt: string | null;
+  /** Bot conversation or incoming webhook ready for proactive posts. */
+  messagingReady?: boolean;
+  /** App ID for Teams deep link `users=28:{botAppId}`. */
+  botAppId?: string | null;
 }
 
 export async function getTeamsStatus(): Promise<TeamsConnectionStatus> {

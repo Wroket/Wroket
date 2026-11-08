@@ -178,9 +178,23 @@ export interface TeamsConnectionSummary {
   channelName: string | null;
   channelId: string | null;
   installedAt: string | null;
+  /** True when proactive posts can succeed (bot conversation or incoming webhook). */
+  messagingReady: boolean;
+  /** Microsoft App ID for Teams deep link `users=28:{botAppId}` (from env). */
+  botAppId: string | null;
+}
+
+function teamsBotAppIdFromEnv(): string | null {
+  const id =
+    process.env.TEAMS_BOT_APP_ID?.trim() ||
+    process.env.MICROSOFT_BOT_APP_ID?.trim() ||
+    process.env.MICROSOFT_CLIENT_ID?.trim() ||
+    "";
+  return id || null;
 }
 
 export function getTeamsConnectionSummary(uid: string): TeamsConnectionSummary {
+  const botAppId = teamsBotAppIdFromEnv();
   const conn = connectionsByUid.get(uid);
   if (!conn) {
     return {
@@ -189,14 +203,21 @@ export function getTeamsConnectionSummary(uid: string): TeamsConnectionSummary {
       channelName: null,
       channelId: null,
       installedAt: null,
+      messagingReady: false,
+      botAppId,
     };
   }
+  const messagingReady = Boolean(
+    (conn.conversationId && conn.serviceUrl) || conn.incomingWebhookUrl,
+  );
   return {
     connected: true,
     tenantName: conn.tenantName ?? conn.tenantId,
     channelName: conn.channelName ?? null,
     channelId: conn.channelId ?? null,
     installedAt: conn.installedAt,
+    messagingReady,
+    botAppId,
   };
 }
 

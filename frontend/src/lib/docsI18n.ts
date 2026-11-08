@@ -721,8 +721,8 @@ export const docsTranslations = {
     en: "Settings › Integrations › Connections › Microsoft Teams. Authorize the Entra app; the tenant is stored for proactive posts.",
   },
   "docs.teams.stepOauth.p2": {
-    fr: "Ajoutez le bot Wroket dans le canal Teams cible pour activer les messages bot (sinon webhook).",
-    en: "Add the Wroket bot to the target Teams channel to enable bot messages (otherwise webhook).",
+    fr: "Après OAuth : utilisez « Ouvrir le bot dans Teams » (deep link) ou téléchargez le package .zip (sideload / catalogue org), ajoutez-le à un canal, envoyez un message au bot, puis « Envoyer un test ». Marketplace Microsoft différé.",
+    en: "After OAuth: use “Open bot in Teams” (deep link) or download the .zip package (sideload / org catalog), add it to a channel, message the bot, then “Send a test”. Microsoft Marketplace is deferred.",
   },
   "docs.teams.stepWebhook.title": { fr: "Webhook entrant (repli)", en: "Incoming webhook (fallback)" },
   "docs.teams.stepWebhook.p1": {
@@ -753,6 +753,11 @@ export const docsTranslations = {
   "docs.teams.trouble2.body": {
     fr: "Le compte Entra doit exposer un email identique à Wroket. Reconnectez Teams depuis Paramètres.",
     en: "The Entra account must expose an email matching Wroket. Reconnect Teams from Settings.",
+  },
+  "docs.teams.trouble3.title": { fr: "Test Teams échoue", en: "Teams test fails" },
+  "docs.teams.trouble3.body": {
+    fr: "« Compte lié » ≠ bot joignable. Ouvrez le deep link ou installez le .zip, parlez au bot une fois, puis renvoyez le test. Un Incoming Webhook Teams reste un repli.",
+    en: "“Account linked” ≠ reachable bot. Open the deep link or install the .zip, message the bot once, then retry the test. A Teams Incoming Webhook remains a fallback.",
   },
 
   "docs.googleChat.metaTitle": { fr: "Guide Google Chat+", en: "Google Chat+ guide" },

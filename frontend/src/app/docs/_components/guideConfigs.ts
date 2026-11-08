@@ -416,7 +416,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.teams.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-08-09",
+    lastUpdated: "2026-11-08",
     benefitKeys: ["docs.teams.benefit1", "docs.teams.benefit2", "docs.teams.benefit3", "docs.teams.benefit4"],
     prerequisiteKeys: ["docs.teams.prereq1", "docs.teams.prereq2"],
     sections: [
@@ -429,6 +429,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     troubleshooting: [
       { titleKey: "docs.teams.trouble1.title", bodyKey: "docs.teams.trouble1.body" },
       { titleKey: "docs.teams.trouble2.title", bodyKey: "docs.teams.trouble2.body" },
+      { titleKey: "docs.teams.trouble3.title", bodyKey: "docs.teams.trouble3.body" },
     ],
     ctaHrefs: [{ labelKey: "docs.banner.ctaSettings", href: "/settings?tab=integrations" }],
   },

@@ -1,6 +1,11 @@
 /**
  * Slack+ — Incoming Webhooks (Lot 1), OAuth (Lot 2), Actions (Lot 3).
  *
+ * ## Priorité produit (2026-11-08)
+ *
+ * **Canal n°1 / golden path** — voir [chat-channel-priority.md](./chat-channel-priority.md).
+ * Fluidité OAuth déjà en prod ; rester la référence UX pour les autres canaux.
+ *
  * ## Public cible
  *
  * **Tous les clients Wroket** (Small teams+) avec **leur propre workspace Slack**.

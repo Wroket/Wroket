@@ -1,9 +1,11 @@
 # Ops chat integrations — checklist propriétaire (une fois)
 
 Source de vérité pour brancher **Slack+ / Teams+ / Google Chat+** en prod multi-clients.  
-Public cible : [chat-integrations-clients.md](./chat-integrations-clients.md).
+Public cible : [chat-integrations-clients.md](./chat-integrations-clients.md).  
+Priorité : [chat-channel-priority.md](./chat-channel-priority.md) — **Slack golden path** → Teams sideload/deep link → Chat privé → Discord optionnel.  
+**Différé :** Google Marketplace public, Microsoft Teams Store / Partner Center.
 
-Tu configures **une app Wroket par plateforme**. Les clients ne font que **Connecter** dans Paramètres + installer l’app dans leur espace.
+Tu configures **une app Wroket par plateforme**. Les clients font **Connecter** dans Paramètres + installer l’app dans leur espace (sauf Slack où le canal se choisit à l’OAuth).
 
 ---
 
@@ -67,14 +69,15 @@ Détail technique : [slack-plus.md](./slack-plus.md)
 - [x] Messaging endpoint : `https://api.wroket.com/integrations/teams/interactions`
 - [x] **Canaux** → Microsoft Teams / Direct Line / Web Chat = Healthy (2026-11-08)
 - [ ] **Profil de bot** → icône : `docs/assets/azure/wroket-bot-color-192.png` (outline 32px : `wroket-bot-outline-32.png`)
-- [ ] Smoke Web Chat / Teams après deploy `TEAMS_BOT_TENANT_ID` + connector authority SingleTenant
+- [x] Smoke Web Chat après connector `from=recipient` + authority SingleTenant (2026-11-08) — reply visible (identité Wroket absente en Web Chat = attendu)
+- [ ] Smoke Teams 1:1 / canal org (sideload zip + deep link `users=28:APP_ID`)
 
-### App Teams (package)
+### App Teams (package) — parcours pragmatique (pas Store)
 
-- [ ] Zip prêt : [`docs/assets/azure/wroket-teams-app.zip`](./assets/azure/wroket-teams-app.zip)
-- [ ] Tester avec compte **org M365** (`@wroket.com` ou sandbox) : Apps → Upload custom app → ajouter au canal
-- [ ] `@Wroket hello` puis Wroket → **Envoyer un test**
-- [ ] Prod clients : sideload / publish to org (Marketplace = plus tard)
+- [x] Zip : [`docs/assets/azure/wroket-teams-app.zip`](./assets/azure/wroket-teams-app.zip) + lien Paramètres
+- [ ] Tester org M365 : Upload custom app → canal → `@Wroket` → Wroket **Envoyer un test**
+- [ ] Deep link Paramètres « Ouvrir dans Teams » → mémoriser conversation
+- [ ] **Marketplace / Partner Center = différé** (priorité produit 2026-11-08)
 
 ### GCP Teams (option propre)
 
@@ -113,6 +116,7 @@ Env déjà : `GOOGLE_CHAT_REDIRECT_URI`. Fallback OAuth : `GOOGLE_CLIENT_*`.
   - **Pas de Verification Token** dans l’UI add-on → auth = **OIDC Bearer** (audience = HTTP endpoint, email = SA)
 - [x] OAuth client (existant) — redirect `https://api.wroket.com/integrations/google-chat/callback` — **2026-11-07** consent Chat scopes OK
 - [x] Scopes Chat (spaces + messages) accordés — Professionnel `francois@broudeur.com` **2026-11-07** 18:30 toast « Google Chat connecté »
+- [ ] **Reconnecter** après passage à `chat.messages.create` (2026-11-08) — scopes create-only (évite CASA)
 - [x] Marketplace listing **Private** (domaine Broudeur) — publié + install Individuel **2026-11-07** ; **Visibility Marketplace verrouillée Private** (irréversible dans ce projet GCP)
 - [ ] App installable hors domaine Broudeur (autres Workspace) — **bloqué** : Marketplace Public exige **nouveau projet GCP** + review Google (ne peut pas basculer Private→Public sur `involuted-reach-490718-h4`)
 - [x] Env Cloud Run (plain, pas Secret Manager) — via `cloudbuild.yaml` :

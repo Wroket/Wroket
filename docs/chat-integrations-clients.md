@@ -1,5 +1,10 @@
 # Slack+, Teams+, Google Chat+ — public cible (tous les clients Wroket)
 
+## Priorité produit (2026-11-08)
+
+Voir [chat-channel-priority.md](./chat-channel-priority.md) : **Slack → Teams pragmatique → Chat privé → Discord optionnel**.  
+Stores publics Google / Microsoft **différés**. Discord **n’est pas** un substitut Teams/Chat pour l’ICP Small teams+.
+
 ## Principe produit
 
 Les intégrations **Slack+**, **Teams+** et **Google Chat+** sont des connexions **SaaS multi-clients** :
@@ -27,10 +32,10 @@ Ce document évite la confusion entre **ops Wroket** (une fois, côté plateform
 | Canal | Console opérateur | Multilocataire |
 |-------|-------------------|----------------|
 | Slack+ | [api.slack.com](https://api.slack.com/apps) — app distribuée (pas « Internal only ») | Oui (chaque workspace) |
-| Teams+ | Azure Bot + Entra — **bot multilocataire** + app Teams publiée / sideload | Oui (`MICROSOFT_TENANT_ID=common` en prod) |
-| Google Chat+ | Google Cloud — app Chat HTTP + OAuth | Oui (chaque domaine Workspace) |
+| Teams+ | Azure Bot + Entra — bot Azure **Client unique** (contrainte 2026) + Entra app multilocataire ; sideload / deep link (Teams Store différé) | OAuth multi-tenant OK ; install bot cross-org limitée tant que Store / multi-bot non résolu |
+| Google Chat+ | Google Cloud — app Chat HTTP + OAuth (listing privé) | Oui dans le domaine / Workspace configuré ; Marketplace public différé |
 
-**Important Teams :** un bot Azure en **Client unique** (tenant Wroket seulement) **ne sert pas** les autres clients. En prod, le bot doit être **Multilocataire** (Entra : comptes org + perso si souhaité).
+**Important Teams :** Azure Bot `wroket-teams` est **Client unique** (Multilocataire Azure Bot déprécié). Entra reste multilocataire pour OAuth. Parcours client actuel = OAuth + **installer le package / deep link** dans *leur* org, pas Marketplace Microsoft.
 
 Secrets prod : `SLACK_*` (montés), `TEAMS_BOT_*` / `GOOGLE_CHAT_*` (à monter dans `cloudbuild.yaml` quand créés).
 

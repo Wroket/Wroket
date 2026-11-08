@@ -24,15 +24,16 @@ const CHAT_REDIRECT_URI =
   "http://localhost:3001/integrations/google-chat/callback";
 
 /**
- * Chat API scopes — spaces + messages for posting; memberships.app to add the
- * Wroket Chat app into the selected space (required for inbound MESSAGE events).
+ * Chat API scopes — spaces + create-only messages (not restricted `chat.messages`);
+ * memberships.app adds the Wroket Chat app into the selected space (inbound events).
+ * Prefer `chat.messages.create` to avoid Google CASA / restricted-scope audit.
  */
 const CHAT_SCOPES = [
   "openid",
   "email",
   "profile",
   "https://www.googleapis.com/auth/chat.spaces",
-  "https://www.googleapis.com/auth/chat.messages",
+  "https://www.googleapis.com/auth/chat.messages.create",
   "https://www.googleapis.com/auth/chat.memberships.app",
 ].join(" ");
 

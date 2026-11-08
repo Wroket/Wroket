@@ -5,8 +5,10 @@
  *
  * **Tous les clients Wroket** (Small teams+) avec **Microsoft 365 / Teams** (org école ou entreprise).
  * Chaque client connecte **son** tenant Entra — pas réservé à l’org Wroket. Voir [chat-integrations-clients.md](./chat-integrations-clients.md).
- * Prérequis client : OAuth Wroket + installer l’app bot Wroket dans un canal Teams (manifest : `docs/assets/azure/teams-app/`).
- * Bot Azure prod : **multilocataire** (`MICROSOFT_TENANT_ID=common`), pas « Client unique » tenant Wroket seul.
+ * Prérequis client : OAuth Wroket + installer l’app bot Wroket (zip sideload / deep link 1:1) — pas Marketplace Microsoft pour l’instant
+ *   (voir [chat-channel-priority.md](./chat-channel-priority.md)).
+ * Bot Azure prod : **Client unique** (contrainte Azure 2026) + Entra app **multilocataire** pour OAuth.
+ *   Teams Store / bot multi-orgs pleinement SaaS = différé.
  *
  * ## Incoming Webhook vs Bot
  *
@@ -54,7 +56,7 @@
  *
  * 1. Azure Portal → create / reuse Bot registration (App ID + password)
  * 2. Messaging endpoint: `https://api.wroket.com/integrations/teams/interactions`
- * 3. Bot type: **Multilocataire** (required for other customers; not Client unique)
+ * 3. Bot type: **Client unique** accepted (Multilocataire Azure Bot deprecated); Entra app stays multitenant
  * 4. Canaux → Microsoft Teams activé
  * 5. Redirect URI: `https://api.wroket.com/integrations/teams/callback`
  * 6. Entra account types: multitenant org directories

@@ -52,8 +52,9 @@
  * 2. Set HTTP endpoint URL to `https://api.wroket.com/integrations/google-chat/interactions`
  * 3. Note Service account email + project number → plain Cloud Run env (OIDC verify)
  * 4. OAuth client + redirect URI `https://api.wroket.com/integrations/google-chat/callback`
- * 5. Scopes: openid email profile + chat.spaces + chat.messages + chat.memberships.app
- *    (`memberships.app` lets Connect / space select add the Chat app as space member for inbound)
+ * 5. Scopes: openid email profile + chat.spaces + chat.messages.create + chat.memberships.app
+ *    (`messages.create` = send only — avoids restricted `chat.messages` / CASA;
+ *    `memberships.app` lets Connect / space select add the Chat app as space member for inbound)
  * 6. Deploy env via `cloudbuild.yaml` (no Chat secret required for add-on OIDC)
  * 7. Settings → Connect (or Reconnect after scope change) → choose space → app auto-added → Test
  * 8. Smoke: card click + `@Wroket overdue`

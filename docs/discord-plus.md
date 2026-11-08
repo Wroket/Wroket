@@ -1,6 +1,14 @@
 /**
  * Discord+ — Application + Bot + Interactions HTTP (parité Slack+).
  *
+ * ## Priorité produit (2026-11-08)
+ *
+ * **P3 / optionnel** — voir [chat-channel-priority.md](./chat-channel-priority.md).
+ * Discord a une forte présence grand public mais une **faible adoption pro** (~3 % vs Slack
+ * largement dominant dans les stacks PMO). Ne pas prioriser Discord à la place de Teams
+ * ou Google Chat. Cible raisonnable : niches maker / communauté après Slack + Teams
+ * pragmatique. Webhook Incoming reste le plus simple pour un smoke faible coût.
+ *
  * ## Webhook vs Bot
  *
  * Channel Incoming Webhook = fallback. Bot OAuth + Interactions = actions + slash.

@@ -2329,15 +2329,39 @@ function ConnectedAppsBlock({
             </div>
             {teamsStatus?.connected ? (
               <div className="mt-auto space-y-2">
-                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
-                  {t("settings.connectionTeamsConnected")}
+                <p className={`text-xs font-medium ${teamsStatus.messagingReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+                  {teamsStatus.messagingReady
+                    ? t("settings.connectionTeamsMessagingReady")
+                    : t("settings.connectionTeamsConnected")}
                   {teamsStatus.tenantName ? ` · ${teamsStatus.tenantName}` : ""}
                 </p>
+                {!teamsStatus.messagingReady ? (
+                  <p className="text-[11px] text-zinc-500 dark:text-slate-400 leading-snug">
+                    {t("settings.connectionTeamsInstallHint")}
+                  </p>
+                ) : null}
+                {teamsStatus.botAppId ? (
+                  <a
+                    href={`https://teams.microsoft.com/l/chat/0/0?users=28:${encodeURIComponent(teamsStatus.botAppId)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${integrationSecondaryBtn} relative z-0 inline-flex items-center justify-center`}
+                  >
+                    {t("settings.connectionTeamsOpenBot")}
+                  </a>
+                ) : null}
                 <button type="button" disabled={!hasIntegrations || teamsTesting} onClick={async () => {
                   setTeamsTesting(true);
-                  try { await testTeamsConnection(); toast.success(t("settings.connectionTeamsTestOk")); }
-                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
-                  finally { setTeamsTesting(false); }
+                  try {
+                    await testTeamsConnection();
+                    toast.success(t("settings.connectionTeamsTestOk"));
+                    const next = await getTeamsStatus().catch(() => null);
+                    if (next) setTeamsStatus(next);
+                  } catch (e) {
+                    toast.error(formatUserFacingError(e, "toast.genericError"));
+                  } finally {
+                    setTeamsTesting(false);
+                  }
                 }} className={`${integrationSecondaryBtn} relative z-0`}>
                   {teamsTesting ? "…" : t("settings.connectionTeamsTest")}
                 </button>
@@ -2347,7 +2371,7 @@ function ConnectedAppsBlock({
                 <button type="button" disabled={!hasIntegrations || disconnecting === "teams"} onClick={async () => {
                   setDisconnecting("teams");
                   try { await disconnectTeamsConnection(); await refresh(); }
-                  catch (e) { toast.error(e instanceof Error ? e.message : t("toast.genericError")); }
+                  catch (e) { toast.error(formatUserFacingError(e, "toast.genericError")); }
                   finally { setDisconnecting(null); }
                 }} className="relative z-0 self-end rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 disabled:opacity-50 transition-colors">
                   {t("settings.connectionDisconnect")}
@@ -2369,9 +2393,19 @@ function ConnectedAppsBlock({
               <div className="min-w-0 flex-1">
                 <h5 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">{t("settings.connectionGoogleChat")}</h5>
                 <p className="text-xs text-zinc-500 dark:text-slate-400 mt-0.5">{t("settings.connectionGoogleChatDesc")}</p>
-                <Link href="/docs/integrations/google-chat" className="inline-block mt-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
-                  {t("settings.viewIntegrationGuide")}
-                </Link>
+                <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                  <Link href="/docs/integrations/google-chat" className="inline-block text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+                    {t("settings.viewIntegrationGuide")}
+                  </Link>
+                  <a
+                    href="https://chat.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-[11px] font-medium text-zinc-600 dark:text-slate-300 hover:underline"
+                  >
+                    {t("settings.connectionGoogleChatOpen")}
+                  </a>
+                </div>
               </div>
             </div>
             {googleChatStatus?.connected ? (

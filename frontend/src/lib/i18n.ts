@@ -1126,7 +1126,16 @@ const translations = {
     fr: "Connectez votre organisation Microsoft 365 / Teams (Small teams+) : Adaptive Cards, actions et /wroket. Après OAuth, installez l’app Wroket dans votre canal Teams.",
     en: "Connect your Microsoft 365 / Teams organization (Small teams+): Adaptive Cards, actions, and /wroket. After OAuth, install the Wroket app in your Teams channel.",
   },
-  "settings.connectionTeamsConnected": { fr: "Connecté", en: "Connected" },
+  "settings.connectionTeamsConnected": { fr: "Compte lié", en: "Account linked" },
+  "settings.connectionTeamsMessagingReady": {
+    fr: "Prêt à poster (bot ou webhook actif)",
+    en: "Ready to post (bot or webhook active)",
+  },
+  "settings.connectionTeamsInstallHint": {
+    fr: "Étape suivante : ouvrez le bot dans Teams ou installez le package .zip dans un canal, puis envoyez un message au bot.",
+    en: "Next: open the bot in Teams or install the .zip package in a channel, then send the bot a message.",
+  },
+  "settings.connectionTeamsOpenBot": { fr: "Ouvrir le bot dans Teams", en: "Open bot in Teams" },
   "settings.connectionTeamsTest": { fr: "Envoyer un test", en: "Send a test" },
   "settings.connectionTeamsTestOk": { fr: "Message de test Teams envoyé.", en: "Teams test message sent." },
   "settings.connectionTeamsReconnect": { fr: "Reconnecter", en: "Reconnect" },
@@ -1134,7 +1143,10 @@ const translations = {
     fr: "Package Teams (.zip)",
     en: "Teams package (.zip)",
   },
-  "settings.teamsConnectedToast": { fr: "Microsoft Teams connecté.", en: "Microsoft Teams connected." },
+  "settings.teamsConnectedToast": {
+    fr: "Microsoft Teams lié. Installez le bot dans un canal (ou ouvrez le deep link) pour activer les messages.",
+    en: "Microsoft Teams linked. Install the bot in a channel (or open the deep link) to enable messaging.",
+  },
 
   "settings.connectionGoogleChat": { fr: "Google Chat", en: "Google Chat" },
   "settings.connectionGoogleChatDesc": {
@@ -1153,15 +1165,19 @@ const translations = {
     fr: "Espace enregistré, mais l’app n’a pas pu être ajoutée. Reconnectez Google Chat puis réessayez, ou ajoutez Wroket manuellement dans l’espace.",
     en: "Space saved, but the app could not be added. Reconnect Google Chat and retry, or add Wroket manually in the space.",
   },
+  "settings.connectionGoogleChatOpen": { fr: "Ouvrir Google Chat", en: "Open Google Chat" },
   "settings.connectionGoogleChatTest": { fr: "Envoyer un test", en: "Send a test" },
   "settings.connectionGoogleChatTestOk": { fr: "Message de test Google Chat envoyé.", en: "Google Chat test message sent." },
-  "settings.connectionGoogleChatReconnect": { fr: "Reconnecter", en: "Reconnect" },
+  "settings.connectionGoogleChatReconnect": {
+    fr: "Reconnecter (mettre à jour les scopes)",
+    en: "Reconnect (update scopes)",
+  },
   "settings.googleChatConnectedToast": { fr: "Google Chat connecté.", en: "Google Chat connected." },
 
   "settings.connectionDiscord": { fr: "Discord", en: "Discord" },
   "settings.connectionDiscordDesc": {
-    fr: "Bot Discord + slash /wroket et boutons. Si Discord ne partage pas l’email, liez votre ID utilisateur Discord ci-dessous.",
-    en: "Discord bot + /wroket slash and buttons. If Discord does not share your email, link your Discord user ID below.",
+    fr: "Optionnel (niches maker). Bot Discord + slash /wroket. Si Discord ne partage pas l’email, liez votre ID utilisateur ci-dessous. Priorité produit : après Slack et Teams.",
+    en: "Optional (maker niches). Discord bot + /wroket slash. If Discord does not share email, link your user ID below. Product priority: after Slack and Teams.",
   },
   "settings.connectionDiscordConnected": { fr: "Connecté", en: "Connected" },
   "settings.connectionDiscordTest": { fr: "Envoyer un test", en: "Send a test" },
@@ -4143,6 +4159,18 @@ const translations = {
   "errors.code.DEPENDENCIES_PLAN_REQUIRED": {
     fr: "Les dépendances entre tâches nécessitent le palier Small teams ou supérieur.",
     en: "Task dependencies require Small teams plan or higher.",
+  },
+  "errors.code.TEAMS_TEST_FAILED": {
+    fr: "Impossible d’envoyer le test Teams. Ouvrez le bot dans Teams (ou installez le package .zip dans un canal), envoyez un message, puis réessayez.",
+    en: "Could not send the Teams test. Open the bot in Teams (or install the .zip package in a channel), send a message, then retry.",
+  },
+  "errors.code.TEAMS_NOT_CONNECTED": {
+    fr: "Teams n’est pas connecté. Connectez Microsoft Teams dans Paramètres → Intégrations.",
+    en: "Teams is not connected. Connect Microsoft Teams in Settings → Integrations.",
+  },
+  "errors.code.GOOGLE_CHAT_TEST_FAILED": {
+    fr: "Impossible d’envoyer le test Google Chat. Choisissez un espace et assurez-vous que l’app Wroket y est ajoutée, puis réessayez.",
+    en: "Could not send the Google Chat test. Select a space and make sure the Wroket app is added, then retry.",
   },
   "errors.code.SHARE_LINK_INVALID": {
     fr: "Ce lien de partage est expiré ou a été révoqué.",
