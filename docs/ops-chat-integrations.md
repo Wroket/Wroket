@@ -49,8 +49,7 @@ Détail technique : [slack-plus.md](./slack-plus.md)
 
 **Déjà fait (partiel) :** bot `wroket-teams`, endpoint messaging, App ID `e75f60be-547f-40fe-b910-5feb59a600bc`, OAuth Teams + redirect callback.
 
-**Bloquant multi-clients :** bot encore **Client unique** → passer **Multilocataire**.  
-*Note 2026-11-07 :* portal Azure demande le mot de passe Microsoft (`francois@broudeur.com` / login.live) — **bloqué sans auth interactive** ; reprendre Multilocataire dès session Azure ouverte.
+**Type de bot (2026-11-08) :** Azure Bot `wroket-teams` reste **Client unique** — UI grisée ; création Multilocataire Azure Bot dépréciée côté Microsoft (après 2025-07-31). Entra app `e75f60be-…` reste **multilocataire + MSA** pour OAuth. Canaux Teams / Direct Line / Web Chat = **Healthy** ; endpoint = `https://api.wroket.com/integrations/teams/interactions`. Pour les replies Connector en SingleTenant : env `TEAMS_BOT_TENANT_ID=4d7ec8e5-e09d-439d-8954-0f90454b1b28` (home tenant).
 
 ### Entra — inscription **Wroket** (`e75f60be-547f-40fe-b910-5feb59a600bc`)
 
@@ -64,10 +63,11 @@ Détail technique : [slack-plus.md](./slack-plus.md)
 
 ### Azure Bot `wroket-teams`
 
-- [ ] **Configuration** → type de bot → **Multilocataire** (plus Client unique) — *bloqué 2026-11-07 : login Azure (`francois.broudeur@hotmail.fr`) non complété (autofill / mot de passe)*
-- [ ] Messaging endpoint : `https://api.wroket.com/integrations/teams/interactions`
-- [ ] **Canaux** → Microsoft Teams → activer → **Appliquer**
+- [x] **Configuration** → type de bot = **Client unique** (accepté — Multilocataire Azure Bot indisponible / déprécié)
+- [x] Messaging endpoint : `https://api.wroket.com/integrations/teams/interactions`
+- [x] **Canaux** → Microsoft Teams / Direct Line / Web Chat = Healthy (2026-11-08)
 - [ ] **Profil de bot** → icône : `docs/assets/azure/wroket-bot-color-192.png` (outline 32px : `wroket-bot-outline-32.png`)
+- [ ] Smoke Web Chat / Teams après deploy `TEAMS_BOT_TENANT_ID` + connector authority SingleTenant
 
 ### App Teams (package)
 

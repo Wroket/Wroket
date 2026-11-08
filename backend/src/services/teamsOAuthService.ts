@@ -153,6 +153,21 @@ export async function exchangeTeamsOAuthCode(
   return { tenantName: String(tenantName) };
 }
 
+/**
+ * Authority for Bot Connector client_credentials.
+ * Single-tenant Azure Bots must use the home tenant id (not `botframework.com`).
+ * Multi-tenant bots keep the Bot Framework authority.
+ */
+function teamsBotConnectorAuthority(): string {
+  const dedicated = process.env.TEAMS_BOT_TENANT_ID?.trim();
+  if (dedicated) return dedicated;
+  const ms = process.env.MICROSOFT_TENANT_ID?.trim();
+  if (ms && ms !== "common" && ms !== "organizations" && ms !== "consumers") {
+    return ms;
+  }
+  return "botframework.com";
+}
+
 /** Client-credentials token for Bot Framework Connector. */
 export async function getTeamsBotConnectorToken(): Promise<string | null> {
   if (!isTeamsBotConfigured()) return null;
@@ -163,7 +178,9 @@ export async function getTeamsBotConnectorToken(): Promise<string | null> {
     client_secret: appPassword,
     scope: "https://api.botframework.com/.default",
   });
-  const res = await fetch("https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token", {
+  const authority = teamsBotConnectorAuthority();
+  const tokenUrl = `https://login.microsoftonline.com/${authority}/oauth2/v2.0/token`;
+  const res = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -171,7 +188,11 @@ export async function getTeamsBotConnectorToken(): Promise<string | null> {
   });
   const data = (await res.json()) as { access_token?: string; error?: string };
   if (!data.access_token) {
-    console.warn("[teams-bot] connector token failed:", data.error ?? res.status);
+    console.warn(
+      "[teams-bot] connector token failed:",
+      data.error ?? res.status,
+      `(authority=${authority})`,
+    );
     return null;
   }
   return data.access_token;
