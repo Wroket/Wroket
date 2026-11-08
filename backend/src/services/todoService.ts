@@ -1673,12 +1673,21 @@ export function findTodoForUserInRam(userId: string, todoId: string, userEmail?:
  * teammates' tasks for move/planning updates — not only owner/assignee.
  */
 export async function findTodoForUser(userId: string, todoId: string, userEmail?: string): Promise<TodoLookup | null> {
-  const ram = findTodoForUserFromRam(userId, todoId, userEmail);
+  const id = todoId.trim();
+  if (!id) return null;
+
+  let ram = findTodoForUserFromRam(userId, id, userEmail);
+  if (ram) return ram;
+
+  // Cold replica: owner list may not be in RAM yet (lazy boot). Hydrate then retry
+  // before the cross-owner get-by-id path — same cost profile as `/wroket tasks`.
+  await ensureOwnerHydrated(userId);
+  ram = findTodoForUserFromRam(userId, id, userEmail);
   if (ram) return ram;
 
   if (TODOS_STORAGE_MODE !== "v2" || USE_LOCAL_TODOS) return null;
 
-  const row = await getTodoV2ById(todoId);
+  const row = await getTodoV2ById(id);
   if (!row) return null;
 
   const ownerUid = row.ownerUid || (typeof row.userId === "string" ? row.userId : "");

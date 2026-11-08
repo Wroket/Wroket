@@ -7,11 +7,24 @@ import { findTodoForUser, updateTodo } from "../todoService";
 import { AppError, UnprocessableEntityError } from "../../utils/errors";
 import { CHAT_ACTION_IDS, type ChatActionResult, type ChatTaskAction } from "./types";
 
+/**
+ * Normalize a todo id pasted from chat (backticks, quotes, zero-width, fancy dashes).
+ */
+export function normalizeChatTodoId(raw: string): string {
+  return raw
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/^[`'"<\[(]+|[`'">\])]+$/g, "")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .trim();
+}
+
 export function parseButtonValue(raw: string | undefined): { todoId: string; targetUid: string } | null {
   if (!raw?.trim()) return null;
   const parts = raw.trim().split("|");
   if (parts.length !== 2) return null;
-  const [todoId, targetUid] = parts;
+  const todoId = normalizeChatTodoId(parts[0] ?? "");
+  const targetUid = (parts[1] ?? "").trim();
   if (!todoId || !targetUid) return null;
   return { todoId, targetUid };
 }
@@ -45,9 +58,17 @@ export async function runTaskAction(opts: {
     return { ok: false, message: "Compte Wroket introuvable." };
   }
 
-  const found = await findTodoForUser(opts.actorUid, opts.todoId);
+  const todoId = normalizeChatTodoId(opts.todoId);
+  if (!todoId) {
+    return { ok: false, message: "Identifiant de tâche manquant." };
+  }
+
+  const found = await findTodoForUser(opts.actorUid, todoId, user.email);
   if (!found) {
-    return { ok: false, message: "Tâche introuvable ou accès refusé." };
+    return {
+      ok: false,
+      message: `Tâche introuvable pour \`${todoId}\` (ou accès refusé). Vérifiez l’id via \`/wroket tasks\` ou \`/wroket open <id>\`.`,
+    };
   }
   const todo = found.todo;
 
@@ -63,7 +84,7 @@ export async function runTaskAction(opts: {
         };
       }
       const nextStatus = opts.action === "accept" ? "accepted" : "declined";
-      await updateTodo(opts.actorUid, user.email, opts.todoId, {
+      await updateTodo(opts.actorUid, user.email, todoId, {
         assignmentStatus: nextStatus,
       });
       // Mirror HTTP update: notify owner once (pending → terminal only; guarded above).
@@ -117,7 +138,7 @@ export async function runTaskAction(opts: {
     if (!canComplete) {
       return { ok: false, message: "Vous ne pouvez pas terminer cette tâche." };
     }
-    await updateTodo(opts.actorUid, user.email, opts.todoId, { status: "completed" });
+    await updateTodo(opts.actorUid, user.email, todoId, { status: "completed" });
     return {
       ok: true,
       todoTitle: todo.title,

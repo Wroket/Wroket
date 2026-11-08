@@ -14,21 +14,22 @@ Redirect env : `https://api.wroket.com/integrations/slack/callback`.
 
 ### Console Slack App
 
-- [ ] Ouvrir l’app Wroket (réf. code : `A0ASUUQ8DQE` dans `slackOAuthService.ts`)
-- [ ] **OAuth & Permissions → Redirect URLs** :
-  - `https://api.wroket.com/integrations/slack/callback`
-  - (dev) `http://localhost:3001/integrations/slack/callback`
-- [ ] **Bot Token Scopes** :
+- [x] Ouvrir l’app Wroket (réf. code : `A0ASUUQ8DQE` dans `slackOAuthService.ts`) — **2026-11-08**
+- [x] **OAuth & Permissions → Redirect URLs** :
+  - `https://api.wroket.com/integrations/slack/callback` — **confirmé 2026-11-08** (Edit/Delete + App Manifest)
+  - (dev) `http://localhost:3001/integrations/slack/callback` — optionnel, non présent en console
+- [x] **Bot Token Scopes** — **confirmés App Manifest 2026-11-08** :
   - `chat:write`
   - `channels:read`
   - `groups:read`
   - `incoming-webhook`
   - `users:read`
   - `users:read.email`
-- [ ] **Interactivity & Shortcuts** → Request URL :
-  - `https://api.wroket.com/integrations/slack/interactions`
-- [ ] **Slash Commands** → commande `/wroket` → Request URL :
-  - `https://api.wroket.com/integrations/slack/commands`
+  - (+ `commands`)
+- [x] **Interactivity & Shortcuts** → Request URL :
+  - `https://api.wroket.com/integrations/slack/interactions` — **App Manifest `settings.interactivity` is_enabled + request_url 2026-11-08** (UI sticky Save faux dirty ; unsigned POST → 401)
+- [x] **Slash Commands** → commande `/wroket` → Request URL :
+  - `https://api.wroket.com/integrations/slack/commands` — **App Manifest + commande listée 2026-11-08** (unsigned POST → 401)
 - [x] **Manage Distribution** : public distribution **active** (app `A0ASUUQ8DQE`, confirmé 2026-08-13 — bouton « Deactivate Public Distribution » visible)
 - [ ] Si scopes modifiés : dans Wroket → **Reconnecter** Slack
 
@@ -36,7 +37,7 @@ Redirect env : `https://api.wroket.com/integrations/slack/callback`.
 
 - [x] Paramètres → Connecter Slack → choisir un canal — **2026-11-07** (Profil 5 NomPrenom + Profil 3 Test1/bebroudeur + Professionnel → `#notifications-wroket`)
 - [x] **Envoyer un test** — messages « Test Wroket — connexion Slack OK ✅ » (16:43 ×2, 17:03, 18:17 Professionnel, 18:26 Profil 3 toast ; retest Professionnel 20:01–20:02 UTC+1 → API `slack/test` 200 ×3 ; retest 20:21 Professionnel + 20:24 NomPrenom toast « Message de test envoyé. » → `#notifications-wroket`)
-- [ ] Cliquer un bouton (accept/decline/complete) sur une notif OAuth
+- [x] Cliquer un bouton (accept/decline/complete) sur une notif OAuth — **2026-11-08** Professionnel / `#notifications-wroket` : Accepter → `✅ Tâche « Smoke Slack boutons E2E » acceptée` (tentative antérieure mismatch `email canal ≠ destinataire` si Slack user ≠ destinataire)
 - [x] `/wroket help` — Professionnel 18:19 (éphémère Commandes /wroket)
 - [x] `/wroket my-week` — Profil 5 (semaine vide) + Profil 3 (17:04 « Ma semaine (1) ») + Professionnel 18:19 « Ma semaine (4) » retards
 
@@ -107,19 +108,20 @@ Env déjà : `GOOGLE_CHAT_REDIRECT_URI`. Fallback OAuth : `GOOGLE_CLIENT_*`.
   - Workspace add-on **coché** (irréversible si décoché — laisser)
   - Interactive ON, Join spaces **coché**
   - Common HTTP endpoint : `https://api.wroket.com/integrations/google-chat/interactions`
-  - Visibility Broudeur : `francois@broudeur.com`
+  - Visibility Broudeur : **domaine entier** (case « specific people » **décochée** + Save) — **2026-11-08** 12:48 UTC+1 (précédemment limité à `francois@broudeur.com`)
   - Service account : `service-846885741813@gcp-sa-gsuiteaddons.iam.gserviceaccount.com`
   - **Pas de Verification Token** dans l’UI add-on → auth = **OIDC Bearer** (audience = HTTP endpoint, email = SA)
 - [x] OAuth client (existant) — redirect `https://api.wroket.com/integrations/google-chat/callback` — **2026-11-07** consent Chat scopes OK
 - [x] Scopes Chat (spaces + messages) accordés — Professionnel `francois@broudeur.com` **2026-11-07** 18:30 toast « Google Chat connecté »
-- [ ] App installable hors domaine Wroket (autres Workspace)
+- [x] Marketplace listing **Private** (domaine Broudeur) — publié + install Individuel **2026-11-07** ; **Visibility Marketplace verrouillée Private** (irréversible dans ce projet GCP)
+- [ ] App installable hors domaine Broudeur (autres Workspace) — **bloqué** : Marketplace Public exige **nouveau projet GCP** + review Google (ne peut pas basculer Private→Public sur `involuted-reach-490718-h4`)
 - [x] Env Cloud Run (plain, pas Secret Manager) — via `cloudbuild.yaml` :
   - `GOOGLE_CHAT_PROJECT_NUMBER=846885741813`
   - `GOOGLE_CHAT_SERVICE_ACCOUNT_EMAIL=service-846885741813@gcp-sa-gsuiteaddons.iam.gserviceaccount.com`
   - `GOOGLE_CHAT_HTTP_ENDPOINT=https://api.wroket.com/integrations/google-chat/interactions`
 - [x] Connexion Wroket : Professionnel `francois@broudeur.com` → **Connecté · Site FTB - Aug 19** (espace déjà sélectionné) — **2026-11-07** 18:30
 - [x] **Envoyer un test** depuis Connexions — Professionnel **2026-11-07** 20:05 UTC+1 → API `google-chat/test` **200** ; message « Test Wroket — connexion Google Chat OK ✅ » visible dans l’espace **Site FTB - Aug 19** (chat.google.com)
-- [ ] Smoke E2E restant : `@Wroket overdue` (OIDC inbound) — **2026-11-07** : aucun POST Cloud Logging sur `/interactions` (seulement GET 404 historiques) ; env OIDC Cloud Run OK. Fix code : normaliser payload **Workspace add-on** + réponse `DataActions` + GET health + logs OIDC (à déployer puis retester `@Wroket help` / `overdue`)
+- [x] Smoke E2E : `@Wroket help` + `@Wroket overdue` (OIDC inbound) — **2026-11-07** 23:45–23:46 UTC+1 : Marketplace private listing publié + install Individuel ; POSTs `Google-gsuiteaddons` **200** sur `/interactions` ; réponses visibles dans **Wroket notifs** (help + overdue)
 
 Sans Workspace : Chat+ non testable (Gmail seul hors cible).
 

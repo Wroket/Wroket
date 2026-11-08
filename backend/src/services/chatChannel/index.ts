@@ -12,6 +12,7 @@ export { CHAT_ACTION_IDS } from "./types";
 export { resolveUserFromChatEmail } from "./resolveUser";
 export {
   actionIdToTaskAction,
+  normalizeChatTodoId,
   parseButtonValue,
   runTaskAction,
 } from "./taskActions";

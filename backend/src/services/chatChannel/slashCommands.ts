@@ -23,7 +23,7 @@ import {
   formatTeamRiskDigest,
 } from "../pmoDigestService";
 import { taskDeepLink } from "../notificationFormatting";
-import { runTaskAction } from "./taskActions";
+import { normalizeChatTodoId, runTaskAction } from "./taskActions";
 
 const SLASH_HELP = [
   "*Commandes Wroket*",
@@ -137,7 +137,8 @@ export async function handleSlashText(opts: {
   }
 
   if (verb === "plan" || verb === "slots" || verb === "creneau") {
-    const [todoId, mode] = rest;
+    const todoId = normalizeChatTodoId(rest[0] ?? "");
+    const mode = rest[1];
     if (!todoId) return `Usage : \`${prefix} plan <todoId> [auto]\``;
     const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
     try {
@@ -188,10 +189,11 @@ export async function handleSlashText(opts: {
   }
 
   if (verb === "start") {
-    if (!arg) return `Usage : \`${prefix} start <todoId>\``;
+    const startTodoId = normalizeChatTodoId(arg);
+    if (!startTodoId) return `Usage : \`${prefix} start <todoId>\``;
     try {
       const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
-      const timer = await startTimeTimer(opts.actorUid, actorEmail, arg);
+      const timer = await startTimeTimer(opts.actorUid, actorEmail, startTodoId);
       return `⏱️ Chrono démarré sur \`${timer.todoId}\`. Tapez \`${prefix} stop\` pour l’arrêter.`;
     } catch (err) {
       return `Impossible de démarrer le chrono : ${(err as Error).message || "erreur"}`;
@@ -208,7 +210,9 @@ export async function handleSlashText(opts: {
   }
 
   if (verb === "log") {
-    const [todoId, minStr, ...noteParts] = rest;
+    const todoId = normalizeChatTodoId(rest[0] ?? "");
+    const minStr = rest[1];
+    const noteParts = rest.slice(2);
     const mins = Number(minStr);
     if (!todoId || !Number.isFinite(mins) || mins <= 0) {
       return `Usage : \`${prefix} log <todoId> <minutes> [note]\``;
@@ -223,9 +227,13 @@ export async function handleSlashText(opts: {
   }
 
   if (verb === "open") {
-    if (!arg) return `Usage : \`${prefix} open <todoId>\``;
-    const found = await findTodoForUser(opts.actorUid, arg);
-    if (!found) return "Tâche introuvable ou accès refusé.";
+    const openTodoId = normalizeChatTodoId(arg);
+    if (!openTodoId) return `Usage : \`${prefix} open <todoId>\``;
+    const actorEmail = findUserByUid(opts.actorUid)?.email;
+    const found = await findTodoForUser(opts.actorUid, openTodoId, actorEmail);
+    if (!found) {
+      return `Tâche introuvable pour \`${openTodoId}\` (ou accès refusé).`;
+    }
     const t = found.todo;
     const link = taskDeepLink(t.id);
     const lines = [
@@ -239,11 +247,12 @@ export async function handleSlashText(opts: {
   }
 
   if (verb === "accept" || verb === "decline" || verb === "complete") {
-    if (!arg) return `Usage : \`${prefix} ${verb} <todoId>\``;
+    const actionTodoId = normalizeChatTodoId(arg);
+    if (!actionTodoId) return `Usage : \`${prefix} ${verb} <todoId>\``;
     const result = await runTaskAction({
       actorUid: opts.actorUid,
       targetUid: opts.actorUid,
-      todoId: arg,
+      todoId: actionTodoId,
       action: verb,
     });
     return result.message;

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   actionIdToTaskAction,
+  normalizeChatTodoId,
   parseButtonValue,
   resolveUserFromChatEmail,
   slashHelpTextForPrefix,
@@ -28,6 +29,18 @@ describe("chatChannel task action helpers", () => {
   it("parses button values", () => {
     expect(parseButtonValue("todo1|uid1")).toEqual({ todoId: "todo1", targetUid: "uid1" });
     expect(parseButtonValue("bad")).toBeNull();
+  });
+
+  it("normalizes pasted todo ids from Slack mrkdwn", () => {
+    expect(normalizeChatTodoId("`a8f31ed5-f6d4-41f2-a55a-8af43803913a`")).toBe(
+      "a8f31ed5-f6d4-41f2-a55a-8af43803913a",
+    );
+    expect(normalizeChatTodoId("\u200ba8f31ed5-f6d4-41f2-a55a-8af43803913a\u200b")).toBe(
+      "a8f31ed5-f6d4-41f2-a55a-8af43803913a",
+    );
+    expect(normalizeChatTodoId("a8f31ed5\u2013f6d4\u201341f2\u2013a55a\u20138af43803913a")).toBe(
+      "a8f31ed5-f6d4-41f2-a55a-8af43803913a",
+    );
   });
 
   it("maps action ids including short verbs", () => {
