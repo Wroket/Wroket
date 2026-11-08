@@ -101,7 +101,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Priorité canaux chat (étude 2026-11-08)** — Slack first ; Teams pragmatique ; Chat privé ; Discord optionnel ; stores publics différés — [`docs/chat-channel-priority.md`](docs/chat-channel-priority.md).
 - [ ] **Teams+ pragmatique E2E** — deep link + sideload zip + `messagingReady` Paramètres ; smoke canal org (Store différé).
 - [ ] **Google Chat+ scope create + reconnect** — `chat.messages.create` ; Marketplace public différé.
-- [ ] **Discord+ (ops)** — Portal + secrets Cloud Run + slash `/wroket` + smoke E2E ; niche, pas substitut Teams/Chat — [`docs/discord-plus.md`](docs/discord-plus.md), [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md) §5.
+- [x] **Discord+ (ops)** — Portal + secrets Cloud Run + slash `/wroket` + smoke E2E (Test, help, complete) **2026-11-09** ; niche, pas substitut Teams/Chat — [`docs/discord-plus.md`](docs/discord-plus.md), [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md) §5.
 - [ ] **Bot time tracking (P3bis)** — Après ops canaux : `/wroket start|stop|log|timer` sur `timeSessionService` — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). **Exclu** : clone Gryzzly (budgets, CIR, rappels 1:1) tant que PMO chat n’est pas stable.
 - [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
 - [ ] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe selon traction terrain — *pas* le Client Portal (voir Later).
