@@ -12,14 +12,6 @@ import {
 
 type ChannelAccount = { id?: string; name?: string; role?: string; aadObjectId?: string };
 
-/**
- * Strip Teams `28:` channel prefix so App ID compares cleanly to JWT `appid`.
- */
-function normalizeBotAppId(id: string): string {
-  const trimmed = id.trim();
-  return trimmed.toLowerCase().startsWith("28:") ? trimmed.slice(3) : trimmed;
-}
-
 function channelAccountId(account: unknown): string | undefined {
   if (!account || typeof account !== "object") return undefined;
   const id = (account as ChannelAccount).id;
@@ -47,8 +39,10 @@ function peekTokenBotClaims(token: string): { appid?: string; azp?: string; tid?
 
 /**
  * Bot Framework Connector requires `Activity.From` (MissingProperty 400 without it).
- * Prefer inbound `recipient` (channel bot identity); fall back to configured App ID.
- * Always align `from.id` with the token's `appid` when a GUID App ID is known.
+ * Critical: `from` must be the inbound activity's `recipient` (channel bot account),
+ * NOT the raw Microsoft App ID — mismatched channel ids yield 403 BadArgument
+ * "token is not valid for the bot specified in the from field" even when JWT appid matches.
+ * @see https://learn.microsoft.com/answers/questions/5887178
  */
 function withBotFrom(activity: unknown, preferredFrom?: ChannelAccount): Record<string, unknown> {
   const { appId } = getTeamsBotCredentials();
@@ -62,22 +56,17 @@ function withBotFrom(activity: unknown, preferredFrom?: ChannelAccount): Record<
 
   const preferredId = preferredFrom?.id?.trim();
   if (preferredId) {
-    // If preferred is `28:<appId>` or equals appId, keep channel shape; otherwise force appId.
-    const preferredNorm = normalizeBotAppId(preferredId);
-    if (appId && preferredNorm.toLowerCase() !== appId.toLowerCase()) {
-      base.from = { id: appId, name: preferredFrom?.name || "Wroket", role: "bot" };
-    } else {
-      base.from = {
-        id: preferredId,
-        name: preferredFrom?.name || "Wroket",
-        role: "bot",
-      };
-    }
+    base.from = {
+      id: preferredId,
+      name: preferredFrom?.name || "Wroket",
+      role: "bot",
+    };
     return base;
   }
 
+  // Proactive / no inbound recipient: last resort App ID (Teams often uses 28:<appId>).
   if (appId) {
-    base.from = { id: appId, name: "Wroket", role: "bot" };
+    base.from = { id: `28:${appId}`, name: "Wroket", role: "bot" };
   }
   return base;
 }
