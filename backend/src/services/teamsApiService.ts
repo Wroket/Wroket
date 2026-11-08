@@ -66,6 +66,7 @@ function withBotFrom(activity: unknown, preferredFrom?: ChannelAccount): Record<
 
   // Proactive / no inbound recipient: last resort App ID (Teams often uses 28:<appId>).
   if (appId) {
+    console.warn("[teams] connector from fallback to 28:appId — inbound recipient missing");
     base.from = { id: `28:${appId}`, name: "Wroket", role: "bot" };
   }
   return base;
