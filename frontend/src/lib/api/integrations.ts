@@ -301,6 +301,34 @@ export async function disconnectDiscordConnection(): Promise<void> {
   if (!res.ok) throw await parseApiErrorResponse(res, "toast.genericError");
 }
 
+export interface DiscordChannelOption {
+  id: string;
+  name: string;
+}
+
+export async function listDiscordChannels(): Promise<DiscordChannelOption[]> {
+  const res = await fetch(`${API_BASE_URL}/integrations/discord/channels`, {
+    ...apiFetchDefaults,
+  });
+  if (!res.ok) throw await parseApiErrorResponse(res, "toast.genericError");
+  const data = (await res.json()) as { channels: DiscordChannelOption[] };
+  return data.channels ?? [];
+}
+
+export async function updateDiscordChannel(
+  channelId: string,
+  channelName?: string,
+): Promise<DiscordConnectionStatus> {
+  const res = await fetch(`${API_BASE_URL}/integrations/discord/channel`, {
+    ...apiFetchDefaults,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channelId, channelName }),
+  });
+  if (!res.ok) throw await parseApiErrorResponse(res, "toast.genericError");
+  return res.json() as Promise<DiscordConnectionStatus>;
+}
+
 export async function testDiscordConnection(): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/integrations/discord/test`, {
     ...apiFetchDefaults,

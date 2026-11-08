@@ -88,6 +88,8 @@ import {
   updateSlackChannel,
   listGoogleChatSpaces,
   updateGoogleChatSpace,
+  listDiscordChannels,
+  updateDiscordChannel,
   linkDiscordUserId,
   unlinkDiscordUserId,
   type AppConnectionSummary,
@@ -97,6 +99,7 @@ import {
   type GoogleChatConnectionStatus,
   type GoogleChatSpaceOption,
   type DiscordConnectionStatus,
+  type DiscordChannelOption,
 } from "@/lib/api/integrations";
 import {
   billingPlanMarketingKey,
@@ -1897,6 +1900,8 @@ function ConnectedAppsBlock({
   const [googleChatTesting, setGoogleChatTesting] = useState(false);
   const [discordTesting, setDiscordTesting] = useState(false);
   const [discordLinkInput, setDiscordLinkInput] = useState("");
+  const [discordChannels, setDiscordChannels] = useState<DiscordChannelOption[] | null>(null);
+  const [discordChannelBusy, setDiscordChannelBusy] = useState(false);
   const [slackChannels, setSlackChannels] = useState<SlackChannelOption[] | null>(null);
   const [slackChannelBusy, setSlackChannelBusy] = useState(false);
   const [googleChatSpaces, setGoogleChatSpaces] = useState<GoogleChatSpaceOption[] | null>(null);
@@ -2521,6 +2526,59 @@ function ConnectedAppsBlock({
                   {t("settings.connectionDiscordConnected")}
                   {discordStatus.guildName ? ` · ${discordStatus.guildName}` : ""}
                 </p>
+                {discordStatus.channelName && (
+                  <p className="text-xs text-zinc-500 dark:text-slate-400">
+                    {t("settings.connectionDiscordChannel")}: #{discordStatus.channelName.replace(/^#/, "")}
+                  </p>
+                )}
+                {discordChannels ? (
+                  <select
+                    aria-label={t("settings.connectionDiscordChannel")}
+                    disabled={discordChannelBusy}
+                    value={discordStatus.channelId ?? ""}
+                    onChange={async (e) => {
+                      const nextId = e.target.value;
+                      if (!nextId) return;
+                      const found = discordChannels.find((c) => c.id === nextId);
+                      setDiscordChannelBusy(true);
+                      try {
+                        const updated = await updateDiscordChannel(nextId, found?.name);
+                        setDiscordStatus(updated);
+                        toast.success(t("settings.connectionDiscordChannelUpdated"));
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+                      } finally {
+                        setDiscordChannelBusy(false);
+                      }
+                    }}
+                    className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-xs text-zinc-900 dark:text-slate-100 dark:bg-slate-800"
+                  >
+                    <option value="">{t("settings.connectionDiscordChangeChannel")}…</option>
+                    {discordChannels.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        #{ch.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!hasIntegrations || discordChannelBusy}
+                    onClick={async () => {
+                      setDiscordChannelBusy(true);
+                      try {
+                        setDiscordChannels(await listDiscordChannels());
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : t("toast.genericError"));
+                      } finally {
+                        setDiscordChannelBusy(false);
+                      }
+                    }}
+                    className={`${integrationSecondaryBtn} relative z-0`}
+                  >
+                    {discordChannelBusy ? "…" : t("settings.connectionDiscordChangeChannel")}
+                  </button>
+                )}
                 {discordStatus.linkedDiscordUserId && (
                   <p className="text-xs text-zinc-500 dark:text-slate-400">
                     {t("settings.connectionDiscordLinked")}: {discordStatus.linkedDiscordUserId}
@@ -2640,14 +2698,17 @@ function IntegrationsSection({
     slack: boolean;
     teams: boolean;
     google_chat: boolean;
-  }>({ slack: false, teams: false, google_chat: false });
+    discord: boolean;
+  }>({ slack: false, teams: false, google_chat: false, discord: false });
 
   useEffect(() => {
     if (
       searchParams.get("notion") === "connected" ||
+      searchParams.get("monday") === "connected" ||
       searchParams.get("slack") === "connected" ||
       searchParams.get("teams") === "connected" ||
-      searchParams.get("google_chat") === "connected"
+      searchParams.get("google_chat") === "connected" ||
+      searchParams.get("discord") === "connected"
     ) {
       setActiveSubSection("connections");
     }
@@ -2677,12 +2738,13 @@ function IntegrationsSection({
           setDigestHour(me.notificationDigestHour ?? 8);
         }
         if (hasIntegrations) {
-          const [list, conns, slack, teams, gchat] = await Promise.all([
+          const [list, conns, slack, teams, gchat, discord] = await Promise.all([
             getWebhooks(),
             getConnections(),
             getSlackStatus().catch(() => null),
             getTeamsStatus().catch(() => null),
             getGoogleChatStatus().catch(() => null),
+            getDiscordStatus().catch(() => null),
           ]);
           if (!cancelled) {
             setWebhooks(list);
@@ -2693,6 +2755,7 @@ function IntegrationsSection({
               google_chat: Boolean(
                 gchat?.connected && gchat.spaceName && gchat.spaceName !== "spaces/unknown",
               ),
+              discord: Boolean(discord?.connected),
             });
           }
         }
@@ -3035,7 +3098,13 @@ function IntegrationsSection({
     </div>
   );
 
-  const connectedAppsCount = connections.filter((c) => c.status === "connected").length;
+  /** Hub badge: Notion/Monday pull sync + chat OAuth (Slack/Teams/Chat/Discord). */
+  const connectedAppsCount =
+    connections.filter((c) => c.status === "connected").length +
+    (oauthChatReady.slack ? 1 : 0) +
+    (oauthChatReady.teams ? 1 : 0) +
+    (oauthChatReady.google_chat ? 1 : 0) +
+    (oauthChatReady.discord ? 1 : 0);
   const deliverySummary = deliveryRadios.find((d) => d.mode === deliveryMode);
 
   const advancedWebhooksPanel = (

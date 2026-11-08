@@ -64,8 +64,13 @@ import {
   getDiscordConnectionSummary,
   linkDiscordAccount as persistDiscordAccountLink,
   unlinkDiscordAccount as persistDiscordAccountUnlink,
+  updateDiscordChannelForUser,
 } from "../services/discordConnectionService";
-import { postDiscordTestMessage } from "../services/discordApiService";
+import {
+  ensureDiscordDefaultChannel,
+  listDiscordChannelsForUser,
+  postDiscordTestMessage,
+} from "../services/discordApiService";
 import {
   buildNotionDatabaseSnapshot,
   buildNotionContactsSnapshot,
@@ -1082,6 +1087,7 @@ export async function discordCallback(req: Request, res: Response) {
   }
   try {
     await exchangeDiscordOAuthCode(code, uid, user.email);
+    await ensureDiscordDefaultChannel(uid);
     const dest = returnTo
       ? `${frontendUrl}${returnTo}${returnTo.includes("?") ? "&" : "?"}discord=connected`
       : `${frontendUrl}/settings?tab=integrations&discord=connected`;
@@ -1094,6 +1100,26 @@ export async function discordCallback(req: Request, res: Response) {
 
 export async function discordStatus(req: AuthenticatedRequest, res: Response) {
   assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  res.status(200).json(getDiscordConnectionSummary(req.user!.uid));
+}
+
+export async function listDiscordChannels(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const channels = await listDiscordChannelsForUser(req.user!.uid);
+  res.status(200).json({ channels });
+}
+
+export async function updateDiscordChannel(req: AuthenticatedRequest, res: Response) {
+  assertIntegrationsEntitlementEffective(req.user!.uid, req.user!.email);
+  const { channelId, channelName } = req.body as { channelId?: unknown; channelName?: unknown };
+  if (typeof channelId !== "string" || !channelId.trim()) {
+    throw new ValidationError("channelId est requis", "DISCORD_CHANNEL_REQUIRED");
+  }
+  updateDiscordChannelForUser(
+    req.user!.uid,
+    channelId.trim(),
+    typeof channelName === "string" ? channelName.trim() : undefined,
+  );
   res.status(200).json(getDiscordConnectionSummary(req.user!.uid));
 }
 

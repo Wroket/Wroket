@@ -14,6 +14,7 @@
     "migrate:strip-encryption": "npm run build && node -r dotenv/config dist/scripts/migrateStripEncryption.js",
     "reconcile:todo-titles-from-restore": "npm run build && node -r dotenv/config dist/scripts/reconcileTodoTitlesFromRestore.js",
     "cleanup:orphan-attachments": "npm run build && node -r dotenv/config dist/scripts/cleanupOrphanAttachments.js",
+    "register:discord-slash": "npm run build && node -r dotenv/config dist/scripts/registerDiscordSlashCommand.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run test --prefix ../e2e"

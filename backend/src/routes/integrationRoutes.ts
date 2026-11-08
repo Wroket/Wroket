@@ -47,6 +47,8 @@ import {
   discordConnect,
   discordCallback,
   discordStatus,
+  listDiscordChannels,
+  updateDiscordChannel,
   disconnectDiscord,
   discordTestPost,
   discordLinkAccount,
@@ -111,6 +113,8 @@ router.delete("/google-chat/connection", requireAuth, disconnectGoogleChat);
 router.get("/discord/connect", requireAuth, discordConnect);
 router.get("/discord/callback", discordCallback);
 router.get("/discord/status", requireAuth, discordStatus);
+router.get("/discord/channels", requireAuth, listDiscordChannels);
+router.patch("/discord/channel", requireAuth, updateDiscordChannel);
 router.post("/discord/test", requireAuth, discordTestPost);
 router.delete("/discord/connection", requireAuth, disconnectDiscord);
 router.post("/discord/link", requireAuth, discordLinkAccount);

@@ -102,8 +102,8 @@ export const docsTranslations = {
   },
   "docs.hub.teams.title": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "docs.hub.teams.summary": {
-    fr: "Bot Teams + Adaptive Cards : actions et /wroket (parité Slack+, Small teams).",
-    en: "Teams bot + Adaptive Cards: actions and /wroket (Slack+ parity, Small teams).",
+    fr: "OAuth + deep link / package .zip org (Small teams). Adaptive Cards après install de l’app — pas le Store public.",
+    en: "OAuth + org deep link / .zip package (Small teams). Adaptive Cards after app install — not the public Store.",
   },
   "docs.hub.googleChat.title": { fr: "Google Chat", en: "Google Chat" },
   "docs.hub.googleChat.summary": {

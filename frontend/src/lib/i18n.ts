@@ -964,9 +964,12 @@ const translations = {
   },
   "settings.integrationsCardConnections": { fr: "Connexions applicatives", en: "App connections" },
   "settings.integrationsCardConnectionsDesc": {
-    fr: "Notion, Monday — synchronisation pull vers Wroket.",
-    en: "Notion, Monday — pull sync into Wroket.",
+    fr: "Notion, Monday, Slack, Discord, Teams, Google Chat.",
+    en: "Notion, Monday, Slack, Discord, Teams, Google Chat.",
   },
+  "settings.connectionDiscordChannel": { fr: "Salon", en: "Channel" },
+  "settings.connectionDiscordChangeChannel": { fr: "Changer de salon", en: "Change channel" },
+  "settings.connectionDiscordChannelUpdated": { fr: "Salon Discord mis à jour.", en: "Discord channel updated." },
   "settings.integrationsCardData": { fr: "Import de données", en: "Data import" },
   "settings.integrationsCardDataDesc": {
     fr: "Importer des tâches ou un projet (CSV / JSON).",
@@ -1049,8 +1052,8 @@ const translations = {
     en: "External delivery, digests, and advanced webhooks: Small teams plan.",
   },
   "settings.integrationsLockedDesc": {
-    fr: "Les webhooks et la livraison des notifications vers Slack, Teams, Google Chat ou par e-mail sont disponibles à partir du palier Small teams. Jusque-là, les notifications restent dans l’application uniquement.",
-    en: "Webhooks and notification delivery to Slack, Teams, Google Chat, or email are available from the Small teams tier. Until then, notifications stay in-app only.",
+    fr: "Les webhooks et la livraison des notifications vers Slack, Teams, Discord, Google Chat ou par e-mail sont disponibles à partir du palier Small teams. Jusque-là, les notifications restent dans l’application uniquement.",
+    en: "Webhooks and notification delivery to Slack, Teams, Discord, Google Chat, or email are available from the Small teams tier. Until then, notifications stay in-app only.",
   },
   "settings.calendarSelect": { fr: "Calendriers à afficher", en: "Calendars to display" },
   "settings.addGoogleAccount": { fr: "+ Ajouter un compte Google", en: "+ Add Google account" },
@@ -1123,8 +1126,8 @@ const translations = {
 
   "settings.connectionTeams": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "settings.connectionTeamsDesc": {
-    fr: "Connectez votre organisation Microsoft 365 / Teams (Small teams+) : Adaptive Cards, actions et /wroket. Après OAuth, installez l’app Wroket dans votre canal Teams.",
-    en: "Connect your Microsoft 365 / Teams organization (Small teams+): Adaptive Cards, actions, and /wroket. After OAuth, install the Wroket app in your Teams channel.",
+    fr: "Liez votre compte Microsoft 365 (Small teams+). Les messages Adaptive Cards et /wroket nécessitent l’app Wroket dans Teams (deep link ou package .zip) — l’OAuth seul ne suffit pas à poster.",
+    en: "Link your Microsoft 365 account (Small teams+). Adaptive Cards and /wroket need the Wroket app in Teams (deep link or .zip package) — OAuth alone does not enable posting.",
   },
   "settings.connectionTeamsConnected": { fr: "Compte lié", en: "Account linked" },
   "settings.connectionTeamsMessagingReady": {
@@ -1176,8 +1179,8 @@ const translations = {
 
   "settings.connectionDiscord": { fr: "Discord", en: "Discord" },
   "settings.connectionDiscordDesc": {
-    fr: "Optionnel (niches maker). Bot Discord + slash /wroket. Si Discord ne partage pas l’email, liez votre ID utilisateur ci-dessous. Priorité produit : après Slack et Teams.",
-    en: "Optional (maker niches). Discord bot + /wroket slash. If Discord does not share email, link your user ID below. Product priority: after Slack and Teams.",
+    fr: "Bot Discord + slash /wroket (Small teams+). À l’installation OAuth, choisissez le serveur. Si Discord ne partage pas l’email, liez votre ID utilisateur ci-dessous.",
+    en: "Discord bot + /wroket slash (Small teams+). Pick the server during OAuth install. If Discord does not share email, link your user ID below.",
   },
   "settings.connectionDiscordConnected": { fr: "Connecté", en: "Connected" },
   "settings.connectionDiscordTest": { fr: "Envoyer un test", en: "Send a test" },
@@ -1192,8 +1195,8 @@ const translations = {
 
   "settings.notificationDeliveryTitle": { fr: "Envoi des notifications", en: "Notification delivery" },
   "settings.notificationDeliveryDesc": {
-    fr: "En plus des notifications dans l’application, vous pouvez recevoir une copie par email (adresse du compte) ou via votre connexion OAuth / webhook Slack, Microsoft Teams ou Google Chat.",
-    en: "Besides in-app notifications, you can receive a copy by email (account address) or via your connected OAuth app / incoming webhook for Slack, Microsoft Teams, or Google Chat.",
+    fr: "En plus des notifications dans l’application, vous pouvez recevoir une copie par email (adresse du compte) ou via votre connexion OAuth / webhook Slack, Discord, Microsoft Teams ou Google Chat.",
+    en: "Besides in-app notifications, you can receive a copy by email (account address) or via your connected OAuth app / incoming webhook for Slack, Discord, Microsoft Teams, or Google Chat.",
   },
   "settings.deliveryNone": { fr: "Application uniquement", en: "In-app only" },
   "settings.deliveryEmail": { fr: "Email (adresse du compte)", en: "Email (account address)" },
@@ -2948,8 +2951,8 @@ const translations = {
   },
   "landing.f3.title": { fr: "Connectez vos apps préférées", en: "Connect your favorite apps" },
   "landing.f3.desc": {
-    fr: "Importez depuis Notion ou Monday. Reliez calendriers externes, Slack et Microsoft Teams.",
-    en: "Import from Notion or Monday. Connect external calendars, Slack, and Microsoft Teams.",
+    fr: "Importez depuis Notion ou Monday. Reliez calendriers, Slack, Discord et Microsoft Teams (Teams : après install de l’app).",
+    en: "Import from Notion or Monday. Connect calendars, Slack, Discord, and Microsoft Teams (Teams: after installing the app).",
   },
   "landing.f4.title": { fr: "Gérez vos projets", en: "Manage your projects" },
   "landing.f4.desc": {
@@ -2966,8 +2969,8 @@ const translations = {
   "landing.footerEisenhower": { fr: "Matrice Eisenhower", en: "Eisenhower matrix" },
   "landing.f6.title": { fr: "Notifications & rappels", en: "Notifications & reminders" },
   "landing.f6.desc": {
-    fr: "Rappels deadline et alertes d'assignation dans l'app ; relais possibles vers Slack, Discord ou Teams.",
-    en: "In-app deadline reminders and assignment alerts; optional Slack, Discord, or Teams delivery.",
+    fr: "Rappels deadline et alertes d'assignation dans l'app ; relais Slack ou Discord (bot), Teams après install de l'app, ou webhooks.",
+    en: "In-app deadline reminders and assignment alerts; Slack or Discord (bot), Teams after app install, or webhooks.",
   },
   "landing.flipHint": { fr: "Survolez pour un aperçu", en: "Hover for a preview" },
   "landing.footerTag": { fr: "Vos projets méritent mieux qu'une to-do list.", en: "Your projects deserve more than a to-do list." },
@@ -3028,10 +3031,10 @@ const translations = {
     fr: "Assignez une t\u00e2che \u00e0 un coll\u00e8gue, discutez avec @mentions et r\u00e9actions. Les notifications gardent tout le monde align\u00e9 sans multiplier les r\u00e9unions de statut.",
     en: "Assign a task to a teammate, discuss with @mentions and reactions. Notifications keep everyone aligned without extra status meetings.",
   },
-  "marketing.team.s3.title": { fr: "Slack, Teams, Discord", en: "Slack, Teams, Discord" },
+  "marketing.team.s3.title": { fr: "Slack, Discord, Teams", en: "Slack, Discord, Teams" },
   "marketing.team.s3.p1": {
-    fr: "Webhooks vers Slack, Microsoft Teams et Discord. Recevez les assignations et rappels l\u00e0 o\u00f9 votre \u00e9quipe travaille d\u00e9j\u00e0.",
-    en: "Webhooks to Slack, Microsoft Teams, and Discord. Get assignments and reminders where your team already works.",
+    fr: "Slack et Discord en bot OAuth (/wroket, actions). Teams apr\u00e8s installation de l\u2019app (deep link ou zip). Webhooks Incoming en repli sur les trois canaux.",
+    en: "Slack and Discord via OAuth bots (/wroket, actions). Teams after installing the app (deep link or zip). Incoming webhooks as fallback on all three.",
   },
   "marketing.team.s4.title": { fr: "Grandir avec votre \u00e9quipe", en: "Grow with your team" },
   "marketing.team.s4.p1": {
@@ -3178,7 +3181,7 @@ const translations = {
   "pricing.tier.first.b3": { fr: "Quotas élargis (tâches, projets, notes)", en: "Expanded quotas (tasks, projects, notes)" },
   "pricing.tier.small.tagline": { fr: "Intégrations et collaboration pour les équipes.", en: "Integrations and collaboration for teams." },
   "pricing.tier.small.b1": { fr: "Google Calendar & Outlook (OAuth)", en: "Google Calendar & Outlook (OAuth)" },
-  "pricing.tier.small.b2": { fr: "Webhooks Slack, Teams, Discord + notifications externes", en: "Slack, Teams, Discord webhooks + external notifications" },
+  "pricing.tier.small.b2": { fr: "Slack+/Discord+ OAuth, Teams (après install app), webhooks", en: "Slack+/Discord+ OAuth, Teams (after app install), webhooks" },
   "pricing.tier.small.b3": { fr: "Équipes et rôles", en: "Teams and roles" },
   "pricing.tier.large.tagline": { fr: "Organisations : reporting + feuille de route premium.", en: "Orgs: reporting plus the premium roadmap." },
   "pricing.tier.large.b1": { fr: "Tout le palier Small teams", en: "Everything in Small teams" },

@@ -133,6 +133,23 @@ export function deleteDiscordConnectionForUser(uid: string): DiscordConnection |
   return existing;
 }
 
+/**
+ * Persist the Discord text channel used for outbound posts / tests.
+ */
+export function updateDiscordChannelForUser(
+  uid: string,
+  channelId: string,
+  channelName?: string,
+): DiscordConnection {
+  const conn = connectionsByUid.get(uid);
+  if (!conn) throw new NotFoundError("Connexion Discord introuvable");
+  conn.channelId = channelId.trim();
+  conn.channelName = (channelName?.trim() || channelId.trim()).replace(/^#/, "");
+  conn.updatedAt = new Date().toISOString();
+  persistConnections();
+  return conn;
+}
+
 export function linkDiscordAccount(wroketUid: string, discordUserId: string): DiscordAccountLink {
   const id = discordUserId.trim();
   if (!id) throw new NotFoundError("discordUserId requis");

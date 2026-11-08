@@ -82,13 +82,13 @@ steps:
       # Teams+: TEAMS_BOT_* in Secret Manager (App ID = Entra Wroket; password synced from MICROSOFT_CLIENT_SECRET).
       # Google Chat+: Workspace add-on uses OIDC Bearer (GOOGLE_CHAT_PROJECT_NUMBER / SA email / HTTP endpoint as plain env above).
       # Classic Verification Token secret is optional; only mount GOOGLE_CHAT_VERIFICATION_TOKEN if the console still shows one.
-      # Discord+: DISCORD_CLIENT_ID/SECRET + DISCORD_PUBLIC_KEY + DISCORD_BOT_TOKEN — same rule (not mounted yet).
+      # Discord+: DISCORD_CLIENT_ID/SECRET + DISCORD_PUBLIC_KEY + DISCORD_BOT_TOKEN in Secret Manager (mounted below).
       # Checklist: docs/ops-chat-integrations.md
       # SLACK_REDIRECT_URI / TEAMS_REDIRECT_URI / GOOGLE_CHAT_REDIRECT_URI / DISCORD_REDIRECT_URI are plain env above.
       # Grant wroket-run@… Secret Accessor on each secret. --set-secrets replaces the full list (see .cursor/rules/cloudbuild.mdc).
-      # Do NOT add DISCORD_* / optional GOOGLE_CHAT_VERIFICATION_TOKEN here until Secret Manager secrets exist (deploy fails otherwise).
+      # Optional GOOGLE_CHAT_VERIFICATION_TOKEN: only mount if the console still shows one.
       - '--set-secrets'
-      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,NOTION_CLIENT_ID=NOTION_CLIENT_ID:latest,NOTION_CLIENT_SECRET=NOTION_CLIENT_SECRET:latest,MONDAY_CLIENT_ID=MONDAY_CLIENT_ID:latest,MONDAY_CLIENT_SECRET=MONDAY_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,SLACK_CLIENT_ID=SLACK_CLIENT_ID:latest,SLACK_CLIENT_SECRET=SLACK_CLIENT_SECRET:latest,SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest,TEAMS_BOT_APP_ID=TEAMS_BOT_APP_ID:latest,TEAMS_BOT_APP_PASSWORD=TEAMS_BOT_APP_PASSWORD:latest'
+      - 'OAUTH_STATE_SECRET=OAUTH_STATE_SECRET:latest,MICROSOFT_CLIENT_ID=MICROSOFT_CLIENT_ID:latest,MICROSOFT_CLIENT_SECRET=MICROSOFT_CLIENT_SECRET:latest,NOTION_CLIENT_ID=NOTION_CLIENT_ID:latest,NOTION_CLIENT_SECRET=NOTION_CLIENT_SECRET:latest,MONDAY_CLIENT_ID=MONDAY_CLIENT_ID:latest,MONDAY_CLIENT_SECRET=MONDAY_CLIENT_SECRET:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,SLACK_CLIENT_ID=SLACK_CLIENT_ID:latest,SLACK_CLIENT_SECRET=SLACK_CLIENT_SECRET:latest,SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest,TEAMS_BOT_APP_ID=TEAMS_BOT_APP_ID:latest,TEAMS_BOT_APP_PASSWORD=TEAMS_BOT_APP_PASSWORD:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest,DISCORD_PUBLIC_KEY=DISCORD_PUBLIC_KEY:latest,DISCORD_BOT_TOKEN=DISCORD_BOT_TOKEN:latest'
 
   # Single-var update: comma inside ADMIN_EMAILS needs alternate delimiter (gcloud topic escaping).
   - name: 'gcr.io/cloud-builders/gcloud'

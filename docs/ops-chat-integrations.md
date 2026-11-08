@@ -1,8 +1,8 @@
 # Ops chat integrations — checklist propriétaire (une fois)
 
-Source de vérité pour brancher **Slack+ / Teams+ / Google Chat+** en prod multi-clients.  
+Source de vérité pour brancher **Slack+ / Teams+ / Google Chat+ / Discord+** en prod multi-clients.  
 Public cible : [chat-integrations-clients.md](./chat-integrations-clients.md).  
-Priorité : [chat-channel-priority.md](./chat-channel-priority.md) — **Slack golden path** → Teams sideload/deep link → Chat privé → Discord optionnel.  
+Priorité : [chat-channel-priority.md](./chat-channel-priority.md) — **Slack golden path** → Teams sideload/deep link → Chat privé → Discord niche (ops autorisée).  
 **Différé :** Google Marketplace public, Microsoft Teams Store / Partner Center.
 
 Tu configures **une app Wroket par plateforme**. Les clients font **Connecter** dans Paramètres + installer l’app dans leur espace (sauf Slack où le canal se choisit à l’OAuth).
@@ -142,21 +142,54 @@ Ordre :
 3. Push `main` → Cloud Build → `wroket-api`
 4. Smoke E2E par canal
 
-**Ne pas** ajouter `TEAMS_BOT_*` / `GOOGLE_CHAT_*` à `--set-secrets` avant que les secrets existent (deploy échoue).
+**Ne pas** ajouter `TEAMS_BOT_*` / `DISCORD_*` / `GOOGLE_CHAT_VERIFICATION_TOKEN` à `--set-secrets` avant que les secrets existent (deploy échoue).
 
 ---
 
-## 5. Ordre recommandé
+## 5. Discord — [discord.com/developers/applications](https://discord.com/developers/applications)
+
+Détail : [discord-plus.md](./discord-plus.md). Code prêt ; **secrets Cloud Run = reste ops**.
+
+### Console Discord Application
+
+- [x] **New Application** → `Wroket` (`1569120606555742218`) — **2026-11-08**
+- [x] **Bot** → Reset Token → Secret Manager `DISCORD_BOT_TOKEN` — **2026-11-08**
+- [x] **OAuth2 → Redirects** — `https://api.wroket.com/integrations/discord/callback` — **2026-11-08**
+  - (dev) `http://localhost:3001/integrations/discord/callback` — optionnel
+- [x] Client ID / Client Secret → `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` — **2026-11-08**
+- [x] **General Information** → Public Key → `DISCORD_PUBLIC_KEY` — **2026-11-08**
+- [x] **Interactions Endpoint URL** :
+  - `https://api.wroket.com/integrations/discord/interactions` — **enregistré 2026-11-08** (validation Discord OK)
+- [x] Register slash `/wroket` (option `text`) — command id `1569122634661371994` — **2026-11-08**
+
+### GCP
+
+- [x] Créer les 4 secrets + IAM `wroket-run` Secret Accessor — **2026-11-08**
+- [x] Ajouter à `--set-secrets` dans [`cloudbuild.yaml`](../cloudbuild.yaml) + montage immédiat Cloud Run `wroket-api-00475-rp7` — **2026-11-08**
+- [x] `DISCORD_REDIRECT_URI` déjà en plain env prod
+
+### Smoke
+
+- [x] Paramètres → Connecter Discord → serveur **Wroket** — **2026-11-09** (`discord=connected`)
+- [ ] Salon texte (auto au callback / Test, ou « Changer de salon »)
+- [ ] Lier Discord user ID si pas d’email OAuth
+- [ ] Envoyer un test → message dans le salon
+- [ ] `/wroket help` + `/wroket my-week`
+- [ ] Bouton accept/decline/complete sur une notif (si applicable)
+
+---
+
+## 6. Ordre recommandé
 
 | # | Où | Action |
 |---|-----|--------|
 | 1 | Slack | URLs + distribution + smoke |
-| 2 | Entra + Azure Bot | Multilocataire + canal Teams + zip |
-| 3 | Git | Deploy Connector reply (`main`) |
-| 4 | Google | Chat API + token + redirect + secrets |
+| 2 | Entra + Azure Bot | Canal Teams + zip / deep link |
+| 3 | Google | Chat API + scopes create + smoke |
+| 4 | Discord | Portal + secrets + slash + smoke |
 | 5 | GCP | Monter secrets dédiés seulement après création |
 
-**Pas maintenant :** Discord ops, bot time tracking, clone Gryzzly.
+**Pas maintenant :** bot time tracking, clone Gryzzly, stores publics.
 
 ---
 
@@ -167,5 +200,6 @@ Ordre :
 | Slack | `/integrations/slack/callback` | `/integrations/slack/interactions`, `/integrations/slack/commands` |
 | Teams | `/integrations/teams/callback` | `/integrations/teams/interactions` |
 | Google Chat | `/integrations/google-chat/callback` | `/integrations/google-chat/interactions` |
+| Discord | `/integrations/discord/callback` | `/integrations/discord/interactions` |
 
 Base : `https://api.wroket.com`
