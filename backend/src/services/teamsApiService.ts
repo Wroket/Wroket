@@ -10,27 +10,74 @@ import {
   isTeamsBotConfigured,
 } from "./teamsOAuthService";
 
+type ChannelAccount = { id?: string; name?: string; role?: string; aadObjectId?: string };
+
+/**
+ * Strip Teams `28:` channel prefix so App ID compares cleanly to JWT `appid`.
+ */
+function normalizeBotAppId(id: string): string {
+  const trimmed = id.trim();
+  return trimmed.toLowerCase().startsWith("28:") ? trimmed.slice(3) : trimmed;
+}
+
+function channelAccountId(account: unknown): string | undefined {
+  if (!account || typeof account !== "object") return undefined;
+  const id = (account as ChannelAccount).id;
+  return typeof id === "string" && id.trim() ? id.trim() : undefined;
+}
+
+/**
+ * Decode JWT payload claims needed for connector diagnostics (no signature check).
+ */
+function peekTokenBotClaims(token: string): { appid?: string; azp?: string; tid?: string } {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return {};
+    const json = Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    const payload = JSON.parse(json) as Record<string, unknown>;
+    return {
+      appid: typeof payload.appid === "string" ? payload.appid : undefined,
+      azp: typeof payload.azp === "string" ? payload.azp : undefined,
+      tid: typeof payload.tid === "string" ? payload.tid : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Bot Framework Connector requires `Activity.From` (MissingProperty 400 without it).
- * Inject the bot App ID when the caller omitted it.
+ * Prefer inbound `recipient` (channel bot identity); fall back to configured App ID.
+ * Always align `from.id` with the token's `appid` when a GUID App ID is known.
  */
-function withBotFrom(activity: unknown): Record<string, unknown> {
+function withBotFrom(activity: unknown, preferredFrom?: ChannelAccount): Record<string, unknown> {
   const { appId } = getTeamsBotCredentials();
   const base: Record<string, unknown> =
     activity && typeof activity === "object"
       ? { ...(activity as Record<string, unknown>) }
       : { type: "message" };
-  const existing = base.from;
-  if (
-    existing &&
-    typeof existing === "object" &&
-    typeof (existing as { id?: unknown }).id === "string" &&
-    (existing as { id: string }).id.trim()
-  ) {
+
+  const existingId = channelAccountId(base.from);
+  if (existingId) return base;
+
+  const preferredId = preferredFrom?.id?.trim();
+  if (preferredId) {
+    // If preferred is `28:<appId>` or equals appId, keep channel shape; otherwise force appId.
+    const preferredNorm = normalizeBotAppId(preferredId);
+    if (appId && preferredNorm.toLowerCase() !== appId.toLowerCase()) {
+      base.from = { id: appId, name: preferredFrom?.name || "Wroket", role: "bot" };
+    } else {
+      base.from = {
+        id: preferredId,
+        name: preferredFrom?.name || "Wroket",
+        role: "bot",
+      };
+    }
     return base;
   }
+
   if (appId) {
-    base.from = { id: appId, name: "Wroket" };
+    base.from = { id: appId, name: "Wroket", role: "bot" };
   }
   return base;
 }
@@ -43,40 +90,72 @@ export async function postTeamsConversationActivity(opts: {
   serviceUrl: string;
   conversationId: string;
   activity: unknown;
+  /** When set, POST …/activities/{replyToId} (Reply to Activity). */
+  replyToId?: string;
+  preferredFrom?: ChannelAccount;
 }): Promise<boolean> {
-  const token = await getTeamsBotConnectorToken();
-  if (!token) return false;
   const base = opts.serviceUrl.replace(/\/$/, "");
   if (!base || !opts.conversationId) return false;
 
-  const res = await fetch(
-    `${base}/v3/conversations/${encodeURIComponent(opts.conversationId)}/activities`,
-    {
+  const bodyObj = withBotFrom(opts.activity, opts.preferredFrom);
+  const pathActivity = opts.replyToId
+    ? `${base}/v3/conversations/${encodeURIComponent(opts.conversationId)}/activities/${encodeURIComponent(opts.replyToId)}`
+    : `${base}/v3/conversations/${encodeURIComponent(opts.conversationId)}/activities`;
+  const payload = JSON.stringify(bodyObj);
+
+  /**
+   * SingleTenant Azure Bot + Multitenant Entra app: primary token uses home tenant;
+   * on from/token 403, retry once with botframework.com (same App ID).
+   */
+  const authorities: Array<string | undefined> = [undefined, "botframework.com"];
+  let lastErr = "";
+  for (const authority of authorities) {
+    const token = await getTeamsBotConnectorToken(authority);
+    if (!token) continue;
+
+    const res = await fetch(pathActivity, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(withBotFrom(opts.activity)),
+      body: payload,
       signal: AbortSignal.timeout(8_000),
-    },
-  );
-  if (!res.ok) {
+    });
+    if (res.ok) {
+      if (authority) {
+        console.warn(`[teams] connector post OK after authority fallback=${authority}`);
+      }
+      return true;
+    }
+
     const errBody = await res.text().catch(() => "");
-    console.warn(`[teams] connector post failed: ${res.status} ${errBody}`);
-    return false;
+    const claims = peekTokenBotClaims(token);
+    const fromId = channelAccountId(bodyObj.from) ?? "";
+    lastErr = `${res.status} ${errBody} | from=${fromId} tokenAppid=${claims.appid ?? "?"} tokenAzp=${claims.azp ?? "?"} tid=${claims.tid ?? "?"} auth=${authority ?? "home"} replyPath=${Boolean(opts.replyToId)}`;
+    console.warn(`[teams] connector post failed: ${lastErr}`);
+
+    // Retry alternate authority on auth / from-identity failures only.
+    if (res.status !== 401 && res.status !== 403) break;
   }
-  return true;
+  return false;
 }
 
 /**
  * Send a text reply to the inbound activity's conversation (Web Chat + Teams).
+ * Shapes the Activity per Bot Connector docs: from←recipient, recipient←from.
  */
 export async function replyTeamsText(opts: {
   serviceUrl?: string;
   conversationId?: string;
   replyToId?: string;
   text: string;
+  /** Inbound activity.from (user) → outbound recipient */
+  inboundFrom?: ChannelAccount;
+  /** Inbound activity.recipient (bot) → outbound from */
+  inboundRecipient?: ChannelAccount;
+  /** Inbound conversation object */
+  conversation?: Record<string, unknown>;
 }): Promise<boolean> {
   if (!opts.serviceUrl || !opts.conversationId || !opts.text.trim()) return false;
   const activity: Record<string, unknown> = {
@@ -84,10 +163,15 @@ export async function replyTeamsText(opts: {
     text: opts.text,
   };
   if (opts.replyToId) activity.replyToId = opts.replyToId;
+  if (opts.conversation) activity.conversation = opts.conversation;
+  else activity.conversation = { id: opts.conversationId };
+  if (opts.inboundFrom) activity.recipient = opts.inboundFrom;
   return postTeamsConversationActivity({
     serviceUrl: opts.serviceUrl,
     conversationId: opts.conversationId,
     activity,
+    replyToId: opts.replyToId,
+    preferredFrom: opts.inboundRecipient,
   });
 }
 
@@ -104,6 +188,7 @@ export async function updateTeamsConversationActivity(opts: {
   const token = await getTeamsBotConnectorToken();
   if (!token) return false;
   const base = opts.serviceUrl.replace(/\/$/, "");
+  const bodyObj = withBotFrom(opts.activity);
   const res = await fetch(
     `${base}/v3/conversations/${encodeURIComponent(opts.conversationId)}/activities/${encodeURIComponent(opts.activityId)}`,
     {
@@ -112,13 +197,17 @@ export async function updateTeamsConversationActivity(opts: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(withBotFrom(opts.activity)),
+      body: JSON.stringify(bodyObj),
       signal: AbortSignal.timeout(8_000),
     },
   );
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
-    console.warn(`[teams] connector update activity failed: ${res.status} ${errBody}`);
+    const claims = peekTokenBotClaims(token);
+    const fromId = channelAccountId(bodyObj.from) ?? "";
+    console.warn(
+      `[teams] connector update activity failed: ${res.status} ${errBody} | from=${fromId} tokenAppid=${claims.appid ?? "?"}`,
+    );
     return false;
   }
   return true;

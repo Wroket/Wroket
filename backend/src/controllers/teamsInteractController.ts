@@ -52,7 +52,7 @@ interface TeamsActivity {
   conversation?: { id?: string; tenantId?: string; conversationType?: string };
   channelData?: { tenant?: { id?: string }; channel?: { id?: string } };
   serviceUrl?: string;
-  recipient?: { id?: string };
+  recipient?: { id?: string; name?: string; role?: string };
 }
 
 function extractEmailFromActivity(activity: TeamsActivity): string | null {
@@ -68,6 +68,9 @@ async function sendReply(activity: TeamsActivity, text: string): Promise<void> {
     conversationId: activity.conversation?.id,
     replyToId: activity.id,
     text,
+    inboundFrom: activity.from,
+    inboundRecipient: activity.recipient,
+    conversation: activity.conversation as Record<string, unknown> | undefined,
   });
   if (!ok) {
     console.warn("[teams] connector reply failed — user may see no response in chat");

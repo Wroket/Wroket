@@ -168,8 +168,13 @@ function teamsBotConnectorAuthority(): string {
   return "botframework.com";
 }
 
-/** Client-credentials token for Bot Framework Connector. */
-export async function getTeamsBotConnectorToken(): Promise<string | null> {
+/**
+ * Client-credentials token for Bot Framework Connector.
+ * @param authorityOverride - e.g. `botframework.com` for a Multitenant-app fallback retry
+ */
+export async function getTeamsBotConnectorToken(
+  authorityOverride?: string,
+): Promise<string | null> {
   if (!isTeamsBotConfigured()) return null;
   const { appId, appPassword } = getTeamsBotCredentials();
   const body = new URLSearchParams({
@@ -178,7 +183,7 @@ export async function getTeamsBotConnectorToken(): Promise<string | null> {
     client_secret: appPassword,
     scope: "https://api.botframework.com/.default",
   });
-  const authority = teamsBotConnectorAuthority();
+  const authority = authorityOverride?.trim() || teamsBotConnectorAuthority();
   const tokenUrl = `https://login.microsoftonline.com/${authority}/oauth2/v2.0/token`;
   const res = await fetch(tokenUrl, {
     method: "POST",
