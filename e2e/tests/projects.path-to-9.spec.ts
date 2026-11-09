@@ -55,7 +55,9 @@ test.describe("Projects Path to 9 smoke", () => {
     expect(createTodo.status()).toBe(201);
     const todo = (await createTodo.json()) as { id: string };
 
-    await page.goto(`/projects?project=${encodeURIComponent(project.id)}`);
+    // Default project tab is Pilotage — open Liste/Board for DnD + Schedule smoke
+    await page.goto(`/projects?project=${encodeURIComponent(project.id)}&tab=board`);
+    await page.getByRole("button", { name: /^(Liste|List|Board|Tableau)$/i }).click().catch(() => undefined);
 
     // Target the board row (group/task) — not the off-screen export Gantt which also renders the title
     const taskRow = page.locator(".group\\/task").filter({ hasText: taskTitle });
