@@ -17,19 +17,25 @@ function baseProject(over: Partial<Project> = {}): Project {
     phases: [
       {
         id: "ph1",
+        projectId: "p1",
         name: "Scoping",
+        color: "#64748b",
         order: 0,
         startDate: "2026-11-09",
         endDate: "2026-11-22",
+        createdAt: "2026-11-09T00:00:00.000Z",
       },
     ],
     milestones: [
       {
         id: "m1",
+        projectId: "p1",
         title: "Scoping",
         date: "2026-11-22",
         order: 0,
         phaseId: "ph1",
+        color: "#64748b",
+        createdAt: "2026-11-09T00:00:00.000Z",
       },
     ],
     createdAt: "2026-11-09T00:00:00.000Z",
@@ -52,10 +58,13 @@ describe("computeProjectSteering upcomingMilestones", () => {
       milestones: [
         {
           id: "m2",
+          projectId: "p1",
           title: "Gate review",
           date: "2026-11-22",
           order: 0,
           phaseId: "ph1",
+          color: "#64748b",
+          createdAt: "2026-11-09T00:00:00.000Z",
         },
       ],
     });
