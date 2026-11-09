@@ -115,7 +115,8 @@ export async function assertCanCompleteTodo(userId: string, todo: Todo): Promise
   const blockers = await getActiveBlockersForTodo(todo);
   if (blockers.length === 0) return;
 
-  // PMO webhook event: notify once per day when complete is refused (avoid cycles via dynamic import).
+  // Once/day audit + webhooks. No Web Push / unread: UI already shows TaskBlockedModal
+  // (and chat replies on remote complete); unread + remount was spamming desktop toasts.
   try {
     const { createNotification, listNotifications } = await import("./notificationService");
     const todayStr = new Date().toISOString().split("T")[0];
@@ -142,6 +143,7 @@ export async function assertCanCompleteTodo(userId: string, todo: Todo): Promise
           ...(todo.projectId ? { projectId: todo.projectId } : {}),
           blockerIds: blockers.map((b) => b.id).join(","),
         },
+        { read: true, skipWebPush: true },
       );
     }
   } catch (err) {

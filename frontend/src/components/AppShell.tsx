@@ -409,7 +409,8 @@ export default function AppShell({ children }: AppShellProps) {
   const [notifListLoading, setNotifListLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifTimeTick, setNotifTimeTick] = useState(0);
-  const prevUnreadCountRef = useRef(0);
+  /** `null` until first unread poll — avoids replaying existing unread as a desktop toast on every mount. */
+  const prevUnreadCountRef = useRef<number | null>(null);
   const notifOpenRef = useRef(false);
   const browserNotifPermRef = useRef<NotificationPermission | null>(null);
   const panelNotifications = useMemo(
@@ -557,8 +558,14 @@ export default function AppShell({ children }: AppShellProps) {
         if (!cancelled) {
           const prev = prevUnreadCountRef.current;
           prevUnreadCountRef.current = c;
-          // Desktop alert when tab is open — skip if Web Push handles this device.
-          if (c > prev && typeof Notification !== "undefined" && Notification.permission === "granted") {
+          // Desktop alert only on a real increase after the baseline poll.
+          // Skip if Web Push already covers this browser (avoids double toasts).
+          if (
+            prev !== null &&
+            c > prev &&
+            typeof Notification !== "undefined" &&
+            Notification.permission === "granted"
+          ) {
             void (async () => {
               if (await hasLocalWebPushSubscription()) return;
               try {

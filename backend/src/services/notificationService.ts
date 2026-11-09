@@ -114,12 +114,20 @@ function getUserNotifications(userId: string): Notification[] {
   return list;
 }
 
+export interface CreateNotificationOptions {
+  /** Skip browser Web Push (in-app history / webhooks still apply). */
+  skipWebPush?: boolean;
+  /** Persist as already read (no unread badge / desktop remount toast). */
+  read?: boolean;
+}
+
 export function createNotification(
   userId: string,
   type: NotificationType,
   title: string,
   message: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  options?: CreateNotificationOptions,
 ): Notification {
   const filterPrefs = getNotificationFilterPrefs(userId);
   if (filterPrefs?.disabledInApp.includes(type)) {
@@ -166,7 +174,7 @@ export function createNotification(
     type,
     title,
     message,
-    read: false,
+    read: options?.read === true,
     data: payloadData,
     createdAt: new Date().toISOString(),
   };
@@ -188,10 +196,12 @@ export function createNotification(
     console.warn("[notifications] profile outbound error:", err);
   }
 
-  try {
-    void sendWebPushForNotification(userId, notif);
-  } catch (err) {
-    console.warn("[notifications] web push error:", err);
+  if (!options?.skipWebPush) {
+    try {
+      void sendWebPushForNotification(userId, notif);
+    } catch (err) {
+      console.warn("[notifications] web push error:", err);
+    }
   }
 
   return notif;
