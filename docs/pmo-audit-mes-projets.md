@@ -95,3 +95,18 @@ Compte Hotmail Early Bird / Personal sur `wroket.com`. Projet test **PMO Live Va
 ### Cleanup
 
 Projets **PMO Live Validation** et **PMO Audit Demo** archivés (récupérables Archive › Projects).
+
+## Post-audit hardening (2026-11-09)
+
+Livré sur `main` après le scoreboard ci-dessus (`f3728db`, `abcdf24`) :
+
+| Lot | Contenu | Statut |
+|-----|---------|--------|
+| Pack A+B | Dedup jalons Pilotage, alias onglets, filtre at-risk liste | [x] |
+| 1 | CTA at-risk + portfolio **perso** (`GET /projects/portfolio`) | [x] |
+| 2 | Seed sans jalon = fin de phase | [x] |
+| 3 | Pilotage « Bientôt dû » + seed overdue / due-soon | [x] |
+| 4 | RACI si roster ≥ 2 ; `?health=at-risk` ; doc `wroket-deploy` europe-west9 | [x] |
+| Fix | Toast desktop `dependency_blocked` (baseline AppShell + notif lue sans push) | [x] |
+
+**Reste** : Path-to-9 Projets terrain ; digests ops sur canal branché ; entretiens ICP (phase 0). Non-goals inchangés (PPM / matrice RACI / RAID).

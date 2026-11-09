@@ -15,9 +15,9 @@ Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit 
 | **0 — Cadrage** | 🟡 Ouvert | Entretiens ICP toujours à faire ; dry-run comité via pack PDF+share |
 | **1 — Visibilité pilotage** | 🟢 Livré | Tab **Pilotage** first-class + Board/Kanban/Gantt/Docs ; `?tab=` |
 | **2 — Lien plan ↔ todos** | 🟢 Livré | Jalons dédiés CRUD + Gantt ; deps `blockedByTodoIds` + badges ; templates seedent dates |
-| **3 — Rituel PMO (reporting)** | 🟢 V1+ | CSV/PDF + pack comité ; portfolio `/teams/portfolio` |
+| **3 — Rituel PMO (reporting)** | 🟢 V1+ | CSV/PDF + pack comité ; portfolio perso + équipe ; « Bientôt dû » ; CTA at-risk |
 | **§6 — Partage externe** | 🟢 Livré | Share projet + Client Portal |
-| **4 — Qualité E2E** | 🟡 En cours | Path-to-9 cold paths encore à valider terrain |
+| **4 — Qualité E2E** | 🟡 En cours | Path-to-9 cold paths encore à valider terrain ; digests ops canal |
 
 Audit consolidé : [pmo-audit-mes-projets.md](./pmo-audit-mes-projets.md).
 

@@ -24,7 +24,7 @@ Exécution priorisée : **finaliser Slack+ / canaux chat en prod**, **valider MC
 |----------|--------|--------|-------------------|
 | **A — Slack+ & canaux** | Webhook+ → OAuth → actions → PMO digests | Lots 1–4 **code** ; Teams+/Chat+/Discord+ **code** | Secrets Cloud Run + consoles (Slack/Azure/GCP Chat/Discord) + smoke E2E |
 | **B — IA agentique** | Wroket connectable aux agents | MCP remote + API keys **livrés** | Adoption réelle (Cursor/Claude) + KPI go/no-go ; IA intégrée = Later |
-| **C — PMO** | Consolidation Mes projets | Socle + tab Pilotage + seed/dates/santé | Path-to-9 terrain + digests ops ; voir `docs/pmo-audit-mes-projets.md` |
+| **C — PMO** | Consolidation Mes projets | Audit A–C + hardening Lots 1–4 **livrés** (2026-11-09) | Path-to-9 Projets terrain + digests ops (canal branché) ; voir `docs/pmo-audit-mes-projets.md` |
 
 **Décisions produit associées :**
 - **Slack+ / Teams+ / Google Chat+** : connexions **SaaS multi-clients** — chaque client Small teams+ connecte **son** workspace / org M365 / Google Workspace ; ops Wroket = une app partagée par canal ([`docs/chat-integrations-clients.md`](docs/chat-integrations-clients.md)). **Priorité 2026-11-08** : Slack → Teams sideload/deep link → Chat privé → Discord P3 ; bot Teams Azure = **Client unique** (contrainte) + Entra multilocataire ; stores publics différés ([`docs/chat-channel-priority.md`](docs/chat-channel-priority.md)).
@@ -44,7 +44,8 @@ Exécution priorisée : **finaliser Slack+ / canaux chat en prod**, **valider MC
 6. ~~**Slack+ Lot 4**~~ — **Code livré** : `/wroket my-week|overdue|team-risk` via [`pmoDigestService`](backend/src/services/pmoDigestService.ts). **Reste ops** : smoke Lot 3+4 workspace.
 7. **Teams+ / Google Chat+ / Discord+** — **Code parité 1A** (OAuth, actions, slash/PMO, Settings, docs). **Reste ops** : Azure Bot / GCP Chat app / Discord Portal + secrets Cloud Run (voir [`docs/teams-plus.md`](docs/teams-plus.md), [`docs/google-chat-plus.md`](docs/google-chat-plus.md), [`docs/discord-plus.md`](docs/discord-plus.md)).
 8. ~~**IA agentique — MCP**~~ — **Code livré** (PR #6, [`docs/mcp-agents.md`](docs/mcp-agents.md)) : `/mcp`, clés API Paramètres, tools PMO. **Reste** : validation usage agents + gate go/no-go (KPI / sécurité).
-9. **P1 reprise (pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
+9. ~~**PMO Mes projets — audit + hardening**~~ — **Fait** (2026-11-09) : Phases A–C audit live ; Lots 1–4 (portfolio perso + CTA at-risk, seed jalons uniques + overdue/bientôt dû, Pilotage « Bientôt dû », RACI si collab, `?health=at-risk`, doc `wroket-deploy` europe-west9) ; fix toast `dependency_blocked` (`f3728db`, `abcdf24`). **Reste** : Path-to-9 terrain + digests ops. Archive : [`docs/pmo-audit-mes-projets.md`](docs/pmo-audit-mes-projets.md).
+10. **P1 reprise (pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
@@ -104,7 +105,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Discord+ (ops)** — Portal + secrets Cloud Run + slash `/wroket` + smoke E2E (Test, help, complete) **2026-11-09** ; niche, pas substitut Teams/Chat — [`docs/discord-plus.md`](docs/discord-plus.md), [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md) §5.
 - [ ] **Bot time tracking (P3bis)** — Après ops canaux : `/wroket start|stop|log|timer` sur `timeSessionService` — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). **Exclu** : clone Gryzzly (budgets, CIR, rappels 1:1) tant que PMO chat n’est pas stable.
 - [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
-- [x] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe (`/teams/portfolio`) — livrés ; traction terrain / Path-to-9 restent ouverts. Client Portal = Later (déjà [x]). Voir [docs/pmo-audit-mes-projets.md](docs/pmo-audit-mes-projets.md).
+- [x] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe (`/teams/portfolio`) — livrés. Client Portal = Later (déjà [x]). Voir [docs/pmo-audit-mes-projets.md](docs/pmo-audit-mes-projets.md).
+- [x] **PMO Mes projets — consolidation + hardening (2026-11-09)** — Audit live A–C (Exit A/B go) ; portfolio **perso** + CTA at-risk ; seed sans jalon dupliqué + overdue / due-soon démo ; Pilotage « Bientôt dû » ; RACI-lite si roster ≥ 2 ; deep-link `?health=at-risk` ; anti-spam toast deps ; doc trigger `wroket-deploy` (`europe-west9`). **Reste ouvert** : Path-to-9 Projets terrain ([`docs/cold-path-projects.md`](docs/cold-path-projects.md)) + digests PMO ops sur canal branché.
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 
