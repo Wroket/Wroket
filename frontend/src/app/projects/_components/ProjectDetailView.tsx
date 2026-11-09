@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
@@ -97,9 +98,9 @@ import ProjectMilestonesPanel from "./ProjectMilestonesPanel";
 import ProjectCustomFieldsPanel from "./ProjectCustomFieldsPanel";
 import ProjectDocsTab from "./ProjectDocsTab";
 import { captureElementToPng, downloadSteeringPdf } from "@/lib/steeringPdfExport";
-import { computeProjectSteering } from "@/lib/projectSteering";
+import { computeProjectSteering, steeringSnapshotToCsv } from "@/lib/projectSteering";
 import { DroppablePhaseColumn, DraggableKanbanCard, SortablePhaseContainer, SortableBoardTaskRow, SortableSubtaskList, SortableSubtaskRow, SortableKanbanPhaseColumn, KanbanPhaseContext, SortableBoardPhaseSection, BoardPhaseContext } from "./DndWrappers";
-import { formatMins } from "./types";
+import { formatMins, DETAIL_TABS, parseDetailTab } from "./types";
 import type { Project, ProjectPhase, Todo, Priority, Effort, TodoStatus, AuthMeResponse, TranslationKey, DetailTab, Team } from "./types";
 
 interface ProjectDetailViewProps {
@@ -136,6 +137,7 @@ export default function ProjectDetailView({
   const { toast } = useToast();
   const { refresh } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { resolveUser, displayName, cacheRef } = useUserLookup();
   const meUid = user?.uid ?? null;
   const canConvertToSubproject = !selectedProject.parentProjectId;
@@ -226,7 +228,38 @@ export default function ProjectDetailView({
     return { start: phase.startDate, end: phase.endDate };
   }, [selectedProject.phases]);
 
-  const [detailTab, setDetailTab] = useState<DetailTab>("board");
+  const [detailTab, setDetailTabState] = useState<DetailTab>(
+    () => parseDetailTab(searchParams.get("tab")) ?? "pilotage",
+  );
+  const [committeePackBusy, setCommitteePackBusy] = useState(false);
+  const [baselineSnap, setBaselineSnap] = useState<{ at: string; health: string; completionRatio: number | null } | null>(null);
+
+  const setDetailTab = useCallback(
+    (tab: DetailTab) => {
+      setDetailTabState(tab);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("project", selectedProject.id);
+      params.set("tab", tab);
+      router.replace(`/projects?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams, selectedProject.id],
+  );
+
+  useEffect(() => {
+    const fromUrl = parseDetailTab(searchParams.get("tab"));
+    if (fromUrl && fromUrl !== detailTab) setDetailTabState(fromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL → state only when tab param changes
+  }, [searchParams]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`wroket.steeringBaseline.${selectedProject.id}`);
+      setBaselineSnap(raw ? (JSON.parse(raw) as { at: string; health: string; completionRatio: number | null }) : null);
+    } catch {
+      setBaselineSnap(null);
+    }
+  }, [selectedProject.id]);
+
   const [fullScreen, setFullScreen] = useState(false);
   const [importChoiceOpen, setImportChoiceOpen] = useState(false);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
@@ -436,6 +469,36 @@ export default function ProjectDetailView({
     }
   }, [selectedProject, projectTodos, locale, t, toast]);
 
+  const handleCommitteePack = useCallback(async () => {
+    setCommitteePackBusy(true);
+    try {
+      const snap = computeProjectSteering(selectedProject, projectTodos);
+      const csv = steeringSnapshotToCsv(selectedProject.name, snap);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const slug = selectedProject.name.replace(/[^a-z0-9]+/gi, "-").substring(0, 40);
+      const day = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `wroket-committee-${slug}-${day}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      await handleExportSteeringPdf();
+      const pin = {
+        at: snap.generatedAt,
+        health: snap.health,
+        completionRatio: snap.completionRatio,
+      };
+      localStorage.setItem(`wroket.steeringBaseline.${selectedProject.id}`, JSON.stringify(pin));
+      setBaselineSnap(pin);
+      toast.success(t("projects.baselinePinned"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("toast.genericError"));
+    } finally {
+      setCommitteePackBusy(false);
+    }
+  }, [selectedProject, projectTodos, handleExportSteeringPdf, toast, t]);
+
   const subtasksByParent = useMemo(() => {
     const byOrderThenCreation = (a: Todo, b: Todo) => {
       const oa = a.sortOrder ?? Number.POSITIVE_INFINITY;
@@ -515,7 +578,11 @@ export default function ProjectDetailView({
   const handleSelectProject = async (project: Project) => {
     setSelectedProject(project);
     setEditing(false);
-    setDetailTab("board");
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("project", project.id);
+    if (!params.get("tab")) params.set("tab", "pilotage");
+    router.replace(`/projects?${params.toString()}`, { scroll: false });
+    setDetailTabState(parseDetailTab(params.get("tab")) ?? "pilotage");
     try {
       const [freshProj, todos] = await Promise.all([fetchProject(project.id), getProjectTodos(project.id)]);
       setSelectedProject(freshProj);
@@ -870,6 +937,14 @@ export default function ProjectDetailView({
       resolveUser(todo.assignedTo);
     }
   };
+
+  const openTodoFromSteering = useCallback(
+    (todoId: string) => {
+      const todo = projectTodos.find((td) => td.id === todoId);
+      if (todo) openEdit(todo);
+    },
+    [projectTodos],
+  );
 
   const onEditAutoSaved = useCallback(
     (updated: Todo) => {
@@ -1700,7 +1775,7 @@ export default function ProjectDetailView({
           </div>
         )}
 
-        {/* Organisation & pilotage — collapsible (sous-projets → jalons / champs) */}
+        {/* Project settings — collapsible (structure / ACL / portal / timesheet / fields) */}
         <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
           <button
             type="button"
@@ -1710,10 +1785,10 @@ export default function ProjectDetailView({
           >
             <div className="min-w-0">
               <span className="text-sm font-semibold text-zinc-800 dark:text-slate-100">
-                {t("projects.orgPanelTitle")}
+                {t("projects.settingsPanelTitle")}
               </span>
               <p className="text-[11px] text-zinc-500 dark:text-slate-400 mt-0.5 leading-snug">
-                {t("projects.orgPanelHint")}
+                {t("projects.settingsPanelHint")}
               </p>
             </div>
             <svg
@@ -1730,7 +1805,6 @@ export default function ProjectDetailView({
 
           {projectOrgOpen && (
             <div className="space-y-4 border-t border-zinc-200 dark:border-slate-700 p-4">
-        {/* Sub-projects — only root projects (not sub-projects) can have children */}
         {!selectedProject.parentProjectId && (subProjects.length > 0 || selectedProject.status === "active") && (
           <div className="bg-zinc-50/80 dark:bg-slate-800/40 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1778,7 +1852,8 @@ export default function ProjectDetailView({
         {selectedProject.teamId && accessPanel && (
           <div className="bg-zinc-50/80 dark:bg-slate-800/40 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-1">{t("projects.projectAccess")}</h4>
-            <p className="text-[11px] text-zinc-400 dark:text-slate-500 mb-3">{t("projects.projectAccessDesc")}</p>
+            <p className="text-[11px] text-zinc-400 dark:text-slate-500 mb-1">{t("projects.projectAccessDesc")}</p>
+            <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-3">{t("projects.raciLiteHint")}</p>
             {accessLoading ? (
               <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
             ) : (
@@ -1816,26 +1891,6 @@ export default function ProjectDetailView({
           </div>
         )}
 
-        {/* PMO steering summary */}
-        {!loadingTodos && (
-          <ProjectSteeringPanel
-            ref={steeringPanelRef}
-            project={selectedProject}
-            todos={projectTodos}
-            t={t}
-            locale={locale}
-            onExportPdf={handleExportSteeringPdf}
-            exportingPdf={exportingSteeringPdf}
-          />
-        )}
-
-        {!loadingTodos && (
-          <ProjectShareLinksPanel
-            projectId={selectedProject.id}
-            canManage={canManageProject}
-          />
-        )}
-
         {!loadingTodos && canManageProject && <ClientPortalPanel />}
 
         {!loadingTodos && (
@@ -1843,22 +1898,13 @@ export default function ProjectDetailView({
         )}
 
         {!loadingTodos && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <ProjectMilestonesPanel
-              projectId={selectedProject.id}
-              phases={orderedPhases}
-              milestones={selectedProject.milestones ?? []}
-              canEdit={canEditProjectContent}
-              onChange={() => void refreshProjectMeta()}
-            />
-            <ProjectCustomFieldsPanel
-              projectId={selectedProject.id}
-              fields={selectedProject.customFieldDefs ?? []}
-              canEdit={canEditProjectContent}
-              canUse={!!user?.entitlements?.integrations}
-              onChange={() => void refreshProjectMeta()}
-            />
-          </div>
+          <ProjectCustomFieldsPanel
+            projectId={selectedProject.id}
+            fields={selectedProject.customFieldDefs ?? []}
+            canEdit={canEditProjectContent}
+            canUse={!!user?.entitlements?.integrations}
+            onChange={() => void refreshProjectMeta()}
+          />
         )}
 
             </div>
@@ -1881,41 +1927,10 @@ export default function ProjectDetailView({
           </div>
         )}
 
-        {/* Time allocation summary */}
-        {!loadingTodos && projectTodos.length > 0 && (
-          <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-            <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t("projects.timeAllocation")}</h4>
-            <div className="flex flex-wrap gap-3">
-              {orderedPhases.map((phase) => {
-                const mins = timeByPhase.byPhase.get(phase.id) ?? 0;
-                if (mins === 0) return null;
-                return (
-                  <div key={phase.id} className="flex items-center gap-2 rounded-md border border-zinc-100 dark:border-slate-700 px-3 py-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: phase.color }} />
-                    <span className="text-xs text-zinc-600 dark:text-slate-300">{phase.name}</span>
-                    <span className="text-xs font-semibold text-zinc-900 dark:text-slate-100">{formatMins(mins)}</span>
-                  </div>
-                );
-              })}
-              {(timeByPhase.byPhase.get("__none__") ?? 0) > 0 && (
-                <div className="flex items-center gap-2 rounded-md border border-zinc-100 dark:border-slate-700 px-3 py-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-zinc-300 dark:bg-slate-600" />
-                  <span className="text-xs text-zinc-600 dark:text-slate-300">{t("projects.unassignedPhase")}</span>
-                  <span className="text-xs font-semibold text-zinc-900 dark:text-slate-100">{formatMins(timeByPhase.byPhase.get("__none__")!)}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 ml-auto">
-                <span className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("projects.totalTime")}</span>
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatMins(timeByPhase.total)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab bar */}
-        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-1">
-          {(["board", "kanban", "gantt", "docs"] as DetailTab[]).map((tab) => (
-            <button key={tab} onClick={() => setDetailTab(tab)} className={`flex-1 rounded px-4 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-emerald-600 dark:bg-emerald-500 text-white" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}>
+        {/* Tab bar — Pilotage first-class */}
+        <div className="sticky top-0 z-10 flex items-center gap-1 bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-1">
+          {DETAIL_TABS.map((tab) => (
+            <button key={tab} type="button" onClick={() => setDetailTab(tab)} className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${detailTab === tab ? "bg-emerald-600 dark:bg-emerald-500 text-white" : "text-zinc-500 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-800"}`}>
               {t(`projects.${tab}`)}
             </button>
           ))}
@@ -1927,6 +1942,73 @@ export default function ProjectDetailView({
 
         {loadingTodos ? (
           <div className="flex justify-center py-10"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
+        ) : detailTab === "pilotage" ? (
+          <div className="space-y-4">
+            <ProjectSteeringPanel
+              ref={steeringPanelRef}
+              project={selectedProject}
+              todos={projectTodos}
+              t={t}
+              locale={locale}
+              onExportPdf={handleExportSteeringPdf}
+              exportingPdf={exportingSteeringPdf}
+              onOpenTodo={openTodoFromSteering}
+              onCommitteePack={handleCommitteePack}
+              committeePackBusy={committeePackBusy}
+            />
+            {baselineSnap && (
+              <p className="text-xs text-zinc-500 dark:text-slate-400">
+                {t("projects.lastBaseline")}: {new Date(baselineSnap.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
+                {" · "}
+                {baselineSnap.health}
+                {baselineSnap.completionRatio != null ? ` · ${baselineSnap.completionRatio}%` : ""}
+              </p>
+            )}
+            <ProjectShareLinksPanel projectId={selectedProject.id} canManage={canManageProject} />
+            <p className="text-[11px] text-zinc-400 dark:text-slate-500">{t("projects.shareSmokeHint")}</p>
+            <p className="text-[11px] text-zinc-400 dark:text-slate-500">{t("projects.mcpSteeringHint")}</p>
+            <ProjectMilestonesPanel
+              projectId={selectedProject.id}
+              phases={orderedPhases}
+              milestones={selectedProject.milestones ?? []}
+              canEdit={canEditProjectContent}
+              onChange={() => void refreshProjectMeta()}
+            />
+            {projectTodos.length > 0 && (
+              <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+                <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t("projects.timeAllocation")}</h4>
+                <div className="flex flex-wrap gap-3">
+                  {orderedPhases.map((phase) => {
+                    const mins = timeByPhase.byPhase.get(phase.id) ?? 0;
+                    if (mins === 0) return null;
+                    return (
+                      <div key={phase.id} className="flex items-center gap-2 rounded-md border border-zinc-100 dark:border-slate-700 px-3 py-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: phase.color }} />
+                        <span className="text-xs text-zinc-600 dark:text-slate-300">{phase.name}</span>
+                        <span className="text-xs font-semibold text-zinc-900 dark:text-slate-100">{formatMins(mins)}</span>
+                      </div>
+                    );
+                  })}
+                  {(timeByPhase.byPhase.get("__none__") ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 rounded-md border border-zinc-100 dark:border-slate-700 px-3 py-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-zinc-300 dark:bg-slate-600" />
+                      <span className="text-xs text-zinc-600 dark:text-slate-300">{t("projects.unassignedPhase")}</span>
+                      <span className="text-xs font-semibold text-zinc-900 dark:text-slate-100">{formatMins(timeByPhase.byPhase.get("__none__")!)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 ml-auto">
+                    <span className="text-xs font-medium text-zinc-500 dark:text-slate-400">{t("projects.totalTime")}</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatMins(timeByPhase.total)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-3 text-sm">
+              <Link href={`/todos`} className="text-indigo-600 dark:text-indigo-400 hover:underline">{t("nav.myTasks")}</Link>
+              <Link href="/agenda" className="text-indigo-600 dark:text-indigo-400 hover:underline">{t("nav.agenda")}</Link>
+              <Link href="/teams/portfolio" className="text-indigo-600 dark:text-indigo-400 hover:underline">{t("projects.portfolioLink")}</Link>
+            </div>
+          </div>
         ) : detailTab === "board" ? (
           <DndContext sensors={dndSensors} collisionDetection={closestCorners} onDragStart={handleBoardDragStart} onDragEnd={handleBoardDragEnd}>
           <BoardPhaseContext items={orderedPhases.map((p) => p.id)}>
@@ -2194,6 +2276,11 @@ export default function ProjectDetailView({
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 mt-2 flex-wrap">
+                                        {taskHasActiveBlockers(todo) && (
+                                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" title={t("dependencies.blockedBadge")}>
+                                            ⛔ {t("dependencies.blockedBadge")}
+                                          </span>
+                                        )}
                                         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGES[todo.priority].cls}`}>{t(`priority.${todo.priority}`)}</span>
                                         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${EFFORT_BADGES[todo.effort ?? "medium"].cls}`}>{t(EFFORT_BADGES[todo.effort ?? "medium"].tKey)}</span>
                                         {dl && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${dl.cls}`}>{dl.text}</span>}
@@ -2432,6 +2519,11 @@ export default function ProjectDetailView({
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <h3 className="text-sm font-semibold text-zinc-700 dark:text-slate-300 mb-4">{t("gantt.title")}</h3>
+            {computeProjectSteering(selectedProject, projectTodos).health === "undated" && (
+              <p className="mb-3 text-xs text-zinc-500 dark:text-slate-400 rounded-md border border-dashed border-zinc-200 dark:border-slate-700 px-3 py-2">
+                {t("projects.ganttUndatedHint")}
+              </p>
+            )}
             <GanttChart
               phases={orderedPhases}
               tasks={projectTodos}

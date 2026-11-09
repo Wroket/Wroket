@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { countSeedTemplateTodos } from "./projectTemplateSeedService";
+import { countSeedTemplateTodos, dateOffsetIso } from "./projectTemplateSeedService";
 
 describe("countSeedTemplateTodos", () => {
   it("counts parents and subtasks", () => {
@@ -18,6 +18,14 @@ describe("countSeedTemplateTodos", () => {
       },
     ]);
     expect(n).toBe(6);
+  });
+});
+
+describe("dateOffsetIso", () => {
+  it("formats local calendar offsets as YYYY-MM-DD", () => {
+    const base = new Date(2026, 0, 15);
+    expect(dateOffsetIso(base, 0)).toBe("2026-01-15");
+    expect(dateOffsetIso(base, 14)).toBe("2026-01-29");
   });
 });
 

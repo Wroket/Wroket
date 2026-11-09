@@ -161,7 +161,7 @@ export default function CommandPalette() {
         const project = await createProject({ name: title });
         toast.success(t("uiV2.projectCreated"));
         close();
-        router.push(`/projects/${project.id}`);
+        router.push(`/projects?project=${encodeURIComponent(project.id)}`);
       } else {
         const note = await createNoteApi({ title });
         toast.success(t("uiV2.noteCreated"));

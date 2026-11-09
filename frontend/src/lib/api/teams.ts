@@ -231,7 +231,7 @@ export interface TeamPortfolioProjectRow {
   projectId: string;
   projectName: string;
   teamId: string | null;
-  health: "done" | "overdue" | "at-risk" | "on-track" | "empty";
+  health: "done" | "overdue" | "at-risk" | "on-track" | "undated" | "empty";
   completionRatio: number | null;
   activeCount: number;
   overdueCount: number;

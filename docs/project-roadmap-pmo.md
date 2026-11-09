@@ -4,7 +4,7 @@ Document de travail : feuille de route **produit** pour renforcer le module Proj
 
 Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit utilisateur](./product-user-session.md) et les [idées refonte UI](./refonte-ui-ideas.md).
 
-**Dernière mise à jour** : 2026-06-08 (alignement 3 priorités produit)
+**Dernière mise à jour** : 2026-11-09 (consolidation Mes projets — audit PMO)
 
 ---
 
@@ -12,12 +12,14 @@ Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit 
 
 | Phase | Statut | Commentaire |
 |-------|--------|-------------|
-| **0 — Cadrage** | 🔴 Non fait | Discovery produit ; plan d’actions dans [product-user-session.md](./product-user-session.md) (A1–A3) |
-| **1 — Visibilité pilotage** | 🟢 ~85 % | Panneau Pilotage + vues Board/Kanban/Gantt interactif livrés ; aide terminologique et navigation à peaufiner |
-| **2 — Lien plan ↔ todos** | 🟡 ~50 % | Roll-up retard/santé OK ; jalons = fins de phase ; dépendances non livrées |
-| **3 — Rituel PMO (reporting)** | 🟡 V1 OK | Export CSV + PDF steering ; pas de multi-projets ni lien partageable |
-| **§6 — Partage externe** | 🟢 Share projet + Client Portal code | Liens `/share/project`, hub `/share/portal` ; smoke E2E |
-| **4 — Qualité E2E** | 🟡 En cours | Parcours projet validé prod ([checklist §G](./checklist-e2e-prod.md)) ; quadrillage Gantt §G.12 à valider |
+| **0 — Cadrage** | 🟡 Ouvert | Entretiens ICP toujours à faire ; dry-run comité via pack PDF+share |
+| **1 — Visibilité pilotage** | 🟢 Livré | Tab **Pilotage** first-class + Board/Kanban/Gantt/Docs ; `?tab=` |
+| **2 — Lien plan ↔ todos** | 🟢 Livré | Jalons dédiés CRUD + Gantt ; deps `blockedByTodoIds` + badges ; templates seedent dates |
+| **3 — Rituel PMO (reporting)** | 🟢 V1+ | CSV/PDF + pack comité ; portfolio `/teams/portfolio` |
+| **§6 — Partage externe** | 🟢 Livré | Share projet + Client Portal |
+| **4 — Qualité E2E** | 🟡 En cours | Path-to-9 cold paths encore à valider terrain |
+
+Audit consolidé : [pmo-audit-mes-projets.md](./pmo-audit-mes-projets.md).
 
 **Priorité sprint globale** (arbitrage 2026-06-08) : **trois chantiers parallèles** — voir [§12 Alignement 3 priorités](#12-alignement-3-priorités-produit). Séquence technique recommandée : **socle import + dépendances** → **PMO partage/portfolio** → **Notion-Like profondeur** → **Monday-Like**.
 
@@ -77,9 +79,9 @@ Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit 
 
 - [x] **Roll-up retard** — au moins une tâche en retard dans une phase → santé phase/projet dégradée ; liste `topOverdue` dans le panneau Pilotage
 - [x] **Chaîne tâche → phase** — `phaseId`, dates phase, barres Gantt, roll-up `PhaseSteeringRow`
-- [~] **Jalons** — **approximation actuelle** : fin de phase = jalon (pas d’entité jalon indépendante libellé + date)
-- [ ] **Jalons dédiés** — libellé + date, reliés phase ou projet, visibles timeline/Gantt
-- [ ] **Dépendances légères** entre tâches (ou phases) — voir ROADMAP `[ ]` Dépendances tâches (`blockedByTodoIds`, P3 Notion-Like)
+- [x] **Jalons** — fins de phase **et** jalons dédiés (`ProjectMilestonesPanel` + Gantt)
+- [x] **Jalons dédiés** — libellé + date, reliés phase ou projet, visibles timeline/Gantt
+- [x] **Dépendances légères** — `blockedByTodoIds` + SoftLock integrations + badges Board/Kanban/Gantt
 
 ---
 
@@ -94,8 +96,8 @@ Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit 
 - [x] **Export CSV steering** — snapshot projet (KPIs, phases, retards, jalons) via `steeringSnapshotToCsv`
 - [x] **Export PDF steering (V1)** — panneau Pilotage + capture Gantt (`downloadSteeringPdf`) ; E2E checklist §G.3–5
 - [ ] **Export Google Sheets** — insertion graphiques dans Slides (non priorisé)
-- [ ] **Résumé partageable** — lien lecture ou copier-coller structuré hors export fichier
-- [ ] **Vue multi-projets minimaliste** — liste santé + échéances équipe (ROADMAP `[ ]` Vues portfolio & templates)
+- [x] **Résumé partageable** — liens `/share/project/:token` (pilotage/kanban/gantt)
+- [x] **Vue multi-projets** — `/teams/portfolio` (santé, progress, overdue, next milestone)
 
 > **V1 reporting** considérée **livrée** pour usage interne (équipe connectée). La DoD « comité sans Sheets » reste à **valider terrain** (phase 0).
 

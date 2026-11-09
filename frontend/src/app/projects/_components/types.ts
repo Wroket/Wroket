@@ -1,8 +1,15 @@
 import type { Project, ProjectPhase, ProjectMilestone, Team, Todo, Priority, Effort, TodoStatus, AuthMeResponse } from "@/lib/api";
 import type { TranslationKey } from "@/lib/i18n";
 
-export type DetailTab = "board" | "kanban" | "gantt" | "docs";
-export type ProjectHealth = "done" | "overdue" | "at-risk" | "on-track" | "empty";
+export type DetailTab = "pilotage" | "board" | "kanban" | "gantt" | "docs";
+export type ProjectHealth = "done" | "overdue" | "at-risk" | "on-track" | "undated" | "empty";
+
+export const DETAIL_TABS: DetailTab[] = ["pilotage", "board", "kanban", "gantt", "docs"];
+
+export function parseDetailTab(raw: string | null | undefined): DetailTab | null {
+  if (!raw) return null;
+  return (DETAIL_TABS as string[]).includes(raw) ? (raw as DetailTab) : null;
+}
 
 interface TemplateSubtask {
   title: { fr: string; en: string };
@@ -421,6 +428,7 @@ export function getHealthConfig(t: (key: TranslationKey) => string): Record<Proj
     overdue: { label: t("projects.healthOverdue"), color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/30", ring: "bg-red-500" },
     "at-risk": { label: t("projects.healthAtRisk"), color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/30", ring: "bg-amber-500" },
     "on-track": { label: t("projects.healthOnTrack"), color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", ring: "bg-blue-500" },
+    undated: { label: t("projects.healthUndated"), color: "text-zinc-600 dark:text-slate-300", bg: "bg-zinc-100 dark:bg-slate-800", ring: "bg-zinc-400" },
     empty: { label: "", color: "", bg: "", ring: "" },
   };
 }

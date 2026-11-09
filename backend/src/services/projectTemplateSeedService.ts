@@ -3,7 +3,7 @@ import {
   FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL,
   FREE_QUOTA_CODE_TASKS,
 } from "./freeTierQuotaConstants";
-import { addPhase, getProjectById } from "./projectService";
+import { addMilestone, addPhase, getProjectById } from "./projectService";
 import { countPersonalActiveTodosForQuota, createTodo } from "./todoService";
 import { PaymentRequiredError } from "../utils/errors";
 
@@ -14,11 +14,17 @@ export interface SeedTemplateSubtaskInput {
 export interface SeedTemplateTaskInput {
   title: string;
   subtasks: SeedTemplateSubtaskInput[];
+  /** Days from today for task deadline (optional; defaults from phase end). */
+  deadlineOffsetDays?: number;
 }
 
 export interface SeedTemplatePhaseInput {
   name: string;
   tasks: SeedTemplateTaskInput[];
+  /** Days from today for phase start (optional). */
+  startOffsetDays?: number;
+  /** Days from today for phase end (optional). */
+  endOffsetDays?: number;
 }
 
 export interface SeedTemplateError {
@@ -36,6 +42,8 @@ export interface SeedTemplateResult {
   errors: SeedTemplateError[];
 }
 
+const PHASE_SPAN_DAYS = 14;
+
 /** Count active todos that would be created from a template payload. */
 export function countSeedTemplateTodos(phases: SeedTemplatePhaseInput[]): number {
   let n = 0;
@@ -45,6 +53,17 @@ export function countSeedTemplateTodos(phases: SeedTemplatePhaseInput[]): number
     }
   }
   return n;
+}
+
+/**
+ * YYYY-MM-DD for local calendar day offset from a reference date.
+ */
+export function dateOffsetIso(base: Date, offsetDays: number): string {
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 async function assertPersonalQuotaForSeed(uid: string, projectId: string, needed: number): Promise<void> {
@@ -85,9 +104,21 @@ function validatePhases(phases: unknown): SeedTemplatePhaseInput[] {
           subtasks.push({ title: s.title.trim() });
         }
       }
-      tasks.push({ title: t.title.trim(), subtasks });
+      const deadlineOffsetDays =
+        typeof t.deadlineOffsetDays === "number" && Number.isFinite(t.deadlineOffsetDays)
+          ? Math.floor(t.deadlineOffsetDays)
+          : undefined;
+      tasks.push({ title: t.title.trim(), subtasks, deadlineOffsetDays });
     }
-    out.push({ name: p.name.trim(), tasks });
+    const startOffsetDays =
+      typeof p.startOffsetDays === "number" && Number.isFinite(p.startOffsetDays)
+        ? Math.floor(p.startOffsetDays)
+        : undefined;
+    const endOffsetDays =
+      typeof p.endOffsetDays === "number" && Number.isFinite(p.endOffsetDays)
+        ? Math.floor(p.endOffsetDays)
+        : undefined;
+    out.push({ name: p.name.trim(), tasks, startOffsetDays, endOffsetDays });
   }
   return out;
 }
@@ -95,6 +126,7 @@ function validatePhases(phases: unknown): SeedTemplatePhaseInput[] {
 /**
  * Create phases and todos for a project from a localized template payload.
  * Best-effort per phase/task; collects errors instead of failing silently.
+ * Assigns relative phase/task dates so steering/Gantt are usable out of the box.
  */
 export async function seedProjectTemplate(
   uid: string,
@@ -114,10 +146,17 @@ export async function seedProjectTemplate(
     errors: [],
   };
 
+  const today = new Date();
+
   for (const [phaseIndex, phaseDef] of phases.entries()) {
+    const startOff = phaseDef.startOffsetDays ?? phaseIndex * PHASE_SPAN_DAYS;
+    const endOff = phaseDef.endOffsetDays ?? startOff + PHASE_SPAN_DAYS - 1;
+    const startDate = dateOffsetIso(today, startOff);
+    const endDate = dateOffsetIso(today, Math.max(endOff, startOff));
+
     let phaseId: string;
     try {
-      const phase = addPhase(projectId, { name: phaseDef.name, startDate: null, endDate: null });
+      const phase = addPhase(projectId, { name: phaseDef.name, startDate, endDate });
       phaseId = phase.id;
       result.phasesCreated += 1;
     } catch (err) {
@@ -128,7 +167,25 @@ export async function seedProjectTemplate(
       continue;
     }
 
+    try {
+      addMilestone(projectId, {
+        title: phaseDef.name,
+        date: endDate,
+        phaseId,
+      });
+    } catch (err) {
+      result.errors.push({
+        phaseIndex,
+        message: err instanceof Error ? err.message : "Impossible de créer le jalon",
+      });
+    }
+
     for (const [taskIndex, taskDef] of phaseDef.tasks.entries()) {
+      const taskOffset =
+        taskDef.deadlineOffsetDays ??
+        startOff + Math.min(PHASE_SPAN_DAYS - 1, Math.floor(((taskIndex + 1) * PHASE_SPAN_DAYS) / Math.max(phaseDef.tasks.length, 1)));
+      const deadline = dateOffsetIso(today, Math.min(Math.max(taskOffset, startOff), endOff));
+
       let parentId: string;
       try {
         const parentTodo = await createTodo(uid, email, {
@@ -136,6 +193,8 @@ export async function seedProjectTemplate(
           priority: "medium",
           projectId,
           phaseId,
+          startDate,
+          deadline,
           sortOrder: (taskIndex + 1) * 100,
         });
         parentId = parentTodo.id;
@@ -157,6 +216,8 @@ export async function seedProjectTemplate(
             projectId,
             phaseId,
             parentId,
+            startDate,
+            deadline,
             sortOrder: (taskIndex + 1) * 100 + (subIndex + 1),
           });
           result.todosCreated += 1;

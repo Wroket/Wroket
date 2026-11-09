@@ -1620,7 +1620,8 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
 
   getUserTodos(userId).set(todo.id, todo);
   ownerIndex.set(todo.id, userId);
-  await persistTodos(userId);
+  // Single-doc persist (not full-owner resync) — critical for template seed O(n) vs O(n²).
+  await persistTodoMutation(todo);
   try {
     const { evaluateAutomationRules } = await import("./projectAutomationService");
     const hits = evaluateAutomationRules(userId, "todo_created", todo);
@@ -1631,7 +1632,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
         if (patch.assignedTo !== undefined) todo.assignedTo = patch.assignedTo;
       }
       getUserTodos(userId).set(todo.id, todo);
-      await persistTodos(userId);
+      await persistTodoMutation(todo);
     }
   } catch (err) {
     console.warn("[todos] automation todo_created failed:", err);

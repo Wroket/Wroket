@@ -1,7 +1,7 @@
 import type { Project, ProjectPhase } from "./projectService";
 import type { Todo } from "./todoService";
 
-export type ProjectHealth = "done" | "overdue" | "at-risk" | "on-track" | "empty";
+export type ProjectHealth = "done" | "overdue" | "at-risk" | "on-track" | "undated" | "empty";
 
 export interface PhaseSteeringRow {
   phaseId: string;
@@ -88,6 +88,8 @@ function computeHealth(active: Todo[], now: Date): ProjectHealth {
   ) {
     return "at-risk";
   }
+  const noDeadline = active.filter((td) => !getEffectiveDueDay(td)).length;
+  if (noDeadline / active.length >= 0.5) return "undated";
   return "on-track";
 }
 

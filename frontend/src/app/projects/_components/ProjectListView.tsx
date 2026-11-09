@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
@@ -45,6 +46,7 @@ import { personalProjectsCreateBlocked, getFreeQuotas, fillQuotaTemplate, getPro
 import { getImportSourceBadge } from "@/lib/importSourceBadge";
 import { formatUserFacingError } from "@/lib/apiErrors";
 import { trackFunnelEvent } from "@/lib/productAnalytics";
+import { computeProjectSteering } from "@/lib/projectSteering";
 
 type ProjectUndoAction =
   | { type: "archive"; projectId: string; previousStatus: "active" | "archived" }
@@ -211,8 +213,6 @@ export default function ProjectListView({
   }, [allProjectTodos]);
 
   const healthByProject = useMemo(() => {
-    const now = new Date();
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
     const grouped = new Map<string, Todo[]>();
     for (const td of allProjectTodos) {
       const pid = td.projectId!;
@@ -220,23 +220,12 @@ export default function ProjectListView({
       grouped.get(pid)!.push(td);
     }
     const map = new Map<string, ProjectHealth>();
-    for (const [pid, todos] of grouped) {
-      const active = todos.filter((td) => td.status === "active");
-      if (active.length === 0 && todos.some((td) => td.status === "completed")) {
-        map.set(pid, "done");
-        continue;
-      }
-      const hasOverdue = active.some((td) => td.deadline && new Date(td.deadline) < now);
-      if (hasOverdue) { map.set(pid, "overdue"); continue; }
-      const hasAtRisk = active.some((td) =>
-        td.priority === "high" ||
-        (td.deadline && new Date(td.deadline).getTime() - now.getTime() < threeDaysMs)
-      );
-      if (hasAtRisk) { map.set(pid, "at-risk"); continue; }
-      map.set(pid, "on-track");
+    for (const project of projects) {
+      const todos = grouped.get(project.id) ?? [];
+      map.set(project.id, computeProjectSteering(project, todos).health);
     }
     return map;
-  }, [allProjectTodos]);
+  }, [allProjectTodos, projects]);
 
   const activeProjects = useMemo(() => projects.filter((p) => p.status === "active" && !p.parentProjectId), [projects]);
   const childrenByParent = useMemo(() => {
@@ -277,6 +266,8 @@ export default function ProjectListView({
     if (healths.includes("overdue")) return "overdue";
     if (healths.includes("at-risk")) return "at-risk";
     if (healths.every((h) => h === "done")) return "done";
+    if (healths.every((h) => h === "undated" || h === "empty")) return "undated";
+    if (healths.includes("undated") && !healths.includes("on-track")) return "undated";
     return "on-track";
   };
 
@@ -365,6 +356,9 @@ export default function ProjectListView({
       const created = await createProject({ name: createName.trim(), description: createDesc.trim(), teamId: createTeamId });
       setProjects((prev) => [created, ...prev]);
       trackFunnelEvent("project_created", { source: createTeamId ? "project_team" : "project_personal" });
+      // Close create modal as soon as the project shell exists (seed can take seconds).
+      setShowCreate(false);
+      resetCreateForm();
 
       if (template) {
         setSeedApplying(true);
@@ -386,8 +380,6 @@ export default function ProjectListView({
         }
       }
 
-      setShowCreate(false);
-      resetCreateForm();
       void refresh();
       void loadProjects();
     } catch (err) {
@@ -537,6 +529,12 @@ export default function ProjectListView({
               <PageHelpButton helpId="projects.list" />
             </div>
             <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("projects.subtitle")}</p>
+            <Link
+              href="/teams/portfolio"
+              className="inline-block mt-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              {t("projects.portfolioLink")} →
+            </Link>
           </div>
           <div className="flex items-center gap-2">
             <button

@@ -24,7 +24,7 @@ Exécution priorisée : **finaliser Slack+ / canaux chat en prod**, **valider MC
 |----------|--------|--------|-------------------|
 | **A — Slack+ & canaux** | Webhook+ → OAuth → actions → PMO digests | Lots 1–4 **code** ; Teams+/Chat+/Discord+ **code** | Secrets Cloud Run + consoles (Slack/Azure/GCP Chat/Discord) + smoke E2E |
 | **B — IA agentique** | Wroket connectable aux agents | MCP remote + API keys **livrés** | Adoption réelle (Cursor/Claude) + KPI go/no-go ; IA intégrée = Later |
-| **C — PMO** | Stabilisation continue | Socle solide + digests chat | Liens partageables / portfolio selon traction |
+| **C — PMO** | Consolidation Mes projets | Socle + tab Pilotage + seed/dates/santé | Path-to-9 terrain + digests ops ; voir `docs/pmo-audit-mes-projets.md` |
 
 **Décisions produit associées :**
 - **Slack+ / Teams+ / Google Chat+** : connexions **SaaS multi-clients** — chaque client Small teams+ connecte **son** workspace / org M365 / Google Workspace ; ops Wroket = une app partagée par canal ([`docs/chat-integrations-clients.md`](docs/chat-integrations-clients.md)). **Priorité 2026-11-08** : Slack → Teams sideload/deep link → Chat privé → Discord P3 ; bot Teams Azure = **Client unique** (contrainte) + Entra multilocataire ; stores publics différés ([`docs/chat-channel-priority.md`](docs/chat-channel-priority.md)).
@@ -104,7 +104,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Discord+ (ops)** — Portal + secrets Cloud Run + slash `/wroket` + smoke E2E (Test, help, complete) **2026-11-09** ; niche, pas substitut Teams/Chat — [`docs/discord-plus.md`](docs/discord-plus.md), [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md) §5.
 - [ ] **Bot time tracking (P3bis)** — Après ops canaux : `/wroket start|stop|log|timer` sur `timeSessionService` — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). **Exclu** : clone Gryzzly (budgets, CIR, rappels 1:1) tant que PMO chat n’est pas stable.
 - [ ] **Gate IA agentique** — KPI adoption/ROI MCP, seuils sécurité, politique traces ; puis éventuelle IA intégrée minimale.
-- [ ] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe selon traction terrain — *pas* le Client Portal (voir Later).
+- [x] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe (`/teams/portfolio`) — livrés ; traction terrain / Path-to-9 restent ouverts. Client Portal = Later (déjà [x]). Voir [docs/pmo-audit-mes-projets.md](docs/pmo-audit-mes-projets.md).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — après ops Slack+/canaux + gate MCP.
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 

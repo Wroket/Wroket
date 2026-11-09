@@ -17,8 +17,16 @@ export default function TeamPortfolioPage() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [rows, setRows] = useState<TeamPortfolioProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [atRiskOnly, setAtRiskOnly] = useState(false);
 
   const healthConfig = useMemo(() => getHealthConfig(t), [t]);
+  const visibleRows = useMemo(
+    () =>
+      atRiskOnly
+        ? rows.filter((r) => r.health === "overdue" || r.health === "at-risk" || r.overdueCount > 0)
+        : rows,
+    [rows, atRiskOnly],
+  );
 
   useEffect(() => {
     getTeams()
@@ -74,11 +82,23 @@ export default function TeamPortfolioPage() {
 
         {loading && <p className="text-sm text-zinc-500">{t("portfolio.loading")}</p>}
 
+        {!loading && rows.length > 0 && (
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={atRiskOnly}
+              onChange={(e) => setAtRiskOnly(e.target.checked)}
+              className="rounded border-zinc-300"
+            />
+            {t("projects.filterAtRisk")}
+          </label>
+        )}
+
         {!loading && rows.length === 0 && (
           <p className="text-sm text-zinc-500">{t("portfolio.empty")}</p>
         )}
 
-        {!loading && rows.length > 0 && (
+        {!loading && visibleRows.length > 0 && (
           <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-slate-700">
             <table className="w-full text-sm">
               <thead>
@@ -91,12 +111,15 @@ export default function TeamPortfolioPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {visibleRows.map((row) => {
                   const hc = healthConfig[row.health];
                   return (
                     <tr key={row.projectId} className="border-b border-zinc-100 dark:border-slate-800 hover:bg-zinc-50/80 dark:hover:bg-slate-900/40">
                       <td className="px-3 py-2 font-medium">
-                        <Link href={`/projects`} className="hover:underline">
+                        <Link
+                          href={`/projects?project=${encodeURIComponent(row.projectId)}&tab=pilotage`}
+                          className="hover:underline"
+                        >
                           {row.projectName}
                         </Link>
                       </td>

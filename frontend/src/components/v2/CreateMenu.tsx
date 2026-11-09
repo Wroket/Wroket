@@ -58,7 +58,7 @@ export default function CreateMenu({ fab = false }: { fab?: boolean }) {
       toast.success(t("uiV2.projectCreated"));
       setKind(null);
       setName("");
-      router.push(`/projects/${p.id}`);
+      router.push(`/projects?project=${encodeURIComponent(p.id)}`);
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.createError"));
     } finally {

@@ -14,10 +14,25 @@ interface Props {
   locale: string;
   onExportPdf?: () => void | Promise<void>;
   exportingPdf?: boolean;
+  /** Open a task from overdue / risk rows (why-late drill-down). */
+  onOpenTodo?: (todoId: string) => void;
+  /** Optional one-click committee pack (CSV + PDF). */
+  onCommitteePack?: () => void | Promise<void>;
+  committeePackBusy?: boolean;
 }
 
 const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectSteeringPanel(
-  { project, todos, t, locale, onExportPdf, exportingPdf = false },
+  {
+    project,
+    todos,
+    t,
+    locale,
+    onExportPdf,
+    exportingPdf = false,
+    onOpenTodo,
+    onCommitteePack,
+    committeePackBusy = false,
+  },
   ref,
 ) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -29,6 +44,17 @@ const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectS
   );
   const healthConfig = useMemo(() => getHealthConfig(t), [t]);
   const hc = healthConfig[snap.health];
+
+  const riskTodos = useMemo(
+    () =>
+      todos.filter(
+        (td) =>
+          !td.parentId &&
+          td.status === "active" &&
+          (td.tags ?? []).some((tag) => tag.toLowerCase() === "risk"),
+      ),
+    [todos],
+  );
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -48,8 +74,9 @@ const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectS
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const slug = project.name.replace(/[^a-z0-9]+/gi, "-").substring(0, 40);
+    const day = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `wroket-steering-${slug}.csv`;
+    a.download = `wroket-steering-${slug}-${day}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -82,39 +109,52 @@ const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectS
             )}
           </div>
         </div>
-        <div className="relative" ref={menuRef} data-export-hide>
-          <button
-            type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            disabled={exportingPdf}
-            className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none disabled:opacity-60"
-          >
-            {exportingPdf ? t("projects.steeringExportPdfGenerating") : t("projects.steeringExport")}
-            <svg className="w-3 h-3 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 z-30 min-w-[10rem] rounded-md border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 py-1 shadow-lg">
-              <button
-                type="button"
-                onClick={handleExportSteeringCsv}
-                className="block w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800"
-              >
-                {t("projects.steeringExportCsv")}
-              </button>
-              {onExportPdf && (
+        <div className="flex flex-wrap items-center gap-2" data-export-hide>
+          {onCommitteePack && (
+            <button
+              type="button"
+              onClick={() => void onCommitteePack()}
+              disabled={committeePackBusy || exportingPdf}
+              className="inline-flex items-center gap-1 rounded bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none disabled:opacity-60"
+              title={t("projects.committeePackHint")}
+            >
+              {committeePackBusy ? "…" : t("projects.committeePack")}
+            </button>
+          )}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((o) => !o)}
+              disabled={exportingPdf}
+              className="inline-flex items-center gap-1 rounded bg-slate-700 dark:bg-slate-600 hover:bg-slate-800 dark:hover:bg-slate-500 text-white text-[11px] font-medium px-2.5 py-1 transition-colors leading-none disabled:opacity-60"
+            >
+              {exportingPdf ? t("projects.steeringExportPdfGenerating") : t("projects.steeringExport")}
+              <svg className="w-3 h-3 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-30 min-w-[10rem] rounded-md border border-zinc-200 dark:border-slate-600 bg-white dark:bg-slate-900 py-1 shadow-lg">
                 <button
                   type="button"
-                  onClick={() => void handleExportSteeringPdf()}
-                  disabled={exportingPdf}
-                  className="block w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                  onClick={handleExportSteeringCsv}
+                  className="block w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800"
                 >
-                  {t("projects.steeringExportPdf")}
+                  {t("projects.steeringExportCsv")}
                 </button>
-              )}
-            </div>
-          )}
+                {onExportPdf && (
+                  <button
+                    type="button"
+                    onClick={() => void handleExportSteeringPdf()}
+                    disabled={exportingPdf}
+                    className="block w-full text-left px-3 py-1.5 text-xs text-zinc-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {t("projects.steeringExportPdf")}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -124,6 +164,58 @@ const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectS
         <Kpi label={t("projects.steeringAtRisk")} value={snap.atRiskCount} accent={snap.atRiskCount > 0 ? "text-amber-600 dark:text-amber-400" : undefined} />
         <Kpi label={t("projects.steeringNoDeadline")} value={snap.noDeadlineCount} />
       </div>
+
+      {snap.topOverdue.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+            {t("projects.steeringOverdue")}
+          </p>
+          <ul className="space-y-1">
+            {snap.topOverdue.map((row) => (
+              <li key={row.id} className="flex items-center justify-between gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-left text-zinc-700 dark:text-slate-300 truncate hover:underline disabled:no-underline"
+                  disabled={!onOpenTodo}
+                  onClick={() => onOpenTodo?.(row.id)}
+                  title={t("projects.openTaskFromOverdue")}
+                >
+                  {row.title}
+                  {row.phaseName ? (
+                    <span className="text-zinc-400 dark:text-slate-500"> · {row.phaseName}</span>
+                  ) : null}
+                </button>
+                <span className="shrink-0 text-red-600 dark:text-red-400 tabular-nums">
+                  {row.deadline ?? "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {riskTodos.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+            Risk
+          </p>
+          <ul className="space-y-1">
+            {riskTodos.slice(0, 8).map((td) => (
+              <li key={td.id}>
+                <button
+                  type="button"
+                  className="text-xs text-amber-700 dark:text-amber-300 hover:underline"
+                  disabled={!onOpenTodo}
+                  onClick={() => onOpenTodo?.(td.id)}
+                >
+                  {td.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="text-[10px] text-zinc-400 dark:text-slate-500">{t("projects.riskTagHint")}</p>
 
       {snap.upcomingMilestones.length > 0 && (
         <div>
@@ -179,9 +271,9 @@ export default ProjectSteeringPanel;
 
 function Kpi({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
-    <div className="rounded-md border border-zinc-100 dark:border-slate-800 px-3 py-2 text-center">
-      <p className={`text-lg font-bold tabular-nums ${accent ?? "text-zinc-900 dark:text-slate-100"}`}>{value}</p>
-      <p className="text-[10px] text-zinc-500 dark:text-slate-400 mt-0.5">{label}</p>
+    <div className="rounded-md border border-zinc-100 dark:border-slate-800 bg-zinc-50/80 dark:bg-slate-800/40 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-slate-400">{label}</p>
+      <p className={`text-lg font-semibold tabular-nums text-zinc-900 dark:text-slate-100 ${accent ?? ""}`}>{value}</p>
     </div>
   );
 }

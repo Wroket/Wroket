@@ -69,9 +69,10 @@ export async function buildTeamPortfolio(teamId: string, uid: string, userEmail:
     const rank = (h: TeamPortfolioProjectRow["health"]) => {
       if (h === "overdue") return 0;
       if (h === "at-risk") return 1;
-      if (h === "on-track") return 2;
-      if (h === "done") return 3;
-      return 4;
+      if (h === "undated") return 2;
+      if (h === "on-track") return 3;
+      if (h === "done") return 4;
+      return 5;
     };
     const d = rank(a.health) - rank(b.health);
     if (d !== 0) return d;

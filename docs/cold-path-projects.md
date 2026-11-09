@@ -33,7 +33,10 @@ Lister ici uniquement les bugs terrain bloquants découverts en Phase C, puis co
 
 | ID | Symptôme | Fix | Done |
 |----|----------|-----|------|
-| | | | [ ] |
+| SEED-O2 | Seed template Software ~58s (full-owner resync) | `createTodo` → `persistTodoMutation` ; dates relatives seed | [x] |
+| HEALTH-UNDATED | On track avec 100 % sans échéance | Santé `undated` + helper unique liste/steering | [x] |
+| DEEPLINK | `/projects/:id` cassé | Redirect + CreateMenu/CommandPalette `?project=` | [x] |
+| IA-PILOTAGE | Pilotage enterré | Tab Pilotage + `?tab=` | [x] |
 
 ## Analytics
 

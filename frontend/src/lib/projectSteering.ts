@@ -42,7 +42,11 @@ export interface ProjectSteeringSnapshot {
   generatedAt: string;
 }
 
-function computeHealth(active: Todo[], now: Date): ProjectHealth {
+/**
+ * Shared project/phase health. Undated when ≥50% of active roots lack an effective due date
+ * and nothing is overdue / at-risk — avoids false "on-track" after undated templates.
+ */
+export function computeHealth(active: Todo[], now: Date = new Date()): ProjectHealth {
   if (active.length === 0) return "empty";
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
   if (active.some((td) => isEffectivelyOverdue(td, now))) return "overdue";
@@ -58,6 +62,8 @@ function computeHealth(active: Todo[], now: Date): ProjectHealth {
   ) {
     return "at-risk";
   }
+  const noDeadline = active.filter((td) => !getEffectiveDueDay(td)).length;
+  if (noDeadline / active.length >= 0.5) return "undated";
   return "on-track";
 }
 
