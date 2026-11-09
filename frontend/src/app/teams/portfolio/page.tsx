@@ -1,23 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import PageHelpButton from "@/components/PageHelpButton";
 import { useLocale } from "@/lib/LocaleContext";
 import { useToast } from "@/components/Toast";
-import { getTeams, getTeamPortfolio, type Team, type TeamPortfolioProjectRow } from "@/lib/api";
+import {
+  getTeams,
+  getTeamPortfolio,
+  getPersonalPortfolio,
+  type Team,
+  type TeamPortfolioProjectRow,
+} from "@/lib/api";
 import { getHealthConfig } from "@/app/projects/_components/types";
+
+const PERSONAL_SCOPE = "personal";
 
 export default function TeamPortfolioPage() {
   const { t } = useLocale();
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const [scopeId, setScopeId] = useState<string>(PERSONAL_SCOPE);
   const [rows, setRows] = useState<TeamPortfolioProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [atRiskOnly, setAtRiskOnly] = useState(false);
+  const healthParam = (searchParams.get("health") ?? "").trim().toLowerCase();
+  const atRiskOnly = healthParam === "at-risk" || healthParam === "overdue";
+
+  const setAtRiskOnly = useCallback(
+    (on: boolean) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (on) params.set("health", "at-risk");
+      else params.delete("health");
+      const qs = params.toString();
+      router.replace(qs ? `/teams/portfolio?${qs}` : "/teams/portfolio", { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   const healthConfig = useMemo(() => getHealthConfig(t), [t]);
   const visibleRows = useMemo(
@@ -32,20 +55,40 @@ export default function TeamPortfolioPage() {
     getTeams()
       .then((list) => {
         setTeams(list);
-        if (list.length > 0) setTeamId(list[0].id);
+        // Solo / no team → personal; otherwise open first team (Personal still in the select).
+        setScopeId(list.length === 0 ? PERSONAL_SCOPE : list[0].id);
       })
       .catch(() => toast.error(t("portfolio.loadTeamsError")))
       .finally(() => setLoading(false));
   }, [toast, t]);
 
   useEffect(() => {
-    if (!teamId) return;
+    let cancelled = false;
     setLoading(true);
-    getTeamPortfolio(teamId)
-      .then((snap) => setRows(snap.projects))
-      .catch(() => toast.error(t("portfolio.loadError")))
-      .finally(() => setLoading(false));
-  }, [teamId, toast, t]);
+    const load =
+      scopeId === PERSONAL_SCOPE
+        ? getPersonalPortfolio()
+        : getTeamPortfolio(scopeId);
+    load
+      .then((snap) => {
+        if (!cancelled) setRows(snap.projects);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRows([]);
+          toast.error(t("portfolio.loadError"));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeId, toast, t]);
+
+  const emptyMessage =
+    scopeId === PERSONAL_SCOPE ? t("portfolio.emptyPersonal") : t("portfolio.empty");
 
   return (
     <AppShell>
@@ -59,26 +102,26 @@ export default function TeamPortfolioPage() {
             <p className="text-sm text-zinc-500 dark:text-slate-400 mt-1">{t("portfolio.hint")}</p>
           </div>
           <Link
-            href="/teams/dashboard"
+            href="/projects"
             className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-slate-200"
           >
-            {t("portfolio.backDashboard")}
+            {t("portfolio.backProjects")}
           </Link>
         </div>
 
-        {teams.length > 1 && (
-          <select
-            value={teamId ?? ""}
-            onChange={(e) => setTeamId(e.target.value || null)}
-            className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800"
-          >
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          value={scopeId}
+          onChange={(e) => setScopeId(e.target.value || PERSONAL_SCOPE)}
+          className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800"
+          aria-label={t("portfolio.scopeLabel")}
+        >
+          <option value={PERSONAL_SCOPE}>{t("portfolio.scopePersonal")}</option>
+          {teams.map((team) => (
+            <option key={team.id} value={team.id}>
+              {team.name}
+            </option>
+          ))}
+        </select>
 
         {loading && <p className="text-sm text-zinc-500">{t("portfolio.loading")}</p>}
 
@@ -88,14 +131,18 @@ export default function TeamPortfolioPage() {
               type="checkbox"
               checked={atRiskOnly}
               onChange={(e) => setAtRiskOnly(e.target.checked)}
-              className="rounded border-zinc-300"
+              className="rounded border-zinc-300 dark:border-slate-600"
             />
             {t("projects.filterAtRisk")}
           </label>
         )}
 
         {!loading && rows.length === 0 && (
-          <p className="text-sm text-zinc-500">{t("portfolio.empty")}</p>
+          <p className="text-sm text-zinc-500">{emptyMessage}</p>
+        )}
+
+        {!loading && rows.length > 0 && visibleRows.length === 0 && atRiskOnly && (
+          <p className="text-sm text-zinc-500">{t("projects.filterAtRiskEmpty")}</p>
         )}
 
         {!loading && visibleRows.length > 0 && (

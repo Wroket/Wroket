@@ -27,6 +27,7 @@ alwaysApply: true
 ## CI/CD
 - **GitHub Actions** (`.github/workflows/deploy.yml`) : lint + type-check sur push/PR
 - **Cloud Build** (`cloudbuild.yaml`) : build images Docker → push Artifact Registry → deploy Cloud Run
+- **Trigger prod** : `wroket-deploy` (région **`europe-west9`**, pas `europe-west1`) — un push sur `main` le déclenche. Lister les builds : `gcloud builds list --region=europe-west9`. Éviter un `gcloud builds submit` manuel global (souvent en parallèle / hors liste régionale).
 - Registry : `europe-west1-docker.pkg.dev/$PROJECT_ID/wroket/{api,web}`
 - **Secrets** : `gcloud run deploy --set-secrets` **remplace toute** la liste des secrets pour le service — ne pas omettre `OAUTH_STATE_SECRET` pour `wroket-api`. Détail : `.cursor/rules/cloudbuild.mdc`
 
@@ -40,7 +41,7 @@ alwaysApply: true
 ## Règles critiques
 1. **Ne jamais confondre VM et production** — la prod est Cloud Run
 2. Pour modifier une env var en prod : `gcloud run services update wroket-api --region=europe-west1 --update-env-vars KEY=VALUE`
-3. Les déploiements se font via push sur `main` → Cloud Build
+3. Les déploiements se font via push sur `main` → trigger Cloud Build `wroket-deploy` (`europe-west9`)
 4. Firestore est accessible uniquement via le SA `wroket-run`, pas via la VM
 
 ## Vision produit E2E

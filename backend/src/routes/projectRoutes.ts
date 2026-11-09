@@ -23,6 +23,7 @@ import {
   importProjectTasks,
   seedTemplate,
   getSteering,
+  getPersonalPortfolio,
   getProjectTimesheet,
   exportSteering,
 } from "../controllers/projectController";
@@ -55,6 +56,8 @@ router.get("/", requireAuth, list);
 router.post("/", requireAuth, create);
 router.put("/reorder", requireAuth, reorder);
 router.get("/all-todos", requireAuth, getAllTodos);
+/** Before /:id — personal portfolio snapshot. */
+router.get("/portfolio", requireAuth, getPersonalPortfolio);
 router.get("/:id/access", requireAuth, getAccess);
 router.put("/:id/access", requireAuth, putAccess);
 router.get("/:id/export", requireAuth, exportProject);

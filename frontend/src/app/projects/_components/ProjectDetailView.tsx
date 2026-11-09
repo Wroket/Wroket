@@ -1860,7 +1860,11 @@ export default function ProjectDetailView({
           <div className="bg-zinc-50/80 dark:bg-slate-800/40 rounded-md border border-zinc-200 dark:border-slate-700 p-4">
             <h4 className="text-xs font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wider mb-1">{t("projects.projectAccess")}</h4>
             <p className="text-[11px] text-zinc-400 dark:text-slate-500 mb-1">{t("projects.projectAccessDesc")}</p>
-            <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-3">{t("projects.raciLiteHint")}</p>
+            <p className="text-[11px] text-zinc-500 dark:text-slate-400 mb-3">
+              {accessPanel.roster.length >= 2
+                ? t("projects.raciLiteHint")
+                : t("projects.raciNeedsCollab")}
+            </p>
             {accessLoading ? (
               <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" /></div>
             ) : (

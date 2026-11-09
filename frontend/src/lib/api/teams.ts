@@ -251,6 +251,13 @@ export async function getTeamPortfolio(teamId: string): Promise<TeamPortfolioSna
   return res.json() as Promise<TeamPortfolioSnapshot>;
 }
 
+/** Personal (non-team) portfolio — same row shape as team portfolio. */
+export async function getPersonalPortfolio(): Promise<TeamPortfolioSnapshot> {
+  const res = await fetch(`${API_BASE_URL}/projects/portfolio`, { ...apiFetchDefaults, method: "GET" });
+  if (!res.ok) throw new Error("Impossible de charger le portfolio");
+  return res.json() as Promise<TeamPortfolioSnapshot>;
+}
+
 export type TeamReportingPeriodDays = 7 | 14 | 30;
 
 export interface TeamReportingMemberRow {

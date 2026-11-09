@@ -40,6 +40,8 @@ export interface ProjectSteeringSnapshot {
   phases: PhaseSteeringRow[];
   upcomingMilestones: UpcomingMilestone[];
   topOverdue: OverdueTaskRow[];
+  /** Active roots due within 3 days (not yet overdue). */
+  topComingDue: OverdueTaskRow[];
   generatedAt: string;
 }
 
@@ -194,16 +196,29 @@ export function computeProjectSteeringSnapshot(
     .sort((a, b) => a.daysLeft - b.daysLeft)
     .slice(0, 8);
 
+  const toRow = (t: (typeof active)[number]): OverdueTaskRow => ({
+    id: t.id,
+    title: t.title,
+    phaseName: t.phaseId ? phaseMap.get(t.phaseId)?.name ?? "" : "",
+    deadline: t.deadline,
+    priority: t.priority,
+  });
+
   const topOverdue: OverdueTaskRow[] = overdueActive
     .sort((a, b) => (getEffectiveDueDay(a)?.getTime() ?? 0) - (getEffectiveDueDay(b)?.getTime() ?? 0))
     .slice(0, 8)
-    .map((t) => ({
-      id: t.id,
-      title: t.title,
-      phaseName: t.phaseId ? phaseMap.get(t.phaseId)?.name ?? "" : "",
-      deadline: t.deadline,
-      priority: t.priority,
-    }));
+    .map(toRow);
+
+  const comingDueActive = active.filter((t) => {
+    if (isEffectivelyOverdue(t, now)) return false;
+    const due = getEffectiveDueDay(t);
+    return !!due && due.getTime() - now.getTime() < threeDaysMs && due.getTime() >= todayMs;
+  });
+
+  const topComingDue: OverdueTaskRow[] = comingDueActive
+    .sort((a, b) => (getEffectiveDueDay(a)?.getTime() ?? 0) - (getEffectiveDueDay(b)?.getTime() ?? 0))
+    .slice(0, 8)
+    .map(toRow);
 
   const relevant = active.length + completed.length;
   return {
@@ -217,6 +232,7 @@ export function computeProjectSteeringSnapshot(
     phases,
     upcomingMilestones,
     topOverdue,
+    topComingDue,
     generatedAt: now.toISOString(),
   };
 }
@@ -242,6 +258,11 @@ export function steeringSnapshotToCsv(projectName: string, snap: ProjectSteering
     "",
     "Tâche en retard,Titre,Phase,Échéance,Priorité",
     ...snap.topOverdue.map(
+      (t) => `${t.id},${esc(t.title)},${esc(t.phaseName)},${t.deadline ?? ""},${t.priority}`,
+    ),
+    "",
+    "Tâche bientôt due,Titre,Phase,Échéance,Priorité",
+    ...snap.topComingDue.map(
       (t) => `${t.id},${esc(t.title)},${esc(t.phaseName)},${t.deadline ?? ""},${t.priority}`,
     ),
   ].join("\n");

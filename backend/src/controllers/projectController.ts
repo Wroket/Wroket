@@ -504,6 +504,13 @@ export async function convertSubprojectToPhase(req: AuthenticatedRequest, res: R
   res.status(200).json(result);
 }
 
+/** GET /projects/portfolio — personal (non-team) active root projects. */
+export async function getPersonalPortfolio(req: AuthenticatedRequest, res: Response) {
+  const { buildPersonalPortfolio } = await import("../services/teamPortfolioService");
+  const snap = await buildPersonalPortfolio(req.user!.uid, req.user!.email ?? "");
+  res.status(200).json(snap);
+}
+
 export async function getSteering(req: AuthenticatedRequest, res: Response) {
   const id = req.params.id as string;
   const project = getProjectById(id);

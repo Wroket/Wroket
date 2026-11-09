@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   DndContext,
@@ -79,6 +79,7 @@ export default function ProjectListView({
   onTaskImportSuccess,
 }: ProjectListViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { refresh } = useAuth();
 
@@ -104,8 +105,20 @@ export default function ProjectListView({
   const [lastAction, setLastAction] = useState<ProjectUndoAction | null>(null);
   const [undoing, setUndoing] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Same semantics as team portfolio: overdue + at-risk only. */
-  const [atRiskOnly, setAtRiskOnly] = useState(false);
+  /** Same semantics as team portfolio: overdue + at-risk only. Deep-link: `?health=at-risk`. */
+  const healthParam = (searchParams.get("health") ?? "").trim().toLowerCase();
+  const atRiskOnly = healthParam === "at-risk" || healthParam === "overdue";
+
+  const setAtRiskOnly = useCallback(
+    (on: boolean) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (on) params.set("health", "at-risk");
+      else params.delete("health");
+      const qs = params.toString();
+      router.replace(qs ? `/projects?${qs}` : "/projects", { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   useEffect(() => {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -281,6 +294,24 @@ export default function ProjectListView({
       return healths.includes("overdue") || healths.includes("at-risk");
     });
   }, [activeProjects, atRiskOnly, healthByProject, childrenByParent]);
+
+  /** Projects that need PMO attention (same rule as at-risk filter). */
+  const attentionProjects = useMemo(() => {
+    const rank = (h: ProjectHealth) => (h === "overdue" ? 0 : h === "at-risk" ? 1 : 2);
+    return activeProjects
+      .map((p) => {
+        const ids = [p.id, ...(childrenByParent.get(p.id) ?? []).map((c) => c.id)];
+        const healths = ids.map((id) => healthByProject.get(id)).filter(Boolean) as ProjectHealth[];
+        const health: ProjectHealth = healths.includes("overdue")
+          ? "overdue"
+          : healths.includes("at-risk")
+            ? "at-risk"
+            : "on-track";
+        return { project: p, health };
+      })
+      .filter((row) => row.health === "overdue" || row.health === "at-risk")
+      .sort((a, b) => rank(a.health) - rank(b.health));
+  }, [activeProjects, healthByProject, childrenByParent]);
 
   const healthConfig = useMemo(() => getHealthConfig(t), [t]);
 
@@ -593,6 +624,44 @@ export default function ProjectListView({
             </button>
           </div>
         </div>
+
+        {attentionProjects.length > 0 && (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          >
+            <p className="text-sm text-amber-900 dark:text-amber-100">
+              {t("projects.attentionBanner").replace("{count}", String(attentionProjects.length))}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setAtRiskOnly(true)}
+                className="rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-900/40"
+              >
+                {t("projects.attentionFilter")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const first = attentionProjects[0]?.project;
+                  if (!first) return;
+                  onSelectProject(first);
+                  router.replace(`/projects?project=${encodeURIComponent(first.id)}&tab=pilotage`, { scroll: false });
+                }}
+                className="rounded bg-amber-600 dark:bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 dark:hover:bg-amber-400"
+              >
+                {t("projects.attentionOpenSteering")}
+              </button>
+              <Link
+                href="/teams/portfolio?health=at-risk"
+                className="rounded px-3 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-200 hover:underline"
+              >
+                {t("projects.attentionPortfolio")} →
+              </Link>
+            </div>
+          </div>
+        )}
 
         {projects.length === 0 && !showCreate ? (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-zinc-200 dark:border-slate-700 p-10 text-center">

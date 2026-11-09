@@ -194,6 +194,35 @@ const ProjectSteeringPanel = forwardRef<HTMLDivElement, Props>(function ProjectS
         </div>
       )}
 
+      {snap.topComingDue.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+            {t("projects.steeringComingDue")}
+          </p>
+          <ul className="space-y-1">
+            {snap.topComingDue.map((row) => (
+              <li key={row.id} className="flex items-center justify-between gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-left text-zinc-700 dark:text-slate-300 truncate hover:underline disabled:no-underline"
+                  disabled={!onOpenTodo}
+                  onClick={() => onOpenTodo?.(row.id)}
+                  title={t("projects.openTaskFromComingDue")}
+                >
+                  {row.title}
+                  {row.phaseName ? (
+                    <span className="text-zinc-400 dark:text-slate-500"> · {row.phaseName}</span>
+                  ) : null}
+                </button>
+                <span className="shrink-0 text-amber-600 dark:text-amber-400 tabular-nums">
+                  {row.deadline ?? "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {riskTodos.length > 0 && (
         <div>
           <p className="text-[11px] font-semibold text-zinc-500 dark:text-slate-400 uppercase tracking-wide mb-2">

@@ -3,7 +3,7 @@ import {
   FREE_TIER_MAX_ACTIVE_TASKS_PERSONAL,
   FREE_QUOTA_CODE_TASKS,
 } from "./freeTierQuotaConstants";
-import { addMilestone, addPhase, getProjectById } from "./projectService";
+import { addPhase, getProjectById } from "./projectService";
 import { countPersonalActiveTodosForQuota, createTodo } from "./todoService";
 import { PaymentRequiredError } from "../utils/errors";
 
@@ -149,7 +149,9 @@ export async function seedProjectTemplate(
   const today = new Date();
 
   for (const [phaseIndex, phaseDef] of phases.entries()) {
-    const startOff = phaseDef.startOffsetDays ?? phaseIndex * PHASE_SPAN_DAYS;
+    // Phase 0 starts a week ago so one overdue demo task stays inside phase bounds.
+    const startOff =
+      phaseDef.startOffsetDays ?? (phaseIndex === 0 ? -7 : phaseIndex * PHASE_SPAN_DAYS);
     const endOff = phaseDef.endOffsetDays ?? startOff + PHASE_SPAN_DAYS - 1;
     const startDate = dateOffsetIso(today, startOff);
     const endDate = dateOffsetIso(today, Math.max(endOff, startOff));
@@ -167,24 +169,20 @@ export async function seedProjectTemplate(
       continue;
     }
 
-    try {
-      addMilestone(projectId, {
-        title: phaseDef.name,
-        date: endDate,
-        phaseId,
-      });
-    } catch (err) {
-      result.errors.push({
-        phaseIndex,
-        message: err instanceof Error ? err.message : "Impossible de créer le jalon",
-      });
-    }
+    // Phase endDate is enough for Pilotage/Gantt — do not seed a duplicate milestone.
 
     for (const [taskIndex, taskDef] of phaseDef.tasks.entries()) {
       const taskOffset =
         taskDef.deadlineOffsetDays ??
         startOff + Math.min(PHASE_SPAN_DAYS - 1, Math.floor(((taskIndex + 1) * PHASE_SPAN_DAYS) / Math.max(phaseDef.tasks.length, 1)));
-      const deadline = dateOffsetIso(today, Math.min(Math.max(taskOffset, startOff), endOff));
+      // First root task of first phase: one overdue demo task (why-late / B2 smoke).
+      const overdueDemo = phaseIndex === 0 && taskIndex === 0;
+      // Second root task of first phase: due within 3 days (Pilotage « bientôt dû »).
+      const comingDueDemo = phaseIndex === 0 && taskIndex === 1;
+      let deadlineDay = Math.min(Math.max(taskOffset, startOff), endOff);
+      if (overdueDemo) deadlineDay = -1;
+      else if (comingDueDemo) deadlineDay = Math.min(2, endOff);
+      const deadline = dateOffsetIso(today, deadlineDay);
 
       let parentId: string;
       try {
@@ -193,9 +191,10 @@ export async function seedProjectTemplate(
           priority: "medium",
           projectId,
           phaseId,
-          startDate,
+          startDate: overdueDemo ? dateOffsetIso(today, -7) : startDate,
           deadline,
           sortOrder: (taskIndex + 1) * 100,
+          allowPastDeadline: overdueDemo,
         });
         parentId = parentTodo.id;
         result.todosCreated += 1;

@@ -123,6 +123,7 @@ export {
   updateMemberRoleApi,
   getTeamDashboard,
   getTeamPortfolio,
+  getPersonalPortfolio,
   getTeamReporting,
   deleteTeamApi,
   getOwnedTeams,

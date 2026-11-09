@@ -110,3 +110,45 @@ describe("computeProjectSteering health smoke", () => {
     expect(snap.health).toBe("undated");
   });
 });
+
+describe("computeProjectSteering topComingDue", () => {
+  const now = new Date("2026-11-09T12:00:00");
+
+  it("lists active roots due within 3 days and excludes overdue", () => {
+    const todos: Todo[] = [
+      {
+        id: "overdue",
+        title: "Late",
+        status: "active",
+        projectId: "p1",
+        priority: "medium",
+        deadline: "2026-11-08",
+        createdAt: "2026-11-01T00:00:00.000Z",
+        updatedAt: "2026-11-01T00:00:00.000Z",
+      } as Todo,
+      {
+        id: "soon",
+        title: "Soon",
+        status: "active",
+        projectId: "p1",
+        priority: "medium",
+        deadline: "2026-11-11",
+        createdAt: "2026-11-01T00:00:00.000Z",
+        updatedAt: "2026-11-01T00:00:00.000Z",
+      } as Todo,
+      {
+        id: "later",
+        title: "Later",
+        status: "active",
+        projectId: "p1",
+        priority: "medium",
+        deadline: "2026-11-20",
+        createdAt: "2026-11-01T00:00:00.000Z",
+        updatedAt: "2026-11-01T00:00:00.000Z",
+      } as Todo,
+    ];
+    const snap = computeProjectSteering(baseProject({ milestones: [], phases: [] }), todos, now);
+    expect(snap.topOverdue.map((r) => r.id)).toEqual(["overdue"]);
+    expect(snap.topComingDue.map((r) => r.id)).toEqual(["soon"]);
+  });
+});

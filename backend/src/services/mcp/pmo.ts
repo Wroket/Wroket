@@ -73,7 +73,7 @@ export const pmoToolDefs: McpToolDef[] = [
   {
     name: "get_project_steering",
     description:
-      "Compute the executive PMO steering snapshot for a project (overall health, completion ratio, per-phase health, upcoming milestones, top overdue tasks).",
+      "Compute the executive PMO steering snapshot for a project (overall health, completion ratio, per-phase health, upcoming milestones, top overdue tasks, tasks due within 3 days).",
     requiredScope: "projects:read",
     inputSchema: {
       type: "object",
