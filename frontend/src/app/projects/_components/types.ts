@@ -6,9 +6,20 @@ export type ProjectHealth = "done" | "overdue" | "at-risk" | "on-track" | "undat
 
 export const DETAIL_TABS: DetailTab[] = ["pilotage", "board", "kanban", "gantt", "docs"];
 
+/** Canonical tabs plus user/deep-link aliases (`list` UI label → board). */
+const DETAIL_TAB_ALIASES: Record<string, DetailTab> = {
+  pilotage: "pilotage",
+  steering: "pilotage",
+  board: "board",
+  list: "board",
+  kanban: "kanban",
+  gantt: "gantt",
+  docs: "docs",
+};
+
 export function parseDetailTab(raw: string | null | undefined): DetailTab | null {
   if (!raw) return null;
-  return (DETAIL_TABS as string[]).includes(raw) ? (raw as DetailTab) : null;
+  return DETAIL_TAB_ALIASES[raw.trim().toLowerCase()] ?? null;
 }
 
 interface TemplateSubtask {

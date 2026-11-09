@@ -2243,6 +2243,10 @@ const translations = {
   },
   "projects.openTaskFromOverdue": { fr: "Ouvrir la tâche", en: "Open task" },
   "projects.filterAtRisk": { fr: "À risque seulement", en: "At risk only" },
+  "projects.filterAtRiskEmpty": {
+    fr: "Aucun projet à risque ou en retard.",
+    en: "No at-risk or overdue projects.",
+  },
   "projects.baselinePinned": { fr: "Snapshot pilotage mémorisé", en: "Steering snapshot saved" },
   "projects.pinBaseline": { fr: "Mémoriser le snapshot", en: "Pin snapshot" },
   "projects.lastBaseline": { fr: "Dernier snapshot", en: "Last snapshot" },

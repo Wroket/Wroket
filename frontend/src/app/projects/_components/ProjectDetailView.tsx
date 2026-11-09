@@ -246,8 +246,15 @@ export default function ProjectDetailView({
   );
 
   useEffect(() => {
-    const fromUrl = parseDetailTab(searchParams.get("tab"));
+    const rawTab = searchParams.get("tab");
+    const fromUrl = parseDetailTab(rawTab);
     if (fromUrl && fromUrl !== detailTab) setDetailTabState(fromUrl);
+    // Normalize aliases in the address bar (`list` → `board`, `steering` → `pilotage`).
+    if (rawTab && fromUrl && rawTab !== fromUrl) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", fromUrl);
+      router.replace(`/projects?${params.toString()}`, { scroll: false });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL → state only when tab param changes
   }, [searchParams]);
 

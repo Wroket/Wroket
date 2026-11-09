@@ -69,9 +69,11 @@ interface SortableProjectCardProps {
   id: string;
   isNesting: boolean;
   children: React.ReactNode;
+  /** When true (e.g. health filter), disable reorder handle. */
+  disabled?: boolean;
 }
 
-export function SortableProjectCard({ id, isNesting, children }: SortableProjectCardProps) {
+export function SortableProjectCard({ id, isNesting, children, disabled = false }: SortableProjectCardProps) {
   const { t } = useLocale();
   const {
     attributes,
@@ -80,7 +82,7 @@ export function SortableProjectCard({ id, isNesting, children }: SortableProject
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
 
   const style: React.CSSProperties = isDragging
     ? { opacity: 0.3, transition }
@@ -91,19 +93,21 @@ export function SortableProjectCard({ id, isNesting, children }: SortableProject
 
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col h-full">
-      <div className="flex items-center gap-1 mb-1">
-        <button
-          type="button"
-          className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none"
-          aria-label={t("a11y.reorderProject")}
-          {...attributes}
-          {...listeners}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
-          </svg>
-        </button>
-      </div>
+      {!disabled && (
+        <div className="flex items-center gap-1 mb-1">
+          <button
+            type="button"
+            className="cursor-grab active:cursor-grabbing text-zinc-300 dark:text-slate-600 hover:text-zinc-500 dark:hover:text-slate-400 touch-none"
+            aria-label={t("a11y.reorderProject")}
+            {...attributes}
+            {...listeners}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+            </svg>
+          </button>
+        </div>
+      )}
       {children}
     </div>
   );

@@ -145,8 +145,18 @@ export function computeProjectSteeringSnapshot(
 
   const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
+  /** Phase end already covered by a milestone on the same date → skip phase row in Pilotage. */
+  const phaseEndsCoveredByMilestone = new Set<string>();
+  for (const m of project.milestones ?? []) {
+    if (!m.phaseId || !m.date?.trim()) continue;
+    const phase = phaseMap.get(m.phaseId);
+    if (phase?.endDate?.trim() && phase.endDate === m.date) {
+      phaseEndsCoveredByMilestone.add(m.phaseId);
+    }
+  }
+
   const fromPhases: UpcomingMilestone[] = (project.phases ?? [])
-    .filter((p) => p.endDate?.trim())
+    .filter((p) => p.endDate?.trim() && !phaseEndsCoveredByMilestone.has(p.id))
     .map((p) => {
       const end = new Date(p.endDate! + "T23:59:59");
       const daysLeft = Math.ceil((end.getTime() - todayMs) / (24 * 60 * 60 * 1000));
@@ -165,9 +175,14 @@ export function computeProjectSteeringSnapshot(
       const end = new Date(m.date + "T23:59:59");
       const daysLeft = Math.ceil((end.getTime() - todayMs) / (24 * 60 * 60 * 1000));
       const phaseName = m.phaseId ? phaseMap.get(m.phaseId)?.name : null;
+      const title = m.title.trim();
+      const label =
+        phaseName && title && title.toLowerCase() !== phaseName.trim().toLowerCase()
+          ? `${title} (${phaseName})`
+          : title || phaseName || m.title;
       return {
         id: `milestone:${m.id}`,
-        label: phaseName ? `${m.title} (${phaseName})` : m.title,
+        label,
         endDate: m.date,
         daysLeft,
         source: "milestone" as const,

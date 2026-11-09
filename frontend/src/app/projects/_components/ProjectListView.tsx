@@ -104,6 +104,8 @@ export default function ProjectListView({
   const [lastAction, setLastAction] = useState<ProjectUndoAction | null>(null);
   const [undoing, setUndoing] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Same semantics as team portfolio: overdue + at-risk only. */
+  const [atRiskOnly, setAtRiskOnly] = useState(false);
 
   useEffect(() => {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -270,6 +272,15 @@ export default function ProjectListView({
     if (healths.includes("undated") && !healths.includes("on-track")) return "undated";
     return "on-track";
   };
+
+  const visibleProjects = useMemo(() => {
+    if (!atRiskOnly) return activeProjects;
+    return activeProjects.filter((p) => {
+      const ids = [p.id, ...(childrenByParent.get(p.id) ?? []).map((c) => c.id)];
+      const healths = ids.map((id) => healthByProject.get(id)).filter(Boolean) as ProjectHealth[];
+      return healths.includes("overdue") || healths.includes("at-risk");
+    });
+  }, [activeProjects, atRiskOnly, healthByProject, childrenByParent]);
 
   const healthConfig = useMemo(() => getHealthConfig(t), [t]);
 
@@ -535,6 +546,17 @@ export default function ProjectListView({
             >
               {t("projects.portfolioLink")} →
             </Link>
+            {activeProjects.length > 0 && (
+              <label className="mt-3 inline-flex items-center gap-2 text-sm text-zinc-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={atRiskOnly}
+                  onChange={(e) => setAtRiskOnly(e.target.checked)}
+                  className="rounded border-zinc-300 dark:border-slate-600"
+                />
+                {t("projects.filterAtRisk")}
+              </label>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -605,13 +627,16 @@ export default function ProjectListView({
           </div>
         ) : (
           <DndContext sensors={projectSensors} collisionDetection={closestCenter} onDragStart={handleProjectDragStart} onDragOver={handleProjectDragOver} onDragEnd={handleProjectDragEnd} onDragCancel={handleProjectDragCancel}>
-          <SortableContext items={activeProjects.map((p) => p.id)} strategy={rectSortingStrategy}>
+          <SortableContext items={visibleProjects.map((p) => p.id)} strategy={rectSortingStrategy}>
+          {atRiskOnly && visibleProjects.length === 0 ? (
+            <p className="text-sm text-zinc-500 dark:text-slate-400 py-8 text-center">{t("projects.filterAtRiskEmpty")}</p>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeProjects.map((project) => {
+            {visibleProjects.map((project) => {
               const children = getChildren(project.id);
               const expanded = expandedProjects.has(project.id);
               return (
-                <SortableProjectCard key={project.id} id={project.id} isNesting={!!nestTargetId}>
+                <SortableProjectCard key={project.id} id={project.id} isNesting={!!nestTargetId} disabled={atRiskOnly}>
                   <div
                     onClick={() => onSelectProject(project)}
                     className={`bg-white dark:bg-slate-900 rounded-md border p-4 cursor-pointer hover:shadow-md transition-all group min-h-[120px] flex-1 ${
