@@ -124,6 +124,8 @@ export default function DiagramImportDialog({
   const [aside, setAside] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [drawAnyway, setDrawAnyway] = useState(false);
+  /** After AI proposes boxes, user must pick text vs diagram (false positives on arrows). */
+  const [importKind, setImportKind] = useState<"unset" | "text" | "diagram">("unset");
   const [tool, setTool] = useState<{ shape: DiagramShape; color: DiagramColor }>({ shape: "rect", color: "emerald" });
   const [languageHint, setLanguageHint] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -137,10 +139,16 @@ export default function DiagramImportDialog({
   });
 
   const recognizedText = useRef("");
+  /** Aside text when importing as diagram (box labels stripped from OCR). */
+  const diagramAside = useRef("");
   const driveEnabled = useMemo(() => isGoogleDrivePickerConfigured(), []);
   const dropboxEnabled = useMemo(() => isDropboxChooserConfigured(), []);
   const project = projects.find((item) => item.id === projectId);
   const columns = [...new Set(nodes.map((node) => node.column.trim()).filter(Boolean))];
+  const proposedDiagram = nodes.some((node) => node.label.trim());
+  const needsImportChoice = proposedDiagram && importKind === "unset";
+  const showDiagramUi = importKind === "diagram" || drawAnyway;
+  const showTextUi = importKind === "text";
 
   const describe = useCallback((err: unknown, fallback: "errors.code.DIAGRAM_PROVIDER_ERROR" | "errors.code.OCR_PROVIDER_ERROR" = "errors.code.DIAGRAM_PROVIDER_ERROR"): string => {
     if (err instanceof ImageImportError || err instanceof CloudPickerError) return t(`notes.ocr.err.${err.code}`);
@@ -171,6 +179,9 @@ export default function DiagramImportDialog({
     setAside("");
     setNotice(null);
     setDrawAnyway(false);
+    setImportKind("unset");
+    recognizedText.current = "";
+    diagramAside.current = "";
     setTool({ shape: "rect", color: "emerald" });
     setCreatePhases(false);
     setProjectId(defaultProjectId ?? "");
@@ -198,6 +209,7 @@ export default function DiagramImportDialog({
     let labels: string[] = [];
     let asideText = "";
     let diagramFailed = false;
+    let hasBoxes = false;
     if (diagramSettled.status === "fulfilled" && diagramSettled.value.provider !== "mock") {
       setReadMode("model");
       const placed = placeNodes(diagramSettled.value.nodes.map((node) => ({
@@ -216,6 +228,7 @@ export default function DiagramImportDialog({
       setEdges(diagramSettled.value.edges);
       labels = placed.map((node) => node.label);
       asideText = diagramSettled.value.aside ?? "";
+      hasBoxes = placed.some((node) => node.label.trim());
     } else if (diagramSettled.status === "fulfilled") {
       setReadMode("mock");
       setNodes([]);
@@ -236,7 +249,20 @@ export default function DiagramImportDialog({
       ocrFailed = true;
     }
     recognizedText.current = ocrText;
-    setAside(proseFromCapture(ocrText, asideText, labels));
+    const asDiagram = proseFromCapture(ocrText, asideText, labels);
+    diagramAside.current = asDiagram;
+    const mockDraw = diagramSettled.status === "fulfilled" && diagramSettled.value.provider === "mock";
+    // Ambiguous capture (boxes) → user picks. Mock → draw canvas. Pure OCR → text.
+    if (hasBoxes) {
+      setImportKind("unset");
+      setAside(asDiagram);
+    } else if (mockDraw) {
+      setImportKind("diagram");
+      setAside(ocrText || asDiagram);
+    } else {
+      setImportKind("text");
+      setAside(ocrText || asDiagram);
+    }
     setResult(null);
     if (diagramFailed && ocrFailed) setError(describe(diagramSettled.status === "rejected" ? diagramSettled.reason : ocrSettled.status === "rejected" ? ocrSettled.reason : new Error("read")));
     else if (diagramFailed && diagramSettled.status === "rejected") setNotice(describe(diagramSettled.reason));
@@ -260,6 +286,9 @@ export default function DiagramImportDialog({
         setReadMode("mock");
         setNodes([]);
         setEdges([]);
+        setImportKind("diagram");
+        setAside(recognizedText.current);
+        diagramAside.current = recognizedText.current;
       } else {
         setReadMode("model");
         const placed = placeNodes(proposal.nodes.map((node) => ({
@@ -276,7 +305,15 @@ export default function DiagramImportDialog({
         })));
         setNodes(placed);
         setEdges(proposal.edges);
-        setAside(proseFromCapture(recognizedText.current, proposal.aside ?? "", placed.map((node) => node.label)));
+        const asDiagram = proseFromCapture(recognizedText.current, proposal.aside ?? "", placed.map((node) => node.label));
+        diagramAside.current = asDiagram;
+        if (placed.some((node) => node.label.trim())) {
+          setImportKind("unset");
+          setAside(asDiagram);
+        } else {
+          setImportKind("text");
+          setAside(recognizedText.current || asDiagram);
+        }
       }
       getDiagramConfig().then(setConfig).catch(() => {});
     } catch (err) {
@@ -333,8 +370,20 @@ export default function DiagramImportDialog({
     edges: edges.filter((edge) => nodes.some((node) => node.id === edge.from && node.label.trim()) && nodes.some((node) => node.id === edge.to && node.label.trim())),
   });
 
+  const chooseImportKind = (kind: "text" | "diagram") => {
+    setImportKind(kind);
+    if (kind === "text") {
+      setAside(recognizedText.current.trim() || diagramAside.current);
+      setDrawAnyway(false);
+    } else {
+      setAside(diagramAside.current || recognizedText.current);
+    }
+  };
+
   const keep = async () => {
-    const payload = graphPayload();
+    if (needsImportChoice) return;
+    const asText = importKind === "text";
+    const payload = asText ? { nodes: [] as NoteDiagramNode[], edges: [] as NoteDiagramEdge[] } : graphPayload();
     const extra = aside.trim();
     if (payload.nodes.length === 0 && !extra) return;
     setActivity("save");
@@ -473,10 +522,51 @@ export default function DiagramImportDialog({
                     )}
                   </div>
                 )}
-                {(readMode === "mock" || nodes.length > 0 || drawAnyway) && (
+                {(needsImportChoice || showTextUi) && !showDiagramUi && previewUrl && (
+                  <img src={previewUrl} alt="" className="max-h-48 w-full rounded-md object-contain bg-zinc-50 dark:bg-slate-800" />
+                )}
+                {proposedDiagram && activity !== "read" && (
+                  <div
+                    role="group"
+                    aria-label={t("notes.digitize.importAs")}
+                    className="rounded-lg border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 space-y-2"
+                  >
+                    <p className="text-sm font-medium text-zinc-800 dark:text-slate-100">{t("notes.digitize.importAs")}</p>
+                    <p className="text-xs text-zinc-600 dark:text-slate-300">{t("notes.digitize.importAsHint")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        aria-pressed={importKind === "text"}
+                        onClick={() => chooseImportKind("text")}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium border transition-colors ${
+                          importKind === "text"
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-100"
+                        }`}
+                      >
+                        {t("notes.digitize.asText")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        aria-pressed={importKind === "diagram"}
+                        onClick={() => chooseImportKind("diagram")}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium border transition-colors ${
+                          importKind === "diagram"
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-100"
+                        }`}
+                      >
+                        {t("notes.digitize.asDiagram")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {showDiagramUi && (
                   <p className="text-xs text-zinc-500 dark:text-slate-400">{t(readMode === "mock" ? "notes.diagram.drawHint" : "notes.diagram.moveHint")}</p>
                 )}
-                {(activity === "read" || readMode === "mock" || nodes.length > 0 || drawAnyway) && (
+                {(activity === "read" || showDiagramUi) && (
                 <div className="relative">
                 <DiagramCanvas
                   imageUrl={previewUrl}
@@ -491,6 +581,7 @@ export default function DiagramImportDialog({
                   edges={edges}
                   onCreate={(box) => {
                     const id = `n${Date.now()}`;
+                    setImportKind("diagram");
                     setNodes((current) => [...current, { id, label: "", column: "", included: true, shape: tool.shape, color: tool.color, ...box }]);
                     setSelectedId(id);
                     setLabelEditId(id);
@@ -519,12 +610,12 @@ export default function DiagramImportDialog({
                 )}
                 </div>
                 )}
-                {readMode === "model" && nodes.length === 0 && !drawAnyway && activity !== "read" && (
-                  <button type="button" onClick={() => setDrawAnyway(true)} className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm">
+                {importKind !== "text" && readMode === "model" && nodes.length === 0 && !drawAnyway && activity !== "read" && (
+                  <button type="button" onClick={() => { setDrawAnyway(true); setImportKind("diagram"); }} className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm">
                     {t("notes.digitize.draw")}
                   </button>
                 )}
-                {(readMode === "mock" || nodes.length > 0 || drawAnyway) && (
+                {showDiagramUi && (
                 <DiagramStyleBar
                   shape={nodes.find((node) => node.id === selectedId)?.shape ?? tool.shape}
                   color={nodes.find((node) => node.id === selectedId)?.color ?? tool.color}
@@ -540,7 +631,7 @@ export default function DiagramImportDialog({
                   }}
                 />
                 )}
-                {readMode !== "idle" && (
+                {(showTextUi || showDiagramUi) && (
                   <>
                     <label className="block space-y-1 text-xs text-zinc-600 dark:text-slate-300">
                       {t("notes.diagram.aside")}
@@ -554,12 +645,15 @@ export default function DiagramImportDialog({
                     <p className="text-xs text-zinc-500 dark:text-slate-400">{t("notes.diagram.asideHint")}</p>
                   </>
                 )}
-                {readMode !== "idle" && nodes.length === 0 && !aside.trim() && !busy && (
+                {showTextUi && !showDiagramUi && !aside.trim() && !busy && (
+                  <p className="text-sm text-zinc-600 dark:text-slate-300">{t("notes.diagram.emptyGraph")}</p>
+                )}
+                {showDiagramUi && nodes.length === 0 && !aside.trim() && !busy && (
                   <p className="text-sm text-zinc-600 dark:text-slate-300">{t("notes.diagram.emptyGraph")}</p>
                 )}
               </div>
             )}
-            {!parentId && nodes.length > 0 && (
+            {!parentId && showDiagramUi && nodes.length > 0 && (
               <div className="flex flex-wrap gap-3 items-end">
                 <label className="text-xs text-zinc-500 flex flex-col gap-1">
                   {t("notes.spawn.project")}
@@ -591,16 +685,33 @@ export default function DiagramImportDialog({
                 {t("notes.diagram.attach")}
               </label>
             )}
-            {replacesDiagram && nodes.some((node) => node.label.trim()) && (
+            {replacesDiagram && importKind === "diagram" && nodes.some((node) => node.label.trim()) && (
               <p className="text-xs text-amber-700 dark:text-amber-300">{t("notes.digitize.replaceHint")}</p>
             )}
             {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-slate-300">{t("notes.spawn.cancel")}</button>
-              <button type="button" disabled={busy || (nodes.every((node) => !node.label.trim()) && !aside.trim())} onClick={() => { void keep(); }} className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm">
-                {replacesDiagram && nodes.some((node) => node.label.trim()) ? t("notes.digitize.replace") : t("notes.diagram.keep")}
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  needsImportChoice ||
+                  (importKind === "text" ? !aside.trim() : nodes.every((node) => !node.label.trim()) && !aside.trim())
+                }
+                onClick={() => { void keep(); }}
+                className="rounded-lg border border-zinc-300 dark:border-slate-600 px-3 py-1.5 text-sm disabled:opacity-40"
+              >
+                {importKind === "text"
+                  ? t("notes.digitize.keepText")
+                  : replacesDiagram && nodes.some((node) => node.label.trim())
+                    ? t("notes.digitize.replace")
+                    : importKind === "diagram"
+                      ? t("notes.digitize.keepDiagram")
+                      : t("notes.diagram.keep")}
               </button>
-              <button type="button" disabled={busy || !nodes.some((node) => node.included && node.label.trim())} onClick={() => { void createTasks(); }} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-medium px-3 py-1.5">{t("notes.diagram.createTasks")}</button>
+              {importKind === "diagram" && (
+                <button type="button" disabled={busy || !nodes.some((node) => node.included && node.label.trim())} onClick={() => { void createTasks(); }} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-medium px-3 py-1.5">{t("notes.diagram.createTasks")}</button>
+              )}
             </div>
           </>
         )}

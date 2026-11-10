@@ -1719,6 +1719,18 @@ const translations = {
     fr: "Le schéma est ajouté à la note. Le texte déjà écrit reste.",
     en: "The diagram is added to the note. Text already written stays.",
   },
+  "notes.digitize.importAs": {
+    fr: "Comment importer ?",
+    en: "How should we import?",
+  },
+  "notes.digitize.importAsHint": {
+    fr: "L’IA a proposé un schéma. Si ce sont surtout des flèches ou du texte libre, choisissez Texte.",
+    en: "AI proposed a diagram. If this is mostly arrows or free text, choose Text.",
+  },
+  "notes.digitize.asText": { fr: "Texte", en: "Text" },
+  "notes.digitize.asDiagram": { fr: "Schéma", en: "Diagram" },
+  "notes.digitize.keepText": { fr: "Importer le texte", en: "Import text" },
+  "notes.digitize.keepDiagram": { fr: "Importer le schéma", en: "Import diagram" },
   "notes.diagram.addNode": { fr: "Ajouter une étape", en: "Add a step" },
   "notes.diagram.noEdges": { fr: "Aucune flèche.", en: "No arrows." },
   "notes.delete": { fr: "Supprimer", en: "Delete" },
