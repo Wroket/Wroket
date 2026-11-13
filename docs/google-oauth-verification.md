@@ -57,7 +57,8 @@ Lien direct : [Auth Platform — overview](https://console.cloud.google.com/auth
 - [x] Justification sensitive scopes collée (Data Access)
 - [x] Logo OAuth distinctif uploadé (2026-11-13) — `frontend/public/brand/wroket-oauth-consent.png`
 - [x] Brand verification **re**-soumise après deploy privacy/terms + nouveau logo (2026-11-13)
-- [ ] Sensitive scope verification (`Prepare for verification` — attend OK branding Google)
+- [x] `Prepare for verification` accessible (branding summary OK)
+- [ ] Sensitive scope verification — **bloque sur démo vidéo YouTube** (`demo video` manquant pour `calendar.readonly` / `calendar.events`) + Confirm
 
 CLI 2026-11-13 : `gcloud` OK en `francois@broudeur.com` ; l’API publique ne permet pas de lire/soumettre le consent screen (UI console uniquement). Utiliser Chrome **Professionnel** `francois@broudeur.com`.
 

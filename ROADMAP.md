@@ -87,7 +87,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 2. ~~**Teams+ pragmatique → Chat privé → Discord niche (ops)**~~ — **Validé propriétaire 2026-11-13** (+ Discord 2026-11-09). Stores publics toujours différés. Voir [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md).
 2b. **Bot time tracking — Later** — MVP `/wroket start|stop|log|timer` → `timeSessionService`. **Pas** de clone Gryzzly. Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 3. ~~**MCP / IA agentique — validation usage**~~ — **Gate go 2026-11-13**. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
-3b. **OAuth Google Agenda — vérification** — Privacy/terms renseignés (François Broudeur, 15 rue Léo Frankel 75013 Paris, DPO `team@wroket.com` ; **SIREN en cours**). Pack + justification : [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). **Reste** : deploy pages → Submit brand + sensitive scopes dans Auth Platform (`francois@broudeur.com`) + démo YouTube.
+3b. **OAuth Google Agenda — vérification** — Privacy/terms + logo OAuth déployés/uploadés (2026-11-13). Branding passé le gate « Prepare for verification ». **Reste** : URL démo YouTube (scopes Calendar) + Confirm dans Verification Center ; pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md).
 4. ~~**Dual UI V1+V2 — observation**~~ — **Sunset V1** (2026-08-09) : V2 permanent ; toggle Settings retiré ; opt-out localStorage ignoré/effacé.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
