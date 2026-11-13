@@ -3,18 +3,15 @@
 import Link from "next/link";
 
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
+import { LEGAL_ENTITY } from "@/lib/legalEntity";
 import { useLocale } from "@/lib/LocaleContext";
 
 /**
  * Bilingual Privacy Policy.
  *
- * Legal framework: French company (controller in France; CNIL as lead authority).
- * IMPORTANT before Google OAuth verification:
- * - Replace every "[À COMPLÉTER ...]" / "[TO BE COMPLETED ...]" placeholder
- *   with the real legal entity, SIREN/RCS, postal address and DPO contact.
- * - The text below already covers Google API Services User Data Policy
- *   (including the Limited Use disclosure) so that `calendar.events` and
- *   `calendar.readonly` scopes can pass the sensitive-scopes review.
+ * Controller in France (CNIL as lead authority). Limited Use disclosure for
+ * Google Calendar scopes (`calendar.events`, `calendar.readonly`) is in §4.
+ * Update {@link LEGAL_ENTITY} when the company receives a SIREN/RCS.
  */
 export default function PrivacyPage() {
   const { locale } = useLocale();
@@ -56,7 +53,7 @@ export default function PrivacyPage() {
   );
 }
 
-const LAST_UPDATED = "2026-11-06";
+const LAST_UPDATED = "2026-11-13";
 
 function PrivacyFr() {
   return (
@@ -66,11 +63,11 @@ function PrivacyFr() {
 
       <h2>1. Qui sommes-nous</h2>
       <p>
-        Wroket (« nous », « notre service ») est un outil de gestion de tâches et d&apos;agenda édité par <strong>[À COMPLÉTER : raison sociale]</strong>,
-        société de droit français immatriculée au RCS sous le numéro <strong>[À COMPLÉTER : SIREN / RCS]</strong>, dont le siège social
-        est situé en France à <strong>[À COMPLÉTER : adresse complète]</strong>. Le responsable de traitement au sens du RGPD est
-        l&apos;éditeur ci-dessus. Pour toute question relative à la protection des données, vous pouvez nous écrire à{" "}
-        <a href="mailto:team@wroket.com">team@wroket.com</a>.
+        Wroket (« nous », « notre service ») est un outil de gestion de tâches et d&apos;agenda édité par{" "}
+        <strong>{LEGAL_ENTITY.nameFr}</strong>, personne physique établie en France, {LEGAL_ENTITY.registrationFr}, dont
+        l&apos;adresse est <strong>{LEGAL_ENTITY.addressFr}</strong>. Le responsable de traitement au sens du RGPD est
+        l&apos;éditeur ci-dessus. Pour toute question relative à la protection des données (DPO / contact privacy), écrivez à{" "}
+        <a href={`mailto:${LEGAL_ENTITY.privacyEmail}`}>{LEGAL_ENTITY.privacyEmail}</a>.
       </p>
 
       <h2>2. Données que nous collectons</h2>
@@ -213,11 +210,10 @@ function PrivacyEn() {
       <h2>1. Who we are</h2>
       <p>
         Wroket (&quot;we&quot;, &quot;our service&quot;) is a task management and calendar tool operated by{" "}
-        <strong>[TO BE COMPLETED: legal entity name]</strong>, a company incorporated under French law, registered with the
-        French Trade and Companies Register (RCS) under number <strong>[TO BE COMPLETED: SIREN / RCS]</strong>, with its
-        registered office in France at <strong>[TO BE COMPLETED: full postal address]</strong>. The data controller within the
-        meaning of GDPR is the entity above. For any data protection question, contact us at{" "}
-        <a href="mailto:team@wroket.com">team@wroket.com</a>.
+        <strong>{LEGAL_ENTITY.nameEn}</strong>, a natural person established in France, {LEGAL_ENTITY.registrationEn}, at{" "}
+        <strong>{LEGAL_ENTITY.addressEn}</strong>. The data controller within the meaning of GDPR is the editor above. For any
+        data protection question (privacy / DPO contact), write to{" "}
+        <a href={`mailto:${LEGAL_ENTITY.privacyEmail}`}>{LEGAL_ENTITY.privacyEmail}</a>.
       </p>
 
       <h2>2. Data we collect</h2>

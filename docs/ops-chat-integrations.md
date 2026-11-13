@@ -55,28 +55,29 @@ Détail technique : [slack-plus.md](./slack-plus.md)
 
 ### Entra — inscription **Wroket** (`e75f60be-547f-40fe-b910-5feb59a600bc`)
 
-- [ ] **Authentification → URI Web** :
+- [x] **Authentification → URI Web** :
   - `https://api.wroket.com/integrations/teams/callback`
   - (dev) `http://localhost:3001/integrations/teams/callback`
   - (+ SSO / calendrier déjà documentés dans [microsoft-azure.md](./microsoft-azure.md))
-- [ ] **Types de comptes** : **Comptes dans un annuaire d’organisation (multilocataire)**  
+  — **validé propriétaire 2026-11-13**
+- [x] **Types de comptes** : **Comptes dans un annuaire d’organisation (multilocataire)** — **validé propriétaire 2026-11-13**  
   Optionnel : + comptes Microsoft personnels (SSO) — les canaux Teams restent surtout M365.
-- [ ] **Jetons ID** cochés (si SSO Microsoft)
+- [x] **Jetons ID** cochés (si SSO Microsoft) — **validé propriétaire 2026-11-13**
 
 ### Azure Bot `wroket-teams`
 
 - [x] **Configuration** → type de bot = **Client unique** (accepté — Multilocataire Azure Bot indisponible / déprécié)
 - [x] Messaging endpoint : `https://api.wroket.com/integrations/teams/interactions`
 - [x] **Canaux** → Microsoft Teams / Direct Line / Web Chat = Healthy (2026-11-08)
-- [ ] **Profil de bot** → icône : `docs/assets/azure/wroket-bot-color-192.png` (outline 32px : `wroket-bot-outline-32.png`)
+- [x] **Profil de bot** → icône : `docs/assets/azure/wroket-bot-color-192.png` (outline 32px : `wroket-bot-outline-32.png`) — **validé propriétaire 2026-11-13**
 - [x] Smoke Web Chat après connector `from=recipient` + authority SingleTenant (2026-11-08) — reply visible (identité Wroket absente en Web Chat = attendu)
-- [ ] Smoke Teams 1:1 / canal org (sideload zip + deep link `users=28:APP_ID`)
+- [x] Smoke Teams 1:1 / canal org (sideload zip + deep link `users=28:APP_ID`) — **validé propriétaire 2026-11-13**
 
 ### App Teams (package) — parcours pragmatique (pas Store)
 
 - [x] Zip : [`docs/assets/azure/wroket-teams-app.zip`](./assets/azure/wroket-teams-app.zip) + lien Paramètres
-- [ ] Tester org M365 : Upload custom app → canal → `@Wroket` → Wroket **Envoyer un test**
-- [ ] Deep link Paramètres « Ouvrir dans Teams » → mémoriser conversation
+- [x] Tester org M365 : Upload custom app → canal → `@Wroket` → Wroket **Envoyer un test** — **validé propriétaire 2026-11-13**
+- [x] Deep link Paramètres « Ouvrir dans Teams » → mémoriser conversation — **validé propriétaire 2026-11-13**
 - [ ] **Marketplace / Partner Center = différé** (priorité produit 2026-11-08)
 
 ### GCP Teams (option propre)
@@ -116,7 +117,7 @@ Env déjà : `GOOGLE_CHAT_REDIRECT_URI`. Fallback OAuth : `GOOGLE_CLIENT_*`.
   - **Pas de Verification Token** dans l’UI add-on → auth = **OIDC Bearer** (audience = HTTP endpoint, email = SA)
 - [x] OAuth client (existant) — redirect `https://api.wroket.com/integrations/google-chat/callback` — **2026-11-07** consent Chat scopes OK
 - [x] Scopes Chat (spaces + messages) accordés — Professionnel `francois@broudeur.com` **2026-11-07** 18:30 toast « Google Chat connecté »
-- [ ] **Reconnecter** après passage à `chat.messages.create` (2026-11-08) — scopes create-only (évite CASA)
+- [x] **Reconnecter** après passage à `chat.messages.create` (2026-11-08) — scopes create-only (évite CASA) — **validé propriétaire 2026-11-13**
 - [x] Marketplace listing **Private** (domaine Broudeur) — publié + install Individuel **2026-11-07** ; **Visibility Marketplace verrouillée Private** (irréversible dans ce projet GCP)
 - [ ] App installable hors domaine Broudeur (autres Workspace) — **bloqué** : Marketplace Public exige **nouveau projet GCP** + review Google (ne peut pas basculer Private→Public sur `involuted-reach-490718-h4`)
 - [x] Env Cloud Run (plain, pas Secret Manager) — via `cloudbuild.yaml` :

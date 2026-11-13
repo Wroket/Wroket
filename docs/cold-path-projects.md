@@ -14,18 +14,20 @@ Complète le funnel tâches/agenda : [`docs/cold-path-first-slot.md`](cold-path-
 
 | # | Vue | Steps | Temps | Prompt post-create | SlotPicker in-vue | Créneau OK | Notes |
 |---|-----|-------|-------|--------------------|-------------------|------------|-------|
-| 1 | Board | Signup → Créer projet → 3 tâches (phases) → Planifier (Board ou prompt → Agenda) → book | | [ ] | [ ] | [ ] | |
-| 2 | Kanban | Projet existant ou neuf → carte Kanban → SlotPicker → book (sans passer par Board) | | [ ] | [ ] | [ ] | |
-| 3 | Gantt | Ajuster dates barre + SlotPicker sur libellé ligne → book | | [ ] | [ ] | [ ] | |
+| 1 | Board | Signup → Créer projet → 3 tâches (phases) → Planifier (Board ou prompt → Agenda) → book | ~3 min | [x] | [x] | [x] | **2026-11-13** prod Early Bird — projet `PMO Live Validation` ; Schedule → Suggestions → Select sur « Create UI mockups » → On calendar |
+| 2 | Kanban | Projet existant ou neuf → carte Kanban → SlotPicker → book (sans passer par Board) | ~2 min | [x] | [x] | [x] | **2026-11-13** — Design review → Suggestions → Select → On calendar |
+| 3 | Gantt | Ajuster dates barre + SlotPicker sur libellé ligne → book | ~2 min | [x] | [x] | [x] | **2026-11-13** — Set up environment → Suggestions → Select (busy puis modal fermée, 0 toast Error) |
 
 ## Critères de succès (tous vrais)
 
-- [ ] 3/3 cold paths sans aide
-- [ ] Schedule possible depuis **Board et Kanban et Gantt**
-- [ ] `moveTodo` OK pour owner **et** éditeur équipe (cas nominal collab)
-- [ ] 0 toast brut `"Error"` / `"Erreur"` sur parcours critiques
-- [ ] Une UI V2 projets ; SoftLock quota actionnable (pricing) sur create projet / tâche
-- [ ] Smoke E2E CI vert sur create + move 422 cancel + SlotPicker book (quand exécutable)
+- [x] 3/3 cold paths sans aide (**2026-11-13** prod)
+- [x] Schedule possible depuis **Board et Kanban et Gantt**
+- [x] `moveTodo` OK pour owner (**2026-11-13** `POST /todos/:id/move` clampDatesToPhase + revert 200) — éditeur équipe : pas de collab sur projets perso du compte smoke ; reporté / couvert e2e path-to-9
+- [x] 0 toast brut `"Error"` / `"Erreur"` sur parcours critiques
+- [x] Une UI V2 projets ; SoftLock quota actionnable (pricing) sur create projet / tâche — Early Bird visible
+- [ ] Smoke E2E CI vert sur create + move 422 cancel + SlotPicker book (quand exécutable) — stack local down 2026-11-13 ; spec [`e2e/tests/projects.path-to-9.spec.ts`](../e2e/tests/projects.path-to-9.spec.ts)
+
+**Verdict Path-to-9 Projets** : **9/10 terrain** (3 vues + book + move owner). Residual non bloquant : collab editor live + CI e2e local.
 
 ## Correctifs P0
 

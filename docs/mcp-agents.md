@@ -118,7 +118,13 @@ Same semantics as the product DnD API:
 - [x] Key `smoke-mcp-2026-11-07` created → `tools/list` 200 (v1.1 tools)
 - [x] `list_todos` (limit 3) 200; `create_todo` « MCP smoke 2026-11-07 » 200
 - [x] Revoke in UI → Bearer returns **401**; Clés actives = « Aucune clé »
-- [ ] Optional deeper: `list_projects` → phases → note/comment (not blocking go)
+- [x] Optional deeper: projects / note / comment — **validé propriétaire 2026-11-13** (gate go)
+
+### Gate go/no-go — 2026-11-13
+
+- [x] Smoke agents réels (Cursor / Claude) + auth revoke — **go** (propriétaire)
+- [x] Digests PMO via MCP (`get_my_week`, `get_overdue_tasks`, `get_team_risk`) — Early Bird prod, clé éphémère créée/révoquée **2026-11-13**
+- Phase 2 IA intégrée = **Later** (inchangé)
 
 ## Out of scope (v1.1)
 

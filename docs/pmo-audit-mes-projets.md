@@ -109,4 +109,4 @@ Livré sur `main` après le scoreboard ci-dessus (`f3728db`, `abcdf24`) :
 | 4 | RACI si roster ≥ 2 ; `?health=at-risk` ; doc `wroket-deploy` europe-west9 | [x] |
 | Fix | Toast desktop `dependency_blocked` (baseline AppShell + notif lue sans push) | [x] |
 
-**Reste** : Path-to-9 Projets terrain ; digests ops sur canal branché ; entretiens ICP (phase 0). Non-goals inchangés (PPM / matrice RACI / RAID).
+**Reste** : entretiens ICP (phase 0) ; residual Path-to-9 (collab editor live, CI e2e local). Path-to-9 Projets terrain + digests PMO + gate MCP = **faits 2026-11-13**. Non-goals inchangés (PPM / matrice RACI / RAID).

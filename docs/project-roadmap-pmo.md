@@ -4,7 +4,7 @@ Document de travail : feuille de route **produit** pour renforcer le module Proj
 
 Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit utilisateur](./product-user-session.md) et les [idées refonte UI](./refonte-ui-ideas.md).
 
-**Dernière mise à jour** : 2026-11-09 (consolidation Mes projets — audit PMO)
+**Dernière mise à jour** : 2026-11-13 (Path-to-9 Projets 9/10 + digests / gate MCP)
 
 ---
 
@@ -17,7 +17,7 @@ Il complète le [ROADMAP](../ROADMAP.md) et s’aligne avec la [session produit 
 | **2 — Lien plan ↔ todos** | 🟢 Livré | Jalons dédiés CRUD + Gantt ; deps `blockedByTodoIds` + badges ; templates seedent dates |
 | **3 — Rituel PMO (reporting)** | 🟢 V1+ | CSV/PDF + pack comité ; portfolio perso + équipe ; « Bientôt dû » ; CTA at-risk |
 | **§6 — Partage externe** | 🟢 Livré | Share projet + Client Portal |
-| **4 — Qualité E2E** | 🟡 En cours | Path-to-9 cold paths encore à valider terrain ; digests ops canal |
+| **4 — Qualité E2E** | 🟢 Terrain | Path-to-9 Projets **9/10** (2026-11-13) ; digests PMO + gate MCP go ; residual CI e2e local + collab editor |
 
 Audit consolidé : [pmo-audit-mes-projets.md](./pmo-audit-mes-projets.md).
 
