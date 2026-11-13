@@ -52,10 +52,10 @@ export function LandingFooter({ hidePricingLink = false, className = "" }: Landi
                 {t("docs.footer.documentation")}
               </Link>
               <Link href="/privacy" className={linkClass}>
-                {t("landing.footerPrivacy")}
+                Privacy Policy
               </Link>
               <Link href="/terms" className={linkClass}>
-                {t("landing.footerTerms")}
+                Terms of Service
               </Link>
               <a href="mailto:team@wroket.com" className={linkClass}>
                 {t("landing.footerContact")}
