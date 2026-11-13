@@ -65,12 +65,11 @@ CLI 2026-11-13 : `gcloud` OK en `francois@broudeur.com` ; l’API publique ne pe
 
 Panneau **View issues** (bloque `Prepare for verification`) :
 
-1. **Privacy** — `https://wroket.com/privacy` « does not have sufficient content ».
-   - Cause initiale : placeholders `[À COMPLÉTER]` encore live.
-   - Fix déployé (commit `899711d`, Cloud Build OK 2026-11-13) : `LEGAL_ENTITY` + privacy/terms ; crawl HTML contient éditeur, adresse, Calendar Limited Use.
-   - Re-soumis « I have fixed » après deploy (Google peut mettre quelques minutes à re-crawler).
-2. **Logo** — « does not uniquely identify your brand ».
-   - Asset uploadé en console : [`frontend/public/brand/wroket-oauth-consent.png`](../frontend/public/brand/wroket-oauth-consent.png) (512×512, mark site + wordmark Wroket attaché).
+1. **Privacy** — `https://wroket.com/privacy` « does not have sufficient content » (crawler auto).
+   - Placeholders retirés ; `LEGAL_ENTITY` + Limited Use Calendar live (`899711d`, `e2e3f5c`).
+   - Page publie **FR + EN** (HTML crawlé OK : scopes, Limited Use, éditeur, adresse).
+   - Logo issue **levée** après upload. Privacy encore refusée par le check auto → resoumis « I believe the issues found are incorrect » (2026-11-13) pour escalade humaine.
+2. **Logo** — « does not uniquely identify your brand » → **corrigé** (upload `wroket-oauth-consent.png` 512×512).
 
 ## Justification sensitive scopes (coller dans le dossier)
 
