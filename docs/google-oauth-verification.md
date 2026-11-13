@@ -22,7 +22,7 @@ Source unique : [`frontend/src/lib/legalEntity.ts`](../frontend/src/lib/legalEnt
 | Adresse | 15 rue Léo Frankel, 75013 Paris, France |
 | Tribunal | Paris |
 | Privacy / DPO | `team@wroket.com` |
-| Pages | `https://wroket.com/privacy` · `https://wroket.com/terms` |
+| Pages | OAuth crawler : `https://wroket.com/privacy-policy.html` · UI : `/privacy` · `https://wroket.com/terms` |
 
 **Risque Google** : sans SIREN / société enregistrée, la review peut demander un justificatif d’entité. Mettre à jour `LEGAL_ENTITY` dès immatriculation, redéployer, puis répondre au reviewer.
 

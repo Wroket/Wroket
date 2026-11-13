@@ -13,6 +13,7 @@ export const PUBLIC_PATHS = [
   "/pricing",
   "/docs",
   "/privacy",
+  "/privacy-policy.html",
   "/terms",
   "/agenda-taches",
   "/gestion-taches-equipe",
@@ -29,5 +30,7 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname === "/docs" || pathname.startsWith("/docs/")) return true;
   // Brand assets (email headers, OG, etc.) must load without auth — email clients cannot send cookies.
   if (pathname.startsWith("/brand/")) return true;
+  // Static files from /public (OAuth HTML privacy, icons, etc.) must not redirect to /login.
+  if (/\.(?:html?|txt|xml|ico|png|jpe?g|gif|svg|webp|pdf)$/i.test(pathname)) return true;
   return false;
 }
