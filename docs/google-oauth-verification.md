@@ -55,9 +55,9 @@ Lien direct : [Auth Platform — overview](https://console.cloud.google.com/auth
 - [x] Authorized domains : `wroket.com`
 - [x] Scopes = `calendar.readonly` + `calendar.events` (+ SSO `openid`/`email`/`profile`, `drive.file`)
 - [x] Justification sensitive scopes collée (Data Access)
-- [ ] Logo OAuth distinctif (voir issues ci-dessous)
-- [ ] Brand verification **re**-soumise après fix
-- [ ] Sensitive scope verification (`Prepare for verification` — bloqué tant que branding non OK)
+- [x] Logo OAuth distinctif uploadé (2026-11-13) — `frontend/public/brand/wroket-oauth-consent.png`
+- [x] Brand verification **re**-soumise après deploy privacy/terms + nouveau logo (2026-11-13)
+- [ ] Sensitive scope verification (`Prepare for verification` — attend OK branding Google)
 
 CLI 2026-11-13 : `gcloud` OK en `francois@broudeur.com` ; l’API publique ne permet pas de lire/soumettre le consent screen (UI console uniquement). Utiliser Chrome **Professionnel** `francois@broudeur.com`.
 
@@ -66,11 +66,11 @@ CLI 2026-11-13 : `gcloud` OK en `francois@broudeur.com` ; l’API publique ne pe
 Panneau **View issues** (bloque `Prepare for verification`) :
 
 1. **Privacy** — `https://wroket.com/privacy` « does not have sufficient content ».
-   - Cause prod au moment de l’audit : placeholders `[À COMPLÉTER : raison sociale / SIREN / adresse]` encore live.
-   - Fix code : `LEGAL_ENTITY` + privacy/terms (2026-11-13) — **à déployer** (push `main` → Cloud Run) avant de re-soumettre.
+   - Cause initiale : placeholders `[À COMPLÉTER]` encore live.
+   - Fix déployé (commit `899711d`, Cloud Build OK 2026-11-13) : `LEGAL_ENTITY` + privacy/terms ; crawl HTML contient éditeur, adresse, Calendar Limited Use.
+   - Re-soumis « I have fixed » après deploy (Google peut mettre quelques minutes à re-crawler).
 2. **Logo** — « does not uniquely identify your brand ».
-   - Asset proposé : [`frontend/public/brand/wroket-oauth-consent.png`](../frontend/public/brand/wroket-oauth-consent.png) (512×512, mark + wordmark Wroket).
-   - Action console : Branding → Change logo → upload → Save → View issues → « I have fixed the issues » → Proceed.
+   - Asset uploadé en console : [`frontend/public/brand/wroket-oauth-consent.png`](../frontend/public/brand/wroket-oauth-consent.png) (512×512, mark site + wordmark Wroket attaché).
 
 ## Justification sensitive scopes (coller dans le dossier)
 

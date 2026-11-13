@@ -27,7 +27,32 @@ export default function PrivacyPage() {
             {isFr ? "Conditions d'utilisation" : "Terms of service"}
           </Link>
         </p>
-        {isFr ? <PrivacyFr /> : <PrivacyEn />}
+        {/*
+          Both languages stay in the DOM and visible (no display:none) so Google's
+          OAuth branding crawler always sees a full English Limited Use policy.
+          Preferred locale is listed first.
+        */}
+        {isFr ? (
+          <>
+            <div lang="fr">
+              <PrivacyFr />
+            </div>
+            <hr className="my-12 border-zinc-200 dark:border-slate-700" />
+            <div lang="en">
+              <PrivacyEn />
+            </div>
+          </>
+        ) : (
+          <>
+            <div lang="en">
+              <PrivacyEn />
+            </div>
+            <hr className="my-12 border-zinc-200 dark:border-slate-700" />
+            <div lang="fr">
+              <PrivacyFr />
+            </div>
+          </>
+        )}
       </main>
 
       <footer className="border-t border-zinc-100 dark:border-slate-800 py-8 mt-8">
@@ -265,20 +290,37 @@ function PrivacyEn() {
         <li>Service improvement (legitimate interest): aggregated and anonymized statistics.</li>
       </ul>
 
-      <h2>4. Google API Services User Data Policy compliance</h2>
+      <h2>4. Google API Services User Data Policy compliance (Limited Use)</h2>
       <p>
         Wroket&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{" "}
         <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noreferrer noopener">
           Google API Services User Data Policy
         </a>, including the <strong>Limited Use</strong> requirements.
       </p>
-      <p>Specifically, data obtained from Google Calendar:</p>
+      <p>
+        <strong>Google user data we request:</strong>{" "}
+        <code>openid</code>, <code>email</code>, <code>profile</code> (sign-in);
+        <code>https://www.googleapis.com/auth/calendar.readonly</code> (read free/busy and event metadata on calendars you select);
+        <code>https://www.googleapis.com/auth/calendar.events</code> (create or update events only when you book or sync a slot in Wroket).
+      </p>
+      <p>
+        <strong>How we use Google user data:</strong> only to provide or improve user-facing features that are prominent in
+        Wroket&apos;s Agenda and calendar-connection UI. We do not use Google user data for serving advertisements, for
+        personalized advertising, for creditworthiness, for lending, or for any other purpose prohibited by Limited Use.
+      </p>
+      <p>
+        <strong>Sharing / transfer:</strong> we do not sell Google user data. We do not transfer Google user data to
+        third parties except to subprocessors necessary to operate the service (Google Cloud hosting in the EU) or when
+        required by law. We do not allow humans to read Google user data unless (a) we have your affirmative agreement
+        for specific messages, (b) it is necessary for security / compliance investigations, or (c) the use is limited
+        to aggregate / anonymized data that cannot identify you.
+      </p>
+      <p>Specifically for Google Calendar data:</p>
       <ul>
-        <li>is used solely to provide and improve user-facing calendar features visible directly to the user;</li>
-        <li>is not used to automatically sync your slots upon OAuth connection alone; any push to Google Calendar requires an explicit action in Wroket;</li>
-        <li>is never transferred to third parties, except processors strictly necessary for operations (Google Cloud hosting) or as required by law;</li>
-        <li>is never used for advertising targeting, resale, or to train generalized AI / machine learning models;</li>
-        <li>is not read by humans, except with explicit consent, for narrow user-requested support, or to comply with applicable law.</li>
+        <li>used solely to show free/busy and to write events you explicitly book or sync;</li>
+        <li>not written on OAuth connect alone — every write requires an explicit user action in Wroket;</li>
+        <li>never used to train generalized AI / machine learning models;</li>
+        <li>OAuth tokens are encrypted at rest and revoked when you disconnect Google Calendar in Wroket or in your Google Account.</li>
       </ul>
 
       <h2>5. Data sharing</h2>
