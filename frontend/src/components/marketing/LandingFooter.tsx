@@ -51,8 +51,11 @@ export function LandingFooter({ hidePricingLink = false, className = "" }: Landi
               <Link href="/docs" className={linkClass}>
                 {t("docs.footer.documentation")}
               </Link>
-              <Link href="/privacy" className={linkClass}>
+              <a href="/privacy-policy.html" className={linkClass}>
                 Privacy Policy
+              </a>
+              <Link href="/privacy" className={linkClass}>
+                Confidentialité
               </Link>
               <Link href="/terms" className={linkClass}>
                 Terms of Service

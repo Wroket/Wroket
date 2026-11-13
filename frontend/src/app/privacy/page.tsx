@@ -46,7 +46,18 @@ export default function PrivacyPage() {
               Terms of service
             </Link>
             {" · "}
-            <span>Privacy Policy</span>
+            <a
+              href="/privacy-policy.html"
+              className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors font-medium text-zinc-800 dark:text-slate-100"
+            >
+              Privacy Policy (HTML)
+            </a>
+          </p>
+          <p className="not-prose mb-8 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+            Canonical OAuth / Google verification Privacy Policy:{" "}
+            <a className="underline font-semibold" href="https://wroket.com/privacy-policy.html">
+              https://wroket.com/privacy-policy.html
+            </a>
           </p>
 
           <PrivacyPolicyEnglish />
