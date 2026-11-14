@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import type { SendMailOptions, SentMessageInfo, Transporter } from "nodemailer";
 import { escapeHtml } from "../utils/escapeHtml";
 import { normalizeNotificationData } from "./notificationFormatting";
 
@@ -14,7 +15,7 @@ export function isSmtpConfiguredForOutbound(): boolean {
   return Boolean(SMTP_USER && SMTP_PASS);
 }
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
 /** PNG (not SVG): most mail clients block remote SVG images. */
 const BRAND_LOCKUP_NEUTRAL_EMAIL_URL = `${process.env.FRONTEND_URL || "http://localhost:3000"}/brand/wroket-lockup-neutral-email.png`;
@@ -32,7 +33,7 @@ function emailFooter(): string {
   </div>`;
 }
 
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
   if (!transporter) {
     if (!SMTP_USER || !SMTP_PASS) {
       console.warn("[email] SMTP_USER / SMTP_PASS not configured — emails disabled");
@@ -51,8 +52,8 @@ function getTransporter(): nodemailer.Transporter {
 
 /** Central outbound send — records delivery stats for SMTP health monitoring. */
 async function sendOutboundMail(
-  options: nodemailer.SendMailOptions,
-): Promise<nodemailer.SentMessageInfo> {
+  options: SendMailOptions,
+): Promise<SentMessageInfo> {
   const t = getTransporter();
   try {
     const info = await t.sendMail(options);

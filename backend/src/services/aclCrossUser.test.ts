@@ -82,10 +82,10 @@ describe("ACL cross-user", () => {
   test("Project share: stranger cannot create or revoke", () => {
     const { a, b } = twoUsers("acl-share");
     const project = createProject(a.uid, a.email, { name: "Share ACL" });
-    const link = createProjectShareLink(a.uid, a.email, project.id, { expiryDays: 3 });
+    const link = createProjectShareLink(a.uid, a.email, project.id, { expiryDays: 7 });
 
     expect(() =>
-      createProjectShareLink(b.uid, b.email, project.id, { expiryDays: 3 }),
+      createProjectShareLink(b.uid, b.email, project.id, { expiryDays: 7 }),
     ).toThrow(ForbiddenError);
     expect(() => revokeProjectShareLink(b.uid, b.email, project.id, link.id)).toThrow(
       ForbiddenError,
