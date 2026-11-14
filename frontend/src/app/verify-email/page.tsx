@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import Link from "next/link";
+
+import { WroketMark, WroketWordmark } from "@/components/brand/WroketBrand";
 import { verifyEmailApi } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 
@@ -36,16 +39,12 @@ function VerifyEmailContent() {
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-slate-950">
       <div className="w-full max-w-md bg-white dark:bg-slate-900 shadow-lg rounded-2xl px-8 py-10 border border-transparent dark:border-slate-700 text-center">
         <div className="flex flex-col items-center gap-3 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center shadow-lg">
-            <svg className="w-9 h-9" viewBox="0 0 24 24" fill="none">
-              <path d="M2 13l4 4 4.5-6" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M11 13l4 4 4.5-6" stroke="#4f46e5" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold">
-            <span className="text-slate-800 dark:text-slate-100">Wro</span>
-            <span className="text-emerald-500 dark:text-emerald-400">ket</span>
-          </h1>
+          <Link href="/" className="flex flex-col items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="w-14 h-14 rounded-2xl bg-slate-800 dark:bg-slate-100 flex items-center justify-center shadow-lg">
+              <WroketMark size={36} />
+            </div>
+            <WroketWordmark className="text-2xl font-bold" />
+          </Link>
         </div>
 
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">
