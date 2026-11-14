@@ -5,6 +5,8 @@ import {
   _getStoreForTest,
   _resetStoreForTest,
   isSuccessfulFlushWithPendingDirty,
+  registerDomainReloader,
+  scheduleSave,
   todoShardIndex,
 } from "./persistence";
 
@@ -47,6 +49,23 @@ describe("_applyDomainSnapshot", () => {
     _resetStoreForTest({ projects: { p1: {} } as unknown as Record<string, unknown> });
     _applyDomainSnapshot("notes", { user1: {} });
     expect((_getStoreForTest() as Record<string, unknown>).projects).toEqual({ p1: {} });
+  });
+
+  it("skips snapshot while domain is dirty (protects unflushed local writes)", () => {
+    const existing = { local: { title: "unflushed" } };
+    _resetStoreForTest({ notes: existing as unknown as Record<string, Record<string, unknown>> });
+    scheduleSave("notes");
+    _applyDomainSnapshot("notes", { remote: { title: "should not win" } });
+    expect((_getStoreForTest() as Record<string, unknown>).notes).toEqual(existing);
+  });
+
+  it("invokes registered domain reloader after apply", () => {
+    let calls = 0;
+    registerDomainReloader("notes", () => {
+      calls += 1;
+    });
+    _applyDomainSnapshot("notes", { user1: {} });
+    expect(calls).toBe(1);
   });
 });
 

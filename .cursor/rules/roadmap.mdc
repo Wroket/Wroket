@@ -3,12 +3,26 @@ description: Gestion de la roadmap projet — déclenché quand l'utilisateur me
 alwaysApply: true
 ---
 
-# Roadmap Wroket
+# Roadmap Wroket — source de vérité unique
 
-Quand l'utilisateur dit `/plan` ou demande de voir/modifier la roadmap :
+## Règle absolue
 
-1. Lire le fichier `ROADMAP.md` à la racine du projet
-2. Afficher la liste actuelle des éléments à faire
-3. Si l'utilisateur souhaite ajouter un élément, l'insérer dans la section appropriée du `ROADMAP.md`
-4. Si l'utilisateur souhaite cocher un élément terminé, remplacer `- [ ]` par `- [x]`
-5. Toujours confirmer les modifications apportées
+**Tout suivi produit / priorités / done = [`ROADMAP.md`](ROADMAP.md) uniquement.**
+
+- Les fichiers `.cursor/plans/*.plan.md` sont des **brouillons d’exécution jetables** (session agent). Une fois le travail livré ou abandonné, ils **ne remplacent pas** et **ne doublonnent pas** la roadmap.
+- Interdit : inventaire parallèle « plans Cursor » comme backlog ; sync bidirectionnelle plan ↔ ROADMAP.
+- Autorisé : créer un plan Cursor pour **exécuter** un item déjà listé (ou à ajouter) dans `ROADMAP.md`, puis cocher / noter le résultat **dans** `ROADMAP.md`.
+
+## Quand l'utilisateur dit `/plan` ou demande roadmap
+
+1. Lire `ROADMAP.md` à la racine
+2. Afficher les éléments **ouverts** (Now / Next `[ ]`, pas l’historique `[x]` exhaustif sauf demande)
+3. Ajout → section appropriée de `ROADMAP.md`
+4. Terminé → `- [ ]` → `- [x]` (+ date / lien doc si utile)
+5. Confirmer les modifications
+
+## Plans Cursor (hygiène)
+
+- **Garder actifs** seulement si l’item est encore `[ ]` dans la roadmap (ex. OAuth Google review, Stripe Checkout si rouvert).
+- **Archiver / ignorer** les plans dont tous les todos sont `completed` / `cancelled` — le bilan reste dans `ROADMAP.md` / `docs/`.
+- Ne pas proposer de « tri encyclopédique » des ~180 plans historiques ; triage ponctuel des plus récents suffit.

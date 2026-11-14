@@ -707,6 +707,17 @@ export function stopWatchdogFlush(): void {
 
 // ─── Cross-replica live invalidation via Firestore onSnapshot ────────────────
 
+/** Service-level Map reloaders — keep domain RAM in sync after cross-replica snapshots. */
+const domainReloaders = new Map<string, () => void>();
+
+/**
+ * Register a callback invoked after a remote domain snapshot is applied to `cachedStore`.
+ * Services with private Maps (auth, timeSessions, …) must reload from `getStore()`.
+ */
+export function registerDomainReloader(domain: Domain, fn: () => void): void {
+  domainReloaders.set(domain, fn);
+}
+
 /**
  * Apply a domain snapshot received from Firestore to the in-memory cache.
  * Exported for unit tests only — do not call directly in production code.
@@ -722,7 +733,23 @@ export function _applyDomainSnapshot(domain: string, data: unknown): void {
     );
     return;
   }
+  // Skip while local unflushed writes exist — applying a remote blob would drop
+  // dirty keys; the next snapshot after flush will catch up.
+  if (dirtyDomains.has(domain as Domain)) {
+    console.log(
+      JSON.stringify({ event: "store.invalidation.skipped_dirty", domain, ts: Date.now() })
+    );
+    return;
+  }
   (cachedStore as Record<string, unknown>)[domain] = data;
+  const reloader = domainReloaders.get(domain);
+  if (reloader) {
+    try {
+      reloader();
+    } catch (err) {
+      console.warn("[persistence] domain reloader failed for %s: %s", domain, err);
+    }
+  }
   console.log(
     JSON.stringify({ event: "store.invalidation.received", domain, ts: Date.now() })
   );
@@ -952,7 +979,12 @@ export function detachLiveInvalidation(): void {
 /** Exposed for tests only — read the raw in-memory cache. */
 export function _getStoreForTest(): StoreData { return cachedStore; }
 /** Exposed for tests only — replace the in-memory cache. */
-export function _resetStoreForTest(data: StoreData): void { cachedStore = data; }
+export function _resetStoreForTest(data: StoreData): void {
+  cachedStore = data;
+  dirtyDomains.clear();
+  dirtyTodoShards.clear();
+  domainReloaders.clear();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 

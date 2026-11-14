@@ -10,6 +10,7 @@ import { scheduleExternalCleanupForFutureSlots } from "./calendarBookingCleanup"
 import {
   syncOwnerTodosV2,
   syncTodoV2,
+  deleteTodosV2ByIds,
   loadAllTodosV2ByOwner,
   listTodosV2ByOwner,
   listTodosV2ByAssignedTo,
@@ -572,19 +573,33 @@ async function resolveTodoRead<T extends { id: string }>(
   return fsResult.sort(sortFn);
 }
 
+/** In-flight lazy hydrations — mark hydrated only after load completes. */
+const hydrateInFlight = new Map<string, Promise<void>>();
+
 /**
  * Load todos_v2 for one owner into RAM on first access (lazy boot path).
  * No-op in legacy/dual/local modes.
+ * Marks the owner hydrated only after Firestore rows are merged (avoids partial-RAM races).
  */
 export async function ensureOwnerHydrated(userId: string): Promise<void> {
   if (TODOS_STORAGE_MODE !== "v2" || USE_LOCAL_TODOS) return;
   if (hydratedOwners.has(userId)) return;
-  hydratedOwners.add(userId);
-  const rows = await listTodosV2ByOwner(userId);
-  const count = mergeV2RowsIntoCache(rows).length;
-  if (count > 0) {
-    console.log("[todos] lazy-hydrated %d todo(s) for owner %s", count, userId);
-  }
+  const existing = hydrateInFlight.get(userId);
+  if (existing) return existing;
+  const pending = (async () => {
+    try {
+      const rows = await listTodosV2ByOwner(userId);
+      const count = mergeV2RowsIntoCache(rows).length;
+      hydratedOwners.add(userId);
+      if (count > 0) {
+        console.log("[todos] lazy-hydrated %d todo(s) for owner %s", count, userId);
+      }
+    } finally {
+      hydrateInFlight.delete(userId);
+    }
+  })();
+  hydrateInFlight.set(userId, pending);
+  await pending;
 }
 
 export function getTodoStoreOwnerId(todoId: string): string | undefined {
@@ -686,16 +701,30 @@ async function persistTodos(...ownerUidsForShards: string[]): Promise<void> {
  * Legacy shard flush still runs; todos_v2 writes only this document (not full owner set).
  */
 async function persistTodoMutation(todo: Todo): Promise<void> {
+  await persistTodoMutations([todo]);
+}
+
+/**
+ * Upsert only the given todos (never delete siblings missing from RAM).
+ */
+async function persistTodoMutations(todos: Todo[]): Promise<void> {
+  if (todos.length === 0) return;
   if (TODOS_STORAGE_MODE !== "v2") {
     const store = getStore();
     if (!store.todos) store.todos = {};
-    if (!store.todos[todo.userId]) store.todos[todo.userId] = {};
-    store.todos[todo.userId][todo.id] = todoToPersisted(todo);
-    scheduleTodoShardPersist([todoShardIndex(todo.userId)]);
+    const shardIndices = new Set<number>();
+    for (const todo of todos) {
+      if (!store.todos[todo.userId]) store.todos[todo.userId] = {};
+      store.todos[todo.userId][todo.id] = todoToPersisted(todo);
+      shardIndices.add(todoShardIndex(todo.userId));
+    }
+    scheduleTodoShardPersist([...shardIndices]);
     await flushNow();
   }
   if (TODOS_STORAGE_MODE !== "legacy") {
-    await syncTodoV2({ ...todoToPersisted(todo), ownerUid: todo.userId });
+    for (const todo of todos) {
+      await syncTodoV2({ ...todoToPersisted(todo), ownerUid: todo.userId });
+    }
   }
 }
 
@@ -789,6 +818,7 @@ export async function hydrateTodosFromV2IfNeeded(): Promise<void> {
   todosByUser.clear();
   ownerIndex.clear();
   hydratedOwners.clear();
+  hydrateInFlight.clear();
   let count = 0;
   for (const [userId, todos] of Object.entries(fromV2)) {
     hydratedOwners.add(userId);
@@ -900,6 +930,7 @@ export function _resetTodosForTests(): void {
   todosByUser.clear();
   ownerIndex.clear();
   hydratedOwners.clear();
+  hydrateInFlight.clear();
 }
 
 /** Remove all in-memory todos for a user (RGPD delete). */
@@ -963,7 +994,12 @@ export async function purgeArchivedTodosPastRetentionForUser(userId: string): Pr
 }
 
 async function purgeArchivedTodosPastRetentionAllUsers(): Promise<void> {
-  for (const uid of todosByUser.keys()) {
+  // In v2 lazy mode, only purge owners fully hydrated in RAM — never walk a partial cache.
+  const uids =
+    TODOS_STORAGE_MODE === "v2" && !USE_LOCAL_TODOS
+      ? [...hydratedOwners]
+      : [...todosByUser.keys()];
+  for (const uid of uids) {
     await purgeArchivedTodosPastRetentionForUser(uid);
   }
 }
@@ -1108,8 +1144,7 @@ export async function archiveTodosByProjectId(projectId: string): Promise<number
     .map((t) => structuredClone(t));
 
   const now = new Date().toISOString();
-  const owners = new Set<string>();
-  let updated = 0;
+  const mutated: Todo[] = [];
   for (const todo of projectTodos) {
     if (todo.status !== "active") continue;
     const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
@@ -1118,14 +1153,13 @@ export async function archiveTodosByProjectId(projectId: string): Promise<number
     inMem.status = "completed";
     inMem.statusChangedAt = now;
     inMem.updatedAt = now;
-    updated++;
-    owners.add(ownerUid);
+    mutated.push(inMem);
   }
-  if (owners.size > 0) {
-    await persistTodos(...owners);
+  if (mutated.length > 0) {
+    await persistTodoMutations(mutated);
   }
   scheduleExternalCleanupForFutureSlots(snapshotsForCalendar);
-  return updated;
+  return mutated.length;
 }
 
 /** Internal: bulk project/phase/parent updates (phase→sub-project conversion). */
@@ -1138,7 +1172,7 @@ export interface TodoPhaseConversionPatch {
 
 export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConversionPatch[]): Promise<void> {
   const now = new Date().toISOString();
-  const ownersToPersist = new Set<string>();
+  const mutated: Todo[] = [];
   const missing: string[] = [];
 
   for (const p of patches) {
@@ -1168,7 +1202,7 @@ export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConve
     todo.parentId = p.parentId;
     todo.updatedAt = now;
     todos.set(p.todoId, todo);
-    ownersToPersist.add(owner);
+    mutated.push(todo);
   }
 
   if (missing.length > 0) {
@@ -1177,8 +1211,8 @@ export async function applyTodoPatchesForPhaseConversion(patches: TodoPhaseConve
     );
   }
 
-  if (ownersToPersist.size > 0) {
-    await persistTodos(...ownersToPersist);
+  if (mutated.length > 0) {
+    await persistTodoMutations(mutated);
   }
 }
 
@@ -1290,6 +1324,7 @@ export async function permanentlyRemoveAllArchivedTodosOwned(userId: string, _us
 /** Permanently remove todos from the store (used when root tasks become phases). */
 export async function hardRemoveTodosByIds(todoIds: string[]): Promise<void> {
   const owners = new Set<string>();
+  const removedIds: string[] = [];
   for (const id of todoIds) {
     const owner = ownerIndex.get(id);
     if (!owner) continue;
@@ -1298,18 +1333,37 @@ export async function hardRemoveTodosByIds(todoIds: string[]): Promise<void> {
     todos.delete(id);
     ownerIndex.delete(id);
     owners.add(owner);
+    removedIds.push(id);
   }
-  if (owners.size > 0) {
-    await persistTodos(...owners);
+  if (removedIds.length === 0) return;
+
+  // Legacy shards: rewrite affected owners from remaining RAM (no v2 prune).
+  if (TODOS_STORAGE_MODE !== "v2") {
+    const obj: Record<string, Record<string, Todo>> = {};
+    todosByUser.forEach((todos, userId) => {
+      obj[userId] = {};
+      todos.forEach((todo, id) => {
+        obj[userId][id] = todoToPersisted(todo);
+      });
+    });
+    const store = getStore();
+    store.todos = obj;
+    const shardIndices = [...new Set([...owners].map((uid) => todoShardIndex(uid)))];
+    scheduleTodoShardPersist(shardIndices);
+    await flushNow();
+  }
+
+  // todos_v2: explicit deletes only — never syncOwnerTodosV2-as-diff.
+  if (TODOS_STORAGE_MODE !== "legacy") {
+    await deleteTodosV2ByIds(removedIds, "explicit_ids");
   }
 }
 
 /** Clears phaseId on todos that still reference a removed phase (any owner). */
 export async function clearProjectPhaseReferences(projectId: string, phaseId: string): Promise<number> {
   const projectTodos = await listProjectTodos(projectId);
-  let updated = 0;
   const now = new Date().toISOString();
-  const owners = new Set<string>();
+  const mutated: Todo[] = [];
   for (const todo of projectTodos) {
     if (todo.phaseId !== phaseId) continue;
     const ownerUid = ownerIndex.get(todo.id) ?? todo.userId;
@@ -1317,11 +1371,10 @@ export async function clearProjectPhaseReferences(projectId: string, phaseId: st
     if (!inMem) continue;
     inMem.phaseId = null;
     inMem.updatedAt = now;
-    updated++;
-    owners.add(ownerUid);
+    mutated.push(inMem);
   }
-  if (updated > 0) await persistTodos(...owners);
-  return updated;
+  if (mutated.length > 0) await persistTodoMutations(mutated);
+  return mutated.length;
 }
 
 function listAssignedToMeFromRam(userId: string): Todo[] {
@@ -1429,8 +1482,7 @@ const MAX_REORDER_SIZE = 200;
  */
 export async function batchReorder(userId: string, userEmail: string, todoIds: string[]): Promise<number> {
   const capped = todoIds.slice(0, MAX_REORDER_SIZE);
-  const ownersToPersist = new Set<string>();
-  let updated = 0;
+  const mutated: Todo[] = [];
   const email = normalizeUserEmail(userEmail);
   for (let i = 0; i < capped.length; i++) {
     const found = await findTodoForUser(userId, capped[i], userEmail);
@@ -1443,13 +1495,12 @@ export async function batchReorder(userId: string, userEmail: string, todoIds: s
     if (!allowed) continue;
     found.todo.sortOrder = i;
     found.todo.updatedAt = new Date().toISOString();
-    ownersToPersist.add(found.todo.userId);
-    updated++;
+    mutated.push(found.todo);
   }
-  for (const ownerUid of ownersToPersist) {
-    await persistTodos(ownerUid);
+  if (mutated.length > 0) {
+    await persistTodoMutations(mutated);
   }
-  return updated;
+  return mutated.length;
 }
 
 export async function createTodo(userId: string, userEmail: string, input: CreateTodoInput): Promise<Todo> {
@@ -1994,7 +2045,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
   todo.updatedAt = new Date().toISOString();
   todos.set(todoId, todo);
 
-  let spawnedRecurrenceClone = false;
+  let recurrenceClone: Todo | null = null;
   if (
     input.status === "completed" &&
     todo.recurrence &&
@@ -2042,12 +2093,12 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
       };
       ownerTodos.set(clone.id, clone);
       ownerIndex.set(clone.id, todo.userId);
-      spawnedRecurrenceClone = true;
+      recurrenceClone = clone;
     }
   }
 
-  if (spawnedRecurrenceClone) {
-    await persistTodos(todo.userId);
+  if (recurrenceClone) {
+    await persistTodoMutations([todo, recurrenceClone]);
   } else {
     await persistTodoMutation(todo);
   }
@@ -2063,7 +2114,7 @@ export async function updateTodo(userId: string, userEmail: string, todoId: stri
           if (patch.assignedTo !== undefined) todo.assignedTo = patch.assignedTo;
         }
         todos.set(todoId, todo);
-        await persistTodos(todo.userId);
+        await persistTodoMutation(todo);
       }
     } catch (err) {
       console.warn("[todos] automation todo_completed failed:", err);
@@ -2222,7 +2273,7 @@ export async function deleteTodo(userId: string, todoId: string): Promise<Todo> 
   todo.statusChangedAt = now;
   todo.updatedAt = now;
   todos.set(todoId, todo);
-  await persistTodos(userId);
+  await persistTodoMutation(todo);
   return todo;
 }
 

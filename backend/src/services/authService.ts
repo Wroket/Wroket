@@ -1393,11 +1393,51 @@ function extractSessionToken(cookies: string | undefined): string | null {
   return last;
 }
 
+/**
+ * Reload users Map from `getStore()` after a cross-replica Firestore snapshot.
+ * Skipped when the domain is dirty (see persistence dirty guard).
+ */
+export function reloadUsersFromStore(): void {
+  const store = getStore();
+  usersByUid.clear();
+  if (store.users) {
+    for (const [k, v] of Object.entries(store.users)) {
+      usersByUid.set(k, v as StoredUser);
+    }
+  }
+}
+
+/**
+ * Reload sessions Map from `getStore()` after a cross-replica Firestore snapshot.
+ */
+export function reloadSessionsFromStore(): void {
+  const store = getStore();
+  const now = Date.now();
+  sessionsByToken.clear();
+  if (store.sessions) {
+    for (const [token, session] of Object.entries(store.sessions)) {
+      const s = session as StoredSession;
+      if (now <= s.expiresAt) {
+        if (!s.id) s.id = crypto.randomUUID();
+        sessionsByToken.set(token, s);
+      }
+    }
+  }
+}
+
 export function getUserFromRequestCookies(cookies: string | undefined): AuthUser | null {
   const token = extractSessionToken(cookies);
   if (!token) return null;
 
-  const session = sessionsByToken.get(token);
+  let session = sessionsByToken.get(token);
+  // Cross-replica: session may exist in cachedStore (live invalidation) before Map reload.
+  if (!session) {
+    const fromStore = getStore().sessions?.[token] as StoredSession | undefined;
+    if (fromStore && Date.now() <= fromStore.expiresAt) {
+      sessionsByToken.set(token, fromStore);
+      session = fromStore;
+    }
+  }
   if (!session) return null;
   if (Date.now() > session.expiresAt) {
     sessionsByToken.delete(token);
@@ -1405,7 +1445,14 @@ export function getUserFromRequestCookies(cookies: string | undefined): AuthUser
     return null;
   }
 
-  const user = usersByUid.get(session.uid);
+  let user = usersByUid.get(session.uid);
+  if (!user) {
+    const fromStore = getStore().users?.[session.uid] as StoredUser | undefined;
+    if (fromStore) {
+      usersByUid.set(session.uid, fromStore);
+      user = fromStore;
+    }
+  }
   if (!user) return null;
   return toAuthUser(user);
 }

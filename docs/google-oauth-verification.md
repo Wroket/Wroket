@@ -59,6 +59,7 @@ Lien direct : [Auth Platform — overview](https://console.cloud.google.com/auth
 - [x] Brand verification **re**-soumise après deploy privacy/terms + nouveau logo (2026-11-13)
 - [x] Branding **verified** et affiché aux users (2026-11-13) — privacy URL `https://wroket.com/privacy-policy.html`
 - [x] Sensitive scopes **soumis** — Data access « under review » (vidéo démo + questionnaire OK)
+- [ ] **Data Safety Team** — mail `[Action Needed]` reçu `team@wroket.com` (2026-11-14) : confirmer AI/ML + Limited Use + N/A Data Portability/CASA ; **répondre** puis suivre la review scopes
 
 CLI 2026-11-13 : `gcloud` OK en `francois@broudeur.com` ; l’API publique ne permet pas de lire/soumettre le consent screen (UI console uniquement). Utiliser Chrome **Professionnel** `francois@broudeur.com`.
 

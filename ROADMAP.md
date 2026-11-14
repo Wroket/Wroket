@@ -1,5 +1,8 @@
 # Wroket — Roadmap
 
+> **Suivi unique** : ce fichier seul. Les plans Cursor (`.cursor/plans/`) sont jetables après exécution — ne pas les traiter comme backlog. Règle agent : `.cursor/rules/roadmap.mdc`.  
+> Tri 2026-11-14 : **1 plan actif** (`google_oauth_verification_*`) ; **178** archivés dans `.cursor/plans/_archive/` (hors dépôt Git).
+
 ## Priorités produit (ordre recommandé)
 
 **Objectif** : rendre Wroket **fiable en prod**, **agréable au quotidien** (mobile, rappels, vues focus), **crédible pour les équipes** (2FA, écosystème Microsoft), puis **monétisable** — avec une montée en profondeur par étapes : **Slack+** (webhook+, OAuth, actions) puis **IA agentique connectable** avant une IA intégrée minimale.
@@ -10,21 +13,21 @@
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
 | **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ (Android + desktop §I-bis Windows/Mac validé 2026-11-13) ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
 | **P3** | Intégrations & profondeur | **Slack+** Lots 1–4 + ops E2E ; **Teams+ / Chat+ / Discord+** ops validés (stores différés) ; **MCP** gate **go** (2026-11-13) ; Features Notion/Monday MVP acquisition aboutis |
-| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics, **IA intégrée minimale** (après socle agentique) |
+| **P4** | Business / scale | **Fonctionnalités Premium** — time tracking ✓, custom fields ✓, automation ✓, client portal ✓, OKR ✓, analytics ✓ ; **IA intégrée Phase 2 ✓** ; reste API OpenAPI / Gryzzly-like / Phase 3 orchestrateur |
 
-**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause** (prérequis ops/MCP **levés** 2026-11-13 — reprise = décision produit). **P2 largement livré** : PWA + Web Push ; Gantt interactif ; UI V2 permanente. **P3 Slack+** : Lots 1–4 + ops E2E ; **Teams+ / Google Chat+ / Discord+** ops validés propriétaire (**2026-11-13**, stores publics différés). **IA agentique** : MCP remote + clés API **livrés** — **gate go** (**2026-11-13**).
+**P0 — terminé** : monitoring, 2FA TOTP, **E2E prod validé (2026-06-07)** — voir section Retour E2E. **P1 ~95 %** : billing/gating/pricing + polish Abonnement livrés ; Microsoft Outlook + Teams quasi terminés ; **Error UX Standard** livré ; **Todo Persistence pack validé E2E** ; **Stripe Checkout en pause** (prérequis ops/MCP **levés** 2026-11-13 — reprise = décision produit). **P2 largement livré** : PWA + Web Push ; Gantt interactif ; UI V2 permanente ; Path-to-9 first-slot / projets / données / transversal **9/10**. **P3 Slack+** : Lots 1–4 + ops E2E ; **Teams+ / Google Chat+ / Discord+** ops validés propriétaire (**2026-11-13**, stores publics différés). **IA agentique** : MCP **gate go** (**2026-11-13**) + Assist Phase 2 **livrée** (**2026-11-14**) + guides utilisateur MCP. **Sécu 2026-11-14** : audit npm 0 high/critical + ACL cross-user Assist/share/MCP.
 
-**Arbitrage 2026-06-15** : prérequis ops canaux + gate MCP **satisfaits** (2026-11-13). Stripe Checkout reste en pause jusqu’à **décision explicite** de reprise P1.
+**Arbitrage 2026-06-15** : prérequis ops canaux + gate MCP **satisfaits** (2026-11-13). Stripe Checkout reste en pause jusqu’à **décision explicite** de reprise P1. **Sprint 2026-11-14** : Secu → E2E Path-to-9+Assist → docs utilisateurs **fait**.
 
 ### Trois priorités produit (arbitrage 2026-06-15)
 
-Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ (**faits 2026-11-13**) → Path-to-9 / monétisation.
+Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ + ~~Path-to-9 cold paths~~ + ~~Assist Phase 2~~ + ~~Secu/docs~~ → **OAuth Google Agenda (review)** + **Stripe Checkout (décision)** + Phase 3 IA / Gryzzly si traction.
 
 | Priorité | Focus | Statut | Prochain livrable |
 |----------|--------|--------|-------------------|
 | **A — Slack+ & canaux** | Webhook+ → OAuth → actions → PMO digests | **Ops validés** (Slack/Teams/Chat/Discord) 2026-11-13 | Stores publics = différé ; bot time MVP **livré** ; Gryzzly-like = Later |
-| **B — IA agentique** | Wroket connectable aux agents | MCP **gate go** 2026-11-13 | IA intégrée Phase 2 **livrée** 2026-11-14 (déterministe) |
-| **C — PMO** | Consolidation Mes projets | Lots 1–4 + Path-to-9 Projets terrain **9/10** (2026-11-13) | Autres cold paths (tâches/données/transversal) ; collab editor live |
+| **B — IA agentique** | Wroket connectable + Assist in-app | MCP **go** + Assist **livré** 2026-11-14 | Phase 3 orchestrateur (Later) ; usage MCP terrain |
+| **C — PMO** | Consolidation Mes projets | Lots 1–4 + Path-to-9 **9/10** + Assist comité | Collab notes CRDT (Later) ; polish steering |
 
 **Décisions produit associées :**
 - **Slack+ / Teams+ / Google Chat+** : connexions **SaaS multi-clients** — chaque client Small teams+ connecte **son** workspace / org M365 / Google Workspace ; ops Wroket = une app partagée par canal ([`docs/chat-integrations-clients.md`](docs/chat-integrations-clients.md)). **Priorité 2026-11-08** : Slack → Teams sideload/deep link → Chat privé → Discord P3 ; bot Teams Azure = **Client unique** (contrainte) + Entra multilocataire ; stores publics différés ([`docs/chat-channel-priority.md`](docs/chat-channel-priority.md)).
@@ -43,9 +46,12 @@ Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ (**faits 20
 5. ~~**Slack+ Lots 1–3**~~ — **Code livré** (2026-08-07, `882c6ca`, doc [`docs/slack-plus.md`](docs/slack-plus.md)) : Webhook+ PMO, OAuth `chat.postMessage`, HMAC interactions + slash `/wroket`. **Reste ops** : secrets `SLACK_*` Cloud Run, URLs Slack App, reconnect OAuth, E2E boutons/slash dans un vrai workspace.
 6. ~~**Slack+ Lot 4**~~ — **Livré** : `/wroket my-week|overdue|team-risk` via [`pmoDigestService`](backend/src/services/pmoDigestService.ts) + smoke workspace / digests MCP **2026-11-13**.
 7. ~~**Teams+ / Google Chat+ / Discord+**~~ — **Ops validés propriétaire 2026-11-13** (code parité 1A + consoles/smokes ; Discord déjà 2026-11-09). Stores publics = différé. Docs : [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md).
-8. ~~**IA agentique — MCP**~~ — **Gate go 2026-11-13** (code PR #6 + smoke agents + digests MCP). Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md). Phase 2 IA intégrée **livrée** 2026-11-14.
+8. ~~**IA agentique — MCP**~~ — **Gate go 2026-11-13** (code PR #6 + smoke agents + digests MCP). Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md) · guide in-app `/docs/integrations/mcp` · how-to [`docs/user-guides/mcp-agent.md`](docs/user-guides/mcp-agent.md).
 9. ~~**PMO Mes projets — audit + hardening**~~ — **Fait** (2026-11-09) + Path-to-9 Projets terrain **9/10** + digests PMO (**2026-11-13**). Archive : [`docs/pmo-audit-mes-projets.md`](docs/pmo-audit-mes-projets.md) ; checklist [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
-10. **P1 reprise (pause)** : Stripe Checkout self-service — prérequis ops/MCP **OK** ; ouvrir sur décision produit.
+10. ~~**IA intégrée Phase 2 (Assist PMO)**~~ — **Livré 2026-11-14** : `AssistPmoPanel` + `/assist/*` + slash ; doc [`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md).
+11. ~~**Secu → E2E → Doc utilisateurs**~~ — **Livré 2026-11-14** : audit npm ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md)), ACL vitest cross-user, Path-to-9 + `assist.smoke` verts, index [`docs/user-guides/`](docs/user-guides/README.md) + PageHelp.
+12. **OAuth Google Agenda — review** — Branding verified ; sensitive scopes **sous review** ; questionnaire Data Safety (AI/ML / Limited Use) à traiter côté propriétaire (`team@wroket.com`). Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). *Seul plan Cursor encore utile à garder ouvert : `google_oauth_verification_*`.*
+13. **P1 reprise (pause)** : Stripe Checkout self-service — prérequis ops/MCP **OK** ; ouvrir sur décision produit. *Pas de plan Cursor actif — décision produit puis nouvel item / plan si besoin.*
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
@@ -69,7 +75,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - **Important**
   - Cohérence UX cross-écrans (même état meeting/tâche/projet/archives partout).
   - Observabilité métier transverse (pas seulement logs techniques).
-  - Renforcement de couverture tests ciblés des flux multi-comptes et droits.
+  - ~~Renforcement de couverture tests ciblés des flux multi-comptes et droits~~ — *ACL Assist/share/MCP cross-user 2026-11-14 ; élargir multi-comptes calendrier si besoin.*
+  - Clôture **vérification OAuth Google Agenda** (review + Data Safety).
 - **Nice-to-have**
   - Uniformisation fine des micro-copies et états vides.
   - Polissage interactions secondaires (hover, tooltips, badges) hors parcours critiques.
@@ -78,6 +85,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ### Now (0-6 semaines)
 
+0z. **Persistance zéro-perte (data-safety)** — **Lot A+B livrés 2026-11-14** : stop delete-by-diff `todos_v2` (`syncOwnerTodosV2` upsert-only + `deleteTodosV2ByIds`) ; reloaders multi-instance + dirty guard ; doc [`docs/persistence-invariants.md`](docs/persistence-invariants.md). **Lot C** (doc-par-entité sessions/users/…) = Next. Prioritaire vs Chrome / Gryzzly.
 0. ~~**Lot local à stabiliser (2026-08)**~~ — **Fait** (2026-08-07) : UI V2 + créneaux intelligents + colonnes TaskList + polish tags méta sur `main`.
 0b. ~~**UX Path to 9**~~ — **9/10 e2e 2026-11-13** (5/5 cold paths Free `first-slot.path-to-9` : TaskList / Radar / `?schedule=` desktop + mobile). SoftLock/Early Bird CTAs en place. Checklist : [`docs/cold-path-first-slot.md`](docs/cold-path-first-slot.md).
 0c. ~~**UX Projets Path to 9**~~ — **9/10 terrain 2026-11-13** (Board/Kanban/Gantt SlotPicker+book ; move owner). Residual : collab notes CRDT (Later). Checklist : [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
@@ -86,15 +94,17 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 1. **Slack+ — golden path (priorité n°1)** — Code + secrets + smoke E2E workspace **faits** (2026-11-08). Consolider UX/docs ; rester le canal de référence. Doc : [`docs/slack-plus.md`](docs/slack-plus.md), priorité : [`docs/chat-channel-priority.md`](docs/chat-channel-priority.md).
 2. ~~**Teams+ pragmatique → Chat privé → Discord niche (ops)**~~ — **Validé propriétaire 2026-11-13** (+ Discord 2026-11-09). Stores publics toujours différés. Voir [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md).
 2b. ~~**Bot time tracking**~~ — **MVP livré 2026-11-13** : `/wroket start|stop|log|timer` (+ SoftLock pricing CTA, tests slash). Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
-3. ~~**MCP / IA agentique — validation usage**~~ — **Gate go 2026-11-13**. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
-3b. **OAuth Google Agenda — vérification** — Branding **verified** (2026-11-13). Sensitive scopes Calendar **sous review** Google (vidéo + privacy `privacy-policy.html`). Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). **Reste** : attendre décision Google (~3–10 j), puis smoke reconnect Agenda sans bandeau unverified.
+3. ~~**MCP / IA agentique — validation usage**~~ — **Gate go 2026-11-13**. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md) · in-app `/docs/integrations/mcp`.
+3a. ~~**Assist PMO + guides utilisateurs**~~ — **Livré 2026-11-14** ([`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md), [`docs/user-guides/`](docs/user-guides/README.md)).
+3b. **OAuth Google Agenda — vérification** — Branding **verified** (2026-11-13). Sensitive scopes Calendar **sous review** ; mail Data Safety (AI/ML, Limited Use, CASA N/A) reçu `team@wroket.com` (2026-11-14) — **répondre / suivre review**. Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). Puis smoke reconnect Agenda sans bandeau unverified.
+3c. ~~**Secu deps + ACL**~~ — **Livré 2026-11-14** : 0 high/critical ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md)) ; vitest `aclCrossUser` ; CI type-check nodemailer 10 OK.
 4. ~~**Dual UI V1+V2 — observation**~~ — **Sunset V1** (2026-08-09) : V2 permanent ; toggle Settings retiré ; opt-out localStorage ignoré/effacé.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
    - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
-   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — après Slack/canaux ops + gate MCP.
+   - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — décision produit (prérequis ops/MCP OK).
 5. **Microsoft path (SSO + Outlook MVP)** — **Terminé** : Outlook + Teams + invités externes OK ; **SSO login Microsoft** validé terrain (checklist §B items 5–7).
 6. ~~**Reliability / Error UX / PWA / Web Push / Gantt**~~ — **Fait** (juin 2026) ; Web Push desktop §I-bis **validé** Windows/Mac PWA (2026-11-13).
-7. ~~**E2E smoke CI**~~ — **Diagnostiqué 2026-11-13** : flaky post-`882c6ca` = (1) workers parallèles vs `local-store.json`, (2) rate-limit API 300/min saturé par la suite Path to 9. Fixes : `workers: 1` ; `apiLimiter` relevé sous `USE_LOCAL_STORE` / CI.
+7. ~~**E2E smoke CI + Path-to-9**~~ — **Stable 2026-11-14** : `workers: 1`, rate-limit local/CI, suite Path-to-9 + `assist.smoke` **11/11** verts ; workflow E2E smoke `main` OK.
 
 ### Next (6-12 semaines)
 
@@ -106,11 +116,14 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Discord+ (ops)** — Portal + secrets Cloud Run + slash `/wroket` + smoke E2E (Test, help, complete) **2026-11-09** ; niche, pas substitut Teams/Chat — [`docs/discord-plus.md`](docs/discord-plus.md), [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md) §5.
 - [x] **Bot time tracking (P3bis)** — **MVP 2026-11-13** + boutons Slack Start/+15 (2026-11-14) — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). Gryzzly-like → Later.
 - [x] **Gate IA agentique** — **go 2026-11-13** (smoke agents + digests MCP ; 0 incident auth critique). IA intégrée minimale Phase 2 **livrée** 2026-11-14.
+- [x] **Docs utilisateurs MCP + how-to** — Index [`docs/user-guides/`](docs/user-guides/README.md) ; guide in-app `/docs/integrations/mcp` (FR/EN) ; PageHelp Paramètres/Dashboard (2026-11-14).
 - [x] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe (`/teams/portfolio`) — livrés. Client Portal = Later (déjà [x]). Voir [docs/pmo-audit-mes-projets.md](docs/pmo-audit-mes-projets.md).
 - [x] **PMO Mes projets — consolidation + hardening (2026-11-09)** — Audit live A–C ; Lots 1–4. **Path-to-9 Projets 9/10** + digests PMO (**2026-11-13**) — [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
+- [x] **Secu npm + ACL Assist/share/MCP** — Passe 2026-11-14 ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md), `aclCrossUser.test.ts`).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — prérequis ops/MCP OK ; attendre décision produit.
-- [ ] **OAuth Google Agenda — vérification** — Brand + sensitive scopes Calendar ; privacy/terms sans placeholders ; pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md).
+- [ ] **OAuth Google Agenda — vérification** — Brand verified ; scopes Calendar **sous review** ; répondre Data Safety / suivre décision Google — [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md).
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
+- [x] **Auth recovery — marque Wroket** — forgot / reset / verify-email alignés sur `WroketMark` (2026-11-14).
 
 ### Later (12+ semaines)
 
@@ -323,9 +336,10 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Nouvellement implémenté
 
-- [x] **Slack+ Lots 1–3 (2026-08-07)** — Webhook+ PMO (events, filtres, delivery health), OAuth Slack + `chat.postMessage`, interactions HMAC + slash `/wroket` ; Settings Slack ; doc [`docs/slack-plus.md`](docs/slack-plus.md) (`882c6ca`). *Ops Slack App / secrets prod encore à brancher.*
-- [x] **MCP agent connect (2026-08-07)** — Serveur MCP distant + clés API + tools PMO ; doc [`docs/mcp-agents.md`](docs/mcp-agents.md) (PR #6). **Gate go 2026-11-13.**
-- [x] **UI V2 TaskList + SoftLock + extract TaskEdit (2026-08)** — Dual V1/V2 opt-in ; polish tags méta pleine largeur taille V1 (`882c6ca`).
+- [x] **Slack+ Lots 1–3 (2026-08-07)** — Webhook+ PMO (events, filtres, delivery health), OAuth Slack + `chat.postMessage`, interactions HMAC + slash `/wroket` ; Settings Slack ; doc [`docs/slack-plus.md`](docs/slack-plus.md) (`882c6ca`). **Ops secrets + smoke workspace OK 2026-11-08/13.**
+- [x] **MCP agent connect (2026-08-07)** — Serveur MCP distant + clés API + tools PMO ; doc [`docs/mcp-agents.md`](docs/mcp-agents.md) (PR #6). **Gate go 2026-11-13.** Guide utilisateur 2026-11-14.
+- [x] **Assist PMO Phase 2 (2026-11-14)** — Orchestration déterministe comité / plan-week / risks ; UI + API + slash ; smoke E2E `assist.smoke.spec.ts`.
+- [x] **UI V2 TaskList + SoftLock + extract TaskEdit (2026-08)** — Dual V1/V2 opt-in puis **sunset V1** ; polish tags méta pleine largeur taille V1 (`882c6ca`).
 - [x] **P1 — Pricing, billing équipe, admin invitations (2026-05)** — `/pricing` : modal contact (prénom, nom, email) + `POST /marketing/pricing-contact` (SMTP, accusé réception, dédup 7 j), cartes alignées, sous-titre sans mention « tarifs indicatifs » ; landing + pricing : navbar responsive mobile, footer `LandingFooter`, logo `rounded-md` ; **billing workspace** : sièges, collaborateurs externes, entitlements effectifs, sync Stripe subscription → `Team` ; **admin** : journal invitations avec statut (conversion / en attente / compte existant) et relance unique à partir de J+7 (`POST /admin/invites/remind`).
 - [x] **Repositionnement marketing & SEO (2026-05)** — Metadata recentrée (tagline, agenda, collaboration) ; 3 pages satellites indexables (`/agenda-taches`, `/gestion-taches-equipe`, `/matrice-eisenhower`) avec `MarketingPageShell`, `buildPageMetadata`, JSON-LD BreadcrumbList ; sitemap `lastModified` stable, `robots.ts`, maillage interne footer/pricing ; redirect canonique `www`→`wroket.com` (301) ; CTA « Voir les tarifs » sur toutes les pages SEO ; post-deploy : demandes indexation GSC à lancer manuellement pour `/pricing`, `/terms` et les 3 nouvelles pages
 - [x] **Agenda — drag-and-drop créneaux Wroket** — Glisser-déposer des blocs Wroket (jour/semaine), snap 15 min, validation bornes phase (client + serveur UTC), modal conflit 409 avec forçage, sync `/todos` via broadcast ; helper partagé `phaseSlotBounds`
@@ -389,8 +403,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 
 ## Expérience utilisateur & attractivité
 
-- [x] **Refonte UI V2 (flag opt-in)** — Sur `main` / prod (2026-08, `feat/ui-v2-lot` + polish) : design system léger + AppShell + menu ⋯ + TaskList V2 + extract TaskEdit ; flag `wroket-ui-v2` / toggle « Nouvelle interface » ; doc [`docs/refonte-ui-ideas.md`](docs/refonte-ui-ideas.md). Tags méta Priorité/Effort/Focus/Échéance : pleine largeur colonne, largeur colonnes alignée V1 (`6rem`).
-  - **Reste** : période dual V1+V2 ; feedback prod ; sunset V1 ; éventuel V2-by-default ; a11y / dark-mobile revue continue.
+- [x] **Refonte UI V2** — Sur `main` / prod (2026-08, `feat/ui-v2-lot` + polish) puis **sunset V1 (2026-08-09)** : design system léger + AppShell + menu ⋯ + TaskList V2 + extract TaskEdit ; doc [`docs/refonte-ui-ideas.md`](docs/refonte-ui-ideas.md). Tags méta Priorité/Effort/Focus/Échéance : pleine largeur colonne (`6rem`).
+  - **Reste** : a11y / dark-mobile revue continue ; polish micro-copies hors parcours critiques.
 - [x] **Vue Liste — colonnes réordonnables (sync profil)** — Drag des en-têtes ; persistance `taskListColumnOrder` via `PUT /auth/me` (multi-appareils).
 - [x] **Créneaux intelligents V2** — Suggestions deadline-aware ; SlotPicker modal centré.
 - [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).

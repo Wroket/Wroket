@@ -90,41 +90,67 @@ async function upsertWithCondition(dbConn: Firestore, todo: TodoDocWrite): Promi
 }
 
 /**
- * Mirror the legacy-sourced todo set for `ownerUid` into `todos_v2`.
- *
- * In `dual` mode the **legacy store remains the read source of truth**. If a write
- * race or partial flush ever leaves the in-memory snapshot empty for an owner who
- * still has real data, the stale-delete pass below would permanently destroy
- * those rows in `todos_v2`. We therefore only prune `todos_v2` when
- * `TODOS_STORAGE_MODE=v2` (i.e. v2 IS the source of truth). In dual/legacy mode
- * we accept that `todos_v2` may carry tombstones until full v2 cutover.
+ * Upsert a single todo document (hot path: assign / update / book).
+ * Never deletes other owner documents.
  */
-/** Single-doc mirror for hot paths (assign / update / book) — avoids O(N) owner sync. */
 export async function syncTodoV2(todo: TodoDocWrite): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) return;
   await upsertWithCondition(dbConn, todo);
 }
 
-export async function syncOwnerTodosV2(ownerUid: string, todos: TodoDocWrite[]): Promise<void> {
+/**
+ * Upsert the given todos into `todos_v2` for one owner.
+ *
+ * **Invariant (zero-loss):** this never deletes documents absent from `todos`.
+ * Partial in-memory snapshots (lazy hydration, project-scoped cache) must not
+ * erase other tasks. Removals go through {@link deleteTodosV2ByIds} or
+ * {@link deleteAllTodosV2ForOwner} with explicit ids / owner scope only.
+ */
+export async function syncOwnerTodosV2(_ownerUid: string, todos: TodoDocWrite[]): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) return;
-
-  const currentIds = new Set<string>();
   for (const todo of todos) {
-    currentIds.add(todo.id);
     await upsertWithCondition(dbConn, todo);
   }
+}
 
-  const mode = (process.env.TODOS_STORAGE_MODE ?? "legacy").trim().toLowerCase();
-  if (mode !== "v2") return;
-
-  const staleSnap = await dbConn.collection(COLLECTION).where("ownerUid", "==", ownerUid).get();
-  for (const doc of staleSnap.docs) {
-    if (!currentIds.has(doc.id)) {
-      await doc.ref.delete();
+/**
+ * Explicit hard-delete of todos_v2 documents by id. Logs each batch for ops.
+ * @param reason machine-readable cause (`explicit_ids`, `retention_purge`, `rgpd`, …)
+ */
+export async function deleteTodosV2ByIds(
+  ids: string[],
+  reason: string = "explicit_ids",
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const dbConn = await getDb();
+  if (!dbConn) return 0;
+  const unique = [...new Set(ids)];
+  let deleted = 0;
+  const batchSize = 500;
+  let batch = dbConn.batch();
+  let ops = 0;
+  for (const id of unique) {
+    batch.delete(dbConn.collection(COLLECTION).doc(id));
+    ops++;
+    deleted++;
+    if (ops >= batchSize) {
+      await batch.commit();
+      batch = dbConn.batch();
+      ops = 0;
     }
   }
+  if (ops > 0) await batch.commit();
+  console.log(
+    JSON.stringify({
+      event: "todos_v2.delete",
+      reason,
+      count: deleted,
+      idsSample: unique.slice(0, 20),
+    }),
+  );
+  return deleted;
 }
 
 export interface TodoV2Row {

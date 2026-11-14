@@ -101,6 +101,21 @@ async function main(): Promise<void> {
   reloadOkrsFromStore();
   const { reloadProjectAutomationRulesFromStore } = await import("./services/projectAutomationService");
   reloadProjectAutomationRulesFromStore();
+  const { reloadTimeSessionsFromStore } = await import("./services/timeSessionService");
+  reloadTimeSessionsFromStore();
+
+  // Keep service Maps aligned with Firestore live invalidation (multi-instance).
+  const { registerDomainReloader } = await import("./persistence");
+  const { reloadUsersFromStore, reloadSessionsFromStore } = await import("./services/authService");
+  registerDomainReloader("users", reloadUsersFromStore);
+  registerDomainReloader("sessions", reloadSessionsFromStore);
+  registerDomainReloader("timeSessions", reloadTimeSessionsFromStore);
+  registerDomainReloader("projectShareLinks", reloadShareLinksFromStore);
+  registerDomainReloader("taskShareLinks", reloadTaskShareLinksFromStore);
+  registerDomainReloader("clientPortals", reloadClientPortalsFromStore);
+  registerDomainReloader("okrs", reloadOkrsFromStore);
+  registerDomainReloader("projectAutomationRules", reloadProjectAutomationRulesFromStore);
+
   // Attach cross-replica cache invalidation AFTER hydration so that the initial
   // onSnapshot calls (which would replay existing data) are safely skipped.
   attachLiveInvalidation();
