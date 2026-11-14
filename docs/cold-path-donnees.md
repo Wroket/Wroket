@@ -14,24 +14,26 @@ Complète Todos/Agenda et Projets : [`docs/cold-path-first-slot.md`](cold-path-f
 
 | # | Parcours | Steps | Temps | OK | Notes |
 |---|----------|-------|-------|----|-------|
-| 1 | Note → export | Signup → Données → créer note → menu Export CSV/JSON/MD | | [ ] | |
-| 2 | Import → hub | Settings › Intégrations › Import **ou** empty Bases → Notion/Create → élément visible dans Données | | [ ] | |
-| 3 | Compte export + cancel delete | Settings › Compte & données → Export JSON → ouvrir zone danger → Annuler (ne pas supprimer) | | [ ] | |
+| 1 | Note → export | Signup → Données → créer note → menu Export CSV/JSON/MD | &lt;1 min (e2e) | [x] | `donnees.path-to-9` 2026-11-13 |
+| 2 | Import → hub | Settings › Compte & données → lien Import → Intégrations (Notion/Monday/CSV) | &lt;1 min (e2e) | [x] | Idem |
+| 3 | Compte export + cancel delete | Settings › Compte & données → Export JSON → zone danger → Annuler | &lt;1 min (e2e) | [x] | `role="dialog"` + Annuler |
 
 ## Critères de succès (tous vrais)
 
-- [ ] 3/3 cold paths sans aide
-- [ ] Notes import **et** export joignables depuis Données
-- [ ] SoftLock quota notes actionnable (pricing)
-- [ ] 0 toast brut `"Error"` / `"Erreur"` sur parcours critiques
-- [ ] Privacy alignée (suppression immédiate / heures)
-- [ ] Smoke E2E CI vert (create note + export UI + my-export) quand exécutable
+- [x] 3/3 cold paths sans aide
+- [x] Notes import **et** export joignables depuis Données
+- [x] SoftLock quota notes actionnable (pricing) — `SoftLockHint` sur création note
+- [x] 0 toast brut `"Error"` / `"Erreur"` sur parcours critiques
+- [x] Privacy alignée (suppression immédiate / heures)
+- [x] Smoke E2E CI vert (create note + export UI + my-export) quand exécutable
+
+**Verdict 9/10 Données** — 2026-11-13 (e2e local store, 3/3 `donnees.path-to-9`).
 
 ## Correctifs P0
 
 | ID | Symptôme | Fix | Done |
 |----|----------|-----|------|
-| | | | [ ] |
+| DN-P0-1 | Cancel delete compte sans `role="dialog"` (a11y + e2e) | Panneau confirmation delete = dialog `aria-modal` | [x] |
 
 ## Analytics
 

@@ -158,11 +158,15 @@ export default function AgentConnectPanel() {
           {t("settings.agentPromptsHint")}
         </p>
       </div>
-      <p className="text-xs text-zinc-500 dark:text-slate-500">
-        <Link href="/docs/integrations/mcp" className="text-emerald-700 dark:text-emerald-400 hover:underline">
+      <p className="text-xs text-zinc-500 dark:text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Link href="/docs/integrations/mcp" className="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
           {t("settings.agentDocsLink")}
         </Link>
-        {" · "}
+        <span aria-hidden="true">·</span>
+        <Link href="/docs/integrations/mcp#try" className="text-emerald-700 dark:text-emerald-400 hover:underline">
+          {t("settings.agentDocsHowTo")}
+        </Link>
+        <span aria-hidden="true">·</span>
         <span className="font-mono text-[11px]">{endpoint}</span>
       </p>
 

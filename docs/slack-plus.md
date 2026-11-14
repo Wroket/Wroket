@@ -68,11 +68,14 @@
  * ### Slash `/wroket`
  *
  * - `help` — aide
- * - `tasks` — jusqu’à 10 tâches personnelles actives + 10 assignées à vous
+ * - `tasks` — liste + boutons *⏱️ Start* / *+15 min* (Block Kit, sans coller l’id)
  * - `my-week` — Ma semaine (retards + échéances/créneaux sous 7 jours)
  * - `overdue` — tâches actives en retard
  * - `team-risk` — projets d’équipe at-risk / overdue (membre d’équipe requis)
  * - `open <todoId>` — détail + deep link
+ * - `plan <todoId> [auto]` — proposer / réserver un créneau
+ * - `timer` | `start <todoId>` | `stop` | `log <todoId> <min> [note]` — suivi du temps (Small teams+ / Early Bird) — [time-tracking-bot.md](./time-tracking-bot.md)
+ * - `committee <projectId>` | `plan-week` | `risks` — Assist PMO Phase 2 (preview) — [assist-pmo-commands.md](./assist-pmo-commands.md)
  * - `accept|decline|complete <todoId>` — mêmes règles métier que les boutons
  *
  * Replies are ephemeral.

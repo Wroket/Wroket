@@ -24,6 +24,7 @@ test.describe("Project share Path to 9 smoke", () => {
     expect(createLink.status()).toBe(201);
     const link = (await createLink.json()) as { id: string; token: string };
     expect(link.token).toBeTruthy();
+    expect(link.id).toBeTruthy();
 
     const publicRes = await request.get(`${apiBase}/share/project/${link.token}`);
     expect(publicRes.ok()).toBeTruthy();
@@ -33,8 +34,12 @@ test.describe("Project share Path to 9 smoke", () => {
     await page.goto(`/share/project/${link.token}`);
     await expect(page.getByText(projectName).first()).toBeVisible({ timeout: 20_000 });
 
-    const revoke = await request.delete(`${apiBase}/projects/${project.id}/share-links/${link.id}`);
-    expect(revoke.ok()).toBeTruthy();
+    const revoke = await request.delete(
+      `${apiBase}/projects/${project.id}/share-links/${encodeURIComponent(link.id)}`,
+    );
+    if (!revoke.ok()) {
+      throw new Error(`revoke failed (${revoke.status()}): ${await revoke.text()}`);
+    }
 
     const after = await request.get(`${apiBase}/share/project/${link.token}`);
     expect(after.status()).toBeGreaterThanOrEqual(400);

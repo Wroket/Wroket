@@ -41,10 +41,15 @@ function persist(): void {
   scheduleSave("timeSessions");
 }
 
+function pricingUrl(): string {
+  const base = (process.env.FRONTEND_URL || "https://wroket.com").replace(/\/$/, "");
+  return `${base}/pricing`;
+}
+
 function assertTimeTrackingEntitlement(uid: string): void {
   if (!getEntitlementsForUid(uid).integrations) {
     throw new ForbiddenError(
-      "Le suivi du temps nécessite le palier Small teams ou supérieur.",
+      `Le suivi du temps nécessite le palier Small teams (ou Early Bird). Voir ${pricingUrl()}`,
       "TIME_TRACKING_PLAN_REQUIRED",
     );
   }

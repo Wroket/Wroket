@@ -12,18 +12,21 @@ import {
 } from "../services/slackSignature";
 import {
   actionIdToTaskAction,
+  actionIdToTimerAction,
+  buildSlackTasksTimerBlocks,
   handleSlackModalSubmission,
   handleSlashText,
+  loadTasksForTimerPicker,
   openSlackCreateTaskModalForUser,
   parseButtonValue,
   refreshSlackAppHomeForUser,
   resolveWroketUserFromSlack,
   runSlackTaskAction,
+  runSlackTimerButton,
   slashHelpText,
   updateMessageAfterAction,
 } from "../services/slackInteractService";
 import { postSlackChannelMessage, resolveBotTokenForTeam } from "../services/slackApiService";
-import { stopTimeTimer } from "../services/timeSessionService";
 
 function rawBodyToString(body: unknown): string {
   if (Buffer.isBuffer(body)) return body.toString("utf8");
@@ -162,12 +165,8 @@ export async function postSlackInteractions(req: Request, res: Response): Promis
     return;
   }
 
-  // App Home special actions
-  if (
-    actionId === "wroket_open_create_modal" ||
-    actionId === "wroket_refresh_home" ||
-    actionId === "wroket_stop_timer"
-  ) {
+  // App Home: create modal / refresh
+  if (actionId === "wroket_open_create_modal" || actionId === "wroket_refresh_home") {
     const resolved = await resolveWroketUserFromSlack({ teamId, slackUserId });
     if ("error" in resolved) {
       res.status(200).json({ response_type: "ephemeral", text: resolved.error });
@@ -182,15 +181,49 @@ export async function postSlackInteractions(req: Request, res: Response): Promis
       res.status(200).json({});
       return;
     }
-    if (actionId === "wroket_stop_timer") {
-      try {
-        stopTimeTimer(resolved.uid);
-      } catch {
-        // ignore if already stopped
-      }
-    }
     res.status(200).json({});
     void refreshSlackAppHomeForUser({ teamId, slackUserId, uid: resolved.uid });
+    return;
+  }
+
+  const timerAction = actionId ? actionIdToTimerAction(actionId) : null;
+  if (timerAction) {
+    const resolved = await resolveWroketUserFromSlack({ teamId, slackUserId });
+    if ("error" in resolved) {
+      res.status(200).json({ response_type: "ephemeral", text: resolved.error });
+      return;
+    }
+    const parsedTimer =
+      timerAction === "stop_timer"
+        ? { todoId: "", targetUid: resolved.uid }
+        : parseButtonValue(action?.value);
+    if (!parsedTimer) {
+      res.status(200).json({
+        response_type: "ephemeral",
+        text: "Bouton timer invalide.",
+      });
+      return;
+    }
+    const timerResult = await runSlackTimerButton({
+      actorUid: resolved.uid,
+      targetUid: parsedTimer.targetUid || resolved.uid,
+      todoId: parsedTimer.todoId || undefined,
+      action: timerAction,
+    });
+    res.status(200).json({
+      response_type: "ephemeral",
+      text: timerResult.message,
+    });
+    if (payload.view?.type === "home") {
+      void refreshSlackAppHomeForUser({ teamId, slackUserId, uid: resolved.uid });
+    } else if (timerResult.ok) {
+      void updateMessageAfterAction({
+        responseUrl: payload.response_url,
+        originalBlocks: payload.message?.blocks,
+        resultText: timerResult.message,
+        ok: true,
+      });
+    }
     return;
   }
 
@@ -276,6 +309,22 @@ export async function postSlackCommands(req: Request, res: Response): Promise<vo
   }
 
   try {
+    const verb = (text.split(/\s+/)[0] ?? "").toLowerCase();
+    if (verb === "tasks" || verb === "list" || verb === "mine") {
+      const lists = await loadTasksForTimerPicker(resolved.uid);
+      const picker = buildSlackTasksTimerBlocks({
+        uid: resolved.uid,
+        personal: lists.personal,
+        assigned: lists.assigned,
+      });
+      res.status(200).json({
+        response_type: "ephemeral",
+        text: picker.text,
+        blocks: picker.blocks,
+      });
+      return;
+    }
+
     const reply = await handleSlashText({ actorUid: resolved.uid, text });
     res.status(200).json({
       response_type: "ephemeral",

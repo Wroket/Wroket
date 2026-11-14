@@ -46,62 +46,92 @@ function inWeekFocus(todo: Todo, now: Date): boolean {
   return false;
 }
 
-/**
- * Personal "Ma semaine" style list (overdue + due/booked within 7 days).
- */
-export async function formatMyWeekDigest(actorUid: string, now: Date = new Date()): Promise<string> {
+export type DigestTodoRow = {
+  id: string;
+  title: string;
+  overdue: boolean;
+  deadline: string | null;
+  scheduledStart: string | null;
+  priority: Todo["priority"];
+  projectId: string | null;
+};
+
+export type TeamRiskRow = {
+  name: string;
+  health: ProjectHealth;
+  overdueCount: number;
+  projectId: string;
+};
+
+function toDigestRow(todo: Todo, now: Date): DigestTodoRow {
+  return {
+    id: todo.id,
+    title: todo.title,
+    overdue: isEffectivelyOverdue(todo, now),
+    deadline: todo.deadline?.trim() || null,
+    scheduledStart: todo.scheduledSlot?.start ?? null,
+    priority: todo.priority,
+    projectId: todo.projectId ?? null,
+  };
+}
+
+/** Structured "Ma semaine" focus list (overdue + due/booked within 7 days). */
+export async function getMyWeekFocus(
+  actorUid: string,
+  now: Date = new Date(),
+  limit = MAX_LINES,
+): Promise<Todo[]> {
   const [mine, assigned] = await Promise.all([listTodos(actorUid), listAssignedToMe(actorUid)]);
   const pool = [...mine, ...assigned];
   const seen = new Set<string>();
-  const focus = pool
+  return pool
     .filter((t) => {
       if (seen.has(t.id)) return false;
       seen.add(t.id);
       return inWeekFocus(t, now);
     })
     .sort((a, b) => weekFocusSort(a, b, now))
-    .slice(0, MAX_LINES);
-
-  if (focus.length === 0) {
-    return "Aucune tâche pour *Ma semaine* (pas de retard ni d’échéance/créneau sous 7 jours).";
-  }
-  return [`*Ma semaine* (${focus.length}) :`, ...focus.map(formatTodoLine)].join("\n");
+    .slice(0, limit);
 }
 
-/**
- * Active overdue tasks (personal + assigned to actor).
- */
-export async function formatOverdueDigest(actorUid: string, now: Date = new Date()): Promise<string> {
+/** Structured overdue list (personal + assigned). */
+export async function getOverdueTodos(
+  actorUid: string,
+  now: Date = new Date(),
+  limit = MAX_LINES,
+): Promise<Todo[]> {
   const [mine, assigned] = await Promise.all([listTodos(actorUid), listAssignedToMe(actorUid)]);
   const seen = new Set<string>();
-  const overdue = [...mine, ...assigned]
+  return [...mine, ...assigned]
     .filter((t) => {
       if (seen.has(t.id)) return false;
       seen.add(t.id);
       return t.status === "active" && isEffectivelyOverdue(t, now);
     })
     .sort((a, b) => weekFocusSort(a, b, now))
-    .slice(0, MAX_LINES);
-
-  if (overdue.length === 0) return "Aucune tâche active en retard.";
-  return [`*En retard* (${overdue.length}) :`, ...overdue.map(formatTodoLine)].join("\n");
+    .slice(0, limit);
 }
 
 const RISK_HEALTH: ProjectHealth[] = ["overdue", "at-risk"];
 
-/**
- * Team/project risk digest for teams the user belongs to.
- */
-export async function formatTeamRiskDigest(actorUid: string, now: Date = new Date()): Promise<string> {
+export type TeamRiskDigestResult =
+  | { ok: true; rows: TeamRiskRow[]; hasTeams: true }
+  | { ok: true; rows: []; hasTeams: false };
+
+/** Structured team/project risk rows for teams the user belongs to. */
+export async function getTeamRiskRows(
+  actorUid: string,
+  now: Date = new Date(),
+): Promise<TeamRiskDigestResult> {
   const user = findUserByUid(actorUid);
   const email = user?.email ?? "";
   const teams = listUserTeams(actorUid, email);
   if (teams.length === 0) {
-    return "Vous n’êtes membre d’aucune équipe Wroket — `/wroket team-risk` nécessite un accès équipe.";
+    return { ok: true, rows: [], hasTeams: false };
   }
 
   const projects = listProjects(actorUid, email).filter((p) => p.status === "active" && p.teamId);
-  const rows: { name: string; health: ProjectHealth; overdueCount: number; projectId: string }[] = [];
+  const rows: TeamRiskRow[] = [];
 
   for (const project of projects) {
     const todos = await listProjectTodos(project.id);
@@ -120,14 +150,47 @@ export async function formatTeamRiskDigest(actorUid: string, now: Date = new Dat
     return rank(a.health) - rank(b.health) || b.overdueCount - a.overdueCount;
   });
 
-  const top = rows.slice(0, 5);
-  if (top.length === 0) {
+  return { ok: true, rows: rows.slice(0, 5), hasTeams: true };
+}
+
+/**
+ * Personal "Ma semaine" style list (overdue + due/booked within 7 days).
+ */
+export async function formatMyWeekDigest(actorUid: string, now: Date = new Date()): Promise<string> {
+  const focus = await getMyWeekFocus(actorUid, now);
+  if (focus.length === 0) {
+    return "Aucune tâche pour *Ma semaine* (pas de retard ni d’échéance/créneau sous 7 jours).";
+  }
+  return [`*Ma semaine* (${focus.length}) :`, ...focus.map(formatTodoLine)].join("\n");
+}
+
+/**
+ * Active overdue tasks (personal + assigned to actor).
+ */
+export async function formatOverdueDigest(actorUid: string, now: Date = new Date()): Promise<string> {
+  const overdue = await getOverdueTodos(actorUid, now);
+  if (overdue.length === 0) return "Aucune tâche active en retard.";
+  return [`*En retard* (${overdue.length}) :`, ...overdue.map(formatTodoLine)].join("\n");
+}
+
+/**
+ * Team/project risk digest for teams the user belongs to.
+ */
+export async function formatTeamRiskDigest(actorUid: string, now: Date = new Date()): Promise<string> {
+  const result = await getTeamRiskRows(actorUid, now);
+  if (!result.hasTeams) {
+    return "Vous n’êtes membre d’aucune équipe Wroket — `/wroket team-risk` nécessite un accès équipe.";
+  }
+  if (result.rows.length === 0) {
     return "Aucun projet d’équipe en risque ou en retard sur votre périmètre.";
   }
-
-  const lines = top.map(
+  const lines = result.rows.map(
     (r) =>
       `• *${r.name}* — \`${r.health}\` · ${r.overdueCount} en retard · \`${r.projectId}\``,
   );
-  return [`*Risques équipe* (${top.length}) :`, ...lines].join("\n");
+  return [`*Risques équipe* (${result.rows.length}) :`, ...lines].join("\n");
+}
+
+export function digestTodosToRows(todos: Todo[], now: Date = new Date()): DigestTodoRow[] {
+  return todos.map((t) => toDigestRow(t, now));
 }

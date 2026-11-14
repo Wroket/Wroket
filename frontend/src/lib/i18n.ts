@@ -481,6 +481,39 @@ const translations = {
   // ── Dashboard ──
   "dashboard.title": { fr: "Tableau de bord", en: "Dashboard" },
   "dashboard.homeTitle": { fr: "Accueil", en: "Home" },
+  "assist.title": { fr: "Assist PMO", en: "PMO Assist" },
+  "assist.subtitle": {
+    fr: "Commandes déterministes (sans IA générative) — prévisualisez puis confirmez.",
+    en: "Deterministic commands (no generative AI) — preview then confirm.",
+  },
+  "assist.projectLabel": { fr: "Projet pour le comité", en: "Project for committee pack" },
+  "assist.projectPlaceholder": { fr: "Choisir un projet…", en: "Choose a project…" },
+  "assist.committee": { fr: "Prépare mon comité", en: "Prepare my committee" },
+  "assist.planWeek": { fr: "Planifie ma semaine", en: "Plan my week" },
+  "assist.risks": { fr: "Résume les risques", en: "Summarize risks" },
+  "assist.needProject": { fr: "Choisissez un projet pour le comité.", en: "Choose a project for the committee pack." },
+  "assist.suggestionDisclaimer": {
+    fr: "Suggestion générée par Wroket (règles métier) — vérifiez avant d’agir.",
+    en: "Suggestion from Wroket (business rules) — review before applying.",
+  },
+  "assist.applyShare": { fr: "Créer un lien de partage", en: "Create share link" },
+  "assist.applyBooks": { fr: "Réserver les créneaux", en: "Book proposed slots" },
+  "assist.applyForce": { fr: "Forcer malgré conflits", en: "Force despite conflicts" },
+  "assist.shareCreated": { fr: "Lien de partage créé (copié si possible).", en: "Share link created (copied if possible)." },
+  "assist.shareForbidden": { fr: "Droits insuffisants pour créer un lien.", en: "Insufficient rights to create a share link." },
+  "assist.noBookings": { fr: "Aucun créneau à réserver.", en: "No slots to book." },
+  "assist.bookConflicts": {
+    fr: "Conflits de calendrier — utilisez « Forcer » ou choisissez d’autres créneaux.",
+    en: "Calendar conflicts — use Force or pick other slots.",
+  },
+  "assist.bookConflictsHint": {
+    fr: "Des conflits ont été détectés. Cliquez « Forcer malgré conflits » pour confirmer.",
+    en: "Conflicts detected. Click Force despite conflicts to confirm.",
+  },
+  "assist.bookedCount": {
+    fr: "{{n}} créneau(x) réservé(s).",
+    en: "{{n}} slot(s) booked.",
+  },
   "dashboard.subtitle": { fr: "Vue d'ensemble de vos tâches", en: "Overview of your tasks" },
   "dashboard.activeTasks": { fr: "Tâches actives", en: "Active tasks" },
   "dashboard.completed": { fr: "Accomplies", en: "Completed" },
@@ -997,18 +1030,19 @@ const translations = {
   },
   "settings.integrationsCardAgentsBadge": { fr: "MCP · API", en: "MCP · API" },
   "settings.agentConnectIntro": {
-    fr: "Wroket expose un serveur MCP v2.0 distant (31 outils + 3 prompts : tâches, PMO, météo projet, agenda, délégation, suivi du temps, OKR, notes). Créez une clé personnelle et collez-la dans Cursor ou Claude Desktop.",
-    en: "Wroket exposes a remote MCP v2.0 server (31 tools + 3 prompts: tasks, PMO, project steering, calendar, delegation, time tracking, OKRs, notes). Create a personal key and paste it into Cursor or Claude Desktop.",
+    fr: "Branchez Cursor ou Claude Desktop sur Wroket (MCP v2) : tâches, projets, PMO, agenda, temps, notes — sans IA hébergée ici. Créez une clé, copiez le secret, collez le snippet.",
+    en: "Connect Cursor or Claude Desktop to Wroket (MCP v2): tasks, projects, PMO, calendar, time, notes — no hosted AI here. Create a key, copy the secret, paste the snippet.",
   },
   "settings.agentCapabilitiesTitle": {
-    fr: "Capacités MCP v2.0 incluses",
-    en: "Included MCP v2.0 capabilities",
+    fr: "Capacités MCP v2 incluses",
+    en: "Included MCP v2 capabilities",
   },
   "settings.agentPromptsHint": {
     fr: "Prompts intégrés : /plan-my-week · /prepare-steering-committee · /triage-overdue",
     en: "Built-in prompts: /plan-my-week · /prepare-steering-committee · /triage-overdue",
   },
-  "settings.agentDocsLink": { fr: "Documentation agents MCP", en: "MCP agents documentation" },
+  "settings.agentDocsLink": { fr: "Guide : brancher Cursor / Claude", en: "Guide: connect Cursor / Claude" },
+  "settings.agentDocsHowTo": { fr: "How-to court (4 étapes)", en: "Short how-to (4 steps)" },
   "settings.agentCreateTitle": { fr: "Nouvelle clé API", en: "New API key" },
   "settings.agentKeyNamePlaceholder": { fr: "Ex. : Cursor portable", en: "E.g. Cursor laptop" },
   "settings.agentKeyNameRequired": { fr: "Donnez un nom à la clé", en: "Give the key a name" },
@@ -2278,8 +2312,8 @@ const translations = {
     en: "No task due dates — use Schedule, or the Gantt stays a list. Recent templates seed dates.",
   },
   "projects.mcpSteeringHint": {
-    fr: "Agent MCP : tool get_project_steering / prompt préparer un comité (Paramètres → clés API).",
-    en: "MCP agent: get_project_steering tool / prepare-steering prompt (Settings → API keys).",
+    fr: "Agent MCP : Paramètres → Connecter votre agent · guide /docs/integrations/mcp (ou Assist comité).",
+    en: "MCP agent: Settings → Connect your agent · guide /docs/integrations/mcp (or Assist committee).",
   },
   "projects.shareSmokeHint": {
     fr: "Créer un lien → ouvrir en navigation privée → révoquer pour couper l’accès.",
@@ -2894,10 +2928,10 @@ const translations = {
   },
 
   // ── Page help (short contextual tips per screen) ──
-  "help.page.dashboard.1": { fr: "Synthèse : actives, en retard, terminées — point de départ du jour", en: "Snapshot: active, overdue, completed — your day starting point" },
-  "help.page.dashboard.2": { fr: "Recherche globale (⌘K / Ctrl+K) sur tâches, projets et notes", en: "Global search (⌘K / Ctrl+K) across tasks, projects, and notes" },
-  "help.page.dashboard.3": { fr: "Aperçu Radar Focus et dernières notifications", en: "Focus radar snapshot and latest notifications" },
-  "help.page.dashboard.4": { fr: "Raccourcis vers Mes tâches, Agenda et projets en cours", en: "Shortcuts to My tasks, Agenda, and active projects" },
+  "help.page.dashboard.1": { fr: "Synthèse du jour + Assist PMO (comité, planifie ma semaine, risques)", en: "Day snapshot + PMO Assist (committee, plan my week, risks)" },
+  "help.page.dashboard.2": { fr: "Premier créneau : Mes tâches → Planifier (guide cold path)", en: "First slot: My tasks → Schedule (cold-path guide)" },
+  "help.page.dashboard.3": { fr: "Recherche globale (⌘K / Ctrl+K) sur tâches, projets et notes", en: "Global search (⌘K / Ctrl+K) across tasks, projects, and notes" },
+  "help.page.dashboard.4": { fr: "Agent MCP : Paramètres → Connecter votre agent · guide /docs/integrations/mcp", en: "MCP agent: Settings → Connect your agent · guide /docs/integrations/mcp" },
 
   "help.page.todos.1": { fr: "Trois vues : table (Liste), Cartes et Radar Focus", en: "Three views: table (List), Cards, and Focus radar" },
   "help.page.todos.2": { fr: "À la création : importance et effort à côté du titre, puis « Plus d'options »", en: "On create: importance and effort beside the title, then “More options”" },
@@ -2915,13 +2949,13 @@ const translations = {
   "help.page.projects.list.4": { fr: "Réordonnez le portefeuille par glisser-déposer", en: "Reorder the portfolio by drag and drop" },
 
   "help.page.projects.detail.1": { fr: "Board, Kanban, Gantt : un déplacement, toutes les vues alignées", en: "Board, Kanban, Gantt: one move, all views stay aligned" },
-  "help.page.projects.detail.2": { fr: "Contrainte (phase, dates, créneau) : choix proposés, pas un toast seul", en: "Constraint (phase, dates, slot): choices offered, not a toast alone" },
-  "help.page.projects.detail.3": { fr: "Pilotage : santé, charge estimée et tags par phase", en: "Steering: health, estimated load, and tags per phase" },
-  "help.page.projects.detail.4": { fr: "Export / import et partage lecture seule depuis le menu projet", en: "Export / import and read-only share from the project menu" },
+  "help.page.projects.detail.2": { fr: "Pilotage + Assist « Prépare mon comité » (lien share 7 j après confirm)", en: "Steering + Assist “Prepare my committee” (7-day share link after confirm)" },
+  "help.page.projects.detail.3": { fr: "Contrainte (phase, dates, créneau) : choix proposés, pas un toast seul", en: "Constraint (phase, dates, slot): choices offered, not a toast alone" },
+  "help.page.projects.detail.4": { fr: "Export / partage lecture seule — how-to projet & comité", en: "Export / read-only share — project & committee how-to" },
 
-  "help.page.notes.hub.1": { fr: "Notes, bases de données et archives au même endroit", en: "Notes, databases, and archives in one place" },
-  "help.page.notes.hub.2": { fr: "Notes synchronisées en ligne ; brouillon local si hors ligne", en: "Notes sync online; local draft when offline" },
-  "help.page.notes.hub.3": { fr: "Archives : notes et bases retirées, restaurables", en: "Archives: removed notes and databases, restorable" },
+  "help.page.notes.hub.1": { fr: "Notes, bases et archives — how-to notes & export", en: "Notes, databases, archives — notes & export how-to" },
+  "help.page.notes.hub.2": { fr: "Sync en ligne ; brouillon local hors ligne", en: "Online sync; local draft when offline" },
+  "help.page.notes.hub.3": { fr: "Export CSV / compte : Paramètres ou menu projet (cold path données)", en: "CSV / account export: Settings or project menu (data cold path)" },
 
   "help.page.notes.editor.1": { fr: "Dossiers et tags pour classer sans quitter l’éditeur", en: "Folders and tags to organize without leaving the editor" },
   "help.page.notes.editor.2": { fr: "Tapez / pour insérer une tâche, une date ou un bloc", en: "Type / to insert a task, date, or block" },
@@ -2940,11 +2974,11 @@ const translations = {
   "help.page.agenda.manage.2": { fr: "Choisissez quels calendriers s’affichent dans l’Agenda", en: "Choose which calendars appear in Agenda" },
   "help.page.agenda.manage.3": { fr: "Calendrier cible des syncs et des visios Meet / Teams", en: "Target calendar for syncs and Meet / Teams calls" },
 
-  "help.page.settings.1": { fr: "Profil, langue et fuseau horaire", en: "Profile, language, and timezone" },
-  "help.page.settings.2": { fr: "Heures de travail : base des suggestions de créneaux", en: "Working hours: basis for slot suggestions" },
-  "help.page.settings.3": { fr: "Sécurité : 2FA, sessions actives, mot de passe", en: "Security: 2FA, active sessions, password" },
-  "help.page.settings.4": { fr: "Intégrations : calendriers, Notion, Monday, clés API / MCP", en: "Integrations: calendars, Notion, Monday, API / MCP keys" },
-  "help.page.settings.5": { fr: "Équipes, journal d’activité et gestion du compte", en: "Teams, activity log, and account management" },
+  "help.page.settings.1": { fr: "Profil, langue, fuseau ; heures de travail = créneaux suggérés", en: "Profile, language, timezone; working hours drive slot suggestions" },
+  "help.page.settings.2": { fr: "Sécurité : 2FA, sessions, mot de passe", en: "Security: 2FA, sessions, password" },
+  "help.page.settings.3": { fr: "MCP : Connecter votre agent → guide /docs/integrations/mcp", en: "MCP: Connect your agent → guide /docs/integrations/mcp" },
+  "help.page.settings.4": { fr: "Calendriers, bot time (/wroket timer) ; données = export RGPD", en: "Calendars, time bot (/wroket timer); data = GDPR export" },
+  "help.page.settings.5": { fr: "Documentation in-app : /docs · Assist sur le Dashboard", en: "In-app docs: /docs · Assist on the Dashboard" },
 
   "help.page.collaboration.hub.1": { fr: "Collaborateurs, équipes et contacts — trois onglets", en: "Collaborators, teams, and contacts — three tabs" },
   "help.page.collaboration.hub.2": { fr: "Invitations par e-mail vers un compte Wroket", en: "Email invitations to a Wroket account" },

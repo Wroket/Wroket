@@ -83,8 +83,10 @@ export default function AgendaUnscheduledRail({
   const focusTodo = scheduleFocusId
     ? todos.find((td) => td.id === scheduleFocusId) ?? null
     : null;
+  /** Keep the rail mounted while a deep-link `?schedule=` is pending todos load. */
+  const pendingScheduleFocus = Boolean(scheduleFocusId && !focusTodo);
 
-  if (unscheduled.length === 0 && !focusTodo) return null;
+  if (unscheduled.length === 0 && !focusTodo && !pendingScheduleFocus) return null;
 
   const toggleExpand = (parentId: string) => {
     setExpandedIds((prev) => {
@@ -110,6 +112,16 @@ export default function AgendaUnscheduledRail({
           {t("agenda.unscheduledRailTitle")}
         </h2>
       </div>
+
+      {pendingScheduleFocus && (
+        <div
+          className="px-3 py-2 border-b border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/20"
+          data-testid="agenda-schedule-pending"
+        >
+          <p className="text-xs font-medium text-zinc-700 dark:text-slate-200">{t("schedule.title")}</p>
+          <p className="mt-1 text-[11px] text-zinc-500 dark:text-slate-400">{t("schedule.loading")}</p>
+        </div>
+      )}
 
       {focusTodo && (
         <div className="px-3 py-2 border-b border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/20 space-y-2">

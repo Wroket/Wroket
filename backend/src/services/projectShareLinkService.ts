@@ -202,8 +202,13 @@ export function revokeProjectShareLink(
     throw new ForbiddenError("Seul un administrateur du projet peut révoquer un lien");
   }
 
-  const link = [...linksByToken.values()].find((l) => l.id === linkId && l.projectId === projectId);
-  if (!link) throw new NotFoundError("Lien introuvable");
+  let link = [...linksByToken.values()].find((l) => l.id === linkId && l.projectId === projectId);
+  // Map can desync from disk-backed store after long local e2e runs — rehydrate once.
+  if (!link) {
+    hydrateShareLinks();
+    link = [...linksByToken.values()].find((l) => l.id === linkId && l.projectId === projectId);
+  }
+  if (!link) throw new NotFoundError("Lien introuvable", "SHARE_LINK_NOT_FOUND");
   link.revokedAt = new Date().toISOString();
   linksByToken.set(link.token, link);
   persistShareLinks();

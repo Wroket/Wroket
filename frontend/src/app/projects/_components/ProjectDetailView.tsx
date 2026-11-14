@@ -24,6 +24,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import SlotPicker, { ScheduledSlotBadge } from "@/components/SlotPicker";
 import PageScheduleModal from "@/components/PageScheduleModal";
 import EarlyBirdUnlockCard from "@/components/EarlyBirdUnlockCard";
+import AssistPmoPanel from "@/components/AssistPmoPanel";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
@@ -1967,6 +1968,7 @@ export default function ProjectDetailView({
               onCommitteePack={handleCommitteePack}
               committeePackBusy={committeePackBusy}
             />
+            <AssistPmoPanel projectId={selectedProject.id} committeeOnly />
             {baselineSnap && (
               <p className="text-xs text-zinc-500 dark:text-slate-400">
                 {t("projects.lastBaseline")}: {new Date(baselineSnap.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}

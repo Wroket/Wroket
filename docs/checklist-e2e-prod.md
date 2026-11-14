@@ -229,30 +229,39 @@ Les codes `CALENDAR_`* sont visibles dans DevTools → Network ; l’utilisateur
 
 ### Activation par appareil
 
-1. [ ] Paramètres → Intégrations → **Activer les notifications push** sur le **laptop** (même si déjà activé sur téléphone)
-2. [ ] Statut affiche **« Push activé sur cet appareil »** (pas seulement un flag compte global)
-3. [ ] Permission OS : notifications autorisées pour Wroket / Chrome dans Réglages système
+1. [x] Paramètres → Intégrations → **Activer les notifications push** sur le **laptop** (même si déjà activé sur téléphone)
+2. [x] Statut affiche **« Push activé sur cet appareil »** (pas seulement un flag compte global)
+3. [x] Permission OS : notifications autorisées pour Wroket / Chrome dans Réglages système
 
 ### Réception et deep-link
 
-1. [ ] Depuis un **autre compte**, assigner une tâche au testeur
-2. [ ] Toast système **Wroket** (nom PWA si installée) avec **titre + message détaillés** — pas seulement « Google Chrome » + « 1 nouvelle notification »
-3. [ ] **Onglet en arrière-plan** : clic sur le toast → `/todos?task=…` → modal tâche
-4. [ ] **Onglet fermé** (PWA installée) : même deep-link au clic
-5. [ ] Si Web Push active sur cet appareil : **pas de doublon** toast générique AppShell + toast détaillé SW
+1. [x] Depuis un **autre compte**, assigner une tâche au testeur
+2. [x] Toast système **Wroket** (nom PWA si installée) avec **titre + message détaillés** — pas seulement « Google Chrome » + « 1 nouvelle notification »
+3. [x] **Onglet en arrière-plan** : clic sur le toast → `/todos?task=…` → modal tâche
+4. [x] **Onglet fermé** (PWA installée) : même deep-link au clic
+5. [x] Si Web Push active sur cet appareil : **pas de doublon** toast générique AppShell + toast détaillé SW
 
 ### Actions Accepter / Refuser (Windows PWA)
 
-1. [ ] Toast `task_assigned` affiche boutons **Accepter** / **Refuser** (Windows Chrome/Edge PWA ; macOS souvent sans boutons)
-2. [ ] Clic **Accepter** sans ouvrir l’app → statut assignation `accepted` (vérifier dans l’app ou côté assigneur)
-3. [ ] Clic **Refuser** → statut `declined` ; erreur 401 → redirection login avec `?redirect=`
+1. [x] Toast `task_assigned` affiche boutons **Accepter** / **Refuser** (Windows Chrome/Edge PWA ; macOS souvent sans boutons)
+2. [x] Clic **Accepter** sans ouvrir l’app → statut assignation `accepted` (vérifier dans l’app ou côté assigneur)
+3. [x] Clic **Refuser** → statut `declined` ; erreur 401 → redirection login avec `?redirect=`
 
 ### Cloche in-app (sans push local)
 
-1. [ ] Permission navigateur `granted` mais push **non** activé localement : alerte desktop **détaillée** (titre/message) avec clic → deep-link
-2. [ ] Cloche → **Notifications système** pointe vers Paramètres → Intégrations
+1. [x] Permission navigateur `granted` mais push **non** activé localement : alerte desktop **détaillée** (titre/message) avec clic → deep-link
+2. [x] Cloche → **Notifications système** pointe vers Paramètres → Intégrations
 
-> Path to 9 transversal : code Push desktop livré ; **§I-bis reste validation humaine** Windows/Mac PWA avant 9/10.
+> Path to 9 transversal : **§I-bis validé terrain 2026-11-13** (Windows/Mac PWA) — 9/10 transversal atteint.
+
+## I-ter. Assist PMO (5 min — option terrain)
+
+Smoke déterministe (pas de LLM hébergé). Automatisé local/CI : `e2e/tests/assist.smoke.spec.ts`.
+
+1. [ ] Dashboard → panneau Assist (ou slash) → **Planifie ma semaine** : preview avec focus / suggestions
+2. [ ] **Résume les risques** : payload structuré (équipes ou message « pas d’équipe »)
+3. [ ] Projet ouvert → **Prépare mon comité** avec `projectId` : santé + retards ; confirm → lien share 7j si droits edit
+4. [ ] Compte sans accès projet → refus (403) sur comité d’un autre user
 
 ## J. Go / No-go
 
@@ -316,7 +325,7 @@ Décision : GO
 
 ## Compléments
 
-- **E2E automatisés (local / CI)** : voir [e2e/README.md](../e2e/README.md) (`reliability.*.spec.ts`)
+- **E2E automatisés (local / CI)** : voir [e2e/README.md](../e2e/README.md) (`*.path-to-9.spec.ts`, `assist.smoke.spec.ts`, `reliability.*.spec.ts`)
 - **Incidents agenda / todos** : [runbook-calendar-todos-reliability.md](./runbook-calendar-todos-reliability.md)
 - **Roadmap priorités** : [ROADMAP.md](../ROADMAP.md)
 

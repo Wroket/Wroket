@@ -3977,8 +3977,16 @@ function AdminSection() {
             {t("settings.deleteAccount")}
           </button>
         ) : showDelete ? (
-          <div className="space-y-3">
-            <p className="text-xs text-red-600 dark:text-red-400 font-medium">{t("settings.deleteConfirmTitle")}</p>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-delete-confirm-title"
+            data-testid="settings-delete-account-dialog"
+            className="space-y-3"
+          >
+            <p id="settings-delete-confirm-title" className="text-xs text-red-600 dark:text-red-400 font-medium">
+              {t("settings.deleteConfirmTitle")}
+            </p>
             <p className="text-xs text-red-600/70 dark:text-red-400/70">{t("settings.deleteConfirmDesc")}</p>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <input

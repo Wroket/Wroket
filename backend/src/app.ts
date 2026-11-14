@@ -49,6 +49,7 @@ import pushRoutes from "./routes/pushRoutes";
 import contactRoutes from "./routes/contactRoutes";
 import userDatabaseRoutes from "./routes/userDatabaseRoutes";
 import mcpRoutes from "./routes/mcpRoutes";
+import assistRoutes from "./routes/assistRoutes";
 
 dotenv.config();
 
@@ -135,9 +136,15 @@ app.post("/integrations/google-chat/interactions", (req, res, next) => {
 
 // 300/min per client IP: active SPA usage (autosave + list refetch + counts) peaks well
 // above 100/min for a single legitimate user; 429 storms were observed at 100.
+// Local store / CI E2E: same IP runs many authenticated users in one minute — raise the cap
+// so smoke suites are not flaky (prod never sets USE_LOCAL_STORE).
+const relaxApiRateLimit =
+  process.env.USE_LOCAL_STORE === "true" ||
+  process.env.E2E_RELAX_RATE_LIMIT === "true" ||
+  process.env.CI === "true";
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 300,
+  max: relaxApiRateLimit ? 10_000 : 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Trop de requêtes, réessayez dans une minute" },
@@ -176,6 +183,7 @@ app.use("/share", sharePublicRoutes);
 app.use("/portals", apiLimiter, clientPortalRoutes);
 app.use("/okr", apiLimiter, requireProductAccess, okrRoutes);
 app.use("/automations", apiLimiter, requireProductAccess, automationRoutes);
+app.use("/assist", apiLimiter, requireProductAccess, assistRoutes);
 /** SSE spike: long-lived connections — not counted by per-minute REST limiter. */
 app.use("/sync", syncEventsRoutes);
 

@@ -57,4 +57,8 @@ export const CHAT_ACTION_IDS = {
   accept: "wroket_accept",
   decline: "wroket_decline",
   complete: "wroket_complete",
+  /** Slack Block Kit — start live timer on a task (value: `todoId|actorUid`). */
+  startTimer: "wroket_start_timer",
+  /** Slack Block Kit — log 15 manual minutes (value: `todoId|actorUid`). */
+  log15: "wroket_log_15",
 } as const;

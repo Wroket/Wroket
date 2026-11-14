@@ -55,6 +55,11 @@ test.describe("Collab Path to 9 smoke", () => {
     await page.waitForURL(/\/(dashboard|notes|todos|projects)/, { timeout: 30_000 });
 
     await page.goto("/todos");
+    // Prefer the Assigned scope so delegated tasks are not hidden by Personal filters.
+    const assignedScope = page.getByRole("button", { name: /Attribuées|Assigned/i }).first();
+    if (await assignedScope.count()) {
+      await assignedScope.click();
+    }
     // TaskList is a table (data-testid=task-list) — not project board `.group/task`.
     const taskRow = page.getByTestId("task-list").locator("tbody tr").filter({ hasText: taskTitle }).first();
     await expect(taskRow).toBeVisible({ timeout: 25_000 });

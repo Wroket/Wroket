@@ -5,6 +5,7 @@
 
 import {
   actionIdToTaskAction,
+  CHAT_ACTION_IDS,
   handleSlashText as handleSharedSlashText,
   parseButtonValue,
   resolveUserFromChatEmail,
@@ -24,14 +25,22 @@ import { findUserByUid } from "./authService";
 import { listProjects } from "./projectService";
 import {
   createTodo,
+  findTodoForUser,
   listAssignedToMe,
   listTodos,
   type Effort,
   type Todo,
 } from "./todoService";
-import { getActiveTimerForUser } from "./timeSessionService";
+import {
+  addManualTimeSession,
+  getActiveTimerForUser,
+  startTimeTimer,
+  stopTimeTimer,
+} from "./timeSessionService";
 import { formatMyWeekDigest } from "./pmoDigestService";
 import { taskDeepLink } from "./notificationFormatting";
+
+const LOG_QUICK_MINUTES = 15;
 
 export type SlackTaskAction = ChatTaskAction;
 export type SlackActionResult = ChatActionResult;
@@ -80,6 +89,187 @@ export async function handleSlashText(opts: {
   text: string;
 }): Promise<string> {
   return handleSharedSlashText({ ...opts, commandPrefix: "/wroket" });
+}
+
+function timerButtonValue(todoId: string, uid: string): string {
+  return `${todoId}|${uid}`;
+}
+
+/** Block Kit actions: Start chrono + log 15 min (optional Complete). */
+export function buildTimerActionElements(
+  todoId: string,
+  uid: string,
+  opts?: { includeComplete?: boolean },
+): unknown[] {
+  const value = timerButtonValue(todoId, uid);
+  const elements: unknown[] = [
+    {
+      type: "button",
+      style: "primary",
+      text: { type: "plain_text", text: "⏱️ Start" },
+      action_id: CHAT_ACTION_IDS.startTimer,
+      value,
+    },
+    {
+      type: "button",
+      text: { type: "plain_text", text: `+${LOG_QUICK_MINUTES} min` },
+      action_id: CHAT_ACTION_IDS.log15,
+      value,
+    },
+  ];
+  if (opts?.includeComplete) {
+    elements.push({
+      type: "button",
+      text: { type: "plain_text", text: "✅ Terminer" },
+      action_id: CHAT_ACTION_IDS.complete,
+      value,
+    });
+  }
+  return elements;
+}
+
+/**
+ * Ephemeral Block Kit reply for `/wroket tasks` — pick a task without pasting ids.
+ */
+export function buildSlackTasksTimerBlocks(opts: {
+  uid: string;
+  personal: Todo[];
+  assigned: Todo[];
+}): { text: string; blocks: unknown[] } {
+  const personal = opts.personal.slice(0, 8);
+  const assigned = opts.assigned.slice(0, 8);
+  const blocks: unknown[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "*Vos tâches* — cliquez *⏱️ Start* ou *+15 min* (pas besoin de coller l’id).",
+      },
+    },
+  ];
+
+  const pushSection = (title: string, todos: Todo[]) => {
+    if (todos.length === 0) return;
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `*${title}* (${todos.length})` },
+    });
+    for (const t of todos) {
+      const link = taskDeepLink(t.id);
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `• *${t.title}*${link ? ` · <${link}|Ouvrir>` : ""}`,
+        },
+      });
+      blocks.push({
+        type: "actions",
+        elements: buildTimerActionElements(t.id, opts.uid),
+      });
+    }
+  };
+
+  pushSection("Personnelles", personal);
+  pushSection("Assignées à vous", assigned);
+
+  if (personal.length === 0 && assigned.length === 0) {
+    return {
+      text: "Aucune tâche active (personnelle ou assignée).",
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "_Aucune tâche active._ Créez-en une avec `/wroket add <titre>` ou le bouton App Home.",
+          },
+        },
+      ],
+    };
+  }
+
+  return {
+    text: "Vos tâches — utilisez les boutons ⏱️ Start / +15 min.",
+    blocks,
+  };
+}
+
+export async function loadTasksForTimerPicker(uid: string): Promise<{
+  personal: Todo[];
+  assigned: Todo[];
+}> {
+  const [mine, assigned] = await Promise.all([listTodos(uid), listAssignedToMe(uid)]);
+  return {
+    personal: mine.filter((t) => t.status === "active").slice(0, 8),
+    assigned: assigned.filter((t) => t.status === "active").slice(0, 8),
+  };
+}
+
+export type SlackTimerButtonAction = "start_timer" | "log_15" | "stop_timer";
+
+export function actionIdToTimerAction(actionId: string): SlackTimerButtonAction | null {
+  if (actionId === CHAT_ACTION_IDS.startTimer || actionId === "start_timer") return "start_timer";
+  if (actionId === CHAT_ACTION_IDS.log15 || actionId === "log_15") return "log_15";
+  if (actionId === "wroket_stop_timer" || actionId === "stop_timer") return "stop_timer";
+  return null;
+}
+
+/**
+ * Handle Slack timer buttons (Start / +15 min / Stop).
+ * `targetUid` in the button value must match the clicker (same pattern as accept/decline).
+ */
+export async function runSlackTimerButton(opts: {
+  actorUid: string;
+  targetUid: string;
+  todoId?: string;
+  action: SlackTimerButtonAction;
+}): Promise<{ ok: boolean; message: string }> {
+  if (opts.actorUid !== opts.targetUid) {
+    return { ok: false, message: "Cette action ne vous est pas destinée." };
+  }
+  const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
+
+  try {
+    if (opts.action === "stop_timer") {
+      const session = stopTimeTimer(opts.actorUid);
+      const found = await findTodoForUser(opts.actorUid, session.todoId);
+      const title = found?.todo.title ?? session.todoId;
+      return {
+        ok: true,
+        message: `⏹️ Chrono arrêté : *${session.durationMinutes} min* sur *${title}*`,
+      };
+    }
+
+    const todoId = opts.todoId?.trim();
+    if (!todoId) {
+      return { ok: false, message: "Tâche manquante sur le bouton." };
+    }
+
+    if (opts.action === "start_timer") {
+      const timer = await startTimeTimer(opts.actorUid, actorEmail, todoId);
+      const found = await findTodoForUser(opts.actorUid, timer.todoId);
+      const title = found?.todo.title ?? timer.todoId;
+      return {
+        ok: true,
+        message: `⏱️ Chrono démarré sur *${title}*. Bouton *Arrêter* (App Home) ou \`/wroket stop\`.`,
+      };
+    }
+
+    const session = await addManualTimeSession(
+      opts.actorUid,
+      todoId,
+      LOG_QUICK_MINUTES,
+      "Slack +15 min",
+    );
+    const found = await findTodoForUser(opts.actorUid, session.todoId);
+    const title = found?.todo.title ?? session.todoId;
+    return {
+      ok: true,
+      message: `✅ *${session.durationMinutes} min* enregistrées sur *${title}*`,
+    };
+  } catch (err) {
+    return { ok: false, message: (err as Error).message || "Erreur suivi du temps" };
+  }
 }
 
 /** Strip action blocks from a Slack message after a successful click. */
@@ -349,14 +539,12 @@ export async function refreshSlackAppHomeForUser(opts: {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `• *${t.title}* \`${t.id}\`${due}${link ? ` · <${link}|Ouvrir>` : ""}`,
+          text: `• *${t.title}*${due}${link ? ` · <${link}|Ouvrir>` : ""}`,
         },
-        accessory: {
-          type: "button",
-          text: { type: "plain_text", text: "✅ Terminer" },
-          action_id: "wroket_complete",
-          value: `${t.id}|${uid}`,
-        },
+      });
+      blocks.push({
+        type: "actions",
+        elements: buildTimerActionElements(t.id, uid, { includeComplete: true }),
       });
     }
   }

@@ -72,8 +72,12 @@ test.describe("Projects Path to 9 smoke", () => {
       has: page.getByRole("heading", { name: /dates|créneau|phase|window|slot/i }),
     });
     await expect(moveDialog).toBeVisible({ timeout: 10_000 });
-    await moveDialog.getByRole("button", { name: /Annuler|Cancel/i }).click();
-    await expect(moveDialog).toHaveCount(0);
+    // Cancel can race with soft navigation on the board URL — don't wait for nav.
+    await moveDialog.getByRole("button", { name: /Annuler|Cancel/i }).click({
+      noWaitAfter: true,
+      force: true,
+    });
+    await expect(moveDialog).toHaveCount(0, { timeout: 10_000 });
 
     // SlotPicker visible on board — open schedule UI
     await taskRow.getByRole("button", { name: /Planifier|Schedule/i }).click();
@@ -82,6 +86,7 @@ test.describe("Projects Path to 9 smoke", () => {
     });
 
     // Book via API (stable) — UI opened confirms SlotPicker path from project
+    // Slot must stay inside phase A window (2030-01-01 … 2030-01-31) and task dates.
     const bookRes = await request.post(`${apiBase}/calendar/book/${todo.id}`, {
       data: {
         start: "2030-01-15T09:00:00.000Z",
@@ -89,6 +94,8 @@ test.describe("Projects Path to 9 smoke", () => {
         force: true,
       },
     });
-    expect(bookRes.ok()).toBeTruthy();
+    if (!bookRes.ok()) {
+      throw new Error(`book slot failed (${bookRes.status()}): ${await bookRes.text()}`);
+    }
   });
 });

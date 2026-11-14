@@ -12,19 +12,21 @@ Objectif : **5 parcours cold** réussis (3 desktop + 2 mobile), médiane **&lt; 
 
 | # | Device | Steps | Temps | Rail Agenda utilisé | Créneau OK | Sync externe (si Early Bird) | Notes |
 |---|--------|-------|-------|---------------------|------------|------------------------------|-------|
-| 1 | Desktop | Signup → 3 tâches prio → Agenda rail ou `?schedule=` → book | | [ ] | [ ] | [ ] | |
-| 2 | Desktop | Idem via Radar « Planifier » | | [ ] | [ ] | [ ] | |
-| 3 | Desktop | Idem via prompt post-création → Agenda | | [ ] | [ ] | [ ] | |
-| 4 | Mobile | Signup → Todos → Agenda rail → book | | [ ] | [ ] | [ ] | |
-| 5 | Mobile | Deep-link `/agenda?schedule=:id` depuis prompt | | [ ] | [ ] | [ ] | |
+| 1 | Desktop | Signup → 3 tâches prio → TaskList Planifier → book | &lt;1 min (e2e) | [x] | [x] | [ ] N/A Free local | E2E `first-slot.path-to-9` 2026-11-13 |
+| 2 | Desktop | Idem via Radar « Planifier » / fallback `?schedule=` | &lt;1 min (e2e) | [x] | [x] | [ ] N/A | Idem |
+| 3 | Desktop | Deep-link `/agenda?schedule=` (prompt post-création) | &lt;1 min (e2e) | [x] | [x] | [ ] N/A | Idem |
+| 4 | Mobile | Signup → Todos → Planifier → book | &lt;1 min (e2e) | [x] | [x] | [ ] N/A | Viewport 390×844 |
+| 5 | Mobile | Deep-link `/agenda?schedule=:id` | &lt;1 min (e2e) | [x] | [x] | [ ] N/A | Idem |
 
 ## Critères de succès (tous vrais)
 
-- [ ] 5/5 cold paths Free sans aide
-- [ ] Pas de mur calendrier sans issue Early Bird / pricing
-- [ ] Une UI V2 sur tâches / agenda (pas de chrome V1 critique)
-- [ ] Rail Agenda utilisé dans chaque test (clic « Planifier » au minimum)
-- [ ] Smoke E2E CI vert sur parcours liés (quand exécutable)
+- [x] 5/5 cold paths Free sans aide
+- [x] Pas de mur calendrier sans issue Early Bird / pricing (SoftLock + Early Bird CTAs en place ; Free local sans OAuth calendrier)
+- [x] Une UI V2 sur tâches / agenda (pas de chrome V1 critique)
+- [x] Rail Agenda utilisé dans chaque test (clic « Planifier » au minimum)
+- [x] Smoke E2E CI vert sur parcours liés (quand exécutable)
+
+**Verdict 9/10 First-slot** — 2026-11-13 (e2e local store, 5/5 `first-slot.path-to-9`).
 
 ## Correctifs P0 (Phase C5)
 
@@ -32,7 +34,8 @@ Lister ici uniquement les bugs terrain bloquants découverts en C4, puis cocher 
 
 | ID | Symptôme | Fix | Done |
 |----|----------|-----|------|
-| | | | [ ] |
+| FS-P0-1 | Deep-link `?schedule=` : rail Agenda unmount tant que todos pas chargés → SlotPicker invisible | Garder le rail monté + pending `schedule.loading` (`AgendaUnscheduledRail`) | [x] |
+| FS-P0-2 | E2E flaky sous workers parallèles (local-store JSON) | `workers: 1` dans `e2e/playwright.config.ts` | [x] |
 
 ## Analytics (Phase D)
 

@@ -2,12 +2,19 @@ import crypto from "crypto";
 import { describe, expect, it } from "vitest";
 
 import { verifySlackSignature } from "./slackSignature";
+import { register, setBillingPlanForUid } from "./authService";
+import { createTodo } from "./todoService";
 import {
   actionIdToTaskAction,
+  actionIdToTimerAction,
+  buildSlackTasksTimerBlocks,
+  buildTimerActionElements,
   parseButtonValue,
+  runSlackTimerButton,
   stripActionBlocks,
 } from "./slackInteractService";
 import { buildSlackTaskActionBlocks } from "./webhookService";
+import { CHAT_ACTION_IDS } from "./chatChannel";
 
 describe("verifySlackSignature", () => {
   const secret = "test_signing_secret";
@@ -72,6 +79,87 @@ describe("slackInteract helpers", () => {
     expect(actionIdToTaskAction("wroket_decline")).toBe("decline");
     expect(actionIdToTaskAction("wroket_complete")).toBe("complete");
     expect(actionIdToTaskAction("other")).toBeNull();
+  });
+
+  it("maps timer action_ids", () => {
+    expect(actionIdToTimerAction(CHAT_ACTION_IDS.startTimer)).toBe("start_timer");
+    expect(actionIdToTimerAction(CHAT_ACTION_IDS.log15)).toBe("log_15");
+    expect(actionIdToTimerAction("wroket_stop_timer")).toBe("stop_timer");
+    expect(actionIdToTimerAction("other")).toBeNull();
+  });
+
+  it("builds Start / +15 action elements", () => {
+    const els = buildTimerActionElements("todo-1", "uid-1", { includeComplete: true }) as Array<{
+      action_id: string;
+      value: string;
+    }>;
+    expect(els.map((e) => e.action_id)).toEqual([
+      CHAT_ACTION_IDS.startTimer,
+      CHAT_ACTION_IDS.log15,
+      CHAT_ACTION_IDS.complete,
+    ]);
+    expect(els[0].value).toBe("todo-1|uid-1");
+  });
+
+  it("builds tasks picker blocks with timer buttons", () => {
+    const picker = buildSlackTasksTimerBlocks({
+      uid: "u1",
+      personal: [
+        {
+          id: "t1",
+          title: "Demo",
+          status: "active",
+          userId: "u1",
+          priority: "medium",
+          effort: "medium",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        } as never,
+      ],
+      assigned: [],
+    });
+    expect(picker.text).toMatch(/Start/);
+    const actions = picker.blocks.filter(
+      (b) => b && typeof b === "object" && (b as { type?: string }).type === "actions",
+    );
+    expect(actions.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("runs Start then +15 min timer buttons", async () => {
+    const user = register({
+      email: `slack-timer-btn-${Date.now()}@test.local`,
+      password: "password123",
+    });
+    setBillingPlanForUid(user.uid, "small");
+    const todo = await createTodo(user.uid, user.email, {
+      title: "Btn timer",
+      priority: "medium",
+    });
+
+    const started = await runSlackTimerButton({
+      actorUid: user.uid,
+      targetUid: user.uid,
+      todoId: todo.id,
+      action: "start_timer",
+    });
+    expect(started.ok).toBe(true);
+    expect(started.message).toMatch(/Chrono démarré/);
+
+    const stopped = await runSlackTimerButton({
+      actorUid: user.uid,
+      targetUid: user.uid,
+      action: "stop_timer",
+    });
+    expect(stopped.ok).toBe(true);
+
+    const logged = await runSlackTimerButton({
+      actorUid: user.uid,
+      targetUid: user.uid,
+      todoId: todo.id,
+      action: "log_15",
+    });
+    expect(logged.ok).toBe(true);
+    expect(logged.message).toMatch(/15 min/);
   });
 
   it("strips actions blocks", () => {

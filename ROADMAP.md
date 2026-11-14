@@ -8,7 +8,7 @@
 |-------|--------|---------------------------------------------------------|
 | **P0** | Confiance & stabilité | **Déploiement & Infrastructure** — Monitoring ; **Tests & Qualité** — E2E sur parcours critiques puis unitaires ciblés ; **Sécurité & Auth** — 2FA TOTP |
 | **P1** | Revenus & adoption pro | **Monétisation & Plan System** — plans Free/Pro/Team + Stripe + page `/pricing` ; **Sécurité & Auth** + **À l’étude** — OAuth Microsoft / SSO ; **Outlook / Microsoft 365** (Graph) dans les calendriers externes |
-| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ (Android + desktop enrichi livré, E2E desktop §I-bis à valider) ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
+| **P2** | Usage quotidien & différenciation | **Expérience utilisateur** — Ma semaine ✓, templates tâches ✓, alertes navigateur ✓, PWA ✓, Web Push ✓ (Android + desktop §I-bis Windows/Mac validé 2026-11-13) ; reste liens partageables, a11y ; **Acquisition Notion** — import ZIP gratuit (capacité = statut compte) |
 | **P3** | Intégrations & profondeur | **Slack+** Lots 1–4 + ops E2E ; **Teams+ / Chat+ / Discord+** ops validés (stores différés) ; **MCP** gate **go** (2026-11-13) ; Features Notion/Monday MVP acquisition aboutis |
 | **P4** | Business / scale | **Fonctionnalités Premium** — time tracking, custom fields, API publique OpenAPI, automation rules, client portal, OKR, analytics, **IA intégrée minimale** (après socle agentique) |
 
@@ -22,13 +22,13 @@ Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ (**faits 20
 
 | Priorité | Focus | Statut | Prochain livrable |
 |----------|--------|--------|-------------------|
-| **A — Slack+ & canaux** | Webhook+ → OAuth → actions → PMO digests | **Ops validés** (Slack/Teams/Chat/Discord) 2026-11-13 | Stores publics = différé ; bot time tracking = Later |
-| **B — IA agentique** | Wroket connectable aux agents | MCP **gate go** 2026-11-13 | IA intégrée Phase 2 = Later |
+| **A — Slack+ & canaux** | Webhook+ → OAuth → actions → PMO digests | **Ops validés** (Slack/Teams/Chat/Discord) 2026-11-13 | Stores publics = différé ; bot time MVP **livré** ; Gryzzly-like = Later |
+| **B — IA agentique** | Wroket connectable aux agents | MCP **gate go** 2026-11-13 | IA intégrée Phase 2 **livrée** 2026-11-14 (déterministe) |
 | **C — PMO** | Consolidation Mes projets | Lots 1–4 + Path-to-9 Projets terrain **9/10** (2026-11-13) | Autres cold paths (tâches/données/transversal) ; collab editor live |
 
 **Décisions produit associées :**
 - **Slack+ / Teams+ / Google Chat+** : connexions **SaaS multi-clients** — chaque client Small teams+ connecte **son** workspace / org M365 / Google Workspace ; ops Wroket = une app partagée par canal ([`docs/chat-integrations-clients.md`](docs/chat-integrations-clients.md)). **Priorité 2026-11-08** : Slack → Teams sideload/deep link → Chat privé → Discord P3 ; bot Teams Azure = **Client unique** (contrainte) + Entra multilocataire ; stores publics différés ([`docs/chat-channel-priority.md`](docs/chat-channel-priority.md)).
-- **Bot time tracking** : **Later** (pas maintenant) — étendre `/wroket` (`start`/`stop`/`log`) sur le time tracking déjà livré ; **pas** de clone Gryzzly (budgets/CIR/rappels) tant que ops canaux chat ne sont pas stables. Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
+- **Bot time tracking** : **MVP + boutons Slack livrés** (2026-11-13/14) — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). **Gryzzly-like** (budgets / CIR / rappels 1:1) = **Later** (voir ci-dessous), pas dans le MVP bot.
 - **Notion-Like** et **Monday-Like** sont considérés **aboutis en MVP acquisition** pour le besoin actuel.
 - **Import Notion ZIP** et imports **CSV** supplémentaires Notion/Monday sont **dépriorisés**.
 - **E2E Gantt §G.12** est considéré validé.
@@ -43,7 +43,7 @@ Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ (**faits 20
 5. ~~**Slack+ Lots 1–3**~~ — **Code livré** (2026-08-07, `882c6ca`, doc [`docs/slack-plus.md`](docs/slack-plus.md)) : Webhook+ PMO, OAuth `chat.postMessage`, HMAC interactions + slash `/wroket`. **Reste ops** : secrets `SLACK_*` Cloud Run, URLs Slack App, reconnect OAuth, E2E boutons/slash dans un vrai workspace.
 6. ~~**Slack+ Lot 4**~~ — **Livré** : `/wroket my-week|overdue|team-risk` via [`pmoDigestService`](backend/src/services/pmoDigestService.ts) + smoke workspace / digests MCP **2026-11-13**.
 7. ~~**Teams+ / Google Chat+ / Discord+**~~ — **Ops validés propriétaire 2026-11-13** (code parité 1A + consoles/smokes ; Discord déjà 2026-11-09). Stores publics = différé. Docs : [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md).
-8. ~~**IA agentique — MCP**~~ — **Gate go 2026-11-13** (code PR #6 + smoke agents + digests MCP). Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md). Phase 2 IA intégrée = Later.
+8. ~~**IA agentique — MCP**~~ — **Gate go 2026-11-13** (code PR #6 + smoke agents + digests MCP). Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md). Phase 2 IA intégrée **livrée** 2026-11-14.
 9. ~~**PMO Mes projets — audit + hardening**~~ — **Fait** (2026-11-09) + Path-to-9 Projets terrain **9/10** + digests PMO (**2026-11-13**). Archive : [`docs/pmo-audit-mes-projets.md`](docs/pmo-audit-mes-projets.md) ; checklist [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
 10. **P1 reprise (pause)** : Stripe Checkout self-service — prérequis ops/MCP **OK** ; ouvrir sur décision produit.
 
@@ -79,13 +79,13 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 ### Now (0-6 semaines)
 
 0. ~~**Lot local à stabiliser (2026-08)**~~ — **Fait** (2026-08-07) : UI V2 + créneaux intelligents + colonnes TaskList + polish tags méta sur `main`.
-0b. **UX Path to 9** — Continuité prioriser→créneau (`?schedule=` + SlotPicker + rail Agenda), sunset V1 critiques, chrome header/nav, SoftLock dur, empty states, funnel analytics (`signup_ok` → `first_slot_booked`). Checklist terrain : [`docs/cold-path-first-slot.md`](docs/cold-path-first-slot.md). **Seuil 9/10** = 5 cold paths Free chronométrés (pas seulement tsc).
-0c. ~~**UX Projets Path to 9**~~ — **9/10 terrain 2026-11-13** (Board/Kanban/Gantt SlotPicker+book ; move owner). Residual : collab editor live + CI e2e local. Checklist : [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
-0d. **UX Données Path to 9** — Continuité notes import/export UI, SoftLock quota notes, Compte & données ↔ hub, SoftLock/Early Bird migrate OAuth, RGPD purge/export complets, privacy/pricing alignés. Checklist : [`docs/cold-path-donnees.md`](docs/cold-path-donnees.md) ; revue : [`docs/funnel-donnees-monthly.md`](docs/funnel-donnees-monthly.md). **Seuil 9/10** = 3 cold paths terrain (pas seulement tsc).
-0e. **UX Path to 9 transversal** — Collab (UX-4), a11y, EmptyState, share smoke, **Microsoft SSO validé terrain** (§B 5–7). Reste pour seuil 9/10 : cold paths collab + §I-bis Push PWA (+ CI E2E smoke).
+0b. ~~**UX Path to 9**~~ — **9/10 e2e 2026-11-13** (5/5 cold paths Free `first-slot.path-to-9` : TaskList / Radar / `?schedule=` desktop + mobile). SoftLock/Early Bird CTAs en place. Checklist : [`docs/cold-path-first-slot.md`](docs/cold-path-first-slot.md).
+0c. ~~**UX Projets Path to 9**~~ — **9/10 terrain 2026-11-13** (Board/Kanban/Gantt SlotPicker+book ; move owner). Residual : collab notes CRDT (Later). Checklist : [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
+0d. ~~**UX Données Path to 9**~~ — **9/10 e2e 2026-11-13** (3/3 : note export, import hub, compte export + cancel delete). SoftLock quota notes. Checklist : [`docs/cold-path-donnees.md`](docs/cold-path-donnees.md) ; revue : [`docs/funnel-donnees-monthly.md`](docs/funnel-donnees-monthly.md).
+0e. ~~**UX Path to 9 transversal**~~ — **9/10 2026-11-13** : collab/share/CI e2e verts + **§I-bis Push PWA Windows/Mac validé terrain**. Checklist : [`docs/checklist-e2e-prod.md`](docs/checklist-e2e-prod.md).
 1. **Slack+ — golden path (priorité n°1)** — Code + secrets + smoke E2E workspace **faits** (2026-11-08). Consolider UX/docs ; rester le canal de référence. Doc : [`docs/slack-plus.md`](docs/slack-plus.md), priorité : [`docs/chat-channel-priority.md`](docs/chat-channel-priority.md).
 2. ~~**Teams+ pragmatique → Chat privé → Discord niche (ops)**~~ — **Validé propriétaire 2026-11-13** (+ Discord 2026-11-09). Stores publics toujours différés. Voir [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md).
-2b. **Bot time tracking — Later** — MVP `/wroket start|stop|log|timer` → `timeSessionService`. **Pas** de clone Gryzzly. Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
+2b. ~~**Bot time tracking**~~ — **MVP livré 2026-11-13** : `/wroket start|stop|log|timer` (+ SoftLock pricing CTA, tests slash). Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 3. ~~**MCP / IA agentique — validation usage**~~ — **Gate go 2026-11-13**. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md).
 3b. **OAuth Google Agenda — vérification** — Branding **verified** (2026-11-13). Sensitive scopes Calendar **sous review** Google (vidéo + privacy `privacy-policy.html`). Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). **Reste** : attendre décision Google (~3–10 j), puis smoke reconnect Agenda sans bandeau unverified.
 4. ~~**Dual UI V1+V2 — observation**~~ — **Sunset V1** (2026-08-09) : V2 permanent ; toggle Settings retiré ; opt-out localStorage ignoré/effacé.
@@ -93,8 +93,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
    - **Fait** : gating, webhooks Stripe, portail, `/pricing`, billing équipe, admin invitations.
    - **Reste (reprise ultérieure)** : Stripe Checkout bout-en-bout (upgrade self-service) — après Slack/canaux ops + gate MCP.
 5. **Microsoft path (SSO + Outlook MVP)** — **Terminé** : Outlook + Teams + invités externes OK ; **SSO login Microsoft** validé terrain (checklist §B items 5–7).
-6. ~~**Reliability / Error UX / PWA / Web Push / Gantt**~~ — **Fait** (juin 2026) ; Web Push desktop §I-bis encore à valider manuellement.
-7. **E2E smoke CI** — Surveiller les runs post-`882c6ca` (smoke E2E a échoué sur ce push ; CI lint OK) — diagnostiquer si régression ou flaky.
+6. ~~**Reliability / Error UX / PWA / Web Push / Gantt**~~ — **Fait** (juin 2026) ; Web Push desktop §I-bis **validé** Windows/Mac PWA (2026-11-13).
+7. ~~**E2E smoke CI**~~ — **Diagnostiqué 2026-11-13** : flaky post-`882c6ca` = (1) workers parallèles vs `local-store.json`, (2) rate-limit API 300/min saturé par la suite Path to 9. Fixes : `workers: 1` ; `apiLimiter` relevé sous `USE_LOCAL_STORE` / CI.
 
 ### Next (6-12 semaines)
 
@@ -104,8 +104,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Teams+ pragmatique E2E** — deep link + sideload zip + smoke canal org — **validé propriétaire 2026-11-13** (Store différé).
 - [x] **Google Chat+ scope create + reconnect** — `chat.messages.create` — **validé propriétaire 2026-11-13** ; Marketplace public différé.
 - [x] **Discord+ (ops)** — Portal + secrets Cloud Run + slash `/wroket` + smoke E2E (Test, help, complete) **2026-11-09** ; niche, pas substitut Teams/Chat — [`docs/discord-plus.md`](docs/discord-plus.md), [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md) §5.
-- [ ] **Bot time tracking (P3bis)** — Après ops canaux : `/wroket start|stop|log|timer` sur `timeSessionService` — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). **Exclu** : clone Gryzzly (budgets, CIR, rappels 1:1).
-- [x] **Gate IA agentique** — **go 2026-11-13** (smoke agents + digests MCP ; 0 incident auth critique). IA intégrée minimale = Later.
+- [x] **Bot time tracking (P3bis)** — **MVP 2026-11-13** + boutons Slack Start/+15 (2026-11-14) — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md). Gryzzly-like → Later.
+- [x] **Gate IA agentique** — **go 2026-11-13** (smoke agents + digests MCP ; 0 incident auth critique). IA intégrée minimale Phase 2 **livrée** 2026-11-14.
 - [x] **PMO ciblé** : liens partageables lecture seule (projet) + portfolio équipe (`/teams/portfolio`) — livrés. Client Portal = Later (déjà [x]). Voir [docs/pmo-audit-mes-projets.md](docs/pmo-audit-mes-projets.md).
 - [x] **PMO Mes projets — consolidation + hardening (2026-11-09)** — Audit live A–C ; Lots 1–4. **Path-to-9 Projets 9/10** + digests PMO (**2026-11-13**) — [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — prérequis ops/MCP OK ; attendre décision produit.
@@ -114,9 +114,10 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 
 ### Later (12+ semaines)
 
-- [ ] **Bot time tracking (slash)** — `/wroket start|stop|log|timer` → `timeSessionService` après ops canaux — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md)
+- [x] **Bot time tracking (slash)** — MVP livré 2026-11-13 + boutons sélection Slack 2026-11-14 — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md)
+- [ ] **Gryzzly-like (time tracking chat avancé)** — Au-delà du MVP bot : rappels quotidiens 1:1 « as-tu loggé ? », éventuellement budgets / CIR / rentabilité. **Prérequis** : traction réelle du MVP (`start`/`stop`/`log` + boutons). **Pas** un clone produit Gryzzly tant que le cœur Wroket reste tâches+agenda+projets. Spec de cadrage : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 - [x] **Client Portal** — Vue externe structurée pour parties prenantes (clients, managers) : espace multi-projets, progression / jalons / commentaires filtrés, invité read-only optionnel, au-delà du lien token `/share/project/:token`. Spec PMO : [`docs/project-roadmap-pmo.md`](docs/project-roadmap-pmo.md) §6.1.
-- IA intégrée minimale (2-3 commandes natives) sur primitives MCP validées.
+- ~~IA intégrée minimale (Phase 2)~~ — **Livré 2026-11-14** ([`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md)).
 - Notes collaboratives temps réel (chantier lourd).
 - Premium business tier (analytics, capacity, automation, API publique, OKR) — Client Portal listé ci-dessus.
 - OAuth GitHub SSO ; CalDAV / multi-calendriers slots approfondi.
@@ -142,7 +143,7 @@ Checklist exécutée — parcours §A–I validés. Détail : [docs/checklist-e2
 - [x] **Projets — DnD move + modales contraintes + Gantt** — §G OK ; **Gantt interactif enrichi** E2E prod validé 2026-06-08 (`d4d2aaa`) — items 10–11 checklist
 - [x] **P2 — PWA installable** — manifest + SW shell livrés 2026-06-07 ; validation install prod à faire post-deploy (`/manifest.webmanifest`, `/sw.js`)
 - [x] **P2 — Web Push (Android)** — Assignation, deep-link, redirect login ; VAPID + SW `push`/`notificationclick` (`ec1080b`, `dedd046`)
-- [x] **P2 — Web Push (desktop / multi-appareil)** — Statut par appareil, hints PWA desktop, CTA cloche → Paramètres, icône opaque, actions notif → app (`a9d0c1e` + correctifs) ; **E2E §I-bis à valider** (Windows/Mac PWA)
+- [x] **P2 — Web Push (desktop / multi-appareil)** — Statut par appareil, hints PWA desktop, CTA cloche → Paramètres, icône opaque, actions notif → app (`a9d0c1e` + correctifs) ; **§I-bis validé** Windows/Mac PWA (2026-11-13)
 
 ## Plan exécutable d'équipe (Q2 2026)
 
@@ -226,7 +227,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - Microsoft/Outlook : bascule priorité Google ↔ Outlook, booking Teams, reconnexion sans perte de priorité FCFS (post-fix 2026-06-07).
 - Flux restauration/suppression archives en scénarios projet + sous-tâches.
 - Notifications multicanal (email/Slack/Teams/Chat) avec vérification de délivrabilité.
-- Web Push desktop Mac/Windows PWA — §I-bis checklist ([docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md)) : icône Wroket, deep-link, actions Accepter/Refuser, pas de doublon AppShell.
+- ~~Web Push desktop Mac/Windows PWA~~ — §I-bis **validé 2026-11-13** ([docs/checklist-e2e-prod.md](docs/checklist-e2e-prod.md)) : icône Wroket, deep-link, actions Accepter/Refuser, pas de doublon AppShell.
 
 ## Implémenté
 
@@ -393,7 +394,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Vue Liste — colonnes réordonnables (sync profil)** — Drag des en-têtes ; persistance `taskListColumnOrder` via `PUT /auth/me` (multi-appareils).
 - [x] **Créneaux intelligents V2** — Suggestions deadline-aware ; SlotPicker modal centré.
 - [x] **PWA (Progressive Web App)** — Installable sur l’écran d’accueil, manifest + service worker pour assets / shell ; complète le responsive existant pour un usage « app-like » sur mobile et tablette — livré 2026-06-07 (`11d77f2`).
-- [x] **Notifications push (Web Push)** — Service worker + abonnement push **par appareil** pour assignations et événements clés **hors onglet / app fermée** ; actions Accepter/Refuser (`task_assigned` → deep-link app + mutation) ; icône 512×512 opaque ; complète in-app + email + webhooks — E2E Android 2026-06-07 ; desktop §I-bis à valider.
+- [x] **Notifications push (Web Push)** — Service worker + abonnement push **par appareil** pour assignations et événements clés **hors onglet / app fermée** ; actions Accepter/Refuser (`task_assigned` → deep-link app + mutation) ; icône 512×512 opaque ; complète in-app + email + webhooks — E2E Android 2026-06-07 ; desktop §I-bis Windows/Mac **validé** 2026-11-13.
 - [x] **Alertes navigateur (onglet ouvert)** — Permission `Notification` + cloche ; alerte desktop détaillée avec deep-link si push locale inactive ; lien « Notifications système » → Paramètres ; skip doublon si Web Push locale active ; E2E §I validé.
 - [x] **Vue « Ma semaine » / focus (MVP Dashboard)** — Panneau Dashboard : priorités retard/échéance/créneau, quadrant Radar, liens Agenda/Tâches, bilan hebdo (complétées / à l’heure / en retard) ; E2E §F validé ; *évolution* : charge `estimatedMinutes` agrégée, page dédiée optionnelle.
 - [x] **Templates & checklists de tâches** — `TaskTemplatePicker` + templates système + CRUD perso (`/templates`) ; application priorité/effort/tags/sous-tâches à la création ; E2E §I validé.
@@ -441,7 +442,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 *Prioriser Outlook/Graph avant CalDAV pour l’alignement P1 ; notes collaboratives = chantier lourd (P3+).*
 
 - [x] **IA agentique connectable — MCP (Phase 1 validée produit)** — Serveur MCP distant `POST /mcp`, clés API, tools PMO (PR #6) ; **gate go 2026-11-13** (smoke agents + digests `get_my_week` / overdue / team_risk). Doc [`docs/mcp-agents.md`](docs/mcp-agents.md).
-- [ ] **IA intégrée minimale (Phase 2)** — 2-3 commandes natives à forte valeur (`prépare mon comité`, `planifie ma semaine`, `résume les risques`) réutilisant les primitives MCP — *après gate Phase 1 (**faite**)*. Les lectures étroites « Proposer une liste » et « Numériser » (2026-11-06) ne remplacent pas ces commandes.
+- [x] **IA intégrée minimale (Phase 2)** — **Livré 2026-11-14** : orchestration déterministe (sans LLM) — `AssistPmoPanel` + `/assist/*` + slash `committee` / `plan-week` / `risks`. Doc : [`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md). OCR / « Proposer une liste » restent des lectures étroites séparées.
 - [ ] **IA orchestrateur (Phase 3)** — workflows multi-outils Notion/Monday/Calendar/Webhooks, différenciation \"orchestrateur fiable\" (après validation usage phase 1/2)
 - [x] **Cadre décisionnel IA / gate go-no-go** — **go 2026-11-13** (smoke prod, revoke 401, digests MCP OK, 0 incident auth critique). Traces / RGPD = politique existante clés API (hash SHA-256).
 - [x] **Paramètres — panneau Abonnement (lisibilité)** — Cards (palier marketing Pro/Team, code technique, entitlements, Stripe) + mapping terminologie + lien `/pricing` (2026-06-07).
@@ -492,7 +493,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Hardening sécurité (v4)** — Préservation refresh_token Google lors de re-auth, suppression fuite body Google dans erreurs, validation dates ISO (format + start<end + range max 90j), fan-out Google Calendar plafonné (20 requêtes parallèles max), max 5 comptes Google par user, calendarId length-bound (200), clearSlot/disconnectGoogle 404 si introuvable, protection open redirect auth URL Google, handleTest try/catch, correction bug logique deleteMyAccount
 - [x] **Hardening sécurité (v5)** — `trust proxy` pour détection IP derrière Cloud Run, limite longueur mot de passe (MAX_PASSWORD_BYTES 1024, anti CPU DoS), `crypto.timingSafeEqual` avec length guard dans `changePassword`, centralisation logique `cookieSecure` (NODE_ENV + FRONTEND_URL), suppression `req.query.token` dans `verifyEmail` (token body only), validation inputs projets (types, valeurs vides, statut), CORS `callback(null, false)` au lieu d'erreur
 - [x] **Contenu utilisateur sans chiffrement KEK (prod)** — Titres/tags des tâches et textes des commentaires en clair côté application ; plus d'injection `CRYPTO_KEK_BASE64` sur Cloud Run pour le runtime API ; script optionnel `npm run migrate:strip-encryption` pour migrer d'éventuelles données legacy (`encV1` / `wrappedDekB64`)
-- [x] **Audit npm / Next.js** — Next.js 16.2.3 et lockfiles à jour (correctifs sécurité transitifs : nodemailer, path-to-regexp, picomatch, brace-expansion, etc.)
+- [x] **Audit npm / Next.js** — Passe 2026-11-14 : Next `16.4.6`, nodemailer `^10.5`, adm-zip `0.6.1` ; **0 high/critical** ouvert (résiduels moderate documentés) — [`docs/npm-audit-triage.md`](docs/npm-audit-triage.md)
+- [x] **ACL Assist / share / MCP (passe 2026-11-14)** — `canAccessProject` / `canEditProject` sur Assist comité ; share revoke+token ; scopes MCP + clé révoquée ; test vitest cross-user
 - [x] **RGPD export (doc code)** — Commentaires dans `exportUserData` : export self-service via modèles en mémoire vs lignes brutes admin avec retrait du champ legacy `encV1` (pas de chiffrement applicatif en prod)
 - [x] **Optimisation performance** — Compression Gzip/Brotli (`compression` middleware), fix N+1 queries team membership (`teamMembershipCache` dans `listProjects`), batch `Promise.all` pour suppression de phase, memoisation `ProjectListView` (`useMemo` sur projets actifs/archivés/enfants/health)
 - [x] **OAuth Microsoft (SSO)** — Connexion compte Microsoft via Entra ID (`microsoftSsoService`, callback `/auth/microsoft/callback`) — *GitHub reste à faire*
@@ -518,7 +520,8 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 *À traiter après monétisation de base (P1) et traction sur Pro/Team — cf. priorités P4.*
 
 - [x] **Time tracking** — Chronomètre intégré par tâche, timesheet projet (semaine) + export CSV, SoftLock Small+
-- [ ] **Time tracking via bot chat** — **Later** (après ops Slack+/Teams+/Chat+) — voir [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md) ; pas de produit type Gryzzly
+- [x] **Time tracking via bot chat (MVP)** — slash + boutons Slack Start/+15 — [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md)
+- [ ] **Gryzzly-like** — rappels 1:1, budgets/CIR/rentabilité (Later, si traction MVP) — voir Later ci-dessus
 - [x] **Analytics & Reporting** — Dashboard équipe : KPIs + 3 charts (vélocité, membres, complétion projets) SoftLock Large+
 - [x] **Capacity planning** — Vue charge estimée / trackée par membre (`/teams/capacity`), alerte surcharge
 - [x] **Automation rules** — Builder if/then (create/complete → tag/priority/assign) + recettes overdue existantes

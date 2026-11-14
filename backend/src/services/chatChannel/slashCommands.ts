@@ -22,17 +22,25 @@ import {
   formatOverdueDigest,
   formatTeamRiskDigest,
 } from "../pmoDigestService";
+import {
+  previewCommittee,
+  previewPlanWeek,
+  previewRisks,
+} from "../assistCommandsService";
 import { taskDeepLink } from "../notificationFormatting";
 import { normalizeChatTodoId, runTaskAction } from "./taskActions";
 
 const SLASH_HELP = [
   "*Commandes Wroket*",
   "`help` — cette aide",
-  "`tasks` — vos tâches actives (personnelles + assignées)",
+  "`tasks` — vos tâches actives (+ boutons Start / +15 min sur Slack)",
   "`add <titre>` — créer une nouvelle tâche rapidement",
   "`my-week` — Ma semaine (retards + échéances/créneaux 7j)",
   "`overdue` — tâches actives en retard",
   "`team-risk` — projets d’équipe at-risk / overdue",
+  "`committee <projectId>` | `comite` — prépare mon comité (preview)",
+  "`plan-week` | `planifie` — planifie ma semaine (créneaux proposés, confirm dans l’app)",
+  "`risks` | `risques` — résumé risques équipe + retards",
   "`open <todoId>` — détail + lien",
   "`plan <todoId> [auto]` — proposer ou réserver un créneau calendrier",
   "`timer` | `start <todoId>` | `stop` | `log <todoId> <min> [note]` — suivi du temps",
@@ -54,11 +62,14 @@ export function slashHelpTextForPrefix(prefix: string): string {
   return [
     `*Commandes \`${p}\`*`,
     `\`${p} help\` — cette aide`,
-    `\`${p} tasks\` — vos tâches actives (personnelles + assignées)`,
+    `\`${p} tasks\` — vos tâches actives (+ boutons Start / +15 min sur Slack)`,
     `\`${p} add <titre>\` — créer une nouvelle tâche rapidement`,
     `\`${p} my-week\` — Ma semaine (retards + échéances/créneaux 7j)`,
     `\`${p} overdue\` — tâches actives en retard`,
     `\`${p} team-risk\` — projets d’équipe at-risk / overdue`,
+    `\`${p} committee <projectId>\` | \`${p} comite\` — prépare mon comité (preview)`,
+    `\`${p} plan-week\` | \`${p} planifie\` — planifie ma semaine (confirm dans l’app)`,
+    `\`${p} risks\` | \`${p} risques\` — résumé risques + retards`,
     `\`${p} open <todoId>\` — détail + lien`,
     `\`${p} plan <todoId> [auto]\` — proposer ou réserver un créneau calendrier`,
     `\`${p} timer\` | \`${p} start <todoId>\` | \`${p} stop\` | \`${p} log <todoId> <min> [note]\` — suivi du temps`,
@@ -121,8 +132,42 @@ export async function handleSlashText(opts: {
     return formatOverdueDigest(opts.actorUid);
   }
 
-  if (verb === "team-risk" || verb === "risk" || verb === "risques") {
+  if (verb === "team-risk" || verb === "risk") {
     return formatTeamRiskDigest(opts.actorUid);
+  }
+
+  if (verb === "committee" || verb === "comite" || verb === "comité") {
+    const projectId = normalizeChatTodoId(arg) || arg.trim();
+    if (!projectId) {
+      return `Usage : \`${prefix} committee <projectId>\` — id visible dans l’app Projets.`;
+    }
+    try {
+      const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
+      const preview = await previewCommittee(opts.actorUid, actorEmail, projectId);
+      return preview.summaryMarkdown;
+    } catch (err) {
+      return `Impossible de préparer le comité : ${(err as Error).message || "erreur"}`;
+    }
+  }
+
+  if (verb === "plan-week" || verb === "planifie") {
+    try {
+      const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
+      const preview = await previewPlanWeek(opts.actorUid, actorEmail);
+      return preview.summaryMarkdown;
+    } catch (err) {
+      return `Impossible de planifier la semaine : ${(err as Error).message || "erreur"}`;
+    }
+  }
+
+  if (verb === "risks" || verb === "risques") {
+    try {
+      const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
+      const preview = await previewRisks(opts.actorUid, actorEmail);
+      return preview.summaryMarkdown;
+    } catch (err) {
+      return `Impossible de résumer les risques : ${(err as Error).message || "erreur"}`;
+    }
   }
 
   if (verb === "add" || verb === "create" || verb === "new" || verb === "ajout" || verb === "creer") {
@@ -190,11 +235,13 @@ export async function handleSlashText(opts: {
 
   if (verb === "start") {
     const startTodoId = normalizeChatTodoId(arg);
-    if (!startTodoId) return `Usage : \`${prefix} start <todoId>\``;
+    if (!startTodoId) return `Usage : \`${prefix} start <todoId>\` — ids via \`${prefix} tasks\``;
     try {
       const actorEmail = findUserByUid(opts.actorUid)?.email ?? "";
       const timer = await startTimeTimer(opts.actorUid, actorEmail, startTodoId);
-      return `⏱️ Chrono démarré sur \`${timer.todoId}\`. Tapez \`${prefix} stop\` pour l’arrêter.`;
+      const found = await findTodoForUser(opts.actorUid, timer.todoId);
+      const title = found?.todo.title ?? timer.todoId;
+      return `⏱️ Chrono démarré sur *${title}* (\`${timer.todoId}\`). Tapez \`${prefix} stop\` pour l’arrêter.`;
     } catch (err) {
       return `Impossible de démarrer le chrono : ${(err as Error).message || "erreur"}`;
     }
@@ -203,7 +250,9 @@ export async function handleSlashText(opts: {
   if (verb === "stop") {
     try {
       const session = stopTimeTimer(opts.actorUid);
-      return `⏹️ Chrono arrêté : *${session.durationMinutes} min* enregistrées sur \`${session.todoId}\`.`;
+      const found = await findTodoForUser(opts.actorUid, session.todoId);
+      const title = found?.todo.title ?? session.todoId;
+      return `⏹️ Chrono arrêté : *${session.durationMinutes} min* enregistrées sur *${title}* (\`${session.todoId}\`).`;
     } catch (err) {
       return `Impossible d’arrêter le chrono : ${(err as Error).message || "erreur"}`;
     }
@@ -215,12 +264,14 @@ export async function handleSlashText(opts: {
     const noteParts = rest.slice(2);
     const mins = Number(minStr);
     if (!todoId || !Number.isFinite(mins) || mins <= 0) {
-      return `Usage : \`${prefix} log <todoId> <minutes> [note]\``;
+      return `Usage : \`${prefix} log <todoId> <minutes> [note]\` — ids via \`${prefix} tasks\``;
     }
     try {
       const note = noteParts.join(" ").trim() || null;
       const session = await addManualTimeSession(opts.actorUid, todoId, Math.round(mins), note);
-      return `✅ *${session.durationMinutes} min* enregistrées sur \`${session.todoId}\`.`;
+      const found = await findTodoForUser(opts.actorUid, session.todoId);
+      const title = found?.todo.title ?? session.todoId;
+      return `✅ *${session.durationMinutes} min* enregistrées sur *${title}* (\`${session.todoId}\`).`;
     } catch (err) {
       return `Impossible d’enregistrer le temps : ${(err as Error).message || "erreur"}`;
     }

@@ -2,6 +2,13 @@
 
 Wroket acts as a **remote MCP server** so Cursor, Claude Desktop, or any compatible agent can act on tasks, projects, notes, and comments. There is **no hosted LLM inside Wroket**; you use the AI you already pay for.
 
+**User-facing guides (preferred for end users):**
+
+- In-app FR/EN: [https://wroket.com/docs/integrations/mcp](https://wroket.com/docs/integrations/mcp)
+- Short how-to: [user-guides/mcp-agent.md](./user-guides/mcp-agent.md)
+
+This page is the **technical reference** (scopes, tools, smoke, gate).
+
 ## Prerequisites
 
 1. A Wroket account with product access (seat / not workspace-admin-only).
@@ -68,7 +75,10 @@ Rate limit: **60 requests / minute / key**.
 
 Same JSON shape under Claude’s MCP servers config (URL + `Authorization` header). Prefer the snippet from Settings after creating a key.
 
-## Tools (v1.1)
+## Tools
+
+Product surface is **MCP v2** (todos, projects/PMO, calendar, collaboration, time/OKR, databases, portals, …).  
+The table below is the historical **v1.1 core**; agents discover the full set via `tools/list`.
 
 | Tool | Scope | Purpose |
 |------|--------|---------|
@@ -124,10 +134,10 @@ Same semantics as the product DnD API:
 
 - [x] Smoke agents réels (Cursor / Claude) + auth revoke — **go** (propriétaire)
 - [x] Digests PMO via MCP (`get_my_week`, `get_overdue_tasks`, `get_team_risk`) — Early Bird prod, clé éphémère créée/révoquée **2026-11-13**
-- Phase 2 IA intégrée = **Later** (inchangé)
+- [x] Phase 2 IA intégrée minimale — **livrée 2026-11-14** (orchestration déterministe UI + slash, **sans** LLM hébergé) — [`assist-pmo-commands.md`](./assist-pmo-commands.md)
 
-## Out of scope (v1.1)
+## Out of scope (v1.1 / Phase 2)
 
-- In-app chat / embeddings
+- LLM hébergé / embeddings / chat in-app génératif
 - Wroket as MCP *client*
-- Attachments, Notion/Monday sync, billing/admin
+- Attachments, Notion/Monday sync, billing/admin via MCP

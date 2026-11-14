@@ -1,7 +1,7 @@
 /**
  * User-facing integration documentation (FR/EN).
  * Editorial source: docs/contacts-notion-v1.md, docs/donnees-notion-v1.md, docs/monday-docs-v1.md,
- * docs/slack-plus.md, docs/mcp-agents.md
+ * docs/slack-plus.md, docs/mcp-agents.md, docs/user-guides/mcp-agent.md
  */
 export const docsTranslations = {
   "docs.title": { fr: "Documentation", en: "Documentation" },
@@ -97,8 +97,8 @@ export const docsTranslations = {
   },
   "docs.hub.mcp.title": { fr: "Agents MCP", en: "MCP agents" },
   "docs.hub.mcp.summary": {
-    fr: "Connectez Cursor ou Claude Desktop à vos tâches via le serveur MCP Wroket.",
-    en: "Connect Cursor or Claude Desktop to your tasks via the Wroket MCP server.",
+    fr: "Branchez Cursor ou Claude en 4 étapes : clé API, snippet MCP, puis « liste mes tâches ».",
+    en: "Connect Cursor or Claude in 4 steps: API key, MCP snippet, then “list my tasks”.",
   },
   "docs.hub.teams.title": { fr: "Microsoft Teams", en: "Microsoft Teams" },
   "docs.hub.teams.summary": {
@@ -625,58 +625,84 @@ export const docsTranslations = {
     en: "Settings › Integrations › Webhooks: paste the URL, pick events, and save.",
   },
 
-  "docs.mcp.metaTitle": { fr: "Guide agents MCP", en: "MCP agents guide" },
+  "docs.mcp.metaTitle": { fr: "Connecter un agent (MCP)", en: "Connect an agent (MCP)" },
   "docs.mcp.summary": {
-    fr: "Wroket expose un serveur MCP distant : vos agents (Cursor, Claude Desktop…) listent et créent des tâches, projets, notes et créneaux — sans IA hébergée dans Wroket.",
-    en: "Wroket exposes a remote MCP server: your agents (Cursor, Claude Desktop…) list and create tasks, projects, notes, and slots — with no hosted AI inside Wroket.",
+    fr: "Laissez Cursor ou Claude Desktop agir sur vos tâches et projets Wroket. Pas d’IA hébergée dans Wroket : vous branchez l’agent que vous utilisez déjà.",
+    en: "Let Cursor or Claude Desktop act on your Wroket tasks and projects. No hosted AI inside Wroket — you connect the agent you already use.",
   },
   "docs.mcp.benefit1": {
-    fr: "Utilisez l’IA que vous payez déjà ; Wroket fournit les actions PMO sécurisées.",
-    en: "Use the AI you already pay for; Wroket provides secured PMO actions.",
+    fr: "4 étapes : créer une clé, copier le secret, coller le snippet, tester « liste mes tâches ».",
+    en: "4 steps: create a key, copy the secret, paste the snippet, try “list my tasks”.",
   },
   "docs.mcp.benefit2": {
-    fr: "Clés API personnelles (`wrk_live_…`), scopes todos / projets / notes / calendrier, révocation immédiate.",
-    en: "Personal API keys (`wrk_live_…`), todos / projects / notes / calendar scopes, instant revoke.",
+    fr: "Clés personnelles (`wrk_live_…`), révocation immédiate, une clé par machine.",
+    en: "Personal keys (`wrk_live_…`), instant revoke, one key per machine.",
   },
   "docs.mcp.benefit3": {
-    fr: "Même logique métier que l’app (move, conflits de créneau, droits).",
-    en: "Same business logic as the app (move, slot conflicts, permissions).",
+    fr: "Mêmes droits et règles que l’app (projets, créneaux, conflits).",
+    en: "Same permissions and rules as the app (projects, slots, conflicts).",
+  },
+  "docs.mcp.benefit4": {
+    fr: "Complète Assist in-app : l’agent externe pour le quotidien, Assist pour comité / semaine / risques dans Wroket.",
+    en: "Complements in-app Assist: external agent for day-to-day, Assist for committee / week / risks inside Wroket.",
   },
   "docs.mcp.prereq1": {
-    fr: "Compte Wroket avec accès produit (pas uniquement workspace-admin).",
+    fr: "Compte Wroket avec accès produit (pas uniquement admin d’espace).",
     en: "Wroket account with product access (not workspace-admin-only).",
   },
   "docs.mcp.prereq2": {
-    fr: "Client MCP compatible (Cursor, Claude Desktop, ou autre).",
-    en: "Compatible MCP client (Cursor, Claude Desktop, or other).",
+    fr: "Client MCP compatible : Cursor, Claude Desktop, ou équivalent.",
+    en: "Compatible MCP client: Cursor, Claude Desktop, or equivalent.",
   },
-  "docs.mcp.stepKeys.title": { fr: "Créer une clé API", en: "Create an API key" },
+  "docs.mcp.stepKeys.title": { fr: "1. Créer une clé", en: "1. Create a key" },
   "docs.mcp.stepKeys.p1": {
-    fr: "Paramètres › Intégrations › Connecter votre agent. Donnez un libellé (ex. « Cursor laptop »), créez la clé, puis copiez le secret immédiatement — il n’est plus réaffiché.",
-    en: "Settings › Integrations › Connect your agent. Enter a label (e.g. “Cursor laptop”), create the key, then copy the secret immediately — it is never shown again.",
+    fr: "Paramètres › Intégrations › Connecter votre agent. Libellé clair (ex. « Cursor laptop »), créez la clé, puis copiez le secret tout de suite — il n’est plus réaffiché.",
+    en: "Settings › Integrations › Connect your agent. Clear label (e.g. “Cursor laptop”), create the key, then copy the secret immediately — it is never shown again.",
   },
   "docs.mcp.stepKeys.p2": {
-    fr: "Limites : Free = 1 clé active ; Small teams ou supérieur = jusqu’à 5. Seul le hash SHA-256 est stocké côté serveur.",
-    en: "Limits: Free = 1 active key; Small teams or higher = up to 5. Only a SHA-256 hash is stored server-side.",
+    fr: "Limites : Free = 1 clé active ; Small teams+ / early bird = jusqu’à 5. Ne committez jamais le secret dans Git.",
+    en: "Limits: Free = 1 active key; Small teams+ / early bird = up to 5. Never commit the secret to Git.",
   },
-  "docs.mcp.stepCursor.title": { fr: "Configurer Cursor ou Claude", en: "Configure Cursor or Claude" },
+  "docs.mcp.stepCursor.title": { fr: "2. Coller le snippet MCP", en: "2. Paste the MCP snippet" },
   "docs.mcp.stepCursor.p1": {
-    fr: "Endpoint production : `https://api.wroket.com/mcp`. Dans `mcp.json` (Cursor) ou la config MCP Claude, ajoutez le serveur avec l’en-tête `Authorization: Bearer wrk_live_…`. Un snippet prêt à coller apparaît dans Paramètres après création de la clé.",
-    en: "Production endpoint: `https://api.wroket.com/mcp`. In Cursor `mcp.json` or Claude MCP config, add the server with `Authorization: Bearer wrk_live_…`. A ready-to-paste snippet appears in Settings after you create a key.",
+    fr: "Endpoint production : `https://api.wroket.com/mcp`. Après création, Paramètres affiche un snippet prêt à coller (Cursor `mcp.json` ou config Claude) avec `Authorization: Bearer wrk_live_…`.",
+    en: "Production endpoint: `https://api.wroket.com/mcp`. After creation, Settings shows a ready-to-paste snippet (Cursor `mcp.json` or Claude config) with `Authorization: Bearer wrk_live_…`.",
   },
-  "docs.mcp.stepTools.title": { fr: "Outils disponibles", en: "Available tools" },
+  "docs.mcp.stepCursor.p2": {
+    fr: "Redémarrez ou rechargez le client MCP si les outils n’apparaissent pas tout de suite.",
+    en: "Restart or reload the MCP client if tools do not show up right away.",
+  },
+  "docs.mcp.stepTry.title": { fr: "3. Tester avec l’agent", en: "3. Try it with your agent" },
+  "docs.mcp.stepTry.p1": {
+    fr: "Demandez par exemple : « liste mes tâches actives », « santé du projet X », « propose un créneau pour cette tâche », « résume ma semaine ».",
+    en: "Ask for example: “list my active tasks”, “health of project X”, “propose a slot for this task”, “summarize my week”.",
+  },
+  "docs.mcp.stepTry.p2": {
+    fr: "Prompts MCP intégrés utiles : `/plan-my-week`, `/prepare-steering-committee`, `/triage-overdue` (selon le client).",
+    en: "Useful built-in MCP prompts: `/plan-my-week`, `/prepare-steering-committee`, `/triage-overdue` (client-dependent).",
+  },
+  "docs.mcp.stepTools.title": { fr: "Ce que l’agent peut faire", en: "What the agent can do" },
   "docs.mcp.stepTools.p1": {
-    fr: "Tâches : list / get / create / update / move. Projets & phases : list / get. Notes : list / get / create / update. Commentaires : list / add. Agenda : propose_slots, book_task_slot, clear_task_slot.",
-    en: "Todos: list / get / create / update / move. Projects & phases: list / get. Notes: list / get / create / update. Comments: list / add. Calendar: propose_slots, book_task_slot, clear_task_slot.",
+    fr: "MCP v2 : tâches (CRUD, move, templates), projets / phases / jalons, notes & commentaires, agenda (proposer / réserver / réunion), digests PMO, équipes & assignations, timer / temps, OKR, bases & contacts, liens de partage et portails.",
+    en: "MCP v2: tasks (CRUD, move, templates), projects / phases / milestones, notes & comments, calendar (propose / book / meeting), PMO digests, teams & assignments, timer / time, OKRs, databases & contacts, share links and portals.",
   },
   "docs.mcp.stepTools.p2": {
-    fr: "En cas de conflit de créneau, `book_task_slot` renvoie un conflit structuré ; réessayez avec `force=true` (comme dans l’Agenda) ou choisissez un autre créneau.",
-    en: "On slot conflict, `book_task_slot` returns a structured conflict; retry with `force=true` (same as Agenda) or pick another slot.",
+    fr: "Conflit de créneau : l’outil renvoie un conflit structuré — comme dans l’Agenda, réessayez avec force ou un autre créneau.",
+    en: "Slot conflict: the tool returns a structured conflict — like Agenda, retry with force or another slot.",
   },
-  "docs.mcp.stepLimits.title": { fr: "Limites et hors périmètre", en: "Limits and out of scope" },
+  "docs.mcp.stepAssist.title": { fr: "Assist in-app vs MCP", en: "In-app Assist vs MCP" },
+  "docs.mcp.stepAssist.p1": {
+    fr: "Assist (Dashboard / projet) : commandes déterministes (comité, planifie ma semaine, risques) avec confirmation dans l’UI — sans LLM hébergé.",
+    en: "Assist (Dashboard / project): deterministic commands (committee, plan my week, risks) with in-UI confirm — no hosted LLM.",
+  },
+  "docs.mcp.stepAssist.p2": {
+    fr: "MCP : votre agent externe pilote Wroket au quotidien. Les deux coexistent ; choisissez selon le contexte.",
+    en: "MCP: your external agent drives Wroket day to day. Both coexist; pick by context.",
+  },
+  "docs.mcp.stepLimits.title": { fr: "Sécurité et limites", en: "Security and limits" },
   "docs.mcp.stepLimits.p1": {
-    fr: "Rate limit : 60 requêtes / minute / clé. Hors périmètre actuel : chat intégré Wroket, pièces jointes, sync Notion/Monday, billing/admin. Révoquez une clé dès qu’elle n’est plus utile.",
-    en: "Rate limit: 60 requests / minute / key. Out of current scope: in-app Wroket chat, attachments, Notion/Monday sync, billing/admin. Revoke a key as soon as you no longer need it.",
+    fr: "Rate limit 60 req/min/clé. Révoquez une clé dès qu’elle n’est plus utile. Hors périmètre : chat génératif hébergé Wroket, pièces jointes, sync Notion/Monday, billing/admin via MCP.",
+    en: "Rate limit 60 req/min/key. Revoke a key as soon as you no longer need it. Out of scope: Wroket-hosted generative chat, attachments, Notion/Monday sync, billing/admin via MCP.",
   },
   "docs.mcp.trouble1.title": { fr: "L’agent reçoit 401", en: "The agent gets 401" },
   "docs.mcp.trouble1.body": {
@@ -685,8 +711,13 @@ export const docsTranslations = {
   },
   "docs.mcp.trouble2.title": { fr: "Outil refusé (scope / droits)", en: "Tool rejected (scope / permissions)" },
   "docs.mcp.trouble2.body": {
-    fr: "Les nouvelles clés ont tous les scopes par défaut. Vérifiez aussi les droits Wroket sur la tâche ou le projet (même règles que l’UI).",
+    fr: "Les nouvelles clés ont tous les scopes par défaut. Vérifiez aussi les droits Wroket sur la tâche ou le projet (mêmes règles que l’UI).",
     en: "New keys get all scopes by default. Also check Wroket permissions on the task or project (same rules as the UI).",
+  },
+  "docs.mcp.trouble3.title": { fr: "Aucun outil Wroket dans le client", en: "No Wroket tools in the client" },
+  "docs.mcp.trouble3.body": {
+    fr: "Vérifiez l’URL `https://api.wroket.com/mcp`, le header Authorization, puis rechargez MCP / redémarrez le client. Le snippet dans Paramètres est la source de vérité.",
+    en: "Check URL `https://api.wroket.com/mcp`, the Authorization header, then reload MCP / restart the client. The Settings snippet is the source of truth.",
   },
 
   "docs.teams.metaTitle": { fr: "Guide Microsoft Teams+", en: "Microsoft Teams+ guide" },

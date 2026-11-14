@@ -4,8 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import { register, setBillingPlanForUid } from "../authService";
+import { createTodo } from "../todoService";
 import {
   actionIdToTaskAction,
+  handleSlashText,
   normalizeChatTodoId,
   parseButtonValue,
   resolveUserFromChatEmail,
@@ -52,7 +55,7 @@ describe("chatChannel task action helpers", () => {
 });
 
 describe("chatChannel slash help", () => {
-  it("includes PMO, add, plan, and timer verbs", () => {
+  it("includes PMO, add, plan, timer, and assist Phase 2 verbs", () => {
     const help = slashHelpTextForPrefix("/wroket");
     expect(help).toContain("my-week");
     expect(help).toContain("overdue");
@@ -60,5 +63,57 @@ describe("chatChannel slash help", () => {
     expect(help).toContain("add <titre>");
     expect(help).toContain("plan <todoId>");
     expect(help).toContain("timer");
+    expect(help).toContain("committee");
+    expect(help).toContain("plan-week");
+    expect(help).toContain("risks");
+  });
+});
+
+describe("chatChannel slash timer verbs", () => {
+  it("start → timer → stop → log on Small plan", async () => {
+    const user = register({
+      email: `slash-timer-${Date.now()}@test.local`,
+      password: "password123",
+    });
+    setBillingPlanForUid(user.uid, "small");
+    const todo = await createTodo(user.uid, user.email, {
+      title: "Slash timer task",
+      priority: "medium",
+    });
+
+    const started = await handleSlashText({ actorUid: user.uid, text: `start ${todo.id}` });
+    expect(started).toMatch(/Chrono démarré/);
+    expect(started).toContain(todo.id);
+
+    const status = await handleSlashText({ actorUid: user.uid, text: "timer" });
+    expect(status).toMatch(/Chrono actif/);
+    expect(status).toContain(todo.id);
+
+    const stopped = await handleSlashText({ actorUid: user.uid, text: "stop" });
+    expect(stopped).toMatch(/Chrono arrêté/);
+    expect(stopped).toMatch(/min/);
+
+    const logged = await handleSlashText({
+      actorUid: user.uid,
+      text: `log ${todo.id} 15 review`,
+    });
+    expect(logged).toMatch(/15 min/);
+    expect(logged).toContain(todo.id);
+  });
+
+  it("start SoftLocks Free users with pricing CTA", async () => {
+    const user = register({
+      email: `slash-timer-free-${Date.now()}@test.local`,
+      password: "password123",
+    });
+    setBillingPlanForUid(user.uid, "free");
+    const todo = await createTodo(user.uid, user.email, {
+      title: "Free timer",
+      priority: "low",
+    });
+
+    const msg = await handleSlashText({ actorUid: user.uid, text: `start ${todo.id}` });
+    expect(msg).toMatch(/Impossible de démarrer/);
+    expect(msg).toMatch(/Small teams|Early Bird|pricing/i);
   });
 });

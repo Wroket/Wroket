@@ -356,6 +356,22 @@ export {
 export type { TimeSession, TimeSessionsResponse } from "./timeSessions";
 
 export {
+  previewAssistCommittee,
+  applyAssistCommitteeShare,
+  previewAssistPlanWeek,
+  applyAssistPlanWeekBooks,
+  previewAssistRisks,
+} from "./assist";
+export type {
+  AssistCommitteePreview,
+  AssistPlanWeekPreview,
+  AssistRisksPreview,
+  AssistPlanWeekApplyResult,
+  AssistDigestTodo,
+  AssistPlanWeekSuggestion,
+} from "./assist";
+
+export {
   getContacts,
   getContact,
   createContact,

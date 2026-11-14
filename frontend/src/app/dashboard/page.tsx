@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import DashboardImportModal from "@/components/DashboardImportModal";
 import DayReorderOffer from "@/components/DayReorderOffer";
+import AssistPmoPanel from "@/components/AssistPmoPanel";
 import EisenhowerRadar from "@/components/EisenhowerRadar";
 import { sortUnscheduledTodos } from "@/components/AgendaUnscheduledRail";
 import PageHelpButton from "@/components/PageHelpButton";
@@ -667,6 +668,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            <AssistPmoPanel />
+
             <div className={panelClass}>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100 mb-3">
                 {t("dashboard.needsAttention")}
@@ -802,6 +805,8 @@ export default function DashboardPage() {
                 />
               </div>
             </div>
+
+            <AssistPmoPanel />
 
             <AssignedDelegatedRow
               panelClass="bg-white dark:bg-slate-900 rounded-md border border-zinc-200 dark:border-slate-700 p-5"
