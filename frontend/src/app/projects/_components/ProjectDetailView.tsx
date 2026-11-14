@@ -1923,9 +1923,14 @@ export default function ProjectDetailView({
           )}
         </div>
 
+        {/* Off-DOM capture target for steering PDF — must clip, not offset:
+            a wide 2030+ Gantt used to bleed into the viewport with left:-10000px. */}
         {!loadingTodos && hasGanttExportData(projectTodos) && (
-          <div aria-hidden className="fixed left-[-10000px] top-0 pointer-events-none">
-            <div ref={ganttExportRef} className="bg-white p-4 text-zinc-900">
+          <div
+            aria-hidden
+            className="pointer-events-none fixed left-0 top-0 z-[-1] h-px w-px overflow-hidden"
+          >
+            <div ref={ganttExportRef} className="absolute left-0 top-0 bg-white p-4 text-zinc-900">
               <h3 className="text-sm font-semibold text-zinc-700 mb-4">{t("gantt.title")}</h3>
               <GanttChart
                 variant="export"
