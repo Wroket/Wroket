@@ -5,6 +5,8 @@ import { NotFoundError, ValidationError, PaymentRequiredError } from "../utils/e
 import { getTeam, getTeamRole } from "./teamService";
 import { normalizeEmail, findUserByEmail, findUserByUid, shouldApplyFreeTierVolumeQuotas } from "./authService";
 import { FREE_QUOTA_CODE_NOTES, FREE_TIER_MAX_PERSONAL_NOTES } from "./freeTierQuotaConstants";
+import type { ClipSource } from "../types/clipSource";
+import { normalizeClipSource } from "../types/clipSource";
 import { ensureNoteFolder } from "./noteFolderService";
 import { getProjectById } from "./projectService";
 import { normalizeExternalRef, type ExternalRef, type ExternalProvider } from "./externalRef";
@@ -69,6 +71,8 @@ export interface Note {
   archivedAt?: string;
   /** External source identity (Monday doc, future Notion page, …). */
   externalRef?: ExternalRef | null;
+  /** Web clip provenance (Chrome extension). */
+  source?: ClipSource;
   /** Last confirmed workflow graph. Absent until the user saves one. Mirrors the first diagram block. */
   diagram?: NoteDiagram;
   /** Ordered text and diagram zones. Absent on notes that still use content + diagram only. */
@@ -87,6 +91,7 @@ export interface CreateNoteInput {
   projectId?: string;
   shared?: boolean;
   teamId?: string;
+  source?: ClipSource | null;
 }
 
 export interface UpdateNoteInput {
@@ -319,6 +324,7 @@ export function createNote(userId: string, input: CreateNoteInput): Note {
     projectId,
     shared: shared && teamId ? true : undefined,
     teamId: shared && teamId ? teamId : undefined,
+    source: normalizeClipSource(input.source),
     createdAt: now,
     updatedAt: now,
   };

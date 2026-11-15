@@ -1,6 +1,6 @@
 import { LEGAL_ENTITY } from "@/lib/legalEntity";
 
-const LAST_UPDATED = "2026-11-13";
+const LAST_UPDATED = "2026-11-14";
 
 /**
  * Server-renderable privacy body (no client hooks).
@@ -122,6 +122,17 @@ export function PrivacyPolicyEnglish() {
         <li>Strictly necessary cookies (session, language, theme). No advertising cookies.</li>
       </ul>
 
+      <h2>Chrome extension (clipper)</h2>
+      <p>
+        The optional Wroket Chrome extension lets you capture the current page URL, page title, and an optional text
+        selection (excerpt, capped) into a Wroket task or note. Capture happens only when you trigger it (popup, context
+        menu, or keyboard shortcut). The extension does <strong>not</strong> read your Gmail inbox, does not use Google
+        OAuth tokens for itself, and does not request host access to arbitrary sites beyond calling{" "}
+        <code>https://api.wroket.com</code>. Auth uses a dedicated Wroket browser token (revocable in Settings →
+        Browsers), not your Google account scopes. Captured URL/title/excerpt are stored as task/note metadata you can
+        delete with the item or your account.
+      </p>
+
       <h2>Your rights (GDPR)</h2>
       <p>
         You may access, rectify, delete, export, object to, or restrict processing of your data, and withdraw consent
@@ -199,6 +210,15 @@ export function PrivacyPolicyFrench() {
           Google API Services User Data Policy
         </a>{" "}
         et les exigences Limited Use.
+      </p>
+
+      <h2>Extension Chrome (clipper)</h2>
+      <p>
+        L&apos;extension Chrome optionnelle capture l&apos;URL, le titre de page et une sélection de texte (extrait plafonné)
+        vers une tâche ou une note Wroket, uniquement lorsque vous déclenchez la capture. Elle ne lit pas Gmail, n&apos;utilise
+        pas de jetons OAuth Google pour elle-même, et n&apos;accède pas à des sites arbitraires hors{" "}
+        <code>https://api.wroket.com</code>. Auth = jeton navigateur Wroket révocable (Paramètres → Navigateurs). Les
+        métadonnées capturées sont supprimables avec l&apos;élément ou le compte.
       </p>
 
       <h2>Vos droits (RGPD)</h2>

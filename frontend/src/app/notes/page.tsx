@@ -1261,6 +1261,21 @@ function NotesPageInner() {
                     </p>
                   )}
 
+                  {selected.source?.url && (
+                    <div className="mb-3 rounded-md border border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/40 px-3 py-2 text-xs">
+                      <p className="font-medium text-zinc-600 dark:text-slate-300 mb-0.5">{t("clip.sourceLabel")}</p>
+                      <a
+                        href={selected.source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-700 dark:text-emerald-300 hover:underline break-all"
+                        title={selected.source.title || selected.source.url}
+                      >
+                        {selected.source.title?.trim() || selected.source.url}
+                      </a>
+                    </div>
+                  )}
+
                   <div className="mb-4 border-b border-zinc-100 dark:border-slate-800 pb-3">
                     <button
                       type="button"

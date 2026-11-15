@@ -105,7 +105,19 @@
  * 3. Interactivity URL → `/integrations/slack/interactions`
  * 4. Slash `/wroket` → `/integrations/slack/commands`
  * 5. Manage Distribution → **done** (public distribution active, app `A0ASUUQ8DQE`)
- * 6. Smoke: Connect + test + buttons + `/wroket my-week`
+ * 6. Smoke: Connect + test + buttons + `/wroket my-week` (+ timer Start/+15 si revendiqué)
+ *
+ * ## Guides utilisateur
+ *
+ * - In-app : [/docs/integrations/slack](https://wroket.com/docs/integrations/slack) (FR/EN, MAJ 2026-11-15)
+ * - Index how-to : [user-guides/README.md](./user-guides/README.md)
+ * - Timer : [time-tracking-bot.md](./time-tracking-bot.md)
+ * - Assist slash : [assist-pmo-commands.md](./assist-pmo-commands.md)
+ *
+ * ## Public distribution vs App Directory
+ *
+ * **Manage Distribution** (install OAuth multi-workspaces) = **actif**.  
+ * **Slack App Directory** (découverte catalogue Slack) = **non soumis** — dossier optionnel : [slack-app-directory.md](./slack-app-directory.md).
  */
 
 export {};

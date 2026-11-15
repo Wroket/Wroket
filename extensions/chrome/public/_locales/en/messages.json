@@ -1,0 +1,10 @@
+{
+  "extName": { "message": "Wroket Clipper" },
+  "extDescription": {
+    "message": "Capture web pages into Wroket tasks and notes."
+  },
+  "cmdCapture": { "message": "Capture page or selection to Wroket" },
+  "menuCaptureTask": { "message": "Send to Wroket as task" },
+  "menuCaptureNote": { "message": "Send to Wroket as note" },
+  "menuCapturePage": { "message": "Send page to Wroket" }
+}

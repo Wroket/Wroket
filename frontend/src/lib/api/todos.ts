@@ -11,8 +11,10 @@ import {
   type ActivityLogEntry,
 } from "./core";
 import { broadcastTodosMutated } from "../todoSyncBroadcast";
+import type { ClipSource } from "./clipSource";
 
 export type Priority = "low" | "medium" | "high";
+export type { ClipSource };
 export type Effort = "light" | "medium" | "heavy";
 export type TodoStatus = "active" | "completed" | "cancelled" | "deleted";
 export type AssignmentStatus = "pending" | "accepted" | "declined";
@@ -62,6 +64,8 @@ export interface Todo {
   /** Note that proposed this task. Distinct from the task's own linked note. */
   originNoteId?: string;
   originNodeId?: string;
+  /** Web clip provenance (Chrome extension). */
+  source?: ClipSource;
   status: TodoStatus;
   statusChangedAt: string;
   createdAt: string;

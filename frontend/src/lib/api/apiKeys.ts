@@ -7,6 +7,7 @@ export interface ApiKeyPublic {
   scopes: string[];
   createdAt: string;
   lastUsedAt?: string;
+  kind?: "mcp" | "extension";
 }
 
 export interface CreateApiKeyResponse extends ApiKeyPublic {

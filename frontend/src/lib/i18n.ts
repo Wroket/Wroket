@@ -1029,6 +1029,56 @@ const translations = {
     en: "API keys and MCP for Cursor, Claude Desktop, or any compatible client.",
   },
   "settings.integrationsCardAgentsBadge": { fr: "MCP · API", en: "MCP · API" },
+  "settings.integrationsCardBrowsers": { fr: "Navigateurs", en: "Browsers" },
+  "settings.integrationsCardBrowsersDesc": {
+    fr: "Extension Chrome Wroket : appareils connectés et révocation.",
+    en: "Wroket Chrome extension: connected devices and revoke.",
+  },
+  "settings.integrationsCardBrowsersBadge": { fr: "Clipper", en: "Clipper" },
+  "settings.browsersIntro": {
+    fr: "Navigateurs autorisés à capturer des pages vers vos tâches et notes. Déconnectez un appareil si vous ne le reconnaissez pas.",
+    en: "Browsers allowed to capture pages into your tasks and notes. Disconnect a device if you do not recognize it.",
+  },
+  "settings.browsersInstallHint": {
+    fr: "Installer l’extension : voir la doc technique",
+    en: "Install the extension: see the technical doc",
+  },
+  "settings.browsersEmpty": {
+    fr: "Aucun navigateur connecté pour l’instant. Ouvrez l’extension Chrome et cliquez sur Se connecter.",
+    en: "No browser connected yet. Open the Chrome extension and click Connect.",
+  },
+  "settings.browsersDisconnect": { fr: "Déconnecter", en: "Disconnect" },
+  "settings.browsersRevokeConfirm": { fr: "Déconnecter ce navigateur ?", en: "Disconnect this browser?" },
+  "settings.browsersRevoked": { fr: "Navigateur déconnecté", en: "Browser disconnected" },
+  "settings.browsersLimitHint": {
+    fr: "Jusqu’à 3 navigateurs. Les clés extension ne comptent pas dans la limite MCP Free.",
+    en: "Up to 3 browsers. Extension keys do not count toward the Free MCP key limit.",
+  },
+  "extConnect.title": { fr: "Connecter l’extension Chrome", en: "Connect the Chrome extension" },
+  "extConnect.body": {
+    fr: "Wroket pourra créer des tâches et notes depuis les pages que vous capturez dans ce navigateur.",
+    en: "Wroket will be able to create tasks and notes from pages you capture in this browser.",
+  },
+  "extConnect.permTasks": { fr: "Créer et lire vos tâches", en: "Create and read your tasks" },
+  "extConnect.permNotes": { fr: "Créer et lire vos notes", en: "Create and read your notes" },
+  "extConnect.permProjects": { fr: "Lister vos projets (pour le choix à la capture)", en: "List your projects (for capture targeting)" },
+  "extConnect.browserLabel": { fr: "Navigateur", en: "Browser" },
+  "extConnect.allow": { fr: "Autoriser", en: "Allow" },
+  "extConnect.cancel": { fr: "Annuler", en: "Cancel" },
+  "extConnect.invalidParams": {
+    fr: "Paramètres de connexion invalides. Rouvrez la connexion depuis l’extension.",
+    en: "Invalid connect parameters. Restart connect from the extension.",
+  },
+  "extConnect.redirectLogin": {
+    fr: "Connexion requise…",
+    en: "Sign-in required…",
+  },
+  "extConnect.revokeHint": {
+    fr: "Vous pourrez révoquer l’accès à tout moment dans",
+    en: "You can revoke access anytime in",
+  },
+  "extConnect.settingsLink": { fr: "Paramètres → Navigateurs", en: "Settings → Browsers" },
+  "clip.sourceLabel": { fr: "Source web", en: "Web source" },
   "settings.agentConnectIntro": {
     fr: "Branchez Cursor ou Claude Desktop sur Wroket (MCP v2) : tâches, projets, PMO, agenda, temps, notes — sans IA hébergée ici. Créez une clé, copiez le secret, collez le snippet.",
     en: "Connect Cursor or Claude Desktop to Wroket (MCP v2): tasks, projects, PMO, calendar, time, notes — no hosted AI here. Create a key, copy the secret, paste the snippet.",
@@ -1146,8 +1196,8 @@ const translations = {
     en: "Connect your Slack workspace (any Wroket Small teams+ customer): notifications, action buttons, and /wroket. You pick the channel during install.",
   },
   "settings.connectionSlackActionsHint": {
-    fr: "Après connexion : boutons sur les messages OAuth + commande `/wroket`. Reconnectez si vous mettez à jour les scopes (email Slack).",
-    en: "After connecting: buttons on OAuth messages + `/wroket` command. Reconnect if you update scopes (Slack email).",
+    fr: "Après connexion : boutons OAuth, `/wroket` (digests, timer Start/+15, Assist preview). Reconnectez après changement de scopes. Guide : Documentation › Slack.",
+    en: "After connecting: OAuth buttons, `/wroket` (digests, timer Start/+15, Assist preview). Reconnect after scope changes. Guide: Docs › Slack.",
   },
   "settings.connectionSlackChannel": { fr: "Canal", en: "Channel" },
   "settings.connectionSlackChangeChannel": { fr: "Changer de canal", en: "Change channel" },
@@ -3137,8 +3187,8 @@ const translations = {
   },
   "marketing.team.s3.title": { fr: "Slack, Discord, Teams", en: "Slack, Discord, Teams" },
   "marketing.team.s3.p1": {
-    fr: "Slack et Discord en bot OAuth (/wroket, actions). Teams apr\u00e8s installation de l\u2019app (deep link ou zip). Webhooks Incoming en repli sur les trois canaux.",
-    en: "Slack and Discord via OAuth bots (/wroket, actions). Teams after installing the app (deep link or zip). Incoming webhooks as fallback on all three.",
+    fr: "Small teams+ : Slack et Discord en bot OAuth (/wroket, digests, timer, actions) via Paramètres — pas via App Directory. Teams après installation de l’app (deep link ou zip). Webhooks Incoming en repli.",
+    en: "Small teams+: Slack and Discord via OAuth bots (/wroket, digests, timer, actions) from Settings — not via App Directory. Teams after installing the app (deep link or zip). Incoming webhooks as fallback.",
   },
   "marketing.team.s4.title": { fr: "Grandir avec votre \u00e9quipe", en: "Grow with your team" },
   "marketing.team.s4.p1": {
@@ -3285,7 +3335,7 @@ const translations = {
   "pricing.tier.first.b3": { fr: "Quotas élargis (tâches, projets, notes)", en: "Expanded quotas (tasks, projects, notes)" },
   "pricing.tier.small.tagline": { fr: "Intégrations et collaboration pour les équipes.", en: "Integrations and collaboration for teams." },
   "pricing.tier.small.b1": { fr: "Google Calendar & Outlook (OAuth)", en: "Google Calendar & Outlook (OAuth)" },
-  "pricing.tier.small.b2": { fr: "Slack+/Discord+ OAuth, Teams (après install app), webhooks", en: "Slack+/Discord+ OAuth, Teams (after app install), webhooks" },
+  "pricing.tier.small.b2": { fr: "Slack+/Discord+ OAuth (/wroket), Teams (après install app), webhooks", en: "Slack+/Discord+ OAuth (/wroket), Teams (after app install), webhooks" },
   "pricing.tier.small.b3": { fr: "Équipes et rôles", en: "Teams and roles" },
   "pricing.tier.large.tagline": { fr: "Organisations : reporting + feuille de route premium.", en: "Orgs: reporting plus the premium roadmap." },
   "pricing.tier.large.b1": { fr: "Tout le palier Small teams", en: "Everything in Small teams" },

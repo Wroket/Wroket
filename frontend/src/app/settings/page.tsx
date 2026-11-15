@@ -107,6 +107,7 @@ import {
 } from "@/lib/billingPlanLabels";
 import { detectPushPlatformHint } from "@/lib/pushPlatform";
 import AgentConnectPanel from "./AgentConnectPanel";
+import BrowsersConnectPanel from "./BrowsersConnectPanel";
 import AutomationRulesPanel from "@/components/AutomationRulesPanel";
 
 const DAY_KEYS: TranslationKey[] = [
@@ -2645,7 +2646,7 @@ function ConnectedAppsBlock({
   );
 }
 
-type IntegrationSubSection = "connections" | "data" | "webhooks" | "notifications" | "agents" | null;
+type IntegrationSubSection = "connections" | "data" | "webhooks" | "notifications" | "agents" | "browsers" | null;
 
 function IntegrationsSection({
   hasIntegrations,
@@ -3375,6 +3376,19 @@ function IntegrationsSection({
       ),
       badge: t("settings.integrationsCardAgentsBadge"),
     },
+    {
+      key: "browsers",
+      titleKey: "settings.integrationsCardBrowsers",
+      descKey: "settings.integrationsCardBrowsersDesc",
+      iconBg: "bg-sky-100 dark:bg-sky-900/30",
+      icon: (
+        <svg className="w-6 h-6 text-sky-700 dark:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 010 18M12 3a14.5 14.5 0 000 18" />
+        </svg>
+      ),
+      badge: t("settings.integrationsCardBrowsersBadge"),
+    },
   ];
 
   const subSectionTitle: Record<Exclude<IntegrationSubSection, null>, TranslationKey> = {
@@ -3383,6 +3397,7 @@ function IntegrationsSection({
     webhooks: "settings.integrationsCardWebhooks",
     notifications: "settings.integrationsCardNotifications",
     agents: "settings.integrationsCardAgents",
+    browsers: "settings.integrationsCardBrowsers",
   };
 
   const subSectionDesc: Record<Exclude<IntegrationSubSection, null>, TranslationKey> = {
@@ -3391,6 +3406,7 @@ function IntegrationsSection({
     webhooks: "settings.integrationsCardWebhooksDesc",
     notifications: "settings.integrationsCardNotificationsDesc",
     agents: "settings.integrationsCardAgentsDesc",
+    browsers: "settings.integrationsCardBrowsersDesc",
   };
 
   return (
@@ -3631,6 +3647,7 @@ function IntegrationsSection({
           )}
 
           {activeSubSection === "agents" && <AgentConnectPanel />}
+          {activeSubSection === "browsers" && <BrowsersConnectPanel />}
         </>
       )}
     </div>

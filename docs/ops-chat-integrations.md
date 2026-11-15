@@ -43,6 +43,20 @@ Redirect env : `https://api.wroket.com/integrations/slack/callback`.
 - [x] `/wroket help` — Professionnel 18:19 (éphémère Commandes /wroket)
 - [x] `/wroket my-week` — Profil 5 (semaine vide) + Profil 3 (17:04 « Ma semaine (1) ») + Professionnel 18:19 « Ma semaine (4) » retards
 
+### Re-smoke golden path (après consolidation UX/docs 2026-11-15)
+
+Parcours minimal à rejouer après changement scopes / copy / slash :
+
+1. Paramètres → Slack → **Envoyer un test** (canal lié)
+2. Bouton OAuth (accept/complete) sur une notif
+3. `/wroket my-week`
+4. `/wroket tasks` → bouton **⏱️ Start** ou **+15** (Small teams+) — *à cocher terrain*
+5. `/wroket help` (mention timer + Assist dans l’éphémère)
+
+- [x] Points 1–3 déjà couverts par smoke §1 (2026-11-07/08) — **toujours valides** (pas de changement scopes 2026-11-15)
+- [ ] Point 4 timer boutons — residual terrain propriétaire
+- [x] Guide in-app `/docs/integrations/slack` aligné timer/Assist/trouble (2026-11-15)
+
 Détail technique : [slack-plus.md](./slack-plus.md)
 
 ---

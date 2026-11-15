@@ -92,8 +92,8 @@ export const docsTranslations = {
   },
   "docs.hub.slack.title": { fr: "Slack", en: "Slack" },
   "docs.hub.slack.summary": {
-    fr: "OAuth Slack+, webhooks, boutons d’action et commande /wroket (Small teams).",
-    en: "Slack+ OAuth, webhooks, action buttons, and /wroket slash (Small teams).",
+    fr: "OAuth Slack+, digests PMO, timer, Assist et /wroket (Small teams).",
+    en: "Slack+ OAuth, PMO digests, timer, Assist, and /wroket (Small teams).",
   },
   "docs.hub.mcp.title": { fr: "Agents MCP", en: "MCP agents" },
   "docs.hub.mcp.summary": {
@@ -535,28 +535,28 @@ export const docsTranslations = {
 
   "docs.slack.metaTitle": { fr: "Guide Slack+", en: "Slack+ guide" },
   "docs.slack.summary": {
-    fr: "Connectez votre workspace Slack pour recevoir les notifications Wroket, agir sur les tâches (accepter, refuser, terminer) et utiliser la commande /wroket.",
-    en: "Connect your Slack workspace to receive Wroket notifications, act on tasks (accept, decline, complete), and use the /wroket command.",
+    fr: "Connectez votre workspace Slack pour les notifications Wroket, les boutons d’action, le suivi du temps, Assist PMO et la commande /wroket.",
+    en: "Connect your Slack workspace for Wroket notifications, action buttons, time tracking, Assist PMO, and the /wroket command.",
   },
   "docs.slack.benefit1": {
     fr: "Notifications dans le canal choisi (assignations, deadlines, digests, événements PMO).",
     en: "Notifications in your chosen channel (assignments, deadlines, digests, PMO events).",
   },
   "docs.slack.benefit2": {
-    fr: "Boutons Accepter / Refuser / Terminer sur les messages (connexion OAuth).",
-    en: "Accept / Decline / Complete buttons on messages (OAuth connection).",
+    fr: "Boutons Accepter / Refuser / Terminer, plus Start / +15 min sur `/wroket tasks` (OAuth).",
+    en: "Accept / Decline / Complete buttons, plus Start / +15 min on `/wroket tasks` (OAuth).",
   },
   "docs.slack.benefit3": {
-    fr: "Slash `/wroket` : help, tasks, open, accept, decline, complete.",
-    en: "`/wroket` slash: help, tasks, open, accept, decline, complete.",
+    fr: "Slash `/wroket` : digests PMO, timer, Assist (`committee`, `plan-week`, `risks`), et actions tâches.",
+    en: "`/wroket` slash: PMO digests, timer, Assist (`committee`, `plan-week`, `risks`), and task actions.",
   },
   "docs.slack.benefit4": {
-    fr: "Filtres projet/équipe et indicateurs de livraison (OK, erreur, backoff).",
-    en: "Project/team filters and delivery health (OK, error, backoff).",
+    fr: "Filtres projet/équipe, App Home, et indicateurs de livraison (OK, erreur, backoff).",
+    en: "Project/team filters, App Home, and delivery health (OK, error, backoff).",
   },
   "docs.slack.prereq1": {
-    fr: "Palier Small teams (ou entitlements Intégrations ; SoftLock sur Free) et droits d’installer une app Slack sur le workspace.",
-    en: "Small teams plan (or Integrations entitlements; SoftLock on Free) and permission to install a Slack app on the workspace.",
+    fr: "Palier Small teams (ou entitlements Intégrations ; SoftLock / CTA upgrade sur Free) et droits d’installer une app Slack sur le workspace.",
+    en: "Small teams plan (or Integrations entitlements; SoftLock / upgrade CTA on Free) and permission to install a Slack app on the workspace.",
   },
   "docs.slack.prereq2": {
     fr: "Même adresse e-mail sur Slack et Wroket pour les actions (boutons et slash).",
@@ -564,12 +564,12 @@ export const docsTranslations = {
   },
   "docs.slack.stepOauth.title": { fr: "Connecter Slack (recommandé)", en: "Connect Slack (recommended)" },
   "docs.slack.stepOauth.p1": {
-    fr: "Paramètres › Intégrations › Connexions › Slack › Connecter. Autorisez le workspace et choisissez le canal. Wroket utilise alors l’API Slack (chat.postMessage) pour poster et activer les boutons.",
-    en: "Settings › Integrations › Connections › Slack › Connect. Authorize the workspace and pick a channel. Wroket then uses the Slack API (chat.postMessage) to post and enable buttons.",
+    fr: "Paramètres › Intégrations › Connexions › Slack › Connecter. Autorisez le workspace et choisissez le canal. Wroket utilise alors l’API Slack (chat.postMessage) pour poster et activer les boutons. L’installation se fait via le lien OAuth Wroket (distribution publique active) — ce n’est pas encore un listing Slack App Directory.",
+    en: "Settings › Integrations › Connections › Slack › Connect. Authorize the workspace and pick a channel. Wroket then uses the Slack API (chat.postMessage) to post and enable buttons. Install uses the Wroket OAuth link (public distribution is on) — this is not yet a Slack App Directory listing.",
   },
   "docs.slack.stepOauth.p2": {
-    fr: "Utilisez Reconnecter après un changement de scopes côté app Slack. Le bouton Tester envoie un message de contrôle dans le canal lié.",
-    en: "Use Reconnect after Slack app scope changes. Test sends a control message to the linked channel.",
+    fr: "Utilisez Reconnecter après un changement de scopes côté app Slack. Le bouton Tester envoie un message de contrôle dans le canal lié. L’App Home Slack peut aussi afficher des raccourcis (timer / aide).",
+    en: "Use Reconnect after Slack app scope changes. Test sends a control message to the linked channel. Slack App Home can also show shortcuts (timer / help).",
   },
   "docs.slack.stepWebhook.title": { fr: "Option : Incoming Webhook seul", en: "Option: Incoming Webhook only" },
   "docs.slack.stepWebhook.p1": {
@@ -582,13 +582,27 @@ export const docsTranslations = {
     en: "On messages posted via OAuth: buttons to accept/decline an assignment or complete a task. After success, the message updates.",
   },
   "docs.slack.stepActions.p2": {
-    fr: "Commande slash `/wroket` : `help`, `tasks` (personnelles + assignées), `my-week`, `overdue`, `team-risk`, `open <id>`, `accept|decline|complete <id>`. Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
-    en: "Slash `/wroket`: `help`, `tasks` (personal + assigned), `my-week`, `overdue`, `team-risk`, `open <id>`, `accept|decline|complete <id>`. Ephemeral replies. The Slack user must map to the Wroket account (email).",
+    fr: "Slash `/wroket` : `help`, `tasks` (avec boutons Start / +15), `open <id>`, `plan <id> [auto]`, `accept|decline|complete <id>`, plus digests / timer / Assist (sections suivantes). Réponses éphémères. L’auteur Slack doit correspondre au compte Wroket (e-mail).",
+    en: "Slash `/wroket`: `help`, `tasks` (with Start / +15 buttons), `open <id>`, `plan <id> [auto]`, `accept|decline|complete <id>`, plus digests / timer / Assist (sections below). Ephemeral replies. The Slack user must map to the Wroket account (email).",
   },
-  "docs.slack.stepPmo.title": { fr: "Commandes PMO (Lot 4)", en: "PMO commands (Lot 4)" },
+  "docs.slack.stepPmo.title": { fr: "Digests PMO", en: "PMO digests" },
   "docs.slack.stepPmo.p1": {
     fr: "`/wroket my-week` résume retards et échéances/créneaux sous 7 jours. `/wroket overdue` liste les retards. `/wroket team-risk` montre les projets d’équipe at-risk ou overdue (vous devez être membre d’une équipe).",
     en: "`/wroket my-week` summarizes overdue items and due/booked work in the next 7 days. `/wroket overdue` lists overdue tasks. `/wroket team-risk` shows at-risk or overdue team projects (you must be a team member).",
+  },
+  "docs.slack.stepTimer.title": { fr: "Suivi du temps (timer)", en: "Time tracking (timer)" },
+  "docs.slack.stepTimer.p1": {
+    fr: "`/wroket timer` affiche le timer en cours. `/wroket start <todoId>` démarre, `/wroket stop` arrête, `/wroket log <todoId> <min> [note]` ajoute une entrée. Depuis `/wroket tasks`, boutons **⏱️ Start** et **+15 min** (sans coller l’id).",
+    en: "`/wroket timer` shows the running timer. `/wroket start <todoId>` starts, `/wroket stop` stops, `/wroket log <todoId> <min> [note]` adds an entry. From `/wroket tasks`, use **⏱️ Start** and **+15 min** buttons (no need to paste the id).",
+  },
+  "docs.slack.stepTimer.p2": {
+    fr: "Réservé Small teams+ (ou Early Bird). Sur Free, SoftLock / CTA upgrade s’affiche au lieu d’exécuter le timer.",
+    en: "Requires Small teams+ (or Early Bird). On Free, SoftLock / upgrade CTA is shown instead of running the timer.",
+  },
+  "docs.slack.stepAssist.title": { fr: "Assist PMO depuis Slack", en: "Assist PMO from Slack" },
+  "docs.slack.stepAssist.p1": {
+    fr: "`/wroket committee <projectId>`, `/wroket plan-week` et `/wroket risks` renvoient un **aperçu** Assist (pas de mutation automatique). Confirmez les actions dans l’app Wroket si besoin. Détail : guide Assist / docs produit.",
+    en: "`/wroket committee <projectId>`, `/wroket plan-week`, and `/wroket risks` return an Assist **preview** (no automatic mutation). Confirm actions in the Wroket app if needed. Details: Assist / product docs.",
   },
 
   "docs.slack.stepEvents.title": { fr: "Événements et livraison", en: "Events and delivery" },
@@ -597,12 +611,12 @@ export const docsTranslations = {
     en: "Beyond classic events (assignment, completion, deadline…), Slack+ can emit `project_at_risk`, `milestone_due_soon`, and `dependency_blocked`. Per webhook: last delivery status, consecutive errors, and backoff after 429/5xx. Optional project/team filters.",
   },
   "docs.slack.trouble1.title": {
-    fr: "Connecter ouvre une page JSON / erreur « non configuré »",
-    en: "Connect opens a JSON page / “not configured” error",
+    fr: "Connecter échoue ou message d’erreur OAuth",
+    en: "Connect fails or OAuth error message",
   },
   "docs.slack.trouble1.body": {
-    fr: "Les secrets Slack (Client ID / Secret) ne sont pas encore branchés sur l’API de production. Contactez l’administrateur Wroket ou utilisez temporairement un Incoming Webhook.",
-    en: "Slack secrets (Client ID / Secret) are not wired on the production API yet. Contact a Wroket admin or temporarily use an Incoming Webhook.",
+    fr: "Les secrets Slack sont montés en production. Vérifiez le palier Small teams (SoftLock sur Free), autorisez l’app sur le workspace, puis Réessayez Connecter. Si le canal refuse le bot, tapez `/invite @Wroket`. En dernier recours : Incoming Webhook (notifications seules).",
+    en: "Slack secrets are wired in production. Check Small teams entitlement (SoftLock on Free), allow the app on the workspace, then retry Connect. If the channel rejects the bot, type `/invite @Wroket`. Fallback: Incoming Webhook (notifications only).",
   },
   "docs.slack.trouble2.title": {
     fr: "Bouton ou `/wroket` refuse l’action",
@@ -611,6 +625,14 @@ export const docsTranslations = {
   "docs.slack.trouble2.body": {
     fr: "Vérifiez que l’e-mail Slack = e-mail Wroket, que vous êtes le destinataire de l’assignation, et que l’app Slack a les scopes `users:read` / `users:read.email` (reconnectez après mise à jour). Si le test échoue avec « not in channel », ouvrez le canal et tapez `/invite @Wroket`.",
     en: "Check Slack email = Wroket email, that you are the assignment target, and that the Slack app has `users:read` / `users:read.email` (reconnect after scope updates). If the test fails with “not in channel”, open the channel and type `/invite @Wroket`.",
+  },
+  "docs.slack.trouble3.title": {
+    fr: "Timer ou Assist refusé / SoftLock",
+    en: "Timer or Assist refused / SoftLock",
+  },
+  "docs.slack.trouble3.body": {
+    fr: "Le timer et certaines actions avancées exigent Small teams+ (ou Early Bird). Sur Free, Wroket affiche un CTA d’upgrade au lieu d’exécuter. Assist slash renvoie un aperçu : les mutations se confirment dans l’app.",
+    en: "Timer and some advanced actions require Small teams+ (or Early Bird). On Free, Wroket shows an upgrade CTA instead of running. Assist slash returns a preview: confirm mutations in the app.",
   },
 
   // Keep legacy keys for any stale references

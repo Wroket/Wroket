@@ -44,6 +44,25 @@ export default function TaskEditEssentialsZone({
           </Link>
         </p>
       )}
+      {todo.source?.url && (
+        <div className="mb-2 rounded-md border border-zinc-200 dark:border-slate-700 bg-zinc-50/80 dark:bg-slate-800/40 px-3 py-2 text-xs">
+          <p className="font-medium text-zinc-600 dark:text-slate-300 mb-0.5">{t("clip.sourceLabel")}</p>
+          <a
+            href={todo.source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-700 dark:text-emerald-300 hover:underline break-all"
+            title={todo.source.title || todo.source.url}
+          >
+            {todo.source.title?.trim() || todo.source.url}
+          </a>
+          {todo.source.excerpt?.trim() && (
+            <p className="mt-1 text-[11px] text-zinc-500 dark:text-slate-400 line-clamp-3 whitespace-pre-wrap">
+              {todo.source.excerpt}
+            </p>
+          )}
+        </div>
+      )}
       {isTaskOwner &&
         !viewOnly &&
         todo.scheduledSlot?.start &&

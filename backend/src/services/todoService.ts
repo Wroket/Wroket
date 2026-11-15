@@ -43,6 +43,8 @@ import {
   assertCustomFieldsEntitlement,
   validateCustomFieldValues,
 } from "./customFieldService";
+import type { ClipSource } from "../types/clipSource";
+import { normalizeClipSource } from "../types/clipSource";
 
 export type Priority = "low" | "medium" | "high";
 export type Effort = "light" | "medium" | "heavy";
@@ -138,6 +140,8 @@ export interface Todo {
   originNoteId?: string;
   /** Stable key of the source line or diagram node, to avoid creating the same task twice. */
   originNodeId?: string;
+  /** Web clip provenance (Chrome extension). */
+  source?: ClipSource;
   statusChangedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -174,6 +178,8 @@ export interface CreateTodoInput {
   /** Set only by note spawn. Ignored by the public create controller. */
   originNoteId?: string;
   originNodeId?: string;
+  /** Chrome clipper / capture provenance. */
+  source?: ClipSource | null;
 }
 
 export interface UpdateTodoInput {
@@ -646,6 +652,7 @@ export function todoToClientJson(todo: Todo): Todo {
     externalRef: todo.externalRef ? { ...todo.externalRef } : undefined,
     originNoteId: todo.originNoteId,
     originNodeId: todo.originNodeId,
+    source: todo.source,
     status: todo.status,
     statusChangedAt: todo.statusChangedAt,
     createdAt: todo.createdAt,
@@ -1663,6 +1670,7 @@ export async function createTodo(userId: string, userEmail: string, input: Creat
     externalRef: normalizeExternalRef(input.externalRef) ?? undefined,
     originNoteId: input.originNoteId?.trim().slice(0, 80) || undefined,
     originNodeId: input.originNodeId?.trim().slice(0, 80) || undefined,
+    source: normalizeClipSource(input.source),
     status,
     statusChangedAt: now,
     createdAt: now,

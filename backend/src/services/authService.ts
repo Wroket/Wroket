@@ -614,7 +614,7 @@ interface StoredUser {
   apiKeys?: StoredApiKey[];
 }
 
-/** Long-lived agent credential (Cursor, Claude, …). */
+/** Long-lived agent credential (Cursor, Claude, …) or Chrome extension. */
 export interface StoredApiKey {
   id: string;
   name: string;
@@ -625,6 +625,8 @@ export interface StoredApiKey {
   createdAt: string;
   lastUsedAt?: string;
   revokedAt?: string;
+  /** `extension` keys are excluded from MCP API_KEY_LIMIT (max 3 browsers). */
+  kind?: "mcp" | "extension";
 }
 
 export type ApiKeyScope =
@@ -653,6 +655,7 @@ export interface ApiKeyPublic {
   scopes: ApiKeyScope[];
   createdAt: string;
   lastUsedAt?: string;
+  kind?: "mcp" | "extension";
 }
 
 export interface CreateApiKeyResult extends ApiKeyPublic {
@@ -905,6 +908,7 @@ function listApiKeysPublic(user: StoredUser): ApiKeyPublic[] {
       scopes: effectiveApiKeyScopes(Array.isArray(k.scopes) ? k.scopes : undefined),
       createdAt: k.createdAt,
       lastUsedAt: k.lastUsedAt,
+      kind: k.kind === "extension" ? "extension" : "mcp",
     }));
 }
 
@@ -964,7 +968,7 @@ export function createApiKeyForUser(
 ): CreateApiKeyResult {
   const user = usersByUid.get(uid);
   if (!user) throw new NotFoundError("Utilisateur introuvable");
-  const active = (user.apiKeys ?? []).filter((k) => !k.revokedAt);
+  const active = (user.apiKeys ?? []).filter((k) => !k.revokedAt && k.kind !== "extension");
   const max = maxApiKeysForUser(user);
   if (active.length >= max) {
     throw new ValidationError(
@@ -985,6 +989,7 @@ export function createApiKeyForUser(
     keyHash: hashApiKey(key),
     scopes: scoped,
     createdAt: now,
+    kind: "mcp",
   };
   user.apiKeys = [...(user.apiKeys ?? []), entry];
   usersByUid.set(uid, user);
@@ -1002,7 +1007,70 @@ export function createApiKeyForUser(
 export function listApiKeysForUser(uid: string): ApiKeyPublic[] {
   const user = usersByUid.get(uid);
   if (!user) throw new NotFoundError("Utilisateur introuvable");
-  return listApiKeysPublic(user);
+  // MCP Settings list — exclude Chrome extension browsers (see listExtensionKeysForUser).
+  return listApiKeysPublic(user).filter((k) => k.kind !== "extension");
+}
+
+/** Chrome extension scopes (v1 — no calendar write). */
+export const EXTENSION_API_KEY_SCOPES: ApiKeyScope[] = [
+  "todos:read",
+  "todos:write",
+  "notes:write",
+  "notes:read",
+  "projects:read",
+];
+
+const MAX_EXTENSION_KEYS_PER_USER = 3;
+
+/**
+ * Create a Chrome-extension API key (excluded from MCP key quota; max 3 browsers).
+ */
+export function createExtensionApiKeyForUser(
+  uid: string,
+  name: string,
+): CreateApiKeyResult {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  const activeExt = (user.apiKeys ?? []).filter((k) => !k.revokedAt && k.kind === "extension");
+  if (activeExt.length >= MAX_EXTENSION_KEYS_PER_USER) {
+    throw new ValidationError(
+      `Limite de navigateurs connectés atteinte (${MAX_EXTENSION_KEYS_PER_USER}). Déconnectez un navigateur dans Paramètres.`,
+      "EXTENSION_KEY_LIMIT",
+    );
+  }
+  const id = crypto.randomUUID();
+  const secret = crypto.randomBytes(24).toString("base64url");
+  const key = `wrk_live_${secret}`;
+  const prefix = key.slice(0, 16);
+  const now = new Date().toISOString();
+  const scoped = [...EXTENSION_API_KEY_SCOPES];
+  const entry: StoredApiKey = {
+    id,
+    name: name.trim().slice(0, 64) || "Chrome",
+    prefix,
+    keyHash: hashApiKey(key),
+    scopes: scoped,
+    createdAt: now,
+    kind: "extension",
+  };
+  user.apiKeys = [...(user.apiKeys ?? []), entry];
+  usersByUid.set(uid, user);
+  persistUsers();
+  return {
+    id,
+    name: entry.name,
+    prefix,
+    scopes: scoped,
+    createdAt: now,
+    kind: "extension",
+    key,
+  };
+}
+
+export function listExtensionKeysForUser(uid: string): ApiKeyPublic[] {
+  const user = usersByUid.get(uid);
+  if (!user) throw new NotFoundError("Utilisateur introuvable");
+  return listApiKeysPublic(user).filter((k) => k.kind === "extension");
 }
 
 export function revokeApiKeyForUser(uid: string, keyId: string): void {

@@ -1,5 +1,6 @@
 import { throwApiError } from "@/lib/apiErrors";
 import { API_BASE_URL } from "./core";
+import type { ClipSource } from "./clipSource";
 import type { Todo } from "./todos";
 
 export interface Note {
@@ -30,6 +31,8 @@ export interface Note {
   diagram?: NoteDiagram | null;
   /** Ordered text and diagram zones. Absent until the note is saved with blocks. */
   blocks?: NoteBlock[];
+  /** Web clip provenance (Chrome extension). */
+  source?: ClipSource;
 }
 
 export interface NoteDiagramNode {

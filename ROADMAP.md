@@ -91,7 +91,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 0c. ~~**UX Projets Path to 9**~~ — **9/10 terrain 2026-11-13** (Board/Kanban/Gantt SlotPicker+book ; move owner). Residual : collab notes CRDT (Later). Checklist : [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
 0d. ~~**UX Données Path to 9**~~ — **9/10 e2e 2026-11-13** (3/3 : note export, import hub, compte export + cancel delete). SoftLock quota notes. Checklist : [`docs/cold-path-donnees.md`](docs/cold-path-donnees.md) ; revue : [`docs/funnel-donnees-monthly.md`](docs/funnel-donnees-monthly.md).
 0e. ~~**UX Path to 9 transversal**~~ — **9/10 2026-11-13** : collab/share/CI e2e verts + **§I-bis Push PWA Windows/Mac validé terrain**. Checklist : [`docs/checklist-e2e-prod.md`](docs/checklist-e2e-prod.md).
-1. **Slack+ — golden path (priorité n°1)** — Code + secrets + smoke E2E workspace **faits** (2026-11-08). Consolider UX/docs ; rester le canal de référence. Doc : [`docs/slack-plus.md`](docs/slack-plus.md), priorité : [`docs/chat-channel-priority.md`](docs/chat-channel-priority.md).
+1. ~~**Slack+ — golden path (priorité n°1)**~~ — Code + secrets + smoke E2E **faits** (2026-11-08). **Consolidation UX/docs 2026-11-15** : guide in-app Slack (timer/Assist), user-guides, garde-fou marketing (pas App Directory), re-smoke checklist ops. Residual terrain : smoke boutons timer Start/+15. Doc : [`docs/slack-plus.md`](docs/slack-plus.md), Directory optionnel [`docs/slack-app-directory.md`](docs/slack-app-directory.md).
 2. ~~**Teams+ pragmatique → Chat privé → Discord niche (ops)**~~ — **Validé propriétaire 2026-11-13** (+ Discord 2026-11-09). Stores publics toujours différés. Voir [`docs/ops-chat-integrations.md`](docs/ops-chat-integrations.md).
 2b. ~~**Bot time tracking**~~ — **MVP livré 2026-11-13** : `/wroket start|stop|log|timer` (+ SoftLock pricing CTA, tests slash). Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 3. ~~**MCP / IA agentique — validation usage**~~ — **Gate go 2026-11-13**. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md) · in-app `/docs/integrations/mcp`.
@@ -122,6 +122,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **Secu npm + ACL Assist/share/MCP** — Passe 2026-11-14 ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md), `aclCrossUser.test.ts`).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — prérequis ops/MCP OK ; attendre décision produit.
 - [ ] **OAuth Google Agenda — vérification** — Brand verified ; scopes Calendar **sous review** ; répondre Data Safety / suivre décision Google — [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md).
+- [ ] **Extension Chrome MVP — clipper** — Code MVP 2026-11-14 : auth PKCE `kind=extension`, `/ext/v1`, `source` UI, `/extension/connect`, Settings Navigateurs, MV3 `extensions/chrome`. **Reste ops** : compte CWS `team@wroket.com` + listing **unlisted** + smoke 5 profils. Doc : [`docs/chrome-extension.md`](docs/chrome-extension.md).
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 - [x] **Auth recovery — marque Wroket** — forgot / reset / verify-email alignés sur `WroketMark` (2026-11-14).
 

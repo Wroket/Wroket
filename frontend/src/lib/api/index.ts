@@ -289,6 +289,15 @@ export {
 export type { ApiKeyPublic, CreateApiKeyResponse } from "./apiKeys";
 
 export {
+  authorizeExtension,
+  listExtensionBrowsers,
+  revokeExtensionBrowser,
+  isAllowedExtensionRedirectUri,
+} from "./extension";
+export type { ExtensionAuthorizeResponse } from "./extension";
+export type { ClipSource } from "./clipSource";
+
+export {
   getAdminStats,
   getAdminUsers,
   getAdminInvites,

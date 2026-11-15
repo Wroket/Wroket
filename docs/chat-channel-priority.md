@@ -16,11 +16,14 @@ Avant d’ajouter ou de laisser un canal chat dans landing / pricing / SEO :
 1. Secrets Cloud Run montés (si bot OAuth).
 2. Smoke E2E prod : Connect → Test message → slash ou bouton d’action.
 3. Copy Teams : toujours distinguer « compte lié » vs « app installée / messagingReady ».
+4. **Slack** : revendiquer « connexion OAuth / `/wroket` » (Small teams+), **pas** « disponible dans le Slack App Directory » tant que le listing Directory n’est pas approuvé. Distribution publique OAuth ≠ Directory.
+5. SoftLock Free : ne pas laisser entendre que Slack bot/timer est inclus dans Free.
 
 ## Différé explicitement
 
 - Google Workspace Marketplace public (nouveau projet GCP requis).
 - Microsoft Partner Center / Teams Store.
+- Slack App Directory (optionnel — voir [slack-app-directory.md](./slack-app-directory.md)).
 - Audit CASA Google (évité si scope create-only).
 
 ## Références marché (ordres de grandeur)

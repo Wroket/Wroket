@@ -23,14 +23,17 @@ Guides **courts** + aide in-app (`PageHelp`). Pas de centre d’aide exhaustif.
 
 | Guide | Contenu |
 |-------|---------|
+| [Slack+ (in-app)](https://wroket.com/docs/integrations/slack) | OAuth, digests, timer, Assist, `/wroket` — canal de référence |
 | [Connecter un agent (MCP)](./mcp-agent.md) | Clé API → Cursor / Claude (how-to) |
 | [Bot time tracking](../time-tracking-bot.md) | `/wroket start\|stop\|log\|timer` |
 | [Assist PMO](../assist-pmo-commands.md) | Comité, planifie ma semaine, risques |
 
 | Surface | URL / fichier |
 |---------|----------------|
-| **Guide produit in-app** (recommandé) | [/docs/integrations/mcp](https://wroket.com/docs/integrations/mcp) |
-| Doc technique | [mcp-agents.md](../mcp-agents.md) |
+| **Guide Slack in-app** (recommandé) | [/docs/integrations/slack](https://wroket.com/docs/integrations/slack) |
+| Doc technique Slack | [slack-plus.md](../slack-plus.md) · ops [ops-chat-integrations.md](../ops-chat-integrations.md) §1 |
+| **Guide MCP in-app** | [/docs/integrations/mcp](https://wroket.com/docs/integrations/mcp) |
+| Doc technique MCP | [mcp-agents.md](../mcp-agents.md) |
 
 ## Où trouver l’aide dans l’app
 

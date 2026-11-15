@@ -365,7 +365,7 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
     summaryKey: "docs.slack.summary",
     access: "smallTeams",
     publicTeaser: true,
-    lastUpdated: "2026-08-09",
+    lastUpdated: "2026-11-15",
     benefitKeys: ["docs.slack.benefit1", "docs.slack.benefit2", "docs.slack.benefit3", "docs.slack.benefit4"],
     prerequisiteKeys: ["docs.slack.prereq1", "docs.slack.prereq2"],
     sections: [
@@ -373,11 +373,14 @@ const INTEGRATION_GUIDES: DocGuideDefinition[] = [
       { id: "webhook", titleKey: "docs.slack.stepWebhook.title", paragraphKeys: ["docs.slack.stepWebhook.p1"] },
       { id: "actions", titleKey: "docs.slack.stepActions.title", paragraphKeys: ["docs.slack.stepActions.p1", "docs.slack.stepActions.p2"] },
       { id: "pmo", titleKey: "docs.slack.stepPmo.title", paragraphKeys: ["docs.slack.stepPmo.p1"] },
+      { id: "timer", titleKey: "docs.slack.stepTimer.title", paragraphKeys: ["docs.slack.stepTimer.p1", "docs.slack.stepTimer.p2"] },
+      { id: "assist", titleKey: "docs.slack.stepAssist.title", paragraphKeys: ["docs.slack.stepAssist.p1"] },
       { id: "events", titleKey: "docs.slack.stepEvents.title", paragraphKeys: ["docs.slack.stepEvents.p1"] },
     ],
     troubleshooting: [
       { titleKey: "docs.slack.trouble1.title", bodyKey: "docs.slack.trouble1.body" },
       { titleKey: "docs.slack.trouble2.title", bodyKey: "docs.slack.trouble2.body" },
+      { titleKey: "docs.slack.trouble3.title", bodyKey: "docs.slack.trouble3.body" },
     ],
     ctaHrefs: [{ labelKey: "docs.banner.ctaSettings", href: "/settings?tab=integrations" }],
   },
