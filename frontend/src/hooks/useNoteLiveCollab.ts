@@ -9,25 +9,33 @@ export interface NotePresencePeer {
   uid: string;
   displayName: string;
   at: string;
+  cursor?: { blockId: string; from: number; to: number } | null;
 }
 
 /**
  * Poll live note content + presence while a note is open (Firestore-friendly path without sticky WS).
  * Applies remote content only when local is not dirty and remote updatedAt is newer.
+ * When dirty and remote is newer, sets remoteConflict so the UI can offer reload / keep editing.
  */
 export function useNoteLiveCollab(opts: {
   noteId: string | null;
   displayName: string;
   localUpdatedAt: string | null;
   isDirty: boolean;
+  cursor?: NotePresencePeer["cursor"];
   onRemoteNote: (note: Note, canWrite: boolean) => void;
   intervalMs?: number;
 }) {
-  const { noteId, displayName, localUpdatedAt, isDirty, onRemoteNote, intervalMs = 1800 } = opts;
+  const { noteId, displayName, localUpdatedAt, isDirty, cursor, onRemoteNote, intervalMs = 1800 } = opts;
   const [presence, setPresence] = useState<NotePresencePeer[]>([]);
   const [canWrite, setCanWrite] = useState(true);
+  const [remoteConflict, setRemoteConflict] = useState(false);
   const onRemoteRef = useRef(onRemoteNote);
   onRemoteRef.current = onRemoteNote;
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
 
   const tick = useCallback(async () => {
     if (!noteId) return;
@@ -36,7 +44,7 @@ export function useNoteLiveCollab(opts: {
         ...apiFetchDefaults,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName }),
+        body: JSON.stringify({ displayName, cursor: cursorRef.current ?? null }),
       });
       const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/live`, {
         ...apiFetchDefaults,
@@ -50,22 +58,27 @@ export function useNoteLiveCollab(opts: {
       };
       setPresence(data.presence ?? []);
       setCanWrite(data.canWrite);
-      if (
-        !isDirty &&
-        localUpdatedAt &&
-        data.note.updatedAt &&
-        new Date(data.note.updatedAt) > new Date(localUpdatedAt)
-      ) {
+      const remoteNewer =
+        !!localUpdatedAt &&
+        !!data.note.updatedAt &&
+        new Date(data.note.updatedAt) > new Date(localUpdatedAt);
+      if (remoteNewer && isDirtyRef.current) {
+        setRemoteConflict(true);
+        return;
+      }
+      if (remoteNewer && !isDirtyRef.current) {
+        setRemoteConflict(false);
         onRemoteRef.current(data.note, data.canWrite);
       }
     } catch {
       /* ignore transient */
     }
-  }, [noteId, displayName, isDirty, localUpdatedAt]);
+  }, [noteId, displayName, localUpdatedAt]);
 
   useEffect(() => {
     if (!noteId) {
       setPresence([]);
+      setRemoteConflict(false);
       return;
     }
     void tick();
@@ -73,5 +86,7 @@ export function useNoteLiveCollab(opts: {
     return () => window.clearInterval(id);
   }, [noteId, tick, intervalMs]);
 
-  return { presence, canWrite };
+  const clearRemoteConflict = useCallback(() => setRemoteConflict(false), []);
+
+  return { presence, canWrite, remoteConflict, clearRemoteConflict, refresh: tick };
 }

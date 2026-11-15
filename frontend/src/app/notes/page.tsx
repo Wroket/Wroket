@@ -13,6 +13,8 @@ import NoteToolbar from "@/components/NoteToolbar";
 import NoteOcrDialog from "@/components/ocr/NoteOcrDialog";
 import DiagramImportDialog from "@/components/notes/DiagramImportDialog";
 import NoteDocument from "@/components/notes/NoteDocument";
+import { NoteCollabProvider, useNoteCollab } from "@/components/notes/NoteCollabProvider";
+import NoteCollabPresenceBar from "@/components/notes/NoteCollabPresenceBar";
 import SpawnTasksDialog from "@/components/notes/SpawnTasksDialog";
 import PageHelpButton from "@/components/PageHelpButton";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
@@ -33,6 +35,78 @@ import { trackFunnelEvent } from "@/lib/productAnalytics";
 import { useNoteLiveCollab } from "@/hooks/useNoteLiveCollab";
 import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
+
+/** Bridges TipTap active editor into NoteToolbar (must sit under NoteCollabProvider). */
+function NoteCollabToolbarBridge({
+  contentRef,
+  disabled,
+  onOcr,
+  onSpawnTasks,
+  onDiagram,
+}: {
+  contentRef: React.RefObject<HTMLDivElement | null>;
+  disabled?: boolean;
+  onOcr?: () => void;
+  onSpawnTasks?: () => void;
+  onDiagram?: () => void;
+}) {
+  const { getActiveEditor } = useNoteCollab();
+  return (
+    <NoteToolbar
+      editorRef={contentRef}
+      getTiptapEditor={getActiveEditor}
+      disabled={disabled}
+      onOcr={onOcr}
+      onSpawnTasks={onSpawnTasks}
+      onDiagram={onDiagram}
+    />
+  );
+}
+
+function NoteCollabSlashBridge({
+  contentRef,
+  content,
+  onContentChange,
+  projects,
+  onCreateTask,
+  bindingNoteId,
+  listenKey,
+  registerHtmlInsert,
+}: {
+  contentRef: React.RefObject<HTMLDivElement | null>;
+  content: string;
+  onContentChange: (v: string) => void;
+  projects: Project[];
+  onCreateTask: (payload: SlashTaskPayload) => Promise<void>;
+  bindingNoteId: string;
+  listenKey: string | null;
+  registerHtmlInsert?: (fn: ((html: string) => boolean) | null) => void;
+}) {
+  const { getActiveEditor } = useNoteCollab();
+  useEffect(() => {
+    if (!registerHtmlInsert) return;
+    registerHtmlInsert((html: string) => {
+      const tip = getActiveEditor();
+      if (!tip) return false;
+      tip.chain().focus().insertContent(html).run();
+      onContentChange(tip.getHTML());
+      return true;
+    });
+    return () => registerHtmlInsert(null);
+  }, [getActiveEditor, onContentChange, registerHtmlInsert]);
+  return (
+    <SlashCommandMenu
+      editorRef={contentRef}
+      getTiptapEditor={getActiveEditor}
+      content={content}
+      onContentChange={onContentChange}
+      projects={projects}
+      onCreateTask={onCreateTask}
+      bindingNoteId={bindingNoteId}
+      listenKey={listenKey}
+    />
+  );
+}
 
 function NotesPageInner() {
   const { t, locale } = useLocale();
@@ -129,25 +203,62 @@ function NotesPageInner() {
   const selected = notes.find((n) => n.id === selectedId) ?? null;
   const isForeignNote = !!(selected && currentUid && selected.userId && selected.userId !== currentUid);
   const [collabCanWrite, setCollabCanWrite] = useState(false);
+  /** Local edits not yet reconciled with remote LWW snapshot (pre-CRDT / title / diagrams). */
+  const [noteDirty, setNoteDirty] = useState(false);
+  const [collabCursor, setCollabCursor] = useState<{
+    blockId: string;
+    from: number;
+    to: number;
+  } | null>(null);
   /** Foreign + read-only (hides owner chrome). Co-editors keep edit UI. */
   const isSharedNote = isForeignNote && !collabCanWrite;
 
-  const { presence: notePresence, canWrite: liveCanWrite } = useNoteLiveCollab({
+  const {
+    presence: notePresence,
+    canWrite: liveCanWrite,
+    remoteConflict,
+    clearRemoteConflict,
+    refresh: refreshLive,
+  } = useNoteLiveCollab({
     noteId: selectedId,
     displayName: authUser?.email ?? currentUid ?? "user",
     localUpdatedAt: selected?.updatedAt ?? null,
-    isDirty: false,
+    isDirty: noteDirty,
+    cursor: collabCursor,
     onRemoteNote: (remote, canWrite) => {
       setCollabCanWrite(canWrite);
       if (!selectedId) return;
-      // Soft merge: update content if remote is newer (handled by hook gate)
+      setNoteDirty(false);
+      // Text CRDT lives in Yjs — only merge title + diagram blocks from LWW live poll.
+      const local = notes.find((n) => n.id === remote.id);
+      const localBlocks = local ? resolveNoteBlocks(local) : [];
+      const remoteBlocks = remote.blocks?.length ? remote.blocks : [];
+      const mergedBlocks = localBlocks.length
+        ? localBlocks.map((lb) => {
+            if (lb.type === "text") return lb;
+            const rb = remoteBlocks.find((b) => b.id === lb.id);
+            return rb && rb.type === "diagram" ? rb : lb;
+          })
+        : remoteBlocks;
       saveNote(remote.id, {
         title: remote.title,
-        content: remote.content,
-        blocks: remote.blocks?.length ? remote.blocks : null,
+        content: textHtmlFromBlocks(mergedBlocks.length ? mergedBlocks : resolveNoteBlocks(remote)),
+        blocks: mergedBlocks.length ? mergedBlocks : remote.blocks?.length ? remote.blocks : null,
       });
     },
   });
+
+  useEffect(() => {
+    setNoteDirty(false);
+    setCollabCursor(null);
+    clearRemoteConflict();
+  }, [selectedId, clearRemoteConflict]);
+
+  useEffect(() => {
+    if (remoteConflict) {
+      toast.error(t("notes.remoteConflictToast"));
+    }
+  }, [remoteConflict, toast, t]);
 
   useEffect(() => {
     if (!isForeignNote) {
@@ -375,6 +486,7 @@ function NotesPageInner() {
 
   const handleTitleChange = useCallback((value: string) => {
     if (!selectedId) return;
+    setNoteDirty(true);
     saveNote(selectedId, { title: value });
   }, [selectedId, saveNote]);
 
@@ -499,6 +611,7 @@ function NotesPageInner() {
 
   const commitBlocks = useCallback((blocks: ReturnType<typeof resolveNoteBlocks>) => {
     if (!selectedId) return;
+    setNoteDirty(true);
     saveNote(selectedId, { blocks, content: textHtmlFromBlocks(blocks) });
   }, [selectedId, saveNote]);
 
@@ -519,11 +632,19 @@ function NotesPageInner() {
     getOcrConfig().then(setOcrConfig).catch(() => {});
   }, []);
 
+  const tiptapInsertRef = useRef<((html: string) => boolean) | null>(null);
+
   const handleOcrInsert = useCallback((text: string) => {
-    const editor = contentRef.current;
-    if (!editor || isSharedNote) return;
+    if (isSharedNote) return;
     const html = ocrTextToHtml(text);
     if (!html) return;
+    if (tiptapInsertRef.current?.(html)) {
+      ocrRangeRef.current = null;
+      toast.success(t("notes.ocr.inserted"));
+      return;
+    }
+    const editor = contentRef.current;
+    if (!editor) return;
     editor.focus();
     const sel = window.getSelection();
     const range = ocrRangeRef.current;
@@ -1166,7 +1287,16 @@ function NotesPageInner() {
                     {notePresence.slice(0, 4).map((p) => (
                       <span
                         key={p.uid}
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-[9px] font-bold text-emerald-800 dark:text-emerald-200"
+                        title={
+                          p.cursor
+                            ? t("notes.collabCursor").replace("{name}", p.displayName)
+                            : p.displayName
+                        }
+                        className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${
+                          p.cursor
+                            ? "bg-sky-100 text-sky-900 ring-2 ring-sky-400 dark:bg-sky-900/50 dark:text-sky-100"
+                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        }`}
                       >
                         {(p.displayName || "?").slice(0, 1).toUpperCase()}
                       </span>
@@ -1220,9 +1350,41 @@ function NotesPageInner() {
                 )}
               </div>
 
+              <NoteCollabProvider
+                noteId={selected?.id ?? null}
+                canWrite={!isSharedNote}
+                enabled={!!selected}
+              >
+              {remoteConflict && selected && (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+                >
+                  <span className="flex-1">{t("notes.remoteConflictBanner")}</span>
+                  <button
+                    type="button"
+                    className="rounded border border-amber-300 px-2 py-0.5 font-medium hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/60"
+                    onClick={() => {
+                      setNoteDirty(false);
+                      clearRemoteConflict();
+                      void refreshLive();
+                    }}
+                  >
+                    {t("notes.remoteConflictReload")}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded px-2 py-0.5 text-amber-800 underline dark:text-amber-200"
+                    onClick={() => clearRemoteConflict()}
+                  >
+                    {t("notes.remoteConflictKeep")}
+                  </button>
+                </div>
+              )}
+              <NoteCollabPresenceBar peers={notePresence} />
               {!isSharedNote && (
-                <NoteToolbar
-                  editorRef={contentRef}
+                <NoteCollabToolbarBridge
+                  contentRef={contentRef}
                   onOcr={ocrConfig?.enabled && diagramConfig?.enabled === false ? () => openOcr(null) : undefined}
                   onSpawnTasks={() => setSpawnOpen(true)}
                   onDiagram={diagramConfig?.enabled ? () => setDiagramOpen(true) : undefined}
@@ -1230,14 +1392,17 @@ function NotesPageInner() {
               )}
 
               {!isSharedNote && selected && (
-                <SlashCommandMenu
-                  editorRef={contentRef}
+                <NoteCollabSlashBridge
+                  contentRef={contentRef}
                   content={selected.content}
                   onContentChange={handleContentChange}
                   projects={projects}
                   onCreateTask={handleSlashCreateTask}
                   bindingNoteId={selected.id}
                   listenKey={focusedTextId}
+                  registerHtmlInsert={(fn) => {
+                    tiptapInsertRef.current = fn;
+                  }}
                 />
               )}
 
@@ -1509,6 +1674,7 @@ function NotesPageInner() {
                     editorRef={contentRef}
                     onFocusText={setFocusedTextId}
                     onCommit={commitBlocks}
+                    onCursorChange={(blockId, from, to) => setCollabCursor({ blockId, from, to })}
                     diagramApply={{
                       projects,
                       defaultProjectId: selected.projectId,
@@ -1526,6 +1692,7 @@ function NotesPageInner() {
                   refreshKey={attachmentsRefreshKey}
                 />
               </div>
+              </NoteCollabProvider>
 
               {ocrConfig?.enabled && !isSharedNote && (
                 <NoteOcrDialog

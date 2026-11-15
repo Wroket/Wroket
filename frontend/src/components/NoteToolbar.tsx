@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { Editor } from "@tiptap/react";
 
 import { useLocale } from "@/lib/LocaleContext";
 
 /**
- * Document-style formatting toolbar for the contenteditable note editor.
+ * Document-style formatting toolbar for TipTap (preferred) or contenteditable fallback.
  * Groups text styles, lists/headings, and secondary actions (OCR).
  */
 
 interface NoteToolbarProps {
   editorRef: React.RefObject<HTMLDivElement | null>;
+  /** TipTap editor for the focused text block (CRDT path). */
+  getTiptapEditor?: () => Editor | null;
   disabled?: boolean;
   /** When set, shows “Import from photo” (OCR). */
   onOcr?: () => void;
@@ -116,7 +119,14 @@ function ToolbarDivider() {
   return <span className="mx-1 h-5 w-px bg-zinc-200 dark:bg-slate-700 shrink-0" aria-hidden />;
 }
 
-export default function NoteToolbar({ editorRef, disabled, onOcr, onSpawnTasks, onDiagram }: NoteToolbarProps) {
+export default function NoteToolbar({
+  editorRef,
+  getTiptapEditor,
+  disabled,
+  onOcr,
+  onSpawnTasks,
+  onDiagram,
+}: NoteToolbarProps) {
   const { t } = useLocale();
   const [active, setActive] = useState<Record<string, boolean>>({});
 
@@ -136,6 +146,18 @@ export default function NoteToolbar({ editorRef, disabled, onOcr, onSpawnTasks, 
   ];
 
   const refreshActiveStates = useCallback(() => {
+    const tip = getTiptapEditor?.() ?? null;
+    if (tip) {
+      setActive({
+        bold: tip.isActive("bold"),
+        italic: tip.isActive("italic"),
+        underline: tip.isActive("underline"),
+        strikeThrough: tip.isActive("strike"),
+        insertUnorderedList: tip.isActive("bulletList"),
+        insertOrderedList: tip.isActive("orderedList"),
+      });
+      return;
+    }
     const editor = editorRef.current;
     if (!editor) return;
     const sel = window.getSelection();
@@ -153,7 +175,7 @@ export default function NoteToolbar({ editorRef, disabled, onOcr, onSpawnTasks, 
       insertUnorderedList: document.queryCommandState("insertUnorderedList"),
       insertOrderedList: document.queryCommandState("insertOrderedList"),
     });
-  }, [editorRef]);
+  }, [editorRef, getTiptapEditor]);
 
   useEffect(() => {
     const onSelectionChange = () => refreshActiveStates();
@@ -162,8 +184,25 @@ export default function NoteToolbar({ editorRef, disabled, onOcr, onSpawnTasks, 
   }, [refreshActiveStates]);
 
   const applyFormat = (action: FormatAction) => {
+    if (disabled) return;
+    const tip = getTiptapEditor?.() ?? null;
+    if (tip) {
+      tip.chain().focus();
+      if (action.block === "h2") {
+        tip.chain().focus().toggleHeading({ level: 2 }).run();
+      } else if (action.command === "bold") tip.chain().focus().toggleBold().run();
+      else if (action.command === "italic") tip.chain().focus().toggleItalic().run();
+      else if (action.command === "underline") tip.chain().focus().toggleUnderline().run();
+      else if (action.command === "strikeThrough") tip.chain().focus().toggleStrike().run();
+      else if (action.command === "insertUnorderedList") tip.chain().focus().toggleBulletList().run();
+      else if (action.command === "insertOrderedList") tip.chain().focus().toggleOrderedList().run();
+      else if (action.command === "indent") tip.chain().focus().sinkListItem("listItem").run();
+      else if (action.command === "outdent") tip.chain().focus().liftListItem("listItem").run();
+      refreshActiveStates();
+      return;
+    }
     const editor = editorRef.current;
-    if (!editor || disabled) return;
+    if (!editor) return;
     editor.focus();
     if (action.block) {
       const current = document.queryCommandValue("formatBlock");

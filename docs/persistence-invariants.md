@@ -33,6 +33,12 @@ Landmine historique retiré (2026-11) : passe « stale delete » dans `syncOwner
 - `set({ merge: true })` sur le blob `{ data }` comme « correctif » multi-instance.
 - Wipe / reset Firestore au déploiement.
 
+## Notes collab (MVP 2026-11-15)
+
+- Collection Firestore `note_collab` (ou Map locale si `USE_LOCAL_STORE`) : état Yjs (`yjsUpdateB64`) + presence/cursors TTL.
+- Sync HTTP `POST /notes/:id/collab/sync` — pas de WebSocket sticky sur Cloud Run.
+- HTML des blocs texte reste dérivé via TipTap `getHTML` → `updateNote` (export / search).
+
 ## Suite (lot C)
 
 Migrer sessions → users → projects → notes → timeSessions vers collections 1-doc-1-entité (dual-read, PITR, `RUN_MIGRATION` opt-in). Voir plan *Fix multi-instance persistence*.

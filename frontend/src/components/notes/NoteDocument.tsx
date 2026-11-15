@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import NoteDiagramEditor, { DiagramCanvasHelp } from "@/components/notes/NoteDiagramEditor";
+import TipTapCollabText from "@/components/notes/TipTapCollabText";
+import { useNoteCollab } from "@/components/notes/NoteCollabProvider";
 import { useLocale } from "@/lib/LocaleContext";
 import type { NoteBlock, NoteDiagramEdge, NoteDiagramNode } from "@/lib/api/notes";
 import type { Project } from "@/lib/api/projects";
@@ -17,6 +19,7 @@ interface NoteDocumentProps {
   editorRef?: React.RefObject<HTMLDivElement | null>;
   onFocusText?: (blockId: string) => void;
   onCommit: (blocks: NoteBlock[]) => void;
+  onCursorChange?: (blockId: string, from: number, to: number) => void;
   /** Turns a diagram's boxes into project tasks after a confirmation. */
   diagramApply?: {
     projects: Project[];
@@ -28,7 +31,7 @@ interface NoteDocumentProps {
 
 /**
  * Ordered text and diagram zones of one note.
- * A grip handle reorders them. Typing stays in the text zone and is not a drag.
+ * Text zones use TipTap + Yjs when collab Y.Doc is ready; diagrams stay LWW.
  */
 export default function NoteDocument({
   noteId,
@@ -38,11 +41,14 @@ export default function NoteDocument({
   editorRef,
   onFocusText,
   onCommit,
+  onCursorChange,
   diagramApply,
 }: NoteDocumentProps) {
   const { t, locale } = useLocale();
+  const { ydoc } = useNoteCollab();
   const [askRemoveId, setAskRemoveId] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
+  const useCollab = !!ydoc;
 
   const move = (targetId: string) => {
     const fromId = dragId.current;
@@ -123,19 +129,39 @@ export default function NoteDocument({
             </div>
           )}
           {block.type === "text" ? (
-            <TextZone
-              html={block.html}
-              readOnly={readOnly}
-              locale={locale}
-              placeholder={t("notes.contentPlaceholder")}
-              editorRef={editorRef}
-              onFocus={() => onFocusText?.(block.id)}
-              onChange={(html) => {
-                onCommit(blocks.map((item) => (
-                  item.type === "text" && item.id === block.id ? { ...item, html } : item
-                )));
-              }}
-            />
+            useCollab ? (
+              <TipTapCollabText
+                blockId={block.id}
+                initialHtml={block.html}
+                readOnly={readOnly}
+                locale={locale}
+                placeholder={t("notes.contentPlaceholder")}
+                onDomReady={(el) => {
+                  if (el && editorRef) editorRef.current = el;
+                }}
+                onFocus={() => onFocusText?.(block.id)}
+                onHtmlChange={(html) => {
+                  onCommit(blocks.map((item) => (
+                    item.type === "text" && item.id === block.id ? { ...item, html } : item
+                  )));
+                }}
+                onCursorChange={(from, to) => onCursorChange?.(block.id, from, to)}
+              />
+            ) : (
+              <TextZone
+                html={block.html}
+                readOnly={readOnly}
+                locale={locale}
+                placeholder={t("notes.contentPlaceholder")}
+                editorRef={editorRef}
+                onFocus={() => onFocusText?.(block.id)}
+                onChange={(html) => {
+                  onCommit(blocks.map((item) => (
+                    item.type === "text" && item.id === block.id ? { ...item, html } : item
+                  )));
+                }}
+              />
+            )
           ) : (
             <NoteDiagramEditor
               noteId={noteId}

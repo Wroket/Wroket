@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { Editor } from "@tiptap/react";
 
 import type { Project, Priority } from "@/lib/api";
 import {
@@ -48,6 +49,8 @@ export interface SlashCommandMenuProps {
   /** Plain-text notes: use `editorRef` (contenteditable). */
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   editorRef?: React.RefObject<HTMLDivElement | null>;
+  /** TipTap CRDT path — preferred for insert when available. */
+  getTiptapEditor?: () => Editor | null;
   content: string;
   onContentChange: (newContent: string) => void;
   projects?: Project[];
@@ -77,6 +80,7 @@ const COMMAND_DEFS: CommandDef[] = [
 export default function SlashCommandMenu({
   textareaRef,
   editorRef,
+  getTiptapEditor,
   content,
   onContentChange,
   projects,
@@ -161,6 +165,24 @@ export default function SlashCommandMenu({
       const start = slashStartRef.current;
       if (start < 0) return;
 
+      const tip = getTiptapEditor?.() ?? null;
+      if (tip) {
+        const { from } = tip.state.selection;
+        const lookBack = Math.min(from, 80);
+        const textBefore = tip.state.doc.textBetween(from - lookBack, from, "\n", "\n");
+        const match = /\/[\w-]*$/.exec(textBefore);
+        const delFrom = match ? from - match[0].length : from;
+        tip
+          .chain()
+          .focus()
+          .deleteRange({ from: Math.max(1, delFrom), to: from })
+          .insertContent(text)
+          .run();
+        onContentChange(tip.getHTML());
+        closeMenu();
+        return;
+      }
+
       const editor = editorRef?.current;
       if (editor) {
         const caretPlain = getCaretPlainOffset(editor);
@@ -191,7 +213,7 @@ export default function SlashCommandMenu({
         }
       });
     },
-    [onContentChange, closeMenu, textareaRef, editorRef],
+    [onContentChange, closeMenu, textareaRef, editorRef, getTiptapEditor],
   );
 
   const getCurrentLineText = useCallback(() => {
