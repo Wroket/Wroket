@@ -17,6 +17,8 @@ import { syncYdocHttp } from "@/lib/noteCollabYdoc";
 
 interface NoteCollabContextValue {
   ydoc: Y.Doc | null;
+  /** True after the first successful HTTP pull/push for this note. */
+  synced: boolean;
   noteId: string | null;
   canWrite: boolean;
   registerEditor: (blockId: string, editor: Editor | null) => void;
@@ -27,6 +29,7 @@ interface NoteCollabContextValue {
 
 const NoteCollabContext = createContext<NoteCollabContextValue>({
   ydoc: null,
+  synced: false,
   noteId: null,
   canWrite: true,
   registerEditor: () => {},
@@ -57,6 +60,7 @@ export function NoteCollabProvider({
   syncIntervalMs?: number;
 }) {
   const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
+  const [synced, setSynced] = useState(false);
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const editorsRef = useRef<Map<string, Editor>>(new Map());
   const canWriteRef = useRef(canWrite);
@@ -65,15 +69,18 @@ export function NoteCollabProvider({
   useEffect(() => {
     if (!noteId || !enabled) {
       setYdoc(null);
+      setSynced(false);
       return;
     }
     const doc = new Y.Doc();
     setYdoc(doc);
+    setSynced(false);
     let cancelled = false;
     const sync = async () => {
       if (cancelled) return;
       try {
         await syncYdocHttp(noteId, doc, { push: canWriteRef.current });
+        if (!cancelled) setSynced(true);
       } catch {
         /* transient */
       }
@@ -94,6 +101,7 @@ export function NoteCollabProvider({
       doc.off("update", onUpdate);
       doc.destroy();
       setYdoc(null);
+      setSynced(false);
     };
   }, [noteId, enabled, syncIntervalMs]);
 
@@ -116,6 +124,7 @@ export function NoteCollabProvider({
   const value = useMemo(
     () => ({
       ydoc,
+      synced,
       noteId,
       canWrite,
       registerEditor,
@@ -123,7 +132,7 @@ export function NoteCollabProvider({
       setFocusedBlockId,
       focusedBlockId,
     }),
-    [ydoc, noteId, canWrite, registerEditor, getActiveEditor, focusedBlockId],
+    [ydoc, synced, noteId, canWrite, registerEditor, getActiveEditor, focusedBlockId],
   );
 
   return <NoteCollabContext.Provider value={value}>{children}</NoteCollabContext.Provider>;

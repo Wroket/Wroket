@@ -70,7 +70,12 @@ export function useNoteLiveCollab(opts: {
         new Date(remoteAt) > new Date(localUpdatedAt);
       if (remoteNewer && isDirtyRef.current) {
         // Co-editors sync text via Yjs — skip SoftLock LWW banner (title/diagram stay local until save).
-        if (data.canWrite) return;
+        // Also clear a sticky banner left from an earlier RO poll (canWrite false → true).
+        if (data.canWrite) {
+          conflictRemoteAtRef.current = null;
+          setRemoteConflict(false);
+          return;
+        }
         if (dismissedRemoteAtRef.current === remoteAt) return;
         conflictRemoteAtRef.current = remoteAt;
         setRemoteConflict(true);

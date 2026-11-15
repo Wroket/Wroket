@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -41,8 +41,9 @@ export default function TipTapCollabText({
   onHtmlChange,
   onCursorChange,
 }: TipTapCollabTextProps) {
-  const { ydoc, canWrite, registerEditor, setFocusedBlockId } = useNoteCollab();
+  const { ydoc, synced, canWrite, registerEditor, setFocusedBlockId } = useNoteCollab();
   const editable = !readOnly && canWrite;
+  const seededRef = useRef(false);
 
   const extensions = useMemo(() => {
     const base = [
@@ -74,11 +75,6 @@ export default function TipTapCollabText({
             "note-doc-body w-full min-h-[8rem] text-[16px] sm:text-[17px] text-zinc-800 dark:text-slate-200 bg-transparent border-none outline-none leading-7 prose-p:my-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2",
         },
       },
-      onCreate: ({ editor: ed }) => {
-        if (ydoc && initialHtml && ed.isEmpty) {
-          ed.commands.setContent(initialHtml, { emitUpdate: false });
-        }
-      },
       onUpdate: ({ editor: ed, transaction }) => {
         // Remote Yjs / peer edits must not mark the note dirty (LWW conflict toast).
         if (isChangeOrigin(transaction)) return;
@@ -97,6 +93,21 @@ export default function TipTapCollabText({
     },
     [ydoc, blockId],
   );
+
+  /**
+   * Seed HTML into Yjs only after first sync pull, and only if the fragment is still empty.
+   * emitUpdate:true so peers receive the seed via CRDT (false left TipTap local-only).
+   */
+  useEffect(() => {
+    if (!editor || !ydoc || !synced || seededRef.current) return;
+    seededRef.current = true;
+    if (!initialHtml || !editor.isEmpty) return;
+    editor.commands.setContent(initialHtml, { emitUpdate: true });
+  }, [editor, ydoc, synced, initialHtml]);
+
+  useEffect(() => {
+    seededRef.current = false;
+  }, [blockId, ydoc]);
 
   useEffect(() => {
     if (!editor) return;
