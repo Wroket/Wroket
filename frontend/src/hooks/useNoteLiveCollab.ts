@@ -37,6 +37,8 @@ export function useNoteLiveCollab(opts: {
   isDirtyRef.current = isDirty;
   const cursorRef = useRef(cursor);
   cursorRef.current = cursor;
+  /** After Continuer: ignore conflict for this remote updatedAt until it changes again. */
+  const dismissedRemoteAtRef = useRef<string | null>(null);
 
   const tick = useCallback(async () => {
     if (!noteId) return;
@@ -59,15 +61,18 @@ export function useNoteLiveCollab(opts: {
       };
       setPresence(data.presence ?? []);
       setCanWrite(data.canWrite);
+      const remoteAt = data.note.updatedAt ?? "";
       const remoteNewer =
         !!localUpdatedAt &&
-        !!data.note.updatedAt &&
-        new Date(data.note.updatedAt) > new Date(localUpdatedAt);
+        !!remoteAt &&
+        new Date(remoteAt) > new Date(localUpdatedAt);
       if (remoteNewer && isDirtyRef.current) {
+        if (dismissedRemoteAtRef.current === remoteAt) return;
         setRemoteConflict(true);
         return;
       }
       if (remoteNewer && !isDirtyRef.current) {
+        dismissedRemoteAtRef.current = null;
         setRemoteConflict(false);
         onRemoteRef.current(data.note, data.canWrite);
       }
@@ -81,19 +86,30 @@ export function useNoteLiveCollab(opts: {
       setPresence([]);
       setRemoteConflict(false);
       setCanWrite(false);
+      dismissedRemoteAtRef.current = null;
       return;
     }
     setCanWrite(false);
+    dismissedRemoteAtRef.current = null;
     void tick();
     const id = window.setInterval(() => void tick(), intervalMs);
     return () => window.clearInterval(id);
   }, [noteId, tick, intervalMs]);
 
-  const clearRemoteConflict = useCallback(() => setRemoteConflict(false), []);
+  const clearRemoteConflict = useCallback(() => {
+    setRemoteConflict(false);
+  }, []);
+
+  /** Keep local edits; do not re-alarm for the same remote updatedAt. */
+  const dismissRemoteConflict = useCallback((remoteUpdatedAt: string | null | undefined) => {
+    if (remoteUpdatedAt) dismissedRemoteAtRef.current = remoteUpdatedAt;
+    setRemoteConflict(false);
+  }, []);
 
   /** Apply remote even if local was dirty (Reload banner). Clears dirty ref first. */
   const forcePullRemote = useCallback(async () => {
     isDirtyRef.current = false;
+    dismissedRemoteAtRef.current = null;
     setRemoteConflict(false);
     await tick();
   }, [tick]);
@@ -103,6 +119,7 @@ export function useNoteLiveCollab(opts: {
     canWrite,
     remoteConflict,
     clearRemoteConflict,
+    dismissRemoteConflict,
     refresh: tick,
     forcePullRemote,
   };

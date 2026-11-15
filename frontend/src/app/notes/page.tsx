@@ -218,6 +218,7 @@ function NotesPageInner() {
     canWrite: liveCanWrite,
     remoteConflict,
     clearRemoteConflict,
+    dismissRemoteConflict,
     refresh: refreshLive,
     forcePullRemote,
   } = useNoteLiveCollab({
@@ -1375,7 +1376,7 @@ function NotesPageInner() {
                   <button
                     type="button"
                     className="rounded px-2 py-0.5 text-amber-800 underline dark:text-amber-200"
-                    onClick={() => clearRemoteConflict()}
+                    onClick={() => dismissRemoteConflict(selected.updatedAt)}
                   >
                     {t("notes.remoteConflictKeep")}
                   </button>
