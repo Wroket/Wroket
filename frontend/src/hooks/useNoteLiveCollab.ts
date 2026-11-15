@@ -39,6 +39,8 @@ export function useNoteLiveCollab(opts: {
   cursorRef.current = cursor;
   /** After Continuer: ignore conflict for this remote updatedAt until it changes again. */
   const dismissedRemoteAtRef = useRef<string | null>(null);
+  /** Remote updatedAt that triggered the current conflict banner. */
+  const conflictRemoteAtRef = useRef<string | null>(null);
 
   const tick = useCallback(async () => {
     if (!noteId) return;
@@ -67,12 +69,16 @@ export function useNoteLiveCollab(opts: {
         !!remoteAt &&
         new Date(remoteAt) > new Date(localUpdatedAt);
       if (remoteNewer && isDirtyRef.current) {
+        // Co-editors sync text via Yjs — skip SoftLock LWW banner (title/diagram stay local until save).
+        if (data.canWrite) return;
         if (dismissedRemoteAtRef.current === remoteAt) return;
+        conflictRemoteAtRef.current = remoteAt;
         setRemoteConflict(true);
         return;
       }
       if (remoteNewer && !isDirtyRef.current) {
         dismissedRemoteAtRef.current = null;
+        conflictRemoteAtRef.current = null;
         setRemoteConflict(false);
         onRemoteRef.current(data.note, data.canWrite);
       }
@@ -100,9 +106,11 @@ export function useNoteLiveCollab(opts: {
     setRemoteConflict(false);
   }, []);
 
-  /** Keep local edits; do not re-alarm for the same remote updatedAt. */
-  const dismissRemoteConflict = useCallback((remoteUpdatedAt: string | null | undefined) => {
-    if (remoteUpdatedAt) dismissedRemoteAtRef.current = remoteUpdatedAt;
+  /** Keep local edits; do not re-alarm for the same remote updatedAt that raised the banner. */
+  const dismissRemoteConflict = useCallback(() => {
+    if (conflictRemoteAtRef.current) {
+      dismissedRemoteAtRef.current = conflictRemoteAtRef.current;
+    }
     setRemoteConflict(false);
   }, []);
 

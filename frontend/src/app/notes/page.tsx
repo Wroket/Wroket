@@ -1376,7 +1376,7 @@ function NotesPageInner() {
                   <button
                     type="button"
                     className="rounded px-2 py-0.5 text-amber-800 underline dark:text-amber-200"
-                    onClick={() => dismissRemoteConflict(selected.updatedAt)}
+                    onClick={() => dismissRemoteConflict()}
                   >
                     {t("notes.remoteConflictKeep")}
                   </button>
