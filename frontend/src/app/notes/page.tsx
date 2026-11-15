@@ -219,6 +219,7 @@ function NotesPageInner() {
     remoteConflict,
     clearRemoteConflict,
     refresh: refreshLive,
+    forcePullRemote,
   } = useNoteLiveCollab({
     noteId: selectedId,
     displayName: authUser?.email ?? currentUid ?? "user",
@@ -1366,10 +1367,9 @@ function NotesPageInner() {
                     className="rounded border border-amber-300 px-2 py-0.5 font-medium hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/60"
                     onClick={() => {
                       setNoteDirty(false);
-                      clearRemoteConflict();
-                      void refreshLive();
+                      void forcePullRemote();
                     }}
-                  >
+                    >
                     {t("notes.remoteConflictReload")}
                   </button>
                   <button

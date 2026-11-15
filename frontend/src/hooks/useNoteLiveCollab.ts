@@ -91,5 +91,19 @@ export function useNoteLiveCollab(opts: {
 
   const clearRemoteConflict = useCallback(() => setRemoteConflict(false), []);
 
-  return { presence, canWrite, remoteConflict, clearRemoteConflict, refresh: tick };
+  /** Apply remote even if local was dirty (Reload banner). Clears dirty ref first. */
+  const forcePullRemote = useCallback(async () => {
+    isDirtyRef.current = false;
+    setRemoteConflict(false);
+    await tick();
+  }, [tick]);
+
+  return {
+    presence,
+    canWrite,
+    remoteConflict,
+    clearRemoteConflict,
+    refresh: tick,
+    forcePullRemote,
+  };
 }
