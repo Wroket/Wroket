@@ -29,19 +29,22 @@ export function fragmentNameForBlock(blockId: string): string {
 
 /**
  * Push local Yjs updates and pull remote state (no sticky WebSocket).
+ * Read-only clients must not push (`push: false`) so the server can still return remote state.
  */
 export async function syncYdocHttp(
   noteId: string,
   ydoc: Y.Doc,
+  opts?: { push?: boolean },
 ): Promise<{ canWrite: boolean; updatedAt: string }> {
-  const update = Y.encodeStateAsUpdate(ydoc);
+  const push = opts?.push !== false;
+  const update = push ? Y.encodeStateAsUpdate(ydoc) : new Uint8Array();
   const stateVector = Y.encodeStateVector(ydoc);
   const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/collab/sync`, {
     ...apiFetchDefaults,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      updateB64: uint8ToB64(update),
+      updateB64: push ? uint8ToB64(update) : "",
       stateVectorB64: uint8ToB64(stateVector),
     }),
   });

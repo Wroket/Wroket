@@ -28,7 +28,8 @@ export function useNoteLiveCollab(opts: {
 }) {
   const { noteId, displayName, localUpdatedAt, isDirty, cursor, onRemoteNote, intervalMs = 1800 } = opts;
   const [presence, setPresence] = useState<NotePresencePeer[]>([]);
-  const [canWrite, setCanWrite] = useState(true);
+  /** False until /live answers — avoids RW flash on foreign notes. */
+  const [canWrite, setCanWrite] = useState(false);
   const [remoteConflict, setRemoteConflict] = useState(false);
   const onRemoteRef = useRef(onRemoteNote);
   onRemoteRef.current = onRemoteNote;
@@ -79,8 +80,10 @@ export function useNoteLiveCollab(opts: {
     if (!noteId) {
       setPresence([]);
       setRemoteConflict(false);
+      setCanWrite(false);
       return;
     }
+    setCanWrite(false);
     void tick();
     const id = window.setInterval(() => void tick(), intervalMs);
     return () => window.clearInterval(id);

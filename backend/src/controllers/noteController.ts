@@ -24,7 +24,7 @@ import { listNotePresence, touchNotePresence } from "../services/notePresenceSer
 import { newMentionsOnly } from "../services/commentService";
 import { createNotification } from "../services/notificationService";
 import { findUserByEmail } from "../services/authService";
-import { ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import {
   createNoteFolder,
   listNoteFolderSummaries,
@@ -217,16 +217,14 @@ export async function postNoteCollabSync(req: AuthenticatedRequest, res: Respons
   const id = req.params.id as string;
   const access = resolveNoteAccess(req.user!.uid, req.user!.email ?? "", id);
   if (!access) throw new NotFoundError("Note introuvable");
-  if (!access.canWrite && req.body?.updateB64) {
-    // Read-only clients may pull state with empty update
-  }
-  const updateB64 = typeof req.body?.updateB64 === "string" ? req.body.updateB64 : "";
+  // RO clients still POST their local state as updateB64; ignore writes and pull only.
+  let updateB64 = typeof req.body?.updateB64 === "string" ? req.body.updateB64 : "";
   const stateVectorB64 = typeof req.body?.stateVectorB64 === "string" ? req.body.stateVectorB64 : undefined;
-  if (updateB64 && !access.canWrite) {
-    throw new ForbiddenError("Lecture seule — sync d’écriture refusée");
+  if (!access.canWrite) {
+    updateB64 = "";
   }
   const { syncNoteYjs } = await import("../services/noteCollabStore");
-  const result = await syncNoteYjs(id, access.canWrite ? updateB64 : "", stateVectorB64);
+  const result = await syncNoteYjs(id, updateB64, stateVectorB64);
   const presence = await listNotePresence(id, req.user!.uid);
   res.status(200).json({ ...result, canWrite: access.canWrite, presence });
 }

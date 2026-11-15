@@ -73,7 +73,7 @@ export function NoteCollabProvider({
     const sync = async () => {
       if (cancelled) return;
       try {
-        await syncYdocHttp(noteId, doc);
+        await syncYdocHttp(noteId, doc, { push: canWriteRef.current });
       } catch {
         /* transient */
       }
