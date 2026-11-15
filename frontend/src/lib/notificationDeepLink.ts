@@ -5,9 +5,16 @@ export interface NotifDeepLinkInput {
 }
 
 export function notificationOpenHref(notif: NotifDeepLinkInput): string {
-  if (notif.type === "note_mention") {
+  if (notif.type === "note_mention" || notif.type === "note_shared") {
     if (notif.data?.noteAccessible === "false") return "/notes";
     return notif.data?.noteId ? `/notes?id=${encodeURIComponent(notif.data.noteId)}` : "/notes";
+  }
+
+  if (notif.type === "database_shared") {
+    if (notif.data?.databaseId) {
+      return `/notes?section=databases&db=${encodeURIComponent(notif.data.databaseId)}&shared=1`;
+    }
+    return "/notes?section=databases&shared=1";
   }
 
   const taskId = notif.data?.todoId;

@@ -125,7 +125,8 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [ ] **Extension Chrome MVP — clipper** — Code MVP 2026-11-14 : auth PKCE `kind=extension`, `/ext/v1`, `source` UI, `/extension/connect`, Settings Navigateurs, MV3 `extensions/chrome`. **Reste ops** : compte CWS `team@wroket.com` + listing **unlisted** + smoke 5 profils. Doc : [`docs/chrome-extension.md`](docs/chrome-extension.md).
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 - [x] **Auth recovery — marque Wroket** — forgot / reset / verify-email alignés sur `WroketMark` (2026-11-14).
-- [ ] **Bases — collab multi-user** — Aujourd’hui owner-only (`/user-databases`). Ordre : (1) partage ACL RO|RW calqué notes, (2) présence cellule `{ rowId, columnId }` + highlight (pattern presence notes), (3) éditions LWW PATCH + SoftLock/toast. **Pas** de CRDT grille. Spec V1 : [`docs/donnees-notion-v1.md`](docs/donnees-notion-v1.md).
+- [x] **Bases — collab multi-user** — Livré 2026-11-15 : ACL RO|RW calquée notes, présence cellule `{ rowId, columnId }` + highlight, LWW PATCH + modale conflit (`ROW_CONFLICT`). **Pas** de CRDT grille. Spec : [`docs/donnees-notion-v1.md`](docs/donnees-notion-v1.md).
+- [x] **Notifs partage notes/bases + historique 5 versions** — Livré 2026-11-15 : `note_shared` / `database_shared` ; anneau 5 snapshots horodatés (save contenu) + restore ; soft-delete archive inchangé.
 
 ### Later (12+ semaines)
 

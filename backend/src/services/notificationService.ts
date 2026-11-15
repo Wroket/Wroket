@@ -30,6 +30,8 @@ export type NotificationType =
   | "deadline_today"
   | "comment_mention"
   | "note_mention"
+  | "note_shared"
+  | "database_shared"
   | "project_deleted"
   | "dependency_blocked"
   | "milestone_due_soon"

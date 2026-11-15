@@ -12,13 +12,21 @@ export class ApiClientError extends Error {
   readonly code?: string;
   readonly status: number;
   readonly requestId?: string;
+  readonly details?: Record<string, unknown>;
 
-  constructor(message: string, status: number, code?: string, requestId?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    requestId?: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ApiClientError";
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.details = details;
   }
 }
 
@@ -147,7 +155,14 @@ export function parseApiErrorFromBody(
       ? (body as ApiErrorBody).requestId
       : undefined;
   const message = resolveApiError(body, fallbackKey, locale);
-  return new ApiClientError(message, status, code, requestId);
+  const details =
+    typeof body === "object" &&
+    body !== null &&
+    typeof (body as { details?: unknown }).details === "object" &&
+    (body as { details?: unknown }).details !== null
+      ? ((body as { details: Record<string, unknown> }).details)
+      : undefined;
+  return new ApiClientError(message, status, code, requestId, details);
 }
 
 export async function parseApiErrorResponse(

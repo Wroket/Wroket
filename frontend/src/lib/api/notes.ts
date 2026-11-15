@@ -198,6 +198,31 @@ export async function deleteNoteApi(id: string): Promise<void> {
   if (!res.ok) throw new Error("Impossible de supprimer la note");
 }
 
+export interface NoteRevisionMeta {
+  id: string;
+  at: string;
+  byUid: string;
+  byEmail?: string;
+}
+
+export async function listNoteRevisions(noteId: string): Promise<NoteRevisionMeta[]> {
+  const res = await fetch(`${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/revisions`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Impossible de charger l'historique");
+  const data = (await res.json()) as { revisions: NoteRevisionMeta[] };
+  return data.revisions;
+}
+
+export async function restoreNoteRevision(noteId: string, revId: string): Promise<Note> {
+  const res = await fetch(
+    `${API_BASE_URL}/notes/${encodeURIComponent(noteId)}/revisions/${encodeURIComponent(revId)}/restore`,
+    { method: "POST", credentials: "include" },
+  );
+  if (!res.ok) throw new Error("Impossible de restaurer la version");
+  return res.json();
+}
+
 export async function getArchivedNotes(): Promise<Note[]> {
   const res = await fetch(`${API_BASE_URL}/notes/archived`, { credentials: "include" });
   if (!res.ok) throw new Error("Impossible de charger les notes archivées");

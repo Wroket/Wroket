@@ -1,8 +1,10 @@
 import crypto from "crypto";
 
 import { getStore, scheduleSave } from "../persistence";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../utils/errors";
 import { normalizeExternalRef, type ExternalProvider, type ExternalRef } from "./externalRef";
+import { getTeam, getTeamRole } from "./teamService";
+import { normalizeEmail, findUserByEmail, findUserByUid } from "./authService";
 
 export type DatabaseColumnType =
   | "text"
@@ -36,6 +38,16 @@ export interface UserDatabase {
   updatedAt: string;
   /** Set when the database is in `archivedUserDatabases`. */
   archivedAt?: string;
+  /** Team share (read-only for members). Mutually exclusive with direct share. */
+  shared?: boolean;
+  teamId?: string;
+  /** Direct collaborator uid. */
+  sharedWithUid?: string;
+  sharedWithEmail?: string;
+  /** When true, sharedWithUid may edit rows. Default read-only. */
+  collaboratorWrite?: boolean;
+  /** Display-only when listed via shared inbox. */
+  ownerEmail?: string;
 }
 
 export interface DatabaseRow {
@@ -45,6 +57,24 @@ export interface DatabaseRow {
   externalRef: ExternalRef | null;
   createdAt: string;
   updatedAt: string;
+  updatedByUid?: string;
+}
+
+export interface DatabaseAccess {
+  database: UserDatabase;
+  ownerUid: string;
+  canWrite: boolean;
+}
+
+export interface UpdateUserDatabaseInput {
+  name?: string;
+  columns?: DatabaseColumnDef[];
+  defaultView?: "table" | "board";
+  boardGroupColumnId?: string | null;
+  shared?: boolean;
+  teamId?: string | null;
+  sharedWithEmail?: string | null;
+  collaboratorWrite?: boolean;
 }
 
 const MAX_DATABASES_PER_OWNER = 50;
@@ -112,6 +142,98 @@ function assertOwnerDatabase(ownerUid: string, databaseId: string): UserDatabase
   const db = (getDatabaseStore()[ownerUid] ?? []).find((d) => d.id === databaseId);
   if (!db) throw new NotFoundError("Base introuvable");
   return db;
+}
+
+function findDatabaseById(databaseId: string): { ownerUid: string; database: UserDatabase } | null {
+  const store = getDatabaseStore();
+  for (const [ownerUid, list] of Object.entries(store)) {
+    const database = list.find((d) => d.id === databaseId);
+    if (database) return { ownerUid, database };
+  }
+  return null;
+}
+
+function validateDbSharing(ownerUid: string, shared?: boolean, teamId?: string): void {
+  if (shared && teamId) {
+    const team = getTeam(teamId);
+    if (!team) throw new ValidationError("Équipe introuvable");
+    const store = getStore();
+    const users = (store.users ?? {}) as Record<string, Record<string, unknown>>;
+    const userEmail = (users[ownerUid]?.email as string) ?? "";
+    const role = getTeamRole(team, ownerUid, userEmail);
+    if (!role) throw new ValidationError("Vous ne faites pas partie de cette équipe");
+  }
+}
+
+/**
+ * Locate a database the user can read (own or shared).
+ */
+export function resolveDatabaseAccess(
+  uid: string,
+  userEmail: string,
+  databaseId: string,
+): DatabaseAccess | null {
+  const ownList = getDatabaseStore()[uid] ?? [];
+  const own = ownList.find((d) => d.id === databaseId);
+  if (own) return { database: own, ownerUid: uid, canWrite: true };
+
+  const found = findDatabaseById(databaseId);
+  if (!found) return null;
+  const { ownerUid, database: n } = found;
+  const teamShared = !!(n.shared && n.teamId && getTeam(n.teamId) && getTeamRole(getTeam(n.teamId)!, uid, userEmail));
+  const direct = n.sharedWithUid === uid;
+  if (!teamShared && !direct) return null;
+  const canWrite = direct && n.collaboratorWrite === true;
+  return { database: n, ownerUid, canWrite };
+}
+
+export function requireDatabaseAccess(
+  uid: string,
+  userEmail: string,
+  databaseId: string,
+  opts?: { write?: boolean; ownerOnly?: boolean },
+): DatabaseAccess {
+  const access = resolveDatabaseAccess(uid, userEmail, databaseId);
+  if (!access) throw new NotFoundError("Base introuvable");
+  if (opts?.ownerOnly && access.ownerUid !== uid) {
+    throw new ForbiddenError("Réservé au propriétaire de la base");
+  }
+  if (opts?.write && !access.canWrite) {
+    throw new ForbiddenError("Lecture seule — demandez l'écriture au propriétaire");
+  }
+  return access;
+}
+
+/** Databases shared with the current user (team RO or direct collaborator). */
+export function listSharedUserDatabases(uid: string, userEmail: string): UserDatabase[] {
+  const store = getStore();
+  const teamStore = (store.teams ?? {}) as Record<string, Record<string, unknown>>;
+  const normEmail = normalizeEmail(userEmail);
+
+  const userTeamIds: string[] = [];
+  for (const [teamId, team] of Object.entries(teamStore)) {
+    const members = (team.members as Array<{ email: string }>) ?? [];
+    if (
+      team.ownerUid === uid ||
+      members.some((m) => normalizeEmail(m.email) === normEmail)
+    ) {
+      userTeamIds.push(teamId);
+    }
+  }
+
+  const shared: UserDatabase[] = [];
+  for (const [ownerUid, list] of Object.entries(getDatabaseStore())) {
+    if (ownerUid === uid) continue;
+    const ownerEmail = findUserByUid(ownerUid)?.email ?? ownerUid;
+    for (const db of list) {
+      const teamShared = !!(db.shared && db.teamId && userTeamIds.includes(db.teamId));
+      const directShared = db.sharedWithUid === uid;
+      if (teamShared || directShared) {
+        shared.push({ ...db, ownerEmail });
+      }
+    }
+  }
+  return shared.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
 function normalizeColumnName(name: string): string {
@@ -275,12 +397,7 @@ export function createUserDatabase(
 export function updateUserDatabase(
   ownerUid: string,
   databaseId: string,
-  input: {
-    name?: string;
-    columns?: DatabaseColumnDef[];
-    defaultView?: "table" | "board";
-    boardGroupColumnId?: string | null;
-  },
+  input: UpdateUserDatabaseInput,
 ): UserDatabase {
   const store = getDatabaseStore();
   const list = store[ownerUid] ?? [];
@@ -306,6 +423,41 @@ export function updateUserDatabase(
   if (input.boardGroupColumnId !== undefined) {
     db.boardGroupColumnId = input.boardGroupColumnId;
   }
+
+  if (input.shared !== undefined || input.teamId !== undefined) {
+    const wantShared = input.shared ?? db.shared;
+    const wantTeamId =
+      (input.teamId !== undefined ? (input.teamId?.trim() || undefined) : db.teamId) || undefined;
+    validateDbSharing(ownerUid, wantShared, wantTeamId);
+    db.shared = wantShared && wantTeamId ? true : undefined;
+    db.teamId = wantShared && wantTeamId ? wantTeamId : undefined;
+    if (db.shared) {
+      db.sharedWithUid = undefined;
+      db.sharedWithEmail = undefined;
+      db.collaboratorWrite = undefined;
+    }
+  }
+
+  if (input.sharedWithEmail !== undefined) {
+    if (input.sharedWithEmail === null || input.sharedWithEmail.trim() === "") {
+      db.sharedWithUid = undefined;
+      db.sharedWithEmail = undefined;
+      db.collaboratorWrite = undefined;
+    } else {
+      const target = findUserByEmail(input.sharedWithEmail);
+      if (!target) throw new ValidationError("Utilisateur introuvable");
+      if (target.uid === ownerUid) throw new ValidationError("Impossible de partager avec soi-même");
+      db.sharedWithUid = target.uid;
+      db.sharedWithEmail = normalizeEmail(input.sharedWithEmail);
+      db.shared = undefined;
+      db.teamId = undefined;
+    }
+  }
+
+  if (input.collaboratorWrite !== undefined) {
+    db.collaboratorWrite = input.collaboratorWrite ? true : undefined;
+  }
+
   db.updatedAt = new Date().toISOString();
   list[idx] = db;
   store[ownerUid] = list;
@@ -396,6 +548,11 @@ function findArchivedDatabaseByExternalId(
 
 export function listDatabaseRows(ownerUid: string, databaseId: string): DatabaseRow[] {
   assertOwnerDatabase(ownerUid, databaseId);
+  return listDatabaseRowsById(databaseId);
+}
+
+/** List rows after ACL already resolved (owner or shared reader). */
+export function listDatabaseRowsById(databaseId: string): DatabaseRow[] {
   return (getRowStore()[databaseId] ?? [])
     .slice()
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -405,6 +562,7 @@ export function createDatabaseRow(
   ownerUid: string,
   databaseId: string,
   values?: Record<string, string | number | boolean | null>,
+  actorUid?: string,
 ): DatabaseRow {
   const db = assertOwnerDatabase(ownerUid, databaseId);
   if (countRowsForOwner(ownerUid) >= MAX_ROWS_PER_OWNER) {
@@ -419,6 +577,7 @@ export function createDatabaseRow(
     externalRef: null,
     createdAt: now,
     updatedAt: now,
+    updatedByUid: actorUid ?? ownerUid,
   };
 
   const rowStore = getRowStore();
@@ -427,11 +586,25 @@ export function createDatabaseRow(
   return row;
 }
 
+/**
+ * Create a row for any writer with ACL (quota counted on owner).
+ */
+export function createDatabaseRowAsUser(
+  uid: string,
+  userEmail: string,
+  databaseId: string,
+  values?: Record<string, string | number | boolean | null>,
+): DatabaseRow {
+  const access = requireDatabaseAccess(uid, userEmail, databaseId, { write: true });
+  return createDatabaseRow(access.ownerUid, databaseId, values, uid);
+}
+
 export function updateDatabaseRow(
   ownerUid: string,
   databaseId: string,
   rowId: string,
   values: Record<string, string | number | boolean | null>,
+  opts?: { actorUid?: string; baseUpdatedAt?: string; force?: boolean },
 ): DatabaseRow {
   const db = assertOwnerDatabase(ownerUid, databaseId);
   const rowStore = getRowStore();
@@ -439,11 +612,39 @@ export function updateDatabaseRow(
   const idx = rows.findIndex((r) => r.id === rowId);
   if (idx === -1) throw new NotFoundError("Ligne introuvable");
 
+  const current = rows[idx];
+  if (
+    opts?.baseUpdatedAt &&
+    !opts.force &&
+    Date.parse(opts.baseUpdatedAt) < Date.parse(current.updatedAt)
+  ) {
+    throw new ConflictError("La ligne a été modifiée par un autre utilisateur", "ROW_CONFLICT", undefined, {
+      row: current,
+    });
+  }
+
   rows[idx].values = validateRowValues(db.columns, { ...rows[idx].values, ...values });
   rows[idx].updatedAt = new Date().toISOString();
+  rows[idx].updatedByUid = opts?.actorUid ?? ownerUid;
   rowStore[databaseId] = rows;
   persistRows();
   return rows[idx];
+}
+
+export function updateDatabaseRowAsUser(
+  uid: string,
+  userEmail: string,
+  databaseId: string,
+  rowId: string,
+  values: Record<string, string | number | boolean | null>,
+  opts?: { baseUpdatedAt?: string; force?: boolean },
+): DatabaseRow {
+  const access = requireDatabaseAccess(uid, userEmail, databaseId, { write: true });
+  return updateDatabaseRow(access.ownerUid, databaseId, rowId, values, {
+    actorUid: uid,
+    baseUpdatedAt: opts?.baseUpdatedAt,
+    force: opts?.force,
+  });
 }
 
 export function deleteDatabaseRow(ownerUid: string, databaseId: string, rowId: string): void {
@@ -455,6 +656,16 @@ export function deleteDatabaseRow(ownerUid: string, databaseId: string, rowId: s
   rows.splice(idx, 1);
   rowStore[databaseId] = rows;
   persistRows();
+}
+
+export function deleteDatabaseRowAsUser(
+  uid: string,
+  userEmail: string,
+  databaseId: string,
+  rowId: string,
+): void {
+  const access = requireDatabaseAccess(uid, userEmail, databaseId, { write: true });
+  deleteDatabaseRow(access.ownerUid, databaseId, rowId);
 }
 
 export function findDatabaseByExternalId(

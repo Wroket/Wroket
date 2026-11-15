@@ -26,7 +26,17 @@ import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi, expo
 import type { Note, Project, Todo, Team } from "@/lib/api";
 import { personalNotesCreateBlocked } from "@/lib/freeQuota";
 import { formatUserFacingError } from "@/lib/apiErrors";
-import { getDiagramConfig, getOcrConfig, listSpawnedTasks, uploadNoteAttachment, type DiagramConfig, type OcrConfig } from "@/lib/api/notes";
+import {
+  getDiagramConfig,
+  getOcrConfig,
+  listNoteRevisions,
+  listSpawnedTasks,
+  restoreNoteRevision,
+  uploadNoteAttachment,
+  type DiagramConfig,
+  type NoteRevisionMeta,
+  type OcrConfig,
+} from "@/lib/api/notes";
 import { parseNoteTaskLines } from "@/lib/noteTaskLines";
 import { newClientEntityId } from "@/lib/newClientId";
 import { appendCapture, resolveNoteBlocks, textHtmlFromBlocks } from "@/lib/noteBlocks";
@@ -167,6 +177,8 @@ function NotesPageInner() {
   const [ocrAttachment, setOcrAttachment] = useState<{ id: string; name: string } | null>(null);
   const [attachmentsRefreshKey, setAttachmentsRefreshKey] = useState(0);
   const [metaOpen, setMetaOpen] = useState(false);
+  const [noteHistoryOpen, setNoteHistoryOpen] = useState(false);
+  const [noteRevisions, setNoteRevisions] = useState<NoteRevisionMeta[]>([]);
   const ocrRangeRef = useRef<Range | null>(null);
 
   const isOwnNote = useCallback(
@@ -176,9 +188,9 @@ function NotesPageInner() {
 
   useEffect(() => {
     const section = searchParams.get("section");
-    const db = searchParams.get("db");
     if (section === "databases") {
       setHomeView("databases");
+      return;
     }
     if (searchParams.get("shared") === "1" || section === "shared") {
       setActiveFolder(SHARED_SCOPE);
@@ -765,6 +777,7 @@ function NotesPageInner() {
         <div className="min-h-[calc(100vh-65px)] overflow-y-auto bg-gradient-to-b from-emerald-50/50 via-zinc-50 to-zinc-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-950">
           <DatabasesSection
             initialDatabaseId={searchParams.get("db")}
+            sharedMode={searchParams.get("shared") === "1"}
             onBack={() => setHomeView("tiles")}
           />
         </div>
@@ -869,6 +882,13 @@ function NotesPageInner() {
                   <span className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("notes.databases.tile")}</span>
                   <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2">{t("notes.databases.tileHint")}</span>
                 </button>
+                <Link
+                  href="/notes?section=databases&shared=1"
+                  className="text-left rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/60 dark:bg-indigo-950/20 p-4 shadow-sm hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-colors min-h-[120px] flex flex-col"
+                >
+                  <span className="text-lg font-semibold text-zinc-900 dark:text-slate-100">{t("notes.databases.sharedTile")}</span>
+                  <span className="text-sm text-zinc-500 dark:text-slate-400 mt-2">{t("notes.databases.sharedHint")}</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => handleOpenFolderTile(null)}
@@ -1634,6 +1654,64 @@ function NotesPageInner() {
                             </div>
                           </>
                         )}
+
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
+                            onClick={() => {
+                              const next = !noteHistoryOpen;
+                              setNoteHistoryOpen(next);
+                              if (next && selected) {
+                                void listNoteRevisions(selected.id)
+                                  .then(setNoteRevisions)
+                                  .catch(() => setNoteRevisions([]));
+                              }
+                            }}
+                          >
+                            {t("notes.history")}
+                          </button>
+                          {noteHistoryOpen && (
+                            <ul className="space-y-0.5 text-[11px] text-zinc-600 dark:text-slate-300">
+                              {noteRevisions.length === 0 ? (
+                                <li>{t("notes.historyEmpty")}</li>
+                              ) : (
+                                noteRevisions.map((rev) => (
+                                  <li key={rev.id} className="flex items-center justify-between gap-2">
+                                    <span>
+                                      {new Date(rev.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
+                                      {rev.byEmail ? ` · ${rev.byEmail}` : ""}
+                                    </span>
+                                    {!isSharedNote || collabCanWrite ? (
+                                      <button
+                                        type="button"
+                                        className="text-emerald-700 dark:text-emerald-400 shrink-0"
+                                        onClick={() => {
+                                          if (!selected) return;
+                                          void restoreNoteRevision(selected.id, rev.id)
+                                            .then((note) => {
+                                              saveNote(selected.id, {
+                                                title: note.title,
+                                                content: note.content,
+                                                blocks: note.blocks,
+                                              });
+                                              toast.success(t("notes.historyRestored"));
+                                              return listNoteRevisions(selected.id).then(setNoteRevisions);
+                                            })
+                                            .catch((err) =>
+                                              toast.error(formatUserFacingError(err, "toast.genericError")),
+                                            );
+                                        }}
+                                      >
+                                        {t("notes.historyRestore")}
+                                      </button>
+                                    ) : null}
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          )}
+                        </div>
 
                         {spawnedTasks.length > 0 && (
                           <div className="space-y-1">

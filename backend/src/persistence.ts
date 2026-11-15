@@ -68,6 +68,10 @@ const DOMAINS = [
   "archivedUserDatabases",
   /** Rows for archived databases (keyed by database id). */
   "archivedUserDatabaseRows",
+  /** Ring of last content revisions for notes (keyed by note id). */
+  "noteRevisions",
+  /** Ring of last content revisions for user databases (keyed by database id). */
+  "databaseRevisions",
 ] as const;
 
 type Domain = (typeof DOMAINS)[number];
@@ -135,6 +139,10 @@ export interface StoreData {
   archivedUserDatabases?: Record<string, unknown[]>;
   /** Rows for archived databases keyed by database id. */
   archivedUserDatabaseRows?: Record<string, unknown[]>;
+  /** Note content revision rings keyed by note id. */
+  noteRevisions?: Record<string, unknown[]>;
+  /** Database content revision rings keyed by database id. */
+  databaseRevisions?: Record<string, unknown[]>;
 }
 
 let cachedStore: StoreData = {};

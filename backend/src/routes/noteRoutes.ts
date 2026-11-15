@@ -22,6 +22,8 @@ import {
   getNoteLive,
   postNotePresence,
   postNoteCollabSync,
+  listRevisions,
+  restoreRevision,
 } from "../controllers/noteController";
 import {
   uploadNoteAttachment,
@@ -94,6 +96,8 @@ noteRoutes.get("/:noteId/task-attachments/:todoId/:attachmentId", downloadTaskAt
 noteRoutes.get("/:id/live", getNoteLive);
 noteRoutes.post("/:id/presence", postNotePresence);
 noteRoutes.post("/:id/collab/sync", postNoteCollabSync);
+noteRoutes.get("/:id/revisions", listRevisions);
+noteRoutes.post("/:id/revisions/:revId/restore", restoreRevision);
 noteRoutes.get("/:id", get);
 noteRoutes.put("/:id", update);
 noteRoutes.delete("/:id", remove);

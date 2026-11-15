@@ -77,10 +77,16 @@ export function getVapidPublicKey(): string | null {
 export function notifOpenUrl(type: NotificationType, data?: Record<string, string>): string {
   const base = (process.env.FRONTEND_URL || "https://wroket.com").replace(/\/$/, "");
 
-  if (type === "note_mention") {
+  if (type === "note_mention" || type === "note_shared") {
     if (data?.noteAccessible === "false") return `${base}/notes`;
     if (data?.noteId) return `${base}/notes?id=${encodeURIComponent(data.noteId)}`;
     return `${base}/notes`;
+  }
+  if (type === "database_shared") {
+    if (data?.databaseId) {
+      return `${base}/notes?section=databases&db=${encodeURIComponent(data.databaseId)}&shared=1`;
+    }
+    return `${base}/notes?section=databases&shared=1`;
   }
 
   const taskId = data?.todoId;

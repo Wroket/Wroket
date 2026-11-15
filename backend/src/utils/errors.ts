@@ -33,12 +33,13 @@ export class PaymentRequiredError extends AppError {
   }
 }
 
-/** HTTP 409 with optional machine-readable code and conflict list for clients. */
+/** HTTP 409 with optional machine-readable code, calendar conflicts, or structured details. */
 export class ConflictError extends AppError {
   constructor(
     message: string,
     public readonly code?: string,
     public readonly conflicts?: Array<{ id: string; title: string; start: string; end: string }>,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(409, message, code);
   }

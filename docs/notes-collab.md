@@ -22,10 +22,13 @@ Presence ──────── POST /notes/:id/presence (cursor optional) ─
 - **Curseurs distants** (Docs-like) : décorations ProseMirror dans TipTap — caret coloré + label prénom + sélection ; alimentés par `presence.cursor` (poll ~1.8s, pas de Yjs Awareness / WS).
 - Conflit LWW (titre / diagrammes) : toast + Recharger / Continuer si `isDirty`.
 - Toolbar + slash + OCR : path TipTap quand l’éditeur actif est TipTap.
+- **Notif partage** : `note_shared` quand un owner ajoute un collaborateur direct (distinct de `note_mention`).
+- **Historique** : anneau 5 snapshots (`noteRevisions`) à chaque save contenu (title/content/blocks) ; panneau Historique + restore ; soft-delete archive inchangé.
 
 ## Tests
 
 - Unit : `backend/src/services/noteCollabStore.test.ts` (merge 2 clients + presence + XmlFragment).
+- Unit : `backend/src/services/contentRevisionService.test.ts` (anneau 5).
 - E2E terrain 2026-11-15 : 2 navigateurs, co-édition texte + presence OK.
 
 ## Hors scope (Next)

@@ -22,9 +22,16 @@ import {
 } from "../services/noteService";
 import { listNotePresence, touchNotePresence } from "../services/notePresenceService";
 import { newMentionsOnly } from "../services/commentService";
-import { createNotification } from "../services/notificationService";
+import { createNotification, listNotifications } from "../services/notificationService";
 import { findUserByEmail } from "../services/authService";
 import { NotFoundError, ValidationError } from "../utils/errors";
+import {
+  pushNoteRevision,
+  listNoteRevisions,
+  getNoteRevision,
+  snapshotFromNote,
+  assertRevisionActor,
+} from "../services/contentRevisionService";
 import {
   createNoteFolder,
   listNoteFolderSummaries,
@@ -142,18 +149,56 @@ export async function update(req: AuthenticatedRequest, res: Response) {
 
   let note;
   let oldContent = "";
+  let prevSharedWithUid: string | undefined;
+  let beforeSnap = snapshotFromNote({ title: "", content: "", blocks: undefined });
+
   try {
     const existingNote = getNote(uid, id);
     oldContent = existingNote.content;
+    prevSharedWithUid = existingNote.sharedWithUid;
+    beforeSnap = snapshotFromNote(existingNote);
     const input = body as UpdateNoteInput;
     note = updateNote(uid, id, input);
   } catch {
-    oldContent = "";
+    const access = resolveNoteAccess(uid, req.user!.email ?? "", id);
+    if (!access) throw new NotFoundError("Note introuvable");
+    oldContent = access.note.content;
+    prevSharedWithUid = access.note.sharedWithUid;
+    beforeSnap = snapshotFromNote(access.note);
     note = updateNoteAsCollaborator(uid, req.user!.email ?? "", id, {
       title: typeof body.title === "string" ? body.title : undefined,
       content: typeof body.content === "string" ? body.content : undefined,
       blocks: Array.isArray(body.blocks) ? body.blocks as UpdateNoteInput["blocks"] : undefined,
     });
+  }
+
+  const contentChanged =
+    body.title !== undefined || body.content !== undefined || body.blocks !== undefined;
+  if (contentChanged) {
+    pushNoteRevision(id, beforeSnap, uid, req.user!.email ?? undefined);
+  }
+
+  if (
+    note.sharedWithUid &&
+    note.sharedWithUid !== prevSharedWithUid &&
+    note.userId === uid
+  ) {
+    const recent = listNotifications(note.sharedWithUid).slice(0, 20);
+    const dup = recent.some(
+      (n) =>
+        n.type === "note_shared" &&
+        n.data?.noteId === id &&
+        Date.now() - Date.parse(n.createdAt) < 60_000,
+    );
+    if (!dup) {
+      createNotification(
+        note.sharedWithUid,
+        "note_shared",
+        "Note partagée avec vous",
+        `${req.user!.email} a partagé la note « ${note.title} » avec vous`,
+        { noteId: id, noteTitle: note.title },
+      );
+    }
   }
 
   if (typeof body.content === "string" && note.userId === uid) {
@@ -174,6 +219,40 @@ export async function update(req: AuthenticatedRequest, res: Response) {
   }
 
   logActivity(uid, req.user!.email ?? "", "update", "note", note.id, { title: note.title, fields: Object.keys(body) });
+  res.status(200).json(note);
+}
+
+export async function listRevisions(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const access = resolveNoteAccess(req.user!.uid, req.user!.email ?? "", id);
+  if (!access) throw new NotFoundError("Note introuvable");
+  const revisions = listNoteRevisions(id).map(({ snapshot: _s, ...meta }) => meta);
+  res.status(200).json({ revisions });
+}
+
+export async function restoreRevision(req: AuthenticatedRequest, res: Response) {
+  const id = req.params.id as string;
+  const revId = req.params.revId as string;
+  const access = resolveNoteAccess(req.user!.uid, req.user!.email ?? "", id);
+  if (!access) throw new NotFoundError("Note introuvable");
+  assertRevisionActor(access.canWrite);
+  const rev = getNoteRevision(id, revId);
+  pushNoteRevision(id, snapshotFromNote(access.note), req.user!.uid, req.user!.email ?? undefined);
+  let note;
+  if (access.ownerUid === req.user!.uid) {
+    note = updateNote(req.user!.uid, id, {
+      title: rev.snapshot.title,
+      content: rev.snapshot.content,
+      blocks: rev.snapshot.blocks,
+    });
+  } else {
+    note = updateNoteAsCollaborator(req.user!.uid, req.user!.email ?? "", id, {
+      title: rev.snapshot.title,
+      content: rev.snapshot.content,
+      blocks: rev.snapshot.blocks,
+    });
+  }
+  logActivity(req.user!.uid, req.user!.email ?? "", "restore", "note", id, { revId });
   res.status(200).json(note);
 }
 

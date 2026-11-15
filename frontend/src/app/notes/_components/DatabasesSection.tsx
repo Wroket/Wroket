@@ -21,28 +21,45 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import ConfirmDialog from "@/components/ConfirmDialog";
-import PageHelpButton from "@/components/PageHelpButton";import { useToast } from "@/components/Toast";
+import PageHelpButton from "@/components/PageHelpButton";
+import { useToast } from "@/components/Toast";
+import { useAuth } from "@/components/AuthContext";
 import { useLocale } from "@/lib/LocaleContext";
-import { formatUserFacingError } from "@/lib/apiErrors";
+import { ApiClientError, formatUserFacingError } from "@/lib/apiErrors";
 import { getImportSourceBadge } from "@/lib/importSourceBadge";
+import { getTeams, type Team } from "@/lib/api";
+import { useDatabasePresence } from "@/hooks/useDatabasePresence";
 import {
   createDatabaseRow,
   createUserDatabase,
   deleteDatabaseRow,
   deleteUserDatabase,
   getUserDatabase,
+  listDatabaseRevisions,
+  listSharedUserDatabases,
   listUserDatabases,
+  restoreDatabaseRevision,
   updateUserDatabase,
   updateDatabaseRow,
   type DatabaseColumnDef,
   type DatabaseColumnType,
+  type DatabaseRevisionMeta,
   type DatabaseRow,
   type UserDatabase,
 } from "@/lib/api/userDatabases";
 
 interface DatabasesSectionProps {
   initialDatabaseId?: string | null;
+  /** List/open databases shared with the current user. */
+  sharedMode?: boolean;
   onBack: () => void;
+}
+
+interface RowConflictState {
+  row: DatabaseRow;
+  colId: string;
+  value: string | number | boolean | null;
+  serverRow: DatabaseRow;
 }
 
 const ADDABLE_COLUMN_TYPES: DatabaseColumnType[] = [
@@ -61,14 +78,20 @@ function formatDbDate(iso: string, locale: string): string {
   }
 }
 
-export default function DatabasesSection({ initialDatabaseId, onBack }: DatabasesSectionProps) {
+export default function DatabasesSection({
+  initialDatabaseId,
+  sharedMode = false,
+  onBack,
+}: DatabasesSectionProps) {
   const { t, locale } = useLocale();
   const { toast } = useToast();
+  const { user: authUser } = useAuth();
   const router = useRouter();
   const [databases, setDatabases] = useState<UserDatabase[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(initialDatabaseId ?? null);
   const [rows, setRows] = useState<DatabaseRow[]>([]);
+  const [canWrite, setCanWrite] = useState(true);
   const [dbLoading, setDbLoading] = useState(false);
   const [newDbName, setNewDbName] = useState("");
   const [showNewDb, setShowNewDb] = useState(false);
@@ -83,6 +106,37 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
   const [deleteColumnTarget, setDeleteColumnTarget] = useState<DatabaseColumnDef | null>(null);
   const [deleteDbTarget, setDeleteDbTarget] = useState<UserDatabase | null>(null);
   const [relationRowsCache, setRelationRowsCache] = useState<Record<string, DatabaseRow[]>>({});
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [shareEmail, setShareEmail] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [revisions, setRevisions] = useState<DatabaseRevisionMeta[]>([]);
+  const [cellCursor, setCellCursor] = useState<{ rowId: string; columnId: string } | null>(null);
+  const [rowConflict, setRowConflict] = useState<RowConflictState | null>(null);
+
+  const isOwner = !!(
+    selectedId &&
+    authUser?.uid &&
+    databases.find((d) => d.id === selectedId)?.ownerUid === authUser.uid
+  );
+
+  const { presence } = useDatabasePresence(selectedId, {
+    displayName: authUser?.email ?? undefined,
+    cursor: cellCursor,
+    enabled: !!selectedId,
+  });
+
+  const peerByCell = useMemo(() => {
+    const map = new Map<string, { uid: string; displayName: string }>();
+    for (const p of presence) {
+      if (p.cursor?.rowId && p.cursor?.columnId) {
+        map.set(`${p.cursor.rowId}:${p.cursor.columnId}`, {
+          uid: p.uid,
+          displayName: p.displayName,
+        });
+      }
+    }
+    return map;
+  }, [presence]);
 
   const sortedRows = useMemo(
     () => [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -94,21 +148,27 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
 
   const refreshList = useCallback(async () => {
     try {
-      setDatabases(await listUserDatabases());
+      setDatabases(sharedMode ? await listSharedUserDatabases() : await listUserDatabases());
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, sharedMode]);
 
   const loadDatabase = useCallback(async (id: string) => {
     setDbLoading(true);
     try {
       const res = await getUserDatabase(id);
       setRows(res.rows);
+      setCanWrite(res.canWrite !== false);
       setViewMode(res.database.defaultView);
-      setDatabases((prev) => prev.map((d) => (d.id === id ? res.database : d)));
+      setShareEmail(res.database.sharedWithEmail ?? "");
+      setDatabases((prev) => {
+        const idx = prev.findIndex((d) => d.id === id);
+        if (idx === -1) return [res.database, ...prev];
+        return prev.map((d) => (d.id === id ? res.database : d));
+      });
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.genericError"));
     } finally {
@@ -118,8 +178,14 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
 
   useEffect(() => { void refreshList(); }, [refreshList]);
   useEffect(() => {
+    getTeams().then(setTeams).catch(() => setTeams([]));
+  }, []);
+  useEffect(() => {
     if (selectedId) void loadDatabase(selectedId);
-    else setRows([]);
+    else {
+      setRows([]);
+      setCanWrite(true);
+    }
   }, [selectedId, loadDatabase]);
   useEffect(() => {
     setSelectedId(initialDatabaseId ?? null);
@@ -134,15 +200,28 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
 
   const openDatabase = useCallback((id: string) => {
     setSelectedId(id);
-    router.replace(`/notes?section=databases&db=${encodeURIComponent(id)}`, { scroll: false });
-  }, [router]);
+    const sharedQ = sharedMode ? "&shared=1" : "";
+    router.replace(`/notes?section=databases&db=${encodeURIComponent(id)}${sharedQ}`, { scroll: false });
+  }, [router, sharedMode]);
 
   const backToList = useCallback(() => {
     setSelectedId(null);
     setRows([]);
     setShowAddColumn(false);
-    router.replace("/notes?section=databases", { scroll: false });
-  }, [router]);
+    setCellCursor(null);
+    router.replace(sharedMode ? "/notes?section=databases&shared=1" : "/notes?section=databases", {
+      scroll: false,
+    });
+  }, [router, sharedMode]);
+
+  const loadRevisions = useCallback(async () => {
+    if (!selectedId) return;
+    try {
+      setRevisions(await listDatabaseRevisions(selectedId));
+    } catch (err) {
+      toast.error(formatUserFacingError(err, "toast.genericError"));
+    }
+  }, [selectedId, toast]);
 
   const handleCreateDb = async () => {
     const name = newDbName.trim();
@@ -309,10 +388,42 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
   };
 
   const handleCellChange = async (row: DatabaseRow, colId: string, value: string | number | boolean | null) => {
-    if (!selectedDb) return;
+    if (!selectedDb || !canWrite) return;
     try {
-      const updated = await updateDatabaseRow(selectedDb.id, row.id, { [colId]: value });
+      const updated = await updateDatabaseRow(selectedDb.id, row.id, { [colId]: value }, {
+        baseUpdatedAt: row.updatedAt,
+      });
       setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 409 && err.code === "ROW_CONFLICT") {
+        const serverRow = (err.details as { row?: DatabaseRow } | undefined)?.row;
+        if (serverRow) {
+          setRowConflict({ row, colId, value, serverRow });
+          return;
+        }
+      }
+      toast.error(formatUserFacingError(err, "toast.genericError"));
+    }
+  };
+
+  const resolveRowConflict = async (mode: "reload" | "force") => {
+    if (!selectedDb || !rowConflict) return;
+    if (mode === "reload") {
+      setRows((prev) =>
+        prev.map((r) => (r.id === rowConflict.serverRow.id ? rowConflict.serverRow : r)),
+      );
+      setRowConflict(null);
+      return;
+    }
+    try {
+      const updated = await updateDatabaseRow(
+        selectedDb.id,
+        rowConflict.row.id,
+        { [rowConflict.colId]: rowConflict.value },
+        { force: true },
+      );
+      setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      setRowConflict(null);
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.genericError"));
     }
@@ -424,6 +535,45 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
         onConfirm={() => void handleDeleteDatabase()}
         onCancel={() => setDeleteDbTarget(null)}
       />
+      {rowConflict && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 p-4 space-y-3 shadow-lg">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
+              {t("notes.databases.rowConflictTitle")}
+            </h3>
+            <p className="text-sm text-zinc-600 dark:text-slate-300">
+              {t("notes.databases.rowConflictBody")}
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-md border border-zinc-300 dark:border-slate-600"
+                onClick={() => setRowConflict(null)}
+              >
+                {t("teams.cancel")}
+              </button>
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-md border border-zinc-300 dark:border-slate-600"
+                onClick={() => void resolveRowConflict("reload")}
+              >
+                {t("notes.databases.rowConflictReload")}
+              </button>
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-md bg-emerald-600 text-white"
+                onClick={() => void resolveRowConflict("force")}
+              >
+                {t("notes.databases.rowConflictForce")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -450,26 +600,40 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </button>
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-slate-100">{t("notes.databases.sectionPath")}</h2>
-              <p className="text-sm text-zinc-500 dark:text-slate-400 mt-0.5">{t("notes.databases.hint")}</p>
+              <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-slate-100">
+                {sharedMode ? t("notes.databases.sharedTitle") : t("notes.databases.sectionPath")}
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-slate-400 mt-0.5">
+                {sharedMode ? t("notes.databases.sharedHint") : t("notes.databases.hint")}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PageHelpButton helpId="notes.databases" iconOnly />
-            <Link
-              href="/migrate/notion?mode=data"
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
-            >
-              {t("notes.databases.importNotion")}
-            </Link>
-            <button type="button" onClick={() => setShowNewDb(true)} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-500/25">
-              {t("notes.databases.add")}
-            </button>
+            {!sharedMode && (
+              <>
+                <Link
+                  href="/notes?section=databases&shared=1"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300"
+                >
+                  {t("notes.databases.sharedLink")}
+                </Link>
+                <Link
+                  href="/migrate/notion?mode=data"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+                >
+                  {t("notes.databases.importNotion")}
+                </Link>
+                <button type="button" onClick={() => setShowNewDb(true)} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-500/25">
+                  {t("notes.databases.add")}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         {onlineBanner}
-        {newDbForm}
+        {!sharedMode && newDbForm}
 
         {loading ? (
           <div className="flex justify-center py-16">
@@ -477,7 +641,10 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
           </div>
         ) : databases.length === 0 ? (
           <div className="text-center py-10 space-y-3">
-            <p className="text-sm text-zinc-500">{t("notes.databases.empty")}</p>
+            <p className="text-sm text-zinc-500">
+              {sharedMode ? t("notes.databases.sharedEmpty") : t("notes.databases.empty")}
+            </p>
+            {!sharedMode && (
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
@@ -499,6 +666,7 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
                 {t("archives.data.hubTitle")}
               </Link>
             </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -589,11 +757,177 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
               <button
                 type="button"
                 onClick={startRenameDatabase}
-                className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-slate-100 hover:text-emerald-700 dark:hover:text-emerald-400 text-left"
+                disabled={!isOwner}
+                className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-slate-100 hover:text-emerald-700 dark:hover:text-emerald-400 text-left disabled:hover:text-zinc-900 dark:disabled:hover:text-slate-100"
                 title={t("notes.databases.renameDatabase")}
               >
                 {selectedDb.name}
               </button>
+            )}
+
+            {presence.length > 0 && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                {t("notes.databases.onlinePeers").replace(
+                  "{{names}}",
+                  presence.map((p) => p.displayName).join(", "),
+                )}
+              </p>
+            )}
+            {!canWrite && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">{t("notes.databases.readOnlyBanner")}</p>
+            )}
+
+            {isOwner && (
+              <details className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 max-w-xl">
+                <summary className="cursor-pointer text-sm font-medium text-zinc-800 dark:text-slate-200">
+                  {t("notes.databases.shareTitle")}
+                </summary>
+                <div className="mt-3 space-y-2">
+                  <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedDb.shared}
+                      onChange={(e) => {
+                        const shared = e.target.checked;
+                        const teamId = shared ? (selectedDb.teamId || teams[0]?.id || null) : null;
+                        void updateUserDatabase(selectedDb.id, {
+                          shared,
+                          teamId,
+                          sharedWithEmail: shared ? null : selectedDb.sharedWithEmail ?? null,
+                        }).then((updated) => {
+                          setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                        }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                      }}
+                    />
+                    {t("notes.databases.shareWithTeam")}
+                  </label>
+                  {selectedDb.shared && (
+                    <select
+                      className={inputCls}
+                      value={selectedDb.teamId ?? ""}
+                      onChange={(e) => {
+                        void updateUserDatabase(selectedDb.id, {
+                          shared: true,
+                          teamId: e.target.value || null,
+                        }).then((updated) => {
+                          setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                        }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                      }}
+                    >
+                      <option value="">—</option>
+                      {teams.map((team) => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <input
+                      type="email"
+                      value={shareEmail}
+                      onChange={(e) => setShareEmail(e.target.value)}
+                      placeholder={t("notes.databases.shareEmailPlaceholder")}
+                      className={`${inputCls} max-w-xs`}
+                      disabled={!!selectedDb.shared}
+                    />
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1.5 rounded-md bg-emerald-600 text-white disabled:opacity-50"
+                      disabled={!!selectedDb.shared || !shareEmail.trim()}
+                      onClick={() => {
+                        void updateUserDatabase(selectedDb.id, {
+                          sharedWithEmail: shareEmail.trim(),
+                          shared: false,
+                          teamId: null,
+                        }).then((updated) => {
+                          setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                          toast.success(t("notes.databases.shareSaved"));
+                        }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                      }}
+                    >
+                      {t("notes.databases.shareSave")}
+                    </button>
+                    {selectedDb.sharedWithEmail && (
+                      <button
+                        type="button"
+                        className="text-xs text-red-500"
+                        onClick={() => {
+                          setShareEmail("");
+                          void updateUserDatabase(selectedDb.id, { sharedWithEmail: null }).then((updated) => {
+                            setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                          }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                        }}
+                      >
+                        {t("notes.databases.shareClear")}
+                      </button>
+                    )}
+                  </div>
+                  {selectedDb.sharedWithUid && (
+                    <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedDb.collaboratorWrite}
+                        onChange={(e) => {
+                          void updateUserDatabase(selectedDb.id, {
+                            collaboratorWrite: e.target.checked,
+                          }).then((updated) => {
+                            setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                          }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                        }}
+                      />
+                      {t("notes.collaboratorWrite")}
+                    </label>
+                  )}
+                </div>
+              </details>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded-md border border-zinc-300 dark:border-slate-600"
+                onClick={() => {
+                  setShowHistory((v) => !v);
+                  if (!showHistory) void loadRevisions();
+                }}
+              >
+                {t("notes.databases.history")}
+              </button>
+            </div>
+            {showHistory && (
+              <ul className="text-xs space-y-1 rounded-md border border-zinc-200 dark:border-slate-700 p-2 max-w-xl">
+                {revisions.length === 0 ? (
+                  <li className="text-zinc-500">{t("notes.databases.historyEmpty")}</li>
+                ) : (
+                  revisions.map((rev) => (
+                    <li key={rev.id} className="flex items-center justify-between gap-2">
+                      <span>
+                        {new Date(rev.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
+                        {rev.byEmail ? ` · ${rev.byEmail}` : ""}
+                      </span>
+                      {canWrite && (
+                        <button
+                          type="button"
+                          className="text-emerald-700 dark:text-emerald-400"
+                          onClick={() => {
+                            void restoreDatabaseRevision(selectedDb.id, rev.id)
+                              .then((res) => {
+                                setRows(res.rows);
+                                setDatabases((prev) =>
+                                  prev.map((d) => (d.id === res.database.id ? res.database : d)),
+                                );
+                                toast.success(t("notes.databases.historyRestored"));
+                                void loadRevisions();
+                              })
+                              .catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                          }}
+                        >
+                          {t("notes.databases.historyRestore")}
+                        </button>
+                      )}
+                    </li>
+                  ))
+                )}
+              </ul>
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -625,7 +959,9 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {(isOwner || canWrite) && (
                 <div className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
+                  {isOwner && (
                   <button
                     type="button"
                     onClick={handleAddColumn}
@@ -634,7 +970,8 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+</span>
                     {t("notes.databases.addColumn")}
                   </button>
-                  {databases.length > 1 && (
+                  )}
+                  {isOwner && databases.length > 1 && (
                     <button
                       type="button"
                       onClick={() => void handleAddRelationColumn()}
@@ -644,6 +981,7 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
                       {t("notes.databases.relationColumn")}
                     </button>
                   )}
+                  {canWrite && (
                   <button
                     type="button"
                     onClick={() => void handleAddRow()}
@@ -652,7 +990,9 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+</span>
                     {t("notes.databases.addRow")}
                   </button>
+                  )}
                 </div>
+                )}
                 <Link
                   href="/migrate/notion?mode=data"
                   className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
@@ -767,8 +1107,19 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
                   <tbody>
                     {sortedRows.map((row) => (
                       <tr key={row.id} className="border-b border-zinc-100 dark:border-slate-800">
-                        {selectedDb.columns.map((col) => (
-                          <td key={col.id} className="px-3 py-1.5 align-top">
+                        {selectedDb.columns.map((col) => {
+                          const peer = peerByCell.get(`${row.id}:${col.id}`);
+                          return (
+                          <td
+                            key={col.id}
+                            className={`px-3 py-1.5 align-top relative ${peer ? "ring-2 ring-pink-400/70 rounded-sm bg-pink-50/40 dark:bg-pink-950/20" : ""}`}
+                            onFocusCapture={() => setCellCursor({ rowId: row.id, columnId: col.id })}
+                          >
+                            {peer && (
+                              <span className="absolute -top-2 left-1 z-10 text-[9px] font-medium px-1 rounded bg-pink-500 text-white truncate max-w-[6rem]">
+                                {peer.displayName.split("@")[0] || peer.displayName}
+                              </span>
+                            )}
                             <CellEditor
                               column={col}
                               value={row.values[col.id] ?? null}
@@ -777,11 +1128,15 @@ export default function DatabasesSection({ initialDatabaseId, onBack }: Database
                               databases={databases}
                               loadRelationRows={loadRelationRows}
                               relationRowsCache={relationRowsCache}
+                              readOnly={!canWrite}
                             />
                           </td>
-                        ))}
+                          );
+                        })}
                         <td className="px-2">
+                          {canWrite && (
                           <button type="button" className="text-xs text-red-500" onClick={() => void deleteDatabaseRow(selectedDb.id, row.id).then(() => setRows((p) => p.filter((r) => r.id !== row.id)))}>×</button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -919,6 +1274,7 @@ function CellEditor({
   databases,
   loadRelationRows,
   relationRowsCache,
+  readOnly = false,
 }: {
   column: DatabaseColumnDef;
   value: string | number | boolean | null;
@@ -927,6 +1283,7 @@ function CellEditor({
   databases: UserDatabase[];
   loadRelationRows: (databaseId: string) => Promise<DatabaseRow[]>;
   relationRowsCache: Record<string, DatabaseRow[]>;
+  readOnly?: boolean;
 }) {
   const [relationOptions, setRelationOptions] = useState<DatabaseRow[]>([]);
 
@@ -953,6 +1310,7 @@ function CellEditor({
         value={typeof value === "string" ? value : ""}
         onChange={(e) => onChange(e.target.value || null)}
         className={inputCls}
+        disabled={readOnly}
       >
         <option value="">—</option>
         {relationOptions.map((r) => (
@@ -961,10 +1319,24 @@ function CellEditor({
       </select>
     );
   }
-  if (column.type === "checkbox") return <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />;
+  if (column.type === "checkbox") {
+    return (
+      <input
+        type="checkbox"
+        checked={Boolean(value)}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={readOnly}
+      />
+    );
+  }
   if (column.type === "select" && column.options?.length) {
     return (
-      <select value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value || null)} className={inputCls}>
+      <select
+        value={typeof value === "string" ? value : ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        className={inputCls}
+        disabled={readOnly}
+      >
         <option value="">—</option>
         {column.options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -977,6 +1349,8 @@ function CellEditor({
       value={value == null ? "" : String(value)}
       onChange={(e) => onChange(column.type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : (e.target.value || null))}
       className={inputCls}
+      disabled={readOnly}
+      readOnly={readOnly}
     />
   );
 }

@@ -112,7 +112,18 @@ Board (groupe select), calendrier (date), relations entre bases (colonne `relati
 
 Section **« Données »** (ex-Bloc-notes) ; sous-section tabulaire **« Bases »** (évite confusion avec l’export compte dans Paramètres).
 
-Navigation : tuile **Bases** + dossiers documents ; `?section=databases&db=…` pour deep-link post-import.
+Navigation : tuile **Bases** + **Bases partagées** + dossiers documents ; `?section=databases&db=…` / `?section=databases&shared=1` pour deep-link.
+
+---
+
+## 7bis. Collab multi-user (2026-11-15)
+
+- **ACL** : champs `shared`/`teamId` (équipe RO), `sharedWithUid`/`collaboratorWrite` (direct RO|RW) — `resolveDatabaseAccess`.
+- **Notif** : `database_shared` à l’ajout d’un collaborateur direct.
+- **Présence** : `POST /user-databases/:id/presence` cursor `{ rowId, columnId }`, TTL 15s, poll ~1.8s, highlight cellule.
+- **LWW** : PATCH row avec `baseUpdatedAt` → `409 ROW_CONFLICT` + `force` ; modale Recharger / Écraser.
+- **Historique** : anneau 5 snapshots (`databaseRevisions`) à chaque save contenu ; `GET …/revisions` + restore.
+- Soft-delete archive (`/archive/data/databases`) **orthogonal**.
 
 ---
 
@@ -123,3 +134,5 @@ Navigation : tuile **Bases** + dossiers documents ; `?section=databases&db=…` 
 - [x] Import People → Contacts avec mapping manuel ; commentaires locaux préservés (tests `contactService` + wizard UI)
 - [ ] Base tâches → Projet (régression — validation manuelle / e2e existant)
 - [x] Export RGPD inclut bases (test `exportUserData`)
+- [x] ACL cross-user Bases (`userDatabaseAcl.test.ts`)
+- [x] Anneau revisions (`contentRevisionService.test.ts`)
