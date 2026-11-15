@@ -1,7 +1,7 @@
 # Wroket — Roadmap
 
 > **Suivi unique** : ce fichier seul. Les plans Cursor (`.cursor/plans/`) sont jetables après exécution — ne pas les traiter comme backlog. Règle agent : `.cursor/rules/roadmap.mdc`.  
-> Tri 2026-11-14 : **1 plan actif** (`google_oauth_verification_*`) ; **178** archivés dans `.cursor/plans/_archive/` (hors dépôt Git).
+> Tri 2026-11-15 : OAuth Google Agenda **approuvé** ; **0 plan Cursor actif** utile ; archives dans `.cursor/plans/_archive/` (hors dépôt Git).
 
 ## Priorités produit (ordre recommandé)
 
@@ -21,7 +21,7 @@
 
 ### Trois priorités produit (arbitrage 2026-06-15)
 
-Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ + ~~Path-to-9 cold paths~~ + ~~Assist Phase 2~~ + ~~Secu/docs~~ → **OAuth Google Agenda (review)** + **Stripe Checkout (décision)** + Phase 3 IA / Gryzzly si traction.
+Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ + ~~Path-to-9 cold paths~~ + ~~Assist Phase 2~~ + ~~Secu/docs~~ + ~~OAuth Google Agenda~~ → **Stripe Checkout (décision)** + Phase 3 IA / Gryzzly si traction.
 
 | Priorité | Focus | Statut | Prochain livrable |
 |----------|--------|--------|-------------------|
@@ -50,7 +50,7 @@ Exécution priorisée : ~~finaliser Slack+ / canaux~~ + ~~gate MCP~~ + ~~Path-to
 9. ~~**PMO Mes projets — audit + hardening**~~ — **Fait** (2026-11-09) + Path-to-9 Projets terrain **9/10** + digests PMO (**2026-11-13**). Archive : [`docs/pmo-audit-mes-projets.md`](docs/pmo-audit-mes-projets.md) ; checklist [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
 10. ~~**IA intégrée Phase 2 (Assist PMO)**~~ — **Livré 2026-11-14** : `AssistPmoPanel` + `/assist/*` + slash ; doc [`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md).
 11. ~~**Secu → E2E → Doc utilisateurs**~~ — **Livré 2026-11-14** : audit npm ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md)), ACL vitest cross-user, Path-to-9 + `assist.smoke` verts, index [`docs/user-guides/`](docs/user-guides/README.md) + PageHelp.
-12. **OAuth Google Agenda — review** — Branding verified ; sensitive scopes **sous review** ; questionnaire Data Safety (AI/ML / Limited Use) à traiter côté propriétaire (`team@wroket.com`). Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). *Seul plan Cursor encore utile à garder ouvert : `google_oauth_verification_*`.*
+12. ~~**OAuth Google Agenda — review**~~ — **Approuvé Google 2026-11-15** (`calendar.readonly` + `calendar.events`, projet `846885741813`). Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). Residual : smoke reconnect Agenda sans bandeau unverified.
 13. **P1 reprise (pause)** : Stripe Checkout self-service — prérequis ops/MCP **OK** ; ouvrir sur décision produit. *Pas de plan Cursor actif — décision produit puis nouvel item / plan si besoin.*
 
 Les cases `[ ]` des sections thématiques restent la **source de vérité**.
@@ -76,7 +76,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
   - Cohérence UX cross-écrans (même état meeting/tâche/projet/archives partout).
   - Observabilité métier transverse (pas seulement logs techniques).
   - ~~Renforcement de couverture tests ciblés des flux multi-comptes et droits~~ — *ACL Assist/share/MCP cross-user 2026-11-14 ; élargir multi-comptes calendrier si besoin.*
-  - Clôture **vérification OAuth Google Agenda** (review + Data Safety).
+  - ~~Clôture **vérification OAuth Google Agenda**~~ — **approuvée 2026-11-15** ; residual smoke reconnect.
 - **Nice-to-have**
   - Uniformisation fine des micro-copies et états vides.
   - Polissage interactions secondaires (hover, tooltips, badges) hors parcours critiques.
@@ -96,7 +96,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 2b. ~~**Bot time tracking**~~ — **MVP livré 2026-11-13** : `/wroket start|stop|log|timer` (+ SoftLock pricing CTA, tests slash). Spec : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 3. ~~**MCP / IA agentique — validation usage**~~ — **Gate go 2026-11-13**. Doc : [`docs/mcp-agents.md`](docs/mcp-agents.md) · in-app `/docs/integrations/mcp`.
 3a. ~~**Assist PMO + guides utilisateurs**~~ — **Livré 2026-11-14** ([`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md), [`docs/user-guides/`](docs/user-guides/README.md)).
-3b. **OAuth Google Agenda — vérification** — Branding **verified** (2026-11-13). Sensitive scopes Calendar **sous review** ; mail Data Safety (AI/ML, Limited Use, CASA N/A) reçu `team@wroket.com` (2026-11-14) — **répondre / suivre review**. Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). Puis smoke reconnect Agenda sans bandeau unverified.
+3b. ~~**OAuth Google Agenda — vérification**~~ — **Approuvé 2026-11-15** (mail Google : scopes `calendar.readonly` + `calendar.events`). Branding verified 2026-11-13. Pack [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md). Residual : smoke reconnect Agenda sans bandeau unverified.
 3c. ~~**Secu deps + ACL**~~ — **Livré 2026-11-14** : 0 high/critical ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md)) ; vitest `aclCrossUser` ; CI type-check nodemailer 10 OK.
 4. ~~**Dual UI V1+V2 — observation**~~ — **Sunset V1** (2026-08-09) : V2 permanent ; toggle Settings retiré ; opt-out localStorage ignoré/effacé.
 5. **Plan & Billing Core (P1)** — *Stripe Checkout en pause*
@@ -121,10 +121,11 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [x] **PMO Mes projets — consolidation + hardening (2026-11-09)** — Audit live A–C ; Lots 1–4. **Path-to-9 Projets 9/10** + digests PMO (**2026-11-13**) — [`docs/cold-path-projects.md`](docs/cold-path-projects.md).
 - [x] **Secu npm + ACL Assist/share/MCP** — Passe 2026-11-14 ([`docs/npm-audit-triage.md`](docs/npm-audit-triage.md), `aclCrossUser.test.ts`).
 - [ ] **P1 (reprise, en pause)** : Stripe Checkout self-service — prérequis ops/MCP OK ; attendre décision produit.
-- [ ] **OAuth Google Agenda — vérification** — Brand verified ; scopes Calendar **sous review** ; répondre Data Safety / suivre décision Google — [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md).
+- [x] **OAuth Google Agenda — vérification** — **Approuvé Google 2026-11-15** (`calendar.readonly` + `calendar.events`). Residual : smoke reconnect sans bandeau unverified — [`docs/google-oauth-verification.md`](docs/google-oauth-verification.md).
 - [ ] **Extension Chrome MVP — clipper** — Code MVP 2026-11-14 : auth PKCE `kind=extension`, `/ext/v1`, `source` UI, `/extension/connect`, Settings Navigateurs, MV3 `extensions/chrome`. **Reste ops** : compte CWS `team@wroket.com` + listing **unlisted** + smoke 5 profils. Doc : [`docs/chrome-extension.md`](docs/chrome-extension.md).
 - [x] **Sunset UI V1** — V2 permanente (2026-08-09) ; toggle Settings retiré.
 - [x] **Auth recovery — marque Wroket** — forgot / reset / verify-email alignés sur `WroketMark` (2026-11-14).
+- [ ] **Bases — collab multi-user** — Aujourd’hui owner-only (`/user-databases`). Ordre : (1) partage ACL RO|RW calqué notes, (2) présence cellule `{ rowId, columnId }` + highlight (pattern presence notes), (3) éditions LWW PATCH + SoftLock/toast. **Pas** de CRDT grille. Spec V1 : [`docs/donnees-notion-v1.md`](docs/donnees-notion-v1.md).
 
 ### Later (12+ semaines)
 
@@ -132,7 +133,7 @@ Les cases `[ ]` des sections thématiques restent la **source de vérité**.
 - [ ] **Gryzzly-like (time tracking chat avancé)** — Au-delà du MVP bot : rappels quotidiens 1:1 « as-tu loggé ? », éventuellement budgets / CIR / rentabilité. **Prérequis** : traction réelle du MVP (`start`/`stop`/`log` + boutons). **Pas** un clone produit Gryzzly tant que le cœur Wroket reste tâches+agenda+projets. Spec de cadrage : [`docs/time-tracking-bot.md`](docs/time-tracking-bot.md).
 - [x] **Client Portal** — Vue externe structurée pour parties prenantes (clients, managers) : espace multi-projets, progression / jalons / commentaires filtrés, invité read-only optionnel, au-delà du lien token `/share/project/:token`. Spec PMO : [`docs/project-roadmap-pmo.md`](docs/project-roadmap-pmo.md) §6.1.
 - ~~IA intégrée minimale (Phase 2)~~ — **Livré 2026-11-14** ([`docs/assist-pmo-commands.md`](docs/assist-pmo-commands.md)).
-- Notes collaboratives temps réel (chantier lourd).
+- Notes collaboratives — Awareness/WS sub-200ms ; diagrammes CRDT ; multi-writer équipe.
 - Premium business tier (analytics, capacity, automation, API publique, OKR) — Client Portal listé ci-dessus.
 - OAuth GitHub SSO ; CalDAV / multi-calendriers slots approfondi.
 
@@ -464,7 +465,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **OCR photo → note (POC)** — Google Cloud Vision UE, auto-langue, aperçu éditable ; sources appareil / Drive / Dropbox / PJ ; prétraitement (recadrage + contraste + marge) ; reconstruction géométrique des lignes + correcteur FR léger ; flag `OCR_ENABLED` + allowlist. **Validé** (2026-11-05). Étude : [`docs/ocr-feasibility.md`](docs/ocr-feasibility.md). **Plus tard** : lot 2 OneDrive, PDF, recherche, MCP
 - [x] **Notes — UX document-first** — Éditeur type traitement de texte léger (titre dominant, corps ~17px, détails repliés, toolbar listes/titres, OCR « Importer depuis une photo ») ; sans TipTap / clone Notion
 - [x] **Photo → schéma, tâches, journée (2026-11-06)** — Numériser : texte (Vision, UE) et schéma éditable (Gemini, point d’accès mondial), blocs dans la note, tâches confirmées et dépendances. Canvas maison, pas Mermaid. « Proposer une liste » depuis le texte, repli sur le parseur local. Si un rendez-vous Google ou Outlook chevauche un créneau du jour : proposition, Appliquer ou Ignorer, rien ne bouge seul. Flags `DIAGRAM_ENABLED` et `TASK_SUGGEST_ENABLED`. **Plus tard** : lot 2 OCR (OneDrive, PDF).
-- [x] **Notes — édition collaborative (MVP 2026-11-15)** — TipTap + Yjs (texte), sync HTTP `/notes/:id/collab/sync` (pas de WS sticky), presence/cursors cluster-safe (`note_collab`), garde `isDirty` + bandeau conflit LWW, bandeau pairs, slash/OCR TipTap. Doc [`docs/notes-collab.md`](docs/notes-collab.md). Tests unit merge 2 clients. **E2E terrain 2026-11-15** : 2 Chrome (`francois@broudeur.com` + `team@wroket.com`) — co-édit bidirectionnelle + presence OK ; correctifs RO pull, seed Yjs post-sync, bandeau LWW sticky. **Hors MVP** : diagrammes CRDT, co-édition équipe multi-writer, offline multi-writer, curseurs ProseMirror.
+- [x] **Notes — édition collaborative (MVP 2026-11-15)** — TipTap + Yjs (texte), sync HTTP `/notes/:id/collab/sync` (pas de WS sticky), presence/cursors cluster-safe (`note_collab`), garde `isDirty` + bandeau conflit LWW, bandeau pairs, slash/OCR TipTap. Doc [`docs/notes-collab.md`](docs/notes-collab.md). Tests unit merge 2 clients. **E2E terrain 2026-11-15** : 2 Chrome (`francois@broudeur.com` + `team@wroket.com`) — co-édit bidirectionnelle + presence OK ; correctifs RO pull, seed Yjs post-sync, bandeau LWW sticky. **Curseurs Docs-like 2026-11-15** : décorations ProseMirror (caret + label + sélection) via poll presence (~1.8s). **Hors MVP** : diagrammes CRDT, co-édition équipe multi-writer, offline multi-writer, Awareness/WS sub-200ms.
 - [x] **Multi-comptes & multi-calendriers Google** — Connexion de plusieurs comptes Google (ex: perso + pro), sélection des calendriers par compte
   - Modèle `googleAccounts[]` avec tokens + email par compte, migration automatique de l'ancien format single-account
   - OAuth callback : détection de l'email du compte via CalendarList API, ajout au tableau (ou mise à jour si déjà connecté)

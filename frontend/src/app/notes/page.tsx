@@ -1676,6 +1676,7 @@ function NotesPageInner() {
                     onFocusText={setFocusedTextId}
                     onCommit={commitBlocks}
                     onCursorChange={(blockId, from, to) => setCollabCursor({ blockId, from, to })}
+                    presencePeers={notePresence}
                     diagramApply={{
                       projects,
                       defaultProjectId: selected.projectId,

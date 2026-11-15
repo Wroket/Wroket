@@ -6,6 +6,7 @@ import NoteDiagramEditor, { DiagramCanvasHelp } from "@/components/notes/NoteDia
 import TipTapCollabText from "@/components/notes/TipTapCollabText";
 import { useNoteCollab } from "@/components/notes/NoteCollabProvider";
 import { useLocale } from "@/lib/LocaleContext";
+import type { NotePresencePeer } from "@/hooks/useNoteLiveCollab";
 import type { NoteBlock, NoteDiagramEdge, NoteDiagramNode } from "@/lib/api/notes";
 import type { Project } from "@/lib/api/projects";
 import { diagramFromBlock, newBlockId } from "@/lib/noteBlocks";
@@ -20,6 +21,8 @@ interface NoteDocumentProps {
   onFocusText?: (blockId: string) => void;
   onCommit: (blocks: NoteBlock[]) => void;
   onCursorChange?: (blockId: string, from: number, to: number) => void;
+  /** Live peers for Docs-style carets in TipTap text zones. */
+  presencePeers?: NotePresencePeer[];
   /** Turns a diagram's boxes into project tasks after a confirmation. */
   diagramApply?: {
     projects: Project[];
@@ -42,6 +45,7 @@ export default function NoteDocument({
   onFocusText,
   onCommit,
   onCursorChange,
+  presencePeers = [],
   diagramApply,
 }: NoteDocumentProps) {
   const { t, locale } = useLocale();
@@ -49,6 +53,16 @@ export default function NoteDocument({
   const [askRemoveId, setAskRemoveId] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
   const useCollab = !!ydoc;
+
+  const remotePeersForBlock = (blockId: string) =>
+    presencePeers
+      .filter((p) => p.cursor && p.cursor.blockId === blockId)
+      .map((p) => ({
+        uid: p.uid,
+        displayName: p.displayName,
+        from: p.cursor!.from,
+        to: p.cursor!.to,
+      }));
 
   const move = (targetId: string) => {
     const fromId = dragId.current;
@@ -136,6 +150,8 @@ export default function NoteDocument({
                 readOnly={readOnly}
                 locale={locale}
                 placeholder={t("notes.contentPlaceholder")}
+                remotePeers={remotePeersForBlock(block.id)}
+                cursorAriaLabel={(name) => t("notes.collabCursor").replace("{name}", name)}
                 onDomReady={(el) => {
                   if (el && editorRef) editorRef.current = el;
                 }}

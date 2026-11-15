@@ -9,6 +9,11 @@ import Placeholder from "@tiptap/extension-placeholder";
 import type { Editor } from "@tiptap/react";
 
 import { useNoteCollab } from "@/components/notes/NoteCollabProvider";
+import {
+  RemoteCaretsExtension,
+  setRemoteCarets,
+  type RemoteCaretPeer,
+} from "@/components/notes/remoteCursorDecorations";
 import { fragmentNameForBlock } from "@/lib/noteCollabYdoc";
 
 interface TipTapCollabTextProps {
@@ -18,6 +23,10 @@ interface TipTapCollabTextProps {
   readOnly?: boolean;
   locale: string;
   placeholder: string;
+  /** Peers with a cursor in this text block (Docs-style carets). */
+  remotePeers?: RemoteCaretPeer[];
+  /** aria-label / title for remote caret widgets. */
+  cursorAriaLabel?: (name: string) => string;
   /** Expose ProseMirror DOM for legacy slash/toolbar fallbacks. */
   onDomReady?: (el: HTMLDivElement | null) => void;
   onFocus?: () => void;
@@ -36,6 +45,8 @@ export default function TipTapCollabText({
   readOnly = false,
   locale,
   placeholder,
+  remotePeers = [],
+  cursorAriaLabel,
   onDomReady,
   onFocus,
   onHtmlChange,
@@ -44,12 +55,17 @@ export default function TipTapCollabText({
   const { ydoc, synced, canWrite, registerEditor, setFocusedBlockId } = useNoteCollab();
   const editable = !readOnly && canWrite;
   const seededRef = useRef(false);
+  const ariaLabelRef = useRef(cursorAriaLabel);
+  ariaLabelRef.current = cursorAriaLabel;
 
   const extensions = useMemo(() => {
     const base = [
       StarterKit.configure({ heading: { levels: [2] }, undoRedo: false }),
       Underline,
       Placeholder.configure({ placeholder }),
+      RemoteCaretsExtension.configure({
+        cursorAriaLabel: (name) => ariaLabelRef.current?.(name) ?? name,
+      }),
     ];
     if (ydoc) {
       base.push(
@@ -137,6 +153,17 @@ export default function TipTapCollabText({
     if (!editor) return;
     onDomReady?.(editor.view.dom as HTMLDivElement);
   }, [editor, onDomReady]);
+
+  const remotePeersKey = remotePeers
+    .map((p) => `${p.uid}:${p.from}:${p.to}:${p.displayName}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!editor) return;
+    setRemoteCarets(editor, remotePeers);
+    // remotePeersKey captures peer cursor identity; avoid churn on new array refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by remotePeersKey
+  }, [editor, remotePeersKey]);
 
   if (!ydoc) {
     return (

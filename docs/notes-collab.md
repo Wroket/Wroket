@@ -19,17 +19,18 @@ Presence ──────── POST /notes/:id/presence (cursor optional) ─
 ## UX
 
 - Bandeau **En ligne** (pairs viewing / editing).
+- **Curseurs distants** (Docs-like) : décorations ProseMirror dans TipTap — caret coloré + label prénom + sélection ; alimentés par `presence.cursor` (poll ~1.8s, pas de Yjs Awareness / WS).
 - Conflit LWW (titre / diagrammes) : toast + Recharger / Continuer si `isDirty`.
 - Toolbar + slash + OCR : path TipTap quand l’éditeur actif est TipTap.
 
 ## Tests
 
 - Unit : `backend/src/services/noteCollabStore.test.ts` (merge 2 clients + presence + XmlFragment).
-- Residual terrain : 2 navigateurs, owner + collaborateur write, co-édition texte sans perte.
+- E2E terrain 2026-11-15 : 2 navigateurs, co-édition texte + presence OK.
 
 ## Hors scope (Next)
 
 - Co-édition équipe multi-writer.
 - Diagrammes CRDT.
 - Offline multi-writer CRDT queue.
-- Cursors dessinés dans le ProseMirror (aujourd’hui : chips / bandeau).
+- Curseurs temps réel sub-200ms (`CollaborationCaret` + Awareness / canal SSE|WS).
