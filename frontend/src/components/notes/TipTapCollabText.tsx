@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-import Collaboration from "@tiptap/extension-collaboration";
+import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import Placeholder from "@tiptap/extension-placeholder";
 import type { Editor } from "@tiptap/react";
 
@@ -27,6 +27,8 @@ interface TipTapCollabTextProps {
 
 /**
  * TipTap text zone bound to a Yjs XmlFragment (`block:{id}`) for CRDT collab.
+ * Do not put `editable` in useEditor deps — remounting Collaboration on the same
+ * Y.Doc (e.g. shared note RO→RW after /live) throws and trips ErrorBoundary.
  */
 export default function TipTapCollabText({
   blockId,
@@ -61,6 +63,7 @@ export default function TipTapCollabText({
 
   const editor = useEditor(
     {
+      immediatelyRender: false,
       extensions,
       editable,
       content: ydoc ? undefined : initialHtml || "",
@@ -76,7 +79,9 @@ export default function TipTapCollabText({
           ed.commands.setContent(initialHtml, { emitUpdate: false });
         }
       },
-      onUpdate: ({ editor: ed }) => {
+      onUpdate: ({ editor: ed, transaction }) => {
+        // Remote Yjs / peer edits must not mark the note dirty (LWW conflict toast).
+        if (isChangeOrigin(transaction)) return;
         onHtmlChange?.(ed.getHTML());
       },
       onSelectionUpdate: ({ editor: ed }) => {
@@ -90,7 +95,7 @@ export default function TipTapCollabText({
         onDomReady?.(dom);
       },
     },
-    [ydoc, blockId, editable, locale],
+    [ydoc, blockId],
   );
 
   useEffect(() => {
@@ -103,6 +108,19 @@ export default function TipTapCollabText({
     if (!editor) return;
     editor.setEditable(editable);
   }, [editor, editable]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.setOptions({
+      editorProps: {
+        attributes: {
+          lang: locale,
+          class:
+            "note-doc-body w-full min-h-[8rem] text-[16px] sm:text-[17px] text-zinc-800 dark:text-slate-200 bg-transparent border-none outline-none leading-7 prose-p:my-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2",
+        },
+      },
+    });
+  }, [editor, locale]);
 
   useEffect(() => {
     if (!editor) return;
