@@ -25,7 +25,7 @@ test.describe("Reliability — health/ready (local store)", () => {
     });
 
     expect(body.todosDrift).toMatchObject({
-      status: expect.stringMatching(/^(ok|skipped|warn|drift|error)$/),
+      status: expect.stringMatching(/^(ok|skipped|skipped_lazy_boot|warn|drift|error)$/),
     });
 
     if (body.store.backend === "local") {
