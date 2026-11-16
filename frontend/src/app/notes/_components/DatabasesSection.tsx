@@ -103,11 +103,14 @@ export default function DatabasesSection({
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnType, setNewColumnType] = useState<DatabaseColumnType>("text");
+  const [newColumnOptions, setNewColumnOptions] = useState("A, B");
+  const [focusRowId, setFocusRowId] = useState<string | null>(null);
   const [deleteColumnTarget, setDeleteColumnTarget] = useState<DatabaseColumnDef | null>(null);
   const [deleteDbTarget, setDeleteDbTarget] = useState<UserDatabase | null>(null);
   const [relationRowsCache, setRelationRowsCache] = useState<Record<string, DatabaseRow[]>>({});
   const [teams, setTeams] = useState<Team[]>([]);
   const [shareEmail, setShareEmail] = useState("");
+  const [shareCanWrite, setShareCanWrite] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [revisions, setRevisions] = useState<DatabaseRevisionMeta[]>([]);
   const [cellCursor, setCellCursor] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -164,6 +167,7 @@ export default function DatabasesSection({
       setCanWrite(res.canWrite !== false);
       setViewMode(res.database.defaultView);
       setShareEmail(res.database.sharedWithEmail ?? "");
+      setShareCanWrite(!!res.database.collaboratorWrite);
       setDatabases((prev) => {
         const idx = prev.findIndex((d) => d.id === id);
         if (idx === -1) return [res.database, ...prev];
@@ -242,24 +246,34 @@ export default function DatabasesSection({
   };
 
   const handleAddColumn = () => {
-    setNewColumnName(t("notes.databases.newColumn"));
+    setNewColumnName("");
     setNewColumnType("text");
+    setNewColumnOptions("A, B");
     setShowAddColumn(true);
   };
 
   const confirmAddColumn = async () => {
     if (!selectedDb) return;
-    const name = newColumnName.trim() || t("notes.databases.newColumn");
+    const name = newColumnName.trim();
+    if (!name) return;
+    const options =
+      newColumnType === "select"
+        ? newColumnOptions
+            .split(",")
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : undefined;
     const col: DatabaseColumnDef = {
       id: crypto.randomUUID(),
       name,
       type: newColumnType,
-      ...(newColumnType === "select" ? { options: ["A", "B"] } : {}),
+      ...(options && options.length > 0 ? { options } : newColumnType === "select" ? { options: ["A", "B"] } : {}),
     };
     try {
       const updated = await updateUserDatabase(selectedDb.id, { columns: [...selectedDb.columns, col] });
       setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
       setShowAddColumn(false);
+      setNewColumnName("");
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.genericError"));
     }
@@ -329,10 +343,23 @@ export default function DatabasesSection({
     try {
       const row = await createDatabaseRow(selectedDb.id, {});
       setRows((prev) => [...prev, row]);
+      setFocusRowId(row.id);
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.genericError"));
     }
   };
+
+  useEffect(() => {
+    if (!focusRowId) return;
+    const timer = window.setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-db-row-id="${focusRowId}"] input, [data-db-row-id="${focusRowId}"] select, [data-db-row-id="${focusRowId}"] button, [data-db-row-id="${focusRowId}"] [tabindex]`,
+      );
+      el?.focus();
+      setFocusRowId(null);
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [focusRowId, rows]);
 
   const startRenameColumn = (col: DatabaseColumnDef) => {
     setEditingColumnId(col.id);
@@ -574,6 +601,79 @@ export default function DatabasesSection({
           </div>
         </div>
       )}
+      {showAddColumn && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddColumn(false);
+          }}
+        >
+          <div className="w-full max-w-sm rounded-lg bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 p-4 space-y-3 shadow-lg">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-slate-100">
+              {t("notes.databases.addColumnTitle")}
+            </h3>
+            <label className="block space-y-1">
+              <span className="text-xs text-zinc-500 dark:text-slate-400">{t("notes.databases.columnName")}</span>
+              <input
+                type="text"
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void confirmAddColumn();
+                  if (e.key === "Escape") setShowAddColumn(false);
+                }}
+                autoFocus
+                className={`${inputCls} w-full text-sm`}
+                placeholder={t("notes.databases.columnNamePlaceholder")}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-zinc-500 dark:text-slate-400">{t("notes.databases.columnType")}</span>
+              <select
+                value={newColumnType}
+                onChange={(e) => setNewColumnType(e.target.value as DatabaseColumnType)}
+                className={`${inputCls} w-full text-sm`}
+                aria-label={t("notes.databases.columnType")}
+              >
+                {ADDABLE_COLUMN_TYPES.map((type) => (
+                  <option key={type} value={type}>{t(`notes.databases.columnType.${type}`)}</option>
+                ))}
+              </select>
+            </label>
+            {newColumnType === "select" && (
+              <label className="block space-y-1">
+                <span className="text-xs text-zinc-500 dark:text-slate-400">{t("notes.databases.columnOptions")}</span>
+                <input
+                  type="text"
+                  value={newColumnOptions}
+                  onChange={(e) => setNewColumnOptions(e.target.value)}
+                  className={`${inputCls} w-full text-sm`}
+                  placeholder={t("notes.databases.columnOptionsPlaceholder")}
+                />
+              </label>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-md border border-zinc-300 dark:border-slate-600"
+                onClick={() => setShowAddColumn(false)}
+              >
+                {t("teams.cancel")}
+              </button>
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-md bg-emerald-600 text-white disabled:opacity-50"
+                disabled={!newColumnName.trim()}
+                onClick={() => void confirmAddColumn()}
+              >
+                {t("notes.databases.create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -583,12 +683,6 @@ export default function DatabasesSection({
       <button type="button" onClick={() => void handleCreateDb()} className="text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-md shadow-sm shadow-emerald-500/20">{t("notes.databases.create")}</button>
       <button type="button" onClick={() => setShowNewDb(false)} className="text-sm text-zinc-500">{t("teams.cancel")}</button>
     </div>
-  );
-
-  const onlineBanner = (
-    <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
-      {t("notes.databases.onlineOnly")}
-    </p>
   );
 
   if (!selectedId) {
@@ -632,7 +726,6 @@ export default function DatabasesSection({
           </div>
         </div>
 
-        {onlineBanner}
         {!sharedMode && newDbForm}
 
         {loading ? (
@@ -728,8 +821,6 @@ export default function DatabasesSection({
         <span className="text-xs text-zinc-400">{t("notes.databases.sectionPath")}</span>
       </div>
 
-      {onlineBanner}
-
       {!selectedDb ? (
         <p className="text-sm text-zinc-500">{t("notes.databases.loading")}</p>
       ) : dbLoading ? (
@@ -778,107 +869,126 @@ export default function DatabasesSection({
             )}
 
             {isOwner && (
-              <details className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 max-w-xl">
-                <summary className="cursor-pointer text-sm font-medium text-zinc-800 dark:text-slate-200">
-                  {t("notes.databases.shareTitle")}
-                </summary>
-                <div className="mt-3 space-y-2">
-                  <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedDb.shared}
-                      onChange={(e) => {
-                        const shared = e.target.checked;
-                        const teamId = shared ? (selectedDb.teamId || teams[0]?.id || null) : null;
-                        void updateUserDatabase(selectedDb.id, {
-                          shared,
-                          teamId,
-                          sharedWithEmail: shared ? null : selectedDb.sharedWithEmail ?? null,
-                        }).then((updated) => {
-                          setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-                        }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
-                      }}
-                    />
-                    {t("notes.databases.shareWithTeam")}
-                  </label>
-                  {selectedDb.shared && (
+              <div className="rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 max-w-xl space-y-3">
+                <p className="text-sm font-medium text-zinc-800 dark:text-slate-200">{t("notes.databases.shareTitle")}</p>
+                {selectedDb.sharedWithEmail ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-zinc-700 dark:text-slate-200 truncate max-w-[14rem]">
+                      {selectedDb.sharedWithEmail}
+                    </span>
                     <select
-                      className={inputCls}
-                      value={selectedDb.teamId ?? ""}
+                      className={`${inputCls} max-w-[10rem] text-xs`}
+                      value={selectedDb.collaboratorWrite ? "rw" : "ro"}
+                      aria-label={t("notes.databases.shareAccess")}
                       onChange={(e) => {
-                        void updateUserDatabase(selectedDb.id, {
-                          shared: true,
-                          teamId: e.target.value || null,
-                        }).then((updated) => {
-                          setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-                        }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                        const rw = e.target.value === "rw";
+                        setShareCanWrite(rw);
+                        void updateUserDatabase(selectedDb.id, { collaboratorWrite: rw })
+                          .then((updated) => {
+                            setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                          })
+                          .catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
                       }}
                     >
-                      <option value="">—</option>
-                      {teams.map((team) => (
-                        <option key={team.id} value={team.id}>{team.name}</option>
-                      ))}
+                      <option value="ro">{t("notes.databases.shareAccessRo")}</option>
+                      <option value="rw">{t("notes.databases.shareAccessRw")}</option>
                     </select>
-                  )}
-                  <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                      type="button"
+                      className="text-xs text-red-500 hover:text-red-700"
+                      onClick={() => {
+                        setShareEmail("");
+                        setShareCanWrite(false);
+                        void updateUserDatabase(selectedDb.id, { sharedWithEmail: null })
+                          .then((updated) => {
+                            setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                          })
+                          .catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                      }}
+                    >
+                      {t("notes.databases.shareClear")}
+                    </button>
+                  </div>
+                ) : !selectedDb.shared ? (
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="email"
                       value={shareEmail}
                       onChange={(e) => setShareEmail(e.target.value)}
                       placeholder={t("notes.databases.shareEmailPlaceholder")}
                       className={`${inputCls} max-w-xs`}
-                      disabled={!!selectedDb.shared}
                     />
+                    <select
+                      className={`${inputCls} max-w-[10rem] text-xs`}
+                      value={shareCanWrite ? "rw" : "ro"}
+                      aria-label={t("notes.databases.shareAccess")}
+                      onChange={(e) => setShareCanWrite(e.target.value === "rw")}
+                    >
+                      <option value="ro">{t("notes.databases.shareAccessRo")}</option>
+                      <option value="rw">{t("notes.databases.shareAccessRw")}</option>
+                    </select>
                     <button
                       type="button"
-                      className="text-xs px-2 py-1.5 rounded-md bg-emerald-600 text-white disabled:opacity-50"
-                      disabled={!!selectedDb.shared || !shareEmail.trim()}
+                      className="text-xs px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                      disabled={!shareEmail.trim()}
                       onClick={() => {
                         void updateUserDatabase(selectedDb.id, {
                           sharedWithEmail: shareEmail.trim(),
+                          collaboratorWrite: shareCanWrite,
                           shared: false,
                           teamId: null,
-                        }).then((updated) => {
-                          setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-                          toast.success(t("notes.databases.shareSaved"));
-                        }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                        })
+                          .then((updated) => {
+                            setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+                            toast.success(t("notes.databases.shareSaved"));
+                          })
+                          .catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
                       }}
                     >
                       {t("notes.databases.shareSave")}
                     </button>
-                    {selectedDb.sharedWithEmail && (
-                      <button
-                        type="button"
-                        className="text-xs text-red-500"
-                        onClick={() => {
-                          setShareEmail("");
-                          void updateUserDatabase(selectedDb.id, { sharedWithEmail: null }).then((updated) => {
+                  </div>
+                ) : null}
+
+                <div className="border-t border-zinc-100 dark:border-slate-800 pt-3 space-y-2">
+                  <p className="text-[11px] text-zinc-500 dark:text-slate-400">
+                    {t("notes.databases.shareWithTeam")}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className={`${inputCls} max-w-xs text-xs`}
+                      value={selectedDb.shared ? (selectedDb.teamId ?? "") : ""}
+                      onChange={(e) => {
+                        const teamId = e.target.value || null;
+                        void updateUserDatabase(selectedDb.id, {
+                          shared: !!teamId,
+                          teamId,
+                          sharedWithEmail: teamId ? null : selectedDb.sharedWithEmail ?? null,
+                          collaboratorWrite: false,
+                        })
+                          .then((updated) => {
                             setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-                          }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
-                        }}
-                      >
-                        {t("notes.databases.shareClear")}
-                      </button>
+                            if (teamId) {
+                              setShareEmail("");
+                              setShareCanWrite(false);
+                            }
+                          })
+                          .catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
+                      }}
+                    >
+                      <option value="">{t("notes.databases.shareTeamNone")}</option>
+                      {teams.map((team) => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                    {selectedDb.shared && (
+                      <span className="text-[11px] text-zinc-500 dark:text-slate-400">
+                        {t("notes.databases.shareAccessRo")}
+                      </span>
                     )}
                   </div>
-                  {selectedDb.sharedWithUid && (
-                    <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedDb.collaboratorWrite}
-                        onChange={(e) => {
-                          void updateUserDatabase(selectedDb.id, {
-                            collaboratorWrite: e.target.checked,
-                          }).then((updated) => {
-                            setDatabases((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-                          }).catch((err) => toast.error(formatUserFacingError(err, "toast.genericError")));
-                        }}
-                      />
-                      {t("notes.collaboratorWrite")}
-                    </label>
-                  )}
                 </div>
-              </details>
+              </div>
             )}
 
             <div className="flex flex-wrap gap-2">
@@ -959,18 +1069,8 @@ export default function DatabasesSection({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {(isOwner || canWrite) && (
+                {((isOwner && databases.length > 1) || (canWrite && viewMode !== "table")) && (
                 <div className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-                  {isOwner && (
-                  <button
-                    type="button"
-                    onClick={handleAddColumn}
-                    className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+</span>
-                    {t("notes.databases.addColumn")}
-                  </button>
-                  )}
                   {isOwner && databases.length > 1 && (
                     <button
                       type="button"
@@ -981,14 +1081,14 @@ export default function DatabasesSection({
                       {t("notes.databases.relationColumn")}
                     </button>
                   )}
-                  {canWrite && (
+                  {canWrite && viewMode !== "table" && (
                   <button
                     type="button"
                     onClick={() => void handleAddRow()}
                     className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+</span>
-                    {t("notes.databases.addRow")}
+                    {t("notes.databases.newRow")}
                   </button>
                   )}
                 </div>
@@ -1005,30 +1105,6 @@ export default function DatabasesSection({
               </div>
             </div>
           </div>
-
-          {showAddColumn && (
-            <div className="flex flex-wrap items-center gap-2 p-3 rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 max-w-2xl">
-              <input
-                type="text"
-                value={newColumnName}
-                onChange={(e) => setNewColumnName(e.target.value)}
-                placeholder={t("notes.databases.newColumn")}
-                className={`${inputCls} max-w-[140px] text-xs`}
-              />
-              <select
-                value={newColumnType}
-                onChange={(e) => setNewColumnType(e.target.value as DatabaseColumnType)}
-                className={`${inputCls} max-w-[120px] text-xs`}
-                aria-label={t("notes.databases.columnType")}
-              >
-                {ADDABLE_COLUMN_TYPES.map((type) => (
-                  <option key={type} value={type}>{t(`notes.databases.columnType.${type}`)}</option>
-                ))}
-              </select>
-              <button type="button" onClick={() => void confirmAddColumn()} className="text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 px-2 py-1 rounded">{t("notes.databases.create")}</button>
-              <button type="button" onClick={() => setShowAddColumn(false)} className="text-xs text-zinc-500">{t("teams.cancel")}</button>
-            </div>
-          )}
 
           <div className="rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-x-auto">
             {viewMode === "board" && boardGroups.length > 0 ? (
@@ -1082,11 +1158,13 @@ export default function DatabasesSection({
                           <SortableColumnHeader
                             key={col.id}
                             col={col}
-                            canDelete={selectedDb.columns.length > 1}
-                            editing={editingColumnId === col.id}
+                            canDelete={isOwner && selectedDb.columns.length > 1}
+                            editing={isOwner && editingColumnId === col.id}
                             editingName={editingColumnName}
                             inputCls={inputCls}
-                            onStartRename={() => startRenameColumn(col)}
+                            onStartRename={() => {
+                              if (isOwner) startRenameColumn(col);
+                            }}
                             onEditingNameChange={setEditingColumnName}
                             onCommitRename={() => void commitRenameColumn()}
                             onCancelRename={() => {
@@ -1101,12 +1179,30 @@ export default function DatabasesSection({
                           />
                         ))}
                       </SortableContext>
-                      <th className="w-8" />
+                      {isOwner ? (
+                        <th className="w-10 px-1 py-2.5 bg-zinc-50/80 dark:bg-slate-800/40">
+                          <button
+                            type="button"
+                            onClick={handleAddColumn}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-lg font-semibold leading-none"
+                            aria-label={t("notes.databases.addColumn")}
+                            title={t("notes.databases.addColumn")}
+                          >
+                            +
+                          </button>
+                        </th>
+                      ) : (
+                        <th className="w-8" />
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {sortedRows.map((row) => (
-                      <tr key={row.id} className="border-b border-zinc-100 dark:border-slate-800">
+                      <tr
+                        key={row.id}
+                        data-db-row-id={row.id}
+                        className="group border-b border-zinc-100 dark:border-slate-800"
+                      >
                         {selectedDb.columns.map((col) => {
                           const peer = peerByCell.get(`${row.id}:${col.id}`);
                           return (
@@ -1133,13 +1229,40 @@ export default function DatabasesSection({
                           </td>
                           );
                         })}
-                        <td className="px-2">
+                        <td className="px-2 w-10">
                           {canWrite && (
-                          <button type="button" className="text-xs text-red-500" onClick={() => void deleteDatabaseRow(selectedDb.id, row.id).then(() => setRows((p) => p.filter((r) => r.id !== row.id)))}>×</button>
+                          <button
+                            type="button"
+                            className="text-xs text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                            aria-label={t("notes.databases.deleteRow")}
+                            onClick={() =>
+                              void deleteDatabaseRow(selectedDb.id, row.id).then(() =>
+                                setRows((p) => p.filter((r) => r.id !== row.id)),
+                              )
+                            }
+                          >
+                            ×
+                          </button>
                           )}
                         </td>
                       </tr>
                     ))}
+                    {canWrite && (
+                      <tr className="border-b border-transparent">
+                        <td
+                          colSpan={Math.max(selectedDb.columns.length, 1) + 1}
+                          className="px-3 py-2"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => void handleAddRow()}
+                            className="text-xs text-zinc-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                          >
+                            {t("notes.databases.newRow")}
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </DndContext>

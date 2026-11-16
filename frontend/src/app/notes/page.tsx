@@ -21,7 +21,7 @@ import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
 import { useToast } from "@/components/Toast";
 import SlashCommandMenu, { type SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
-import { clearNotesLocalStorage, useOfflineNotes } from "@/lib/useOfflineNotes";
+import { useOfflineNotes } from "@/lib/useOfflineNotes";
 import { createTodo, getProjects, getTodos, getTeams, purgeArchivedNoteApi, exportNotes, importNotesFile } from "@/lib/api";
 import type { Note, Project, Todo, Team } from "@/lib/api";
 import { personalNotesCreateBlocked } from "@/lib/freeQuota";
@@ -138,12 +138,9 @@ function NotesPageInner() {
     createFolder,
     removeFolder,
     reload,
-    pushToServer,
   } = useOfflineNotes();
   /** Sentinel activeFolder value for notes shared with the current user. */
   const SHARED_SCOPE = "__shared__";
-  const [resyncing, setResyncing] = useState(false);
-  const [pushing, setPushing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -224,6 +221,10 @@ function NotesPageInner() {
   } | null>(null);
   /** Foreign + read-only (hides owner chrome). Co-editors keep edit UI. */
   const isSharedNote = isForeignNote && !collabCanWrite;
+  /** Hide empty Details accordion on foreign notes with no tags. */
+  const showDetailsAccordion = !!(
+    selected && (!isForeignNote || (selected.tags?.length ?? 0) > 0)
+  );
 
   const {
     presence: notePresence,
@@ -524,38 +525,6 @@ function NotesPageInner() {
     setDeleteConfirm(null);
   }, [deleteConfirm, removeNote, selectedId, notes]);
 
-  const handleResyncFromServer = useCallback(async () => {
-    if (!window.confirm(t("notes.resyncConfirm"))) return;
-    setResyncing(true);
-    try {
-      clearNotesLocalStorage();
-      await reload();
-      toast.success(t("notes.resyncSuccess"));
-    } catch {
-      toast.error(t("notes.resyncError"));
-    } finally {
-      setResyncing(false);
-    }
-  }, [reload, t, toast]);
-
-  const handlePushToServer = useCallback(async () => {
-    if (!online) {
-      toast.error(t("notes.pushOffline"));
-      return;
-    }
-    if (!window.confirm(t("notes.pushConfirm"))) return;
-    setPushing(true);
-    try {
-      await pushToServer();
-      toast.success(t("notes.pushSuccess"));
-    } catch (e) {
-      const msg = e instanceof Error && e.message === "offline" ? t("notes.pushOffline") : t("notes.pushError");
-      toast.error(msg);
-    } finally {
-      setPushing(false);
-    }
-  }, [online, pushToServer, t, toast]);
-
   useEffect(() => {
     void Promise.resolve().then(() => {
       const idParam = searchParams.get("id") ?? searchParams.get("note");
@@ -816,38 +785,6 @@ function NotesPageInner() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => void handleResyncFromServer()}
-                  disabled={resyncing || pushing || loading}
-                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-                  title={t("notes.resyncFromServer")}
-                  aria-label={t("notes.resyncFromServer")}
-                >
-                  {resyncing ? (
-                    <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
-                  ) : (
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handlePushToServer()}
-                  disabled={!online || resyncing || pushing || loading}
-                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-                  title={t("notes.pushToServer")}
-                  aria-label={t("notes.pushToServer")}
-                >
-                  {pushing ? (
-                    <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
-                  ) : (
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  type="button"
                   onClick={handleNew}
                   className="rounded-lg bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white p-1.5 transition-colors shadow-sm shadow-emerald-500/25"
                   title={t("notes.new")}
@@ -1081,40 +1018,6 @@ function NotesPageInner() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                   </svg>
                 </Link>
-                <button
-                  type="button"
-                  data-testid="notes-resync"
-                  onClick={() => void handleResyncFromServer()}
-                  disabled={resyncing || pushing || loading}
-                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-                  title={t("notes.resyncFromServer")}
-                  aria-label={t("notes.resyncFromServer")}
-                >
-                  {resyncing ? (
-                    <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
-                  ) : (
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  data-testid="notes-push"
-                  onClick={() => void handlePushToServer()}
-                  disabled={!online || resyncing || pushing || loading}
-                  className="rounded-lg border border-zinc-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-1.5 text-zinc-700 dark:text-slate-200 hover:bg-zinc-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-                  title={t("notes.pushToServer")}
-                  aria-label={t("notes.pushToServer")}
-                >
-                  {pushing ? (
-                    <span className="inline-block w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" aria-hidden />
-                  ) : (
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
-                  )}
-                </button>
                 {activeFolder !== SHARED_SCOPE && (
                 <button
                   type="button"
@@ -1462,7 +1365,8 @@ function NotesPageInner() {
                     </div>
                   )}
 
-                  <div className="mb-4 border-b border-zinc-100 dark:border-slate-800 pb-3">
+                  {showDetailsAccordion && (
+                  <div className="mb-3 border-b border-zinc-100 dark:border-slate-800 pb-3">
                     <button
                       type="button"
                       onClick={() => setMetaOpen((o) => !o)}
@@ -1655,64 +1559,6 @@ function NotesPageInner() {
                           </>
                         )}
 
-                        <div className="space-y-1">
-                          <button
-                            type="button"
-                            className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
-                            onClick={() => {
-                              const next = !noteHistoryOpen;
-                              setNoteHistoryOpen(next);
-                              if (next && selected) {
-                                void listNoteRevisions(selected.id)
-                                  .then(setNoteRevisions)
-                                  .catch(() => setNoteRevisions([]));
-                              }
-                            }}
-                          >
-                            {t("notes.history")}
-                          </button>
-                          {noteHistoryOpen && (
-                            <ul className="space-y-0.5 text-[11px] text-zinc-600 dark:text-slate-300">
-                              {noteRevisions.length === 0 ? (
-                                <li>{t("notes.historyEmpty")}</li>
-                              ) : (
-                                noteRevisions.map((rev) => (
-                                  <li key={rev.id} className="flex items-center justify-between gap-2">
-                                    <span>
-                                      {new Date(rev.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
-                                      {rev.byEmail ? ` · ${rev.byEmail}` : ""}
-                                    </span>
-                                    {!isSharedNote || collabCanWrite ? (
-                                      <button
-                                        type="button"
-                                        className="text-emerald-700 dark:text-emerald-400 shrink-0"
-                                        onClick={() => {
-                                          if (!selected) return;
-                                          void restoreNoteRevision(selected.id, rev.id)
-                                            .then((note) => {
-                                              saveNote(selected.id, {
-                                                title: note.title,
-                                                content: note.content,
-                                                blocks: note.blocks,
-                                              });
-                                              toast.success(t("notes.historyRestored"));
-                                              return listNoteRevisions(selected.id).then(setNoteRevisions);
-                                            })
-                                            .catch((err) =>
-                                              toast.error(formatUserFacingError(err, "toast.genericError")),
-                                            );
-                                        }}
-                                      >
-                                        {t("notes.historyRestore")}
-                                      </button>
-                                    ) : null}
-                                  </li>
-                                ))
-                              )}
-                            </ul>
-                          )}
-                        </div>
-
                         {spawnedTasks.length > 0 && (
                           <div className="space-y-1">
                             <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.spawn.listTitle")}</p>
@@ -1741,6 +1587,65 @@ function NotesPageInner() {
                           ) : null;
                         })()}
                       </div>
+                    )}
+                  </div>
+                  )}
+
+                  <div className="mb-4 border-b border-zinc-100 dark:border-slate-800 pb-3 space-y-1">
+                    <button
+                      type="button"
+                      className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
+                      onClick={() => {
+                        const next = !noteHistoryOpen;
+                        setNoteHistoryOpen(next);
+                        if (next && selected) {
+                          void listNoteRevisions(selected.id)
+                            .then(setNoteRevisions)
+                            .catch(() => setNoteRevisions([]));
+                        }
+                      }}
+                    >
+                      {t("notes.history")}
+                    </button>
+                    {noteHistoryOpen && (
+                      <ul className="space-y-0.5 text-[11px] text-zinc-600 dark:text-slate-300">
+                        {noteRevisions.length === 0 ? (
+                          <li>{t("notes.historyEmpty")}</li>
+                        ) : (
+                          noteRevisions.map((rev) => (
+                            <li key={rev.id} className="flex items-center justify-between gap-2">
+                              <span>
+                                {new Date(rev.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
+                                {rev.byEmail ? ` · ${rev.byEmail}` : ""}
+                              </span>
+                              {!isSharedNote || collabCanWrite ? (
+                                <button
+                                  type="button"
+                                  className="text-emerald-700 dark:text-emerald-400 shrink-0"
+                                  onClick={() => {
+                                    if (!selected) return;
+                                    void restoreNoteRevision(selected.id, rev.id)
+                                      .then((note) => {
+                                        saveNote(selected.id, {
+                                          title: note.title,
+                                          content: note.content,
+                                          blocks: note.blocks,
+                                        });
+                                        toast.success(t("notes.historyRestored"));
+                                        return listNoteRevisions(selected.id).then(setNoteRevisions);
+                                      })
+                                      .catch((err) =>
+                                        toast.error(formatUserFacingError(err, "toast.genericError")),
+                                      );
+                                  }}
+                                >
+                                  {t("notes.historyRestore")}
+                                </button>
+                              ) : null}
+                            </li>
+                          ))
+                        )}
+                      </ul>
                     )}
                   </div>
 
