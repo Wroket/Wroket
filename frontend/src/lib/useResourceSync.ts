@@ -69,6 +69,10 @@ export function useResourceSync(
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
 
+    /** Same-tab refresh (BroadcastChannel ignores the posting tab). */
+    const onLocal = () => schedule();
+    window.addEventListener(`wroket-${channel}-sync-local`, onLocal);
+
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel(`wroket-${channel}-sync`);
@@ -91,6 +95,7 @@ export function useResourceSync(
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener(`wroket-${channel}-sync-local`, onLocal);
       bc?.close();
       if (pollId !== null) clearInterval(pollId);
       if (timerRef.current) {
@@ -106,7 +111,13 @@ export function useResourceSync(
  * Safe to call from any API mutation handler after a successful response.
  */
 export function broadcastResourceChange(channel: ResourceChannel): void {
-  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(`wroket-${channel}-sync-local`));
+  } catch {
+    /* ignore */
+  }
+  if (typeof BroadcastChannel === "undefined") return;
   try {
     const bc = new BroadcastChannel(`wroket-${channel}-sync`);
     bc.postMessage({ sourceTab: getTabId() });

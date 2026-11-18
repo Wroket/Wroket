@@ -13,6 +13,64 @@ import {
   type NoteAttachmentsResponse,
 } from "@/lib/api/notes";
 
+/**
+ * Loads an authenticated attachment as an object URL for thumbnail preview.
+ */
+function useAttachmentThumb(url: string | null, isImage: boolean): string | null {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!url || !isImage) {
+      setSrc(null);
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    void fetch(url, { credentials: "include" })
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error("thumb"))))
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(null);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, isImage]);
+  return src;
+}
+
+function AttachmentThumb({
+  href,
+  mime,
+  name,
+}: {
+  href: string;
+  mime: string;
+  name: string;
+}) {
+  const isImage = mime.startsWith("image/");
+  const thumb = useAttachmentThumb(href, isImage);
+  if (isImage && thumb) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- blob: object URL from authenticated fetch
+      <img
+        src={thumb}
+        alt={name}
+        className="w-10 h-10 rounded object-cover border border-zinc-200 dark:border-slate-700 shrink-0 bg-zinc-50 dark:bg-slate-800"
+      />
+    );
+  }
+  return (
+    <span className="inline-flex w-10 h-10 items-center justify-center rounded border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800 text-zinc-400 dark:text-slate-500 shrink-0">
+      <FileIcon mime={mime} />
+    </span>
+  );
+}
+
 interface TaskAttachmentPreview {
   id: string;
   todoId: string;
@@ -180,12 +238,16 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
         </p>
       )}
 
-      <ul className="space-y-1">
-        {noteAtts.map((att) => (
-          <li key={att.id} className="flex items-center gap-2 text-xs group">
-            <span className="text-zinc-400 dark:text-slate-500"><FileIcon mime={att.mimeType} /></span>
+      <ul className="space-y-1.5">
+        {noteAtts.map((att) => {
+          const href = getNoteAttachmentDownloadUrl(noteId, att.id);
+          return (
+          <li key={att.id} className="flex items-center gap-2.5 text-xs group">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0">
+              <AttachmentThumb href={href} mime={att.mimeType} name={att.originalName} />
+            </a>
             <a
-              href={getNoteAttachmentDownloadUrl(noteId, att.id)}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 truncate text-zinc-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 underline-offset-2 hover:underline"
@@ -212,13 +274,18 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
               </button>
             )}
           </li>
-        ))}
+          );
+        })}
 
-        {taskAtts.map((att) => (
-          <li key={att.id} className="flex items-center gap-2 text-xs group">
-            <span className="text-zinc-400 dark:text-slate-500"><FileIcon mime={att.mimeType} /></span>
+        {taskAtts.map((att) => {
+          const href = getTaskAttachmentViaNoteUrl(noteId, att.todoId, att.id);
+          return (
+          <li key={att.id} className="flex items-center gap-2.5 text-xs group">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0" title={t("notes.attachFromTask")}>
+              <AttachmentThumb href={href} mime={att.mimeType} name={att.originalName} />
+            </a>
             <a
-              href={getTaskAttachmentViaNoteUrl(noteId, att.todoId, att.id)}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 truncate text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline-offset-2 hover:underline"
@@ -237,7 +304,8 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
             )}
             <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
           </li>
-        ))}
+          );
+        })}
       </ul>
       </div>
     </div>

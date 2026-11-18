@@ -1596,6 +1596,8 @@ const translations = {
   "notes.fmtNumberedList": { fr: "Liste numérotée", en: "Numbered list" },
   "notes.details": { fr: "Détails", en: "Details" },
   "notes.detailsShow": { fr: "Tags, dossier, partage…", en: "Tags, folder, sharing…" },
+  "notes.properties": { fr: "Paramètres", en: "Settings" },
+  "notes.close": { fr: "Fermer", en: "Close" },
   "notes.back": { fr: "Retour à la liste", en: "Back to list" },
   "notes.ocr.title": { fr: "Photo vers texte", en: "Photo to text" },
   "notes.ocr.sourceDevice": { fr: "Depuis l’appareil", en: "From this device" },

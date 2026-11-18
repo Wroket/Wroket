@@ -18,6 +18,7 @@ import NoteCollabPresenceBar from "@/components/notes/NoteCollabPresenceBar";
 import SpawnTasksDialog from "@/components/notes/SpawnTasksDialog";
 import PageHelpButton from "@/components/PageHelpButton";
 import { SoftLockHint, PlanBadge } from "@/components/SoftLock";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/components/Toast";
 import SlashCommandMenu, { type SlashTaskPayload } from "@/components/SlashCommandMenu";
 import { useLocale } from "@/lib/LocaleContext";
@@ -175,6 +176,7 @@ function NotesPageInner() {
   const [attachmentsRefreshKey, setAttachmentsRefreshKey] = useState(0);
   const [metaOpen, setMetaOpen] = useState(false);
   const [noteHistoryOpen, setNoteHistoryOpen] = useState(false);
+  const noteMetaNarrow = useNarrowVisualViewport(metaOpen || noteHistoryOpen);
   const [noteRevisions, setNoteRevisions] = useState<NoteRevisionMeta[]>([]);
   const ocrRangeRef = useRef<Range | null>(null);
 
@@ -221,10 +223,39 @@ function NotesPageInner() {
   } | null>(null);
   /** Foreign + read-only (hides owner chrome). Co-editors keep edit UI. */
   const isSharedNote = isForeignNote && !collabCanWrite;
-  /** Hide empty Details accordion on foreign notes with no tags. */
-  const showDetailsAccordion = !!(
-    selected && (!isForeignNote || (selected.tags?.length ?? 0) > 0)
+  /** Properties control: owners always; foreign only when there is something to show. */
+  const showPropertiesButton = !!(
+    selected && (!isForeignNote || (selected.tags?.length ?? 0) > 0 || !!selected.folder?.trim())
   );
+  const metaSummaryChips = selected
+    ? [
+        selected.folder?.trim() || null,
+        ...(selected.tags ?? []).slice(0, 3),
+        selected.shared && selected.teamId ? t("notes.shareWith") : null,
+        selected.sharedWithEmail || null,
+      ].filter(Boolean) as string[]
+    : [];
+
+  const openProperties = useCallback(() => {
+    setNoteHistoryOpen(false);
+    setMetaOpen(true);
+  }, []);
+
+  const openHistory = useCallback(() => {
+    setMetaOpen(false);
+    setNoteHistoryOpen(true);
+    if (selectedId) {
+      void listNoteRevisions(selectedId)
+        .then(setNoteRevisions)
+        .catch(() => setNoteRevisions([]));
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    setMetaOpen(false);
+    setNoteHistoryOpen(false);
+    setNoteRevisions([]);
+  }, [selectedId]);
 
   const {
     presence: notePresence,
@@ -544,10 +575,19 @@ function NotesPageInner() {
       setSelectedId(null);
       return;
     }
+    const idParam = searchParams.get("id") ?? searchParams.get("note");
+    // Wait for the targeted note to appear in the store (e.g. after header Create).
+    if (idParam && !notes.some((n) => n.id === idParam)) {
+      return;
+    }
+    if (idParam && filtered.some((n) => n.id === idParam)) {
+      if (selectedId !== idParam) setSelectedId(idParam);
+      return;
+    }
     if (!selectedId || !filtered.some((n) => n.id === selectedId)) {
       setSelectedId(filtered[0]!.id);
     }
-  }, [homeView, loading, filtered, selectedId]);
+  }, [homeView, loading, filtered, selectedId, searchParams, notes]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1228,6 +1268,31 @@ function NotesPageInner() {
                     ))}
                   </div>
                 )}
+                {showPropertiesButton && (
+                  <button
+                    type="button"
+                    onClick={openProperties}
+                    className="p-1.5 rounded text-zinc-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                    title={t("notes.properties")}
+                    aria-label={t("notes.properties")}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={openHistory}
+                  className="p-1.5 rounded text-zinc-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                  title={t("notes.history")}
+                  aria-label={t("notes.history")}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
                 {!isForeignNote && (
                   <button
                     type="button"
@@ -1276,9 +1341,10 @@ function NotesPageInner() {
               </div>
 
               <NoteCollabProvider
-                noteId={selected?.id ?? null}
+                key={selected.id}
+                noteId={selected.id}
                 canWrite={!isSharedNote}
-                enabled={!!selected}
+                enabled
               >
               {remoteConflict && selected && (
                 <div
@@ -1365,308 +1431,43 @@ function NotesPageInner() {
                     </div>
                   )}
 
-                  {showDetailsAccordion && (
-                  <div className="mb-3 border-b border-zinc-100 dark:border-slate-800 pb-3">
+                  {metaSummaryChips.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setMetaOpen((o) => !o)}
-                      className="inline-flex items-center gap-1.5 text-xs text-zinc-500 dark:text-slate-400 hover:text-zinc-800 dark:hover:text-slate-200 transition-colors"
-                      aria-expanded={metaOpen}
+                      onClick={openProperties}
+                      className="mb-3 flex flex-wrap items-center gap-1.5 text-left max-w-full"
+                      title={t("notes.properties")}
                     >
-                      <svg
-                        className={`w-3.5 h-3.5 transition-transform ${metaOpen ? "rotate-90" : ""}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                      <span className="font-medium">{t("notes.details")}</span>
-                      {!metaOpen && (
-                        <span className="text-zinc-400 dark:text-slate-500 font-normal truncate max-w-[14rem] sm:max-w-xs">
-                          — {[
-                            selected.folder?.trim() || null,
-                            (selected.tags?.length ?? 0) > 0 ? selected.tags!.slice(0, 2).join(", ") : null,
-                            selected.shared && selected.teamId ? t("notes.shareWith") : null,
-                            selected.sharedWithEmail || null,
-                          ].filter(Boolean).join(" · ") || t("notes.detailsShow")}
+                      {metaSummaryChips.map((chip, i) => (
+                        <span
+                          key={`${i}-${chip}`}
+                          className="inline-flex items-center bg-zinc-100 dark:bg-slate-800 text-zinc-600 dark:text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-medium"
+                        >
+                          {chip}
                         </span>
-                      )}
+                      ))}
                     </button>
-
-                    {metaOpen && (
-                      <div className="mt-3 space-y-3 text-sm">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {(selected.tags ?? []).map((tag) => (
-                            <span key={tag} className="inline-flex items-center gap-0.5 bg-zinc-100 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
-                              {tag}
-                              {!isForeignNote && (
-                                <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
-                              )}
-                            </span>
-                          ))}
-                          {!isForeignNote && (
-                            <input
-                              type="text"
-                              value={tagInput}
-                              onChange={(e) => setTagInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
-                                if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
-                                  handleRemoveTag(selected.tags![selected.tags!.length - 1]);
-                                }
-                              }}
-                              placeholder={t("notes.addTag")}
-                              className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
-                            />
-                          )}
-                        </div>
-
-                        {!isForeignNote && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.folderLabel")}</span>
-                            <select
-                              value={selected.folder ?? ""}
-                              onChange={(e) => saveNote(selected.id, { folder: e.target.value })}
-                              className="text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[160px]"
-                              title={t("notes.folderLabel")}
-                            >
-                              <option value="">{t("notes.folderNone")}</option>
-                              {folderNames.map((fn) => (
-                                <option key={fn} value={fn}>{fn}</option>
-                              ))}
-                            </select>
-                            <input
-                              type="text"
-                              value={folderPickInput}
-                              onChange={(e) => setFolderPickInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && folderPickInput.trim()) {
-                                  saveNote(selected.id, { folder: folderPickInput.trim() });
-                                  setFolderPickInput("");
-                                }
-                              }}
-                              placeholder={t("notes.newFolderPlaceholder")}
-                              className="flex-1 min-w-[100px] max-w-[200px] text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 outline-none focus:border-emerald-400"
-                            />
-                          </div>
-                        )}
-
-                        {!isForeignNote && (
-                          <>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
-                              {teams.length === 0 ? (
-                                <p className="text-[11px] text-zinc-400 dark:text-slate-500">{t("notes.teamShareNoTeams")}</p>
-                              ) : (
-                                <>
-                                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[12px] text-zinc-700 dark:text-slate-300">
-                                    <input
-                                      type="checkbox"
-                                      className="rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
-                                      checked={!!selected.shared && !!selected.teamId}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          const first = teams[0];
-                                          if (first) saveNote(selected.id, { shared: true, teamId: first.id, sharedWithEmail: null });
-                                        } else {
-                                          saveNote(selected.id, { shared: false });
-                                        }
-                                      }}
-                                    />
-                                    {t("notes.shareWith")}
-                                  </label>
-                                  <select
-                                    value={selected.teamId ?? ""}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      if (!v) saveNote(selected.id, { shared: false });
-                                      else saveNote(selected.id, { shared: true, teamId: v, sharedWithEmail: null });
-                                    }}
-                                    disabled={!selected.shared}
-                                    className="text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[200px] disabled:opacity-50"
-                                    title={t("notes.selectTeam")}
-                                  >
-                                    {teams.map((tm) => (
-                                      <option key={tm.id} value={tm.id}>{tm.name}</option>
-                                    ))}
-                                  </select>
-                                  {!!selected.shared && !!selected.teamId && (
-                                    <p className="w-full text-[11px] text-zinc-500 dark:text-slate-400">
-                                      {t("notes.shareWithReadOnlyHint")}
-                                    </p>
-                                  )}
-                                </>
-                              )}
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.collaboratorShareSection")}</span>
-                              <p className="w-full text-[11px] text-zinc-400 dark:text-slate-500">{t("notes.shareExclusiveHint")}</p>
-                              {selected.sharedWithEmail ? (
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-[12px] text-zinc-700 dark:text-slate-300 bg-zinc-50 dark:bg-slate-800 border border-zinc-200 dark:border-slate-700 rounded px-1.5 py-0.5">
-                                    {selected.sharedWithEmail}
-                                  </span>
-                                  <label className="flex items-center gap-1 text-[11px] text-zinc-600 dark:text-slate-300">
-                                    <input
-                                      type="checkbox"
-                                      checked={!!selected.collaboratorWrite}
-                                      onChange={(e) =>
-                                        saveNote(selected.id, { collaboratorWrite: e.target.checked })
-                                      }
-                                    />
-                                    {t("notes.collaboratorWrite")}
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => saveNote(selected.id, { sharedWithEmail: null })}
-                                    className="text-[11px] text-red-500 hover:text-red-600 hover:underline"
-                                  >
-                                    {t("notes.removeCollaboratorShare")}
-                                  </button>
-                                </div>
-                              ) : (
-                                <form
-                                  className="flex items-center gap-1.5 flex-1 min-w-0"
-                                  onSubmit={(e) => {
-                                    e.preventDefault();
-                                    const email = collabEmailInput.trim();
-                                    if (!email) return;
-                                    saveNote(selected.id, { sharedWithEmail: email, shared: false });
-                                    setCollabEmailInput("");
-                                  }}
-                                >
-                                  <input
-                                    type="email"
-                                    value={collabEmailInput}
-                                    onChange={(e) => setCollabEmailInput(e.target.value)}
-                                    placeholder={t("notes.collaboratorEmail")}
-                                    className="flex-1 min-w-0 text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 outline-none focus:border-emerald-500"
-                                  />
-                                  <button
-                                    type="submit"
-                                    disabled={!collabEmailInput.trim()}
-                                    className="shrink-0 text-[12px] font-medium rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-2.5 py-1 transition-colors"
-                                  >
-                                    {t("notes.shareWithCollaborator")}
-                                  </button>
-                                </form>
-                              )}
-                            </div>
-                          </>
-                        )}
-
-                        {spawnedTasks.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.spawn.listTitle")}</p>
-                            <ul className="space-y-0.5">
-                              {spawnedTasks.map((task) => (
-                                <li key={task.id} className="flex items-center justify-between gap-2 text-[12px] text-zinc-700 dark:text-slate-200">
-                                  <span className="truncate">{task.title}</span>
-                                  <Link href={`/agenda?schedule=${encodeURIComponent(task.id)}`} className="shrink-0 text-emerald-700 dark:text-emerald-300 hover:underline">
-                                    {t("notes.spawn.plan")}
-                                  </Link>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {selected.todoId && (() => {
-                          const linkedTask = todos.find((td) => td.id === selected.todoId);
-                          return linkedTask ? (
-                            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 dark:text-slate-400">
-                              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
-                              </svg>
-                              <span className="truncate">{linkedTask.title}</span>
-                            </div>
-                          ) : null;
-                        })()}
-                      </div>
-                    )}
-                  </div>
                   )}
 
-                  <div className="mb-4 border-b border-zinc-100 dark:border-slate-800 pb-3 space-y-1">
-                    <button
-                      type="button"
-                      className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
-                      onClick={() => {
-                        const next = !noteHistoryOpen;
-                        setNoteHistoryOpen(next);
-                        if (next && selected) {
-                          void listNoteRevisions(selected.id)
-                            .then(setNoteRevisions)
-                            .catch(() => setNoteRevisions([]));
-                        }
+                  <ErrorBoundary key={selected.id}>
+                    <NoteDocument
+                      noteId={selected.id}
+                      blocks={resolveNoteBlocks(selected)}
+                      readOnly={isSharedNote}
+                      refreshKey={attachmentsRefreshKey}
+                      editorRef={contentRef}
+                      onFocusText={setFocusedTextId}
+                      onCommit={commitBlocks}
+                      onCursorChange={(blockId, from, to) => setCollabCursor({ blockId, from, to })}
+                      presencePeers={notePresence}
+                      diagramApply={{
+                        projects,
+                        defaultProjectId: selected.projectId,
+                        parentId: todos.find((task) => task.id === selected.todoId)?.scheduledSlot?.meetingUrl ? selected.todoId : null,
+                        onCreated: () => refreshSpawned(selected.id),
                       }}
-                    >
-                      {t("notes.history")}
-                    </button>
-                    {noteHistoryOpen && (
-                      <ul className="space-y-0.5 text-[11px] text-zinc-600 dark:text-slate-300">
-                        {noteRevisions.length === 0 ? (
-                          <li>{t("notes.historyEmpty")}</li>
-                        ) : (
-                          noteRevisions.map((rev) => (
-                            <li key={rev.id} className="flex items-center justify-between gap-2">
-                              <span>
-                                {new Date(rev.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
-                                {rev.byEmail ? ` · ${rev.byEmail}` : ""}
-                              </span>
-                              {!isSharedNote || collabCanWrite ? (
-                                <button
-                                  type="button"
-                                  className="text-emerald-700 dark:text-emerald-400 shrink-0"
-                                  onClick={() => {
-                                    if (!selected) return;
-                                    void restoreNoteRevision(selected.id, rev.id)
-                                      .then((note) => {
-                                        saveNote(selected.id, {
-                                          title: note.title,
-                                          content: note.content,
-                                          blocks: note.blocks,
-                                        });
-                                        toast.success(t("notes.historyRestored"));
-                                        return listNoteRevisions(selected.id).then(setNoteRevisions);
-                                      })
-                                      .catch((err) =>
-                                        toast.error(formatUserFacingError(err, "toast.genericError")),
-                                      );
-                                  }}
-                                >
-                                  {t("notes.historyRestore")}
-                                </button>
-                              ) : null}
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    )}
-                  </div>
-
-                  <NoteDocument
-                    key={selected.id}
-                    noteId={selected.id}
-                    blocks={resolveNoteBlocks(selected)}
-                    readOnly={isSharedNote}
-                    refreshKey={attachmentsRefreshKey}
-                    editorRef={contentRef}
-                    onFocusText={setFocusedTextId}
-                    onCommit={commitBlocks}
-                    onCursorChange={(blockId, from, to) => setCollabCursor({ blockId, from, to })}
-                    presencePeers={notePresence}
-                    diagramApply={{
-                      projects,
-                      defaultProjectId: selected.projectId,
-                      parentId: todos.find((task) => task.id === selected.todoId)?.scheduledSlot?.meetingUrl ? selected.todoId : null,
-                      onCreated: () => refreshSpawned(selected.id),
-                    }}
-                  />
+                    />
+                  </ErrorBoundary>
                 </div>
 
                 <NoteAttachmentsPanel
@@ -1678,6 +1479,301 @@ function NotesPageInner() {
                 />
               </div>
               </NoteCollabProvider>
+
+              {metaOpen && selected && (
+                <ViewportOverlay
+                  open
+                  onClose={() => setMetaOpen(false)}
+                  zClassName="z-[120]"
+                  backdropClassName="absolute inset-0 bg-black/50"
+                >
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="note-properties-title"
+                    className={sheetPanelClass(
+                      noteMetaNarrow,
+                      "relative w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-4 max-h-[90vh] overflow-y-auto",
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 id="note-properties-title" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
+                        {t("notes.properties")}
+                      </h2>
+                      <button
+                        type="button"
+                        className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-slate-200"
+                        onClick={() => setMetaOpen(false)}
+                      >
+                        {t("notes.close")}
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {(selected.tags ?? []).map((tag) => (
+                          <span key={tag} className="inline-flex items-center gap-0.5 bg-zinc-100 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
+                            {tag}
+                            {!isForeignNote && (
+                              <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
+                            )}
+                          </span>
+                        ))}
+                        {!isForeignNote && (
+                          <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
+                              if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
+                                handleRemoveTag(selected.tags![selected.tags!.length - 1]);
+                              }
+                            }}
+                            placeholder={t("notes.addTag")}
+                            className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
+                          />
+                        )}
+                      </div>
+
+                      {!isForeignNote && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.folderLabel")}</span>
+                          <select
+                            value={selected.folder ?? ""}
+                            onChange={(e) => saveNote(selected.id, { folder: e.target.value })}
+                            className="text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[160px]"
+                            title={t("notes.folderLabel")}
+                          >
+                            <option value="">{t("notes.folderNone")}</option>
+                            {folderNames.map((fn) => (
+                              <option key={fn} value={fn}>{fn}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={folderPickInput}
+                            onChange={(e) => setFolderPickInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && folderPickInput.trim()) {
+                                saveNote(selected.id, { folder: folderPickInput.trim() });
+                                setFolderPickInput("");
+                              }
+                            }}
+                            placeholder={t("notes.newFolderPlaceholder")}
+                            className="flex-1 min-w-[100px] max-w-[200px] text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                      )}
+
+                      {!isForeignNote && (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
+                            {teams.length === 0 ? (
+                              <p className="text-[11px] text-zinc-400 dark:text-slate-500">{t("notes.teamShareNoTeams")}</p>
+                            ) : (
+                              <>
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-[12px] text-zinc-700 dark:text-slate-300">
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-zinc-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500"
+                                    checked={!!selected.shared && !!selected.teamId}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        const first = teams[0];
+                                        if (first) saveNote(selected.id, { shared: true, teamId: first.id, sharedWithEmail: null });
+                                      } else {
+                                        saveNote(selected.id, { shared: false });
+                                      }
+                                    }}
+                                  />
+                                  {t("notes.shareWith")}
+                                </label>
+                                <select
+                                  value={selected.teamId ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    if (!v) saveNote(selected.id, { shared: false });
+                                    else saveNote(selected.id, { shared: true, teamId: v, sharedWithEmail: null });
+                                  }}
+                                  disabled={!selected.shared}
+                                  className="text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[200px] disabled:opacity-50"
+                                  title={t("notes.selectTeam")}
+                                >
+                                  {teams.map((tm) => (
+                                    <option key={tm.id} value={tm.id}>{tm.name}</option>
+                                  ))}
+                                </select>
+                                {!!selected.shared && !!selected.teamId && (
+                                  <p className="w-full text-[11px] text-zinc-500 dark:text-slate-400">
+                                    {t("notes.shareWithReadOnlyHint")}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.collaboratorShareSection")}</span>
+                            <p className="w-full text-[11px] text-zinc-400 dark:text-slate-500">{t("notes.shareExclusiveHint")}</p>
+                            {selected.sharedWithEmail ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[12px] text-zinc-700 dark:text-slate-300 bg-zinc-50 dark:bg-slate-800 border border-zinc-200 dark:border-slate-700 rounded px-1.5 py-0.5">
+                                  {selected.sharedWithEmail}
+                                </span>
+                                <label className="flex items-center gap-1 text-[11px] text-zinc-600 dark:text-slate-300">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!selected.collaboratorWrite}
+                                    onChange={(e) =>
+                                      saveNote(selected.id, { collaboratorWrite: e.target.checked })
+                                    }
+                                  />
+                                  {t("notes.collaboratorWrite")}
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => saveNote(selected.id, { sharedWithEmail: null })}
+                                  className="text-[11px] text-red-500 hover:text-red-600 hover:underline"
+                                >
+                                  {t("notes.removeCollaboratorShare")}
+                                </button>
+                              </div>
+                            ) : (
+                              <form
+                                className="flex items-center gap-1.5 flex-1 min-w-0"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const email = collabEmailInput.trim();
+                                  if (!email) return;
+                                  saveNote(selected.id, { sharedWithEmail: email, shared: false });
+                                  setCollabEmailInput("");
+                                }}
+                              >
+                                <input
+                                  type="email"
+                                  value={collabEmailInput}
+                                  onChange={(e) => setCollabEmailInput(e.target.value)}
+                                  placeholder={t("notes.collaboratorEmail")}
+                                  className="flex-1 min-w-0 text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 outline-none focus:border-emerald-500"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={!collabEmailInput.trim()}
+                                  className="shrink-0 text-[12px] font-medium rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-2.5 py-1 transition-colors"
+                                >
+                                  {t("notes.shareWithCollaborator")}
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      {spawnedTasks.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.spawn.listTitle")}</p>
+                          <ul className="space-y-0.5">
+                            {spawnedTasks.map((task) => (
+                              <li key={task.id} className="flex items-center justify-between gap-2 text-[12px] text-zinc-700 dark:text-slate-200">
+                                <span className="truncate">{task.title}</span>
+                                <Link href={`/agenda?schedule=${encodeURIComponent(task.id)}`} className="shrink-0 text-emerald-700 dark:text-emerald-300 hover:underline">
+                                  {t("notes.spawn.plan")}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {selected.todoId && (() => {
+                        const linkedTask = todos.find((td) => td.id === selected.todoId);
+                        return linkedTask ? (
+                          <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 dark:text-slate-400">
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                            </svg>
+                            <span className="truncate">{linkedTask.title}</span>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+                </ViewportOverlay>
+              )}
+
+              {noteHistoryOpen && selected && (
+                <ViewportOverlay
+                  open
+                  onClose={() => setNoteHistoryOpen(false)}
+                  zClassName="z-[120]"
+                  backdropClassName="absolute inset-0 bg-black/50"
+                >
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="note-history-title"
+                    className={sheetPanelClass(
+                      noteMetaNarrow,
+                      "relative w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-700 shadow-xl p-5 space-y-3 max-h-[90vh] overflow-y-auto",
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 id="note-history-title" className="text-base font-semibold text-zinc-900 dark:text-slate-100">
+                        {t("notes.history")}
+                      </h2>
+                      <button
+                        type="button"
+                        className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-slate-200"
+                        onClick={() => setNoteHistoryOpen(false)}
+                      >
+                        {t("notes.close")}
+                      </button>
+                    </div>
+                    <ul className="space-y-1.5 text-sm text-zinc-600 dark:text-slate-300">
+                      {noteRevisions.length === 0 ? (
+                        <li>{t("notes.historyEmpty")}</li>
+                      ) : (
+                        noteRevisions.map((rev) => (
+                          <li key={rev.id} className="flex items-center justify-between gap-2 py-1 border-b border-zinc-100 dark:border-slate-800 last:border-0">
+                            <span className="min-w-0 truncate">
+                              {new Date(rev.at).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")}
+                              {rev.byEmail ? ` · ${rev.byEmail}` : ""}
+                            </span>
+                            {!isSharedNote || collabCanWrite ? (
+                              <button
+                                type="button"
+                                className="text-emerald-700 dark:text-emerald-400 shrink-0 text-xs font-medium"
+                                onClick={() => {
+                                  void restoreNoteRevision(selected.id, rev.id)
+                                    .then((note) => {
+                                      saveNote(selected.id, {
+                                        title: note.title,
+                                        content: note.content,
+                                        blocks: note.blocks,
+                                      });
+                                      toast.success(t("notes.historyRestored"));
+                                      setNoteHistoryOpen(false);
+                                      return listNoteRevisions(selected.id).then(setNoteRevisions);
+                                    })
+                                    .catch((err) =>
+                                      toast.error(formatUserFacingError(err, "toast.genericError")),
+                                    );
+                                }}
+                              >
+                                {t("notes.historyRestore")}
+                              </button>
+                            ) : null}
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </ViewportOverlay>
+              )}
 
               {ocrConfig?.enabled && !isSharedNote && (
                 <NoteOcrDialog

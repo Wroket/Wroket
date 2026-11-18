@@ -11,6 +11,7 @@ import { formatUserFacingError } from "@/lib/apiErrors";
 import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
 import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import { useUiV2 } from "@/lib/UiVersionContext";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
 
 type Mode = "nav" | "create-task" | "create-project" | "create-note";
 type CreateKind = "task" | "project" | "note";
@@ -166,7 +167,8 @@ export default function CommandPalette() {
         const note = await createNoteApi({ title });
         toast.success(t("uiV2.noteCreated"));
         close();
-        router.push(`/notes?id=${note.id}`);
+        broadcastResourceChange("notes");
+        router.push(`/notes?id=${encodeURIComponent(note.id)}`);
       }
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.createError"));

@@ -12,6 +12,7 @@ import { formatUserFacingError } from "@/lib/apiErrors";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useVisualViewportRect } from "@/hooks/useVisualViewportRect";
+import { broadcastResourceChange } from "@/lib/useResourceSync";
 
 type CreateKind = "menu" | "task" | "project" | "note" | null;
 
@@ -73,7 +74,9 @@ export default function CreateMenu({ fab = false }: { fab?: boolean }) {
       toast.success(t("uiV2.noteCreated"));
       setKind(null);
       setName("");
-      router.push(`/notes?id=${note.id}`);
+      // Same-tab + cross-tab: offline notes store must pick up the new id before navigation.
+      broadcastResourceChange("notes");
+      router.push(`/notes?id=${encodeURIComponent(note.id)}`);
     } catch (err) {
       toast.error(formatUserFacingError(err, "toast.createError"));
     } finally {
