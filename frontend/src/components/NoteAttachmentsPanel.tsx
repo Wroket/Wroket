@@ -60,12 +60,12 @@ function AttachmentThumb({
       <img
         src={thumb}
         alt={name}
-        className="w-10 h-10 rounded object-cover border border-zinc-200 dark:border-slate-700 shrink-0 bg-zinc-50 dark:bg-slate-800"
+        className="block w-32 h-32 sm:w-40 sm:h-40 rounded-lg object-cover border border-zinc-200 dark:border-slate-700 shrink-0 bg-zinc-50 dark:bg-slate-800 shadow-sm"
       />
     );
   }
   return (
-    <span className="inline-flex w-10 h-10 items-center justify-center rounded border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800 text-zinc-400 dark:text-slate-500 shrink-0">
+    <span className="inline-flex w-32 h-32 sm:w-40 sm:h-40 items-center justify-center rounded-lg border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800 text-zinc-400 dark:text-slate-500 shrink-0">
       <FileIcon mime={mime} />
     </span>
   );
@@ -242,37 +242,39 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
         {noteAtts.map((att) => {
           const href = getNoteAttachmentDownloadUrl(noteId, att.id);
           return (
-          <li key={att.id} className="flex items-center gap-2.5 text-xs group">
-            <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0">
+          <li key={att.id} className="flex items-start gap-3 text-xs group">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0 block">
               <AttachmentThumb href={href} mime={att.mimeType} name={att.originalName} />
             </a>
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 truncate text-zinc-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 underline-offset-2 hover:underline"
-            >
-              {att.originalName}
-            </a>
-            {onExtractText && att.mimeType.startsWith("image/") && (
-              <ExtractTextButton
-                label={t("notes.ocr.extract")}
-                onClick={() => onExtractText({ id: att.id, name: att.originalName })}
-              />
-            )}
-            <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
-            {isOwner && (
-              <button
-                type="button"
-                onClick={() => handleDelete(att)}
-                className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all"
-                title={t("notes.attachDelete")}
+            <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate text-zinc-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 underline-offset-2 hover:underline font-medium"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
+                {att.originalName}
+              </a>
+              {onExtractText && att.mimeType.startsWith("image/") && (
+                <ExtractTextButton
+                  label={t("notes.ocr.extract")}
+                  onClick={() => onExtractText({ id: att.id, name: att.originalName })}
+                />
+              )}
+              <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(att)}
+                  className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all"
+                  title={t("notes.attachDelete")}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </li>
           );
         })}
@@ -280,29 +282,31 @@ export default function NoteAttachmentsPanel({ noteId, todoId, isOwner, onExtrac
         {taskAtts.map((att) => {
           const href = getTaskAttachmentViaNoteUrl(noteId, att.todoId, att.id);
           return (
-          <li key={att.id} className="flex items-center gap-2.5 text-xs group">
-            <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0" title={t("notes.attachFromTask")}>
+          <li key={att.id} className="flex items-start gap-3 text-xs group">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0 block" title={t("notes.attachFromTask")}>
               <AttachmentThumb href={href} mime={att.mimeType} name={att.originalName} />
             </a>
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 truncate text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline-offset-2 hover:underline"
-              title={t("notes.attachFromTask")}
-            >
-              {att.originalName}
-            </a>
-            <span className="text-[9px] font-medium text-indigo-400 dark:text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded shrink-0">
-              {t("notes.attachTaskBadge")}
-            </span>
-            {onExtractText && att.mimeType.startsWith("image/") && (
-              <ExtractTextButton
-                label={t("notes.ocr.extract")}
-                onClick={() => onExtractText({ id: att.id, name: att.originalName })}
-              />
-            )}
-            <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
+            <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline-offset-2 hover:underline font-medium"
+                title={t("notes.attachFromTask")}
+              >
+                {att.originalName}
+              </a>
+              <span className="text-[9px] font-medium text-indigo-400 dark:text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded shrink-0">
+                {t("notes.attachTaskBadge")}
+              </span>
+              {onExtractText && att.mimeType.startsWith("image/") && (
+                <ExtractTextButton
+                  label={t("notes.ocr.extract")}
+                  onClick={() => onExtractText({ id: att.id, name: att.originalName })}
+                />
+              )}
+              <span className="text-zinc-400 dark:text-slate-500 shrink-0">{formatBytes(att.size)}</span>
+            </div>
           </li>
           );
         })}
