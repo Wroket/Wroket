@@ -1510,65 +1510,108 @@ function NotesPageInner() {
                       </button>
                     </div>
 
-                    <div className="space-y-3 text-sm">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {(selected.tags ?? []).map((tag) => (
-                          <span key={tag} className="inline-flex items-center gap-0.5 bg-zinc-100 dark:bg-slate-800 text-zinc-700 dark:text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-medium">
-                            {tag}
-                            {!isForeignNote && (
-                              <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
-                            )}
-                          </span>
-                        ))}
-                        {!isForeignNote && (
-                          <input
-                            type="text"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
-                              if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
-                                handleRemoveTag(selected.tags![selected.tags!.length - 1]);
-                              }
-                            }}
-                            placeholder={t("notes.addTag")}
-                            className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
-                          />
-                        )}
-                      </div>
-
-                      {!isForeignNote && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.folderLabel")}</span>
-                          <select
-                            value={selected.folder ?? ""}
-                            onChange={(e) => saveNote(selected.id, { folder: e.target.value })}
-                            className="text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[160px]"
-                            title={t("notes.folderLabel")}
-                          >
-                            <option value="">{t("notes.folderNone")}</option>
-                            {folderNames.map((fn) => (
-                              <option key={fn} value={fn}>{fn}</option>
+                    <div className="space-y-4 text-sm">
+                      <section className="space-y-3">
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-slate-400">
+                          {t("notes.organizeSection")}
+                        </h3>
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.tagsLabel")}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap rounded-md border border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-800/40 px-2 py-1.5">
+                            {(selected.tags ?? []).map((tag) => (
+                              <span key={tag} className="inline-flex items-center gap-0.5 bg-white dark:bg-slate-900 text-zinc-700 dark:text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-medium border border-zinc-200 dark:border-slate-700">
+                                {tag}
+                                {!isForeignNote && (
+                                  <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-500 ml-0.5">×</button>
+                                )}
+                              </span>
                             ))}
-                          </select>
-                          <input
-                            type="text"
-                            value={folderPickInput}
-                            onChange={(e) => setFolderPickInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && folderPickInput.trim()) {
-                                saveNote(selected.id, { folder: folderPickInput.trim() });
-                                setFolderPickInput("");
-                              }
-                            }}
-                            placeholder={t("notes.newFolderPlaceholder")}
-                            className="flex-1 min-w-[100px] max-w-[200px] text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 outline-none focus:border-emerald-400"
-                          />
+                            {!isForeignNote && (
+                              <input
+                                type="text"
+                                value={tagInput}
+                                onChange={(e) => setTagInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && tagInput.trim()) { e.preventDefault(); handleAddTag(tagInput); }
+                                  if (e.key === "Backspace" && !tagInput && (selected.tags?.length ?? 0) > 0) {
+                                    handleRemoveTag(selected.tags![selected.tags!.length - 1]);
+                                  }
+                                }}
+                                placeholder={t("notes.addTag")}
+                                className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-700 dark:text-slate-300 outline-none placeholder-zinc-400 dark:placeholder-slate-500"
+                              />
+                            )}
+                          </div>
                         </div>
-                      )}
+
+                        {!isForeignNote && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.folderLabel")}</span>
+                            <select
+                              value={selected.folder ?? ""}
+                              onChange={(e) => saveNote(selected.id, { folder: e.target.value })}
+                              className="text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-zinc-800 dark:text-slate-200 px-2 py-1 max-w-[160px]"
+                              title={t("notes.folderLabel")}
+                            >
+                              <option value="">{t("notes.folderNone")}</option>
+                              {folderNames.map((fn) => (
+                                <option key={fn} value={fn}>{fn}</option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={folderPickInput}
+                              onChange={(e) => setFolderPickInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && folderPickInput.trim()) {
+                                  saveNote(selected.id, { folder: folderPickInput.trim() });
+                                  setFolderPickInput("");
+                                }
+                              }}
+                              placeholder={t("notes.newFolderPlaceholder")}
+                              className="flex-1 min-w-[100px] max-w-[200px] text-[12px] rounded-md border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 outline-none focus:border-emerald-400"
+                            />
+                          </div>
+                        )}
+
+                        {(spawnedTasks.length > 0 || selected.todoId) && (
+                          <div className="space-y-2 pt-1">
+                            {spawnedTasks.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.spawn.listTitle")}</p>
+                                <ul className="space-y-0.5">
+                                  {spawnedTasks.map((task) => (
+                                    <li key={task.id} className="flex items-center justify-between gap-2 text-[12px] text-zinc-700 dark:text-slate-200">
+                                      <span className="truncate">{task.title}</span>
+                                      <Link href={`/agenda?schedule=${encodeURIComponent(task.id)}`} className="shrink-0 text-emerald-700 dark:text-emerald-300 hover:underline">
+                                        {t("notes.spawn.plan")}
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {selected.todoId && (() => {
+                              const linkedTask = todos.find((td) => td.id === selected.todoId);
+                              return linkedTask ? (
+                                <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 dark:text-slate-400">
+                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                                  </svg>
+                                  <span className="truncate">{linkedTask.title}</span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
+                      </section>
 
                       {!isForeignNote && (
-                        <>
+                        <section className="space-y-3 border-t border-zinc-200 dark:border-slate-700 pt-4">
+                          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-slate-400">
+                            {t("notes.sharingSection")}
+                          </h3>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-[11px] font-medium text-zinc-500 dark:text-slate-400 shrink-0">{t("notes.teamShareSection")}</span>
                             {teams.length === 0 ? (
@@ -1669,36 +1712,8 @@ function NotesPageInner() {
                               </form>
                             )}
                           </div>
-                        </>
+                        </section>
                       )}
-
-                      {spawnedTasks.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-medium text-zinc-500 dark:text-slate-400">{t("notes.spawn.listTitle")}</p>
-                          <ul className="space-y-0.5">
-                            {spawnedTasks.map((task) => (
-                              <li key={task.id} className="flex items-center justify-between gap-2 text-[12px] text-zinc-700 dark:text-slate-200">
-                                <span className="truncate">{task.title}</span>
-                                <Link href={`/agenda?schedule=${encodeURIComponent(task.id)}`} className="shrink-0 text-emerald-700 dark:text-emerald-300 hover:underline">
-                                  {t("notes.spawn.plan")}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {selected.todoId && (() => {
-                        const linkedTask = todos.find((td) => td.id === selected.todoId);
-                        return linkedTask ? (
-                          <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 dark:text-slate-400">
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
-                            </svg>
-                            <span className="truncate">{linkedTask.title}</span>
-                          </div>
-                        ) : null;
-                      })()}
                     </div>
                   </div>
                 </ViewportOverlay>
