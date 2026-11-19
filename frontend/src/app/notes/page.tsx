@@ -541,6 +541,12 @@ function NotesPageInner() {
     const blocks = resolveNoteBlocks(selected);
     const textId = focusedTextId ?? blocks.find((block) => block.type === "text")?.id;
     if (!textId) return;
+    const strip = (html: string) =>
+      html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
+    const prevHtml = textHtmlFromBlocks(blocks);
+    if (strip(prevHtml).length > 0 && strip(value).length === 0) {
+      return;
+    }
     const next = blocks.map((block) => (
       block.type === "text" && block.id === textId ? { ...block, html: value } : block
     ));
@@ -633,10 +639,18 @@ function NotesPageInner() {
   }, [selectedId, selected, saveNote]);
 
   const commitBlocks = useCallback((blocks: ReturnType<typeof resolveNoteBlocks>) => {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
+    const nextHtml = textHtmlFromBlocks(blocks);
+    const prevHtml = textHtmlFromBlocks(resolveNoteBlocks(selected));
+    const strip = (html: string) =>
+      html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
+    // Refuse silent wipe of non-empty note by empty TipTap/Yjs init races.
+    if (strip(prevHtml).length > 0 && strip(nextHtml).length === 0) {
+      return;
+    }
     setNoteDirty(true);
-    saveNote(selectedId, { blocks, content: textHtmlFromBlocks(blocks) });
-  }, [selectedId, saveNote]);
+    saveNote(selectedId, { blocks, content: nextHtml });
+  }, [selectedId, selected, saveNote]);
 
   const openOcr = useCallback((attachment: { id: string; name: string } | null = null) => {
     const editor = contentRef.current;

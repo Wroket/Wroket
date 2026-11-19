@@ -55,6 +55,8 @@ export default function TipTapCollabText({
   const { ydoc, synced, canWrite, registerEditor, setFocusedBlockId } = useNoteCollab();
   const editable = !readOnly && canWrite;
   const seededRef = useRef(false);
+  const syncedRef = useRef(synced);
+  syncedRef.current = synced;
   const ariaLabelRef = useRef(cursorAriaLabel);
   ariaLabelRef.current = cursorAriaLabel;
 
@@ -94,6 +96,9 @@ export default function TipTapCollabText({
       onUpdate: ({ editor: ed, transaction }) => {
         // Remote Yjs / peer edits must not mark the note dirty (LWW conflict toast).
         if (isChangeOrigin(transaction)) return;
+        // Wait until first Yjs pull finished — otherwise empty Collaboration init
+        // persisted `<p></p>` over real note content via LWW save.
+        if (!syncedRef.current) return;
         onHtmlChange?.(ed.getHTML());
       },
       onSelectionUpdate: ({ editor: ed }) => {

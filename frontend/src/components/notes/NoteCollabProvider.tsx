@@ -73,23 +73,31 @@ export function NoteCollabProvider({
       return;
     }
     const doc = new Y.Doc();
-    setYdoc(doc);
     setSynced(false);
+    // Do NOT expose ydoc to TipTap until the first pull completes — binding an empty
+    // Collaboration fragment then saving via onHtmlChange wiped note.content (LWW).
     let cancelled = false;
-    const sync = async () => {
+    let ready = false;
+    const sync = async (opts?: { push?: boolean }) => {
       if (cancelled) return;
       try {
-        await syncYdocHttp(noteId, doc, { push: canWriteRef.current });
-        if (!cancelled) setSynced(true);
+        const allowPush = ready && canWriteRef.current && opts?.push !== false;
+        await syncYdocHttp(noteId, doc, { push: allowPush });
+        if (cancelled) return;
+        if (!ready) {
+          ready = true;
+          setYdoc(doc);
+          setSynced(true);
+        }
       } catch {
-        /* transient */
+        /* transient — retry on interval; keep TipTap unmounted until first success */
       }
     };
-    void sync();
+    void sync({ push: false });
     const id = window.setInterval(() => void sync(), syncIntervalMs);
     let debounce: number | undefined;
     const onUpdate = () => {
-      if (!canWriteRef.current) return;
+      if (!ready || !canWriteRef.current) return;
       if (debounce) window.clearTimeout(debounce);
       debounce = window.setTimeout(() => void sync(), 400);
     };
