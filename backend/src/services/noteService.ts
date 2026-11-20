@@ -343,6 +343,36 @@ function applyStoredBlocks(note: Note, blocks: NoteBlock[]): void {
   note.diagram = firstDiagramFromBlocks(blocks);
 }
 
+/** Plain-text length of note body (HTML tags stripped). */
+function notePlainTextLen(note: Pick<Note, "content" | "blocks">): number {
+  const fromBlocks = note.blocks?.length ? textHtmlFromBlocks(note.blocks) : "";
+  const html = fromBlocks || note.content || "";
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim().length;
+}
+
+/**
+ * Refuse LWW writes that would replace non-empty body with empty HTML
+ * (TipTap/Yjs empty-doc race). Call before mutating content/blocks.
+ */
+function assertNotEmptyWipe(
+  note: Note,
+  next: { content?: string; blocks?: NoteBlock[] },
+): void {
+  const prevLen = notePlainTextLen(note);
+  if (prevLen === 0) return;
+  let nextLen = 0;
+  if (next.blocks !== undefined) {
+    nextLen = notePlainTextLen({ content: "", blocks: next.blocks });
+  } else if (next.content !== undefined) {
+    nextLen = notePlainTextLen({ content: next.content, blocks: undefined });
+  } else {
+    return;
+  }
+  if (nextLen === 0) {
+    throw new ValidationError("Refus d'écraser une note non vide avec un contenu vide");
+  }
+}
+
 function applyNoteBlocks(note: Note, raw: NoteBlock[]): void {
   let blocks: NoteBlock[];
   try {
@@ -353,12 +383,14 @@ function applyNoteBlocks(note: Note, raw: NoteBlock[]): void {
     }
     throw err;
   }
+  assertNotEmptyWipe(note, { blocks });
   applyStoredBlocks(note, blocks);
 }
 
 /** A content-only write updates the single text block and leaves other blocks in place. */
 function applyNoteContent(note: Note, content: string): void {
   if (content.length > 50_000) throw new ValidationError("Contenu trop long (max 50 000 caractères)");
+  assertNotEmptyWipe(note, { content });
   const textBlocks = (note.blocks ?? []).filter((block) => block.type === "text");
   if (textBlocks.length > 1) return;
   if (textBlocks.length === 0 && note.blocks && note.blocks.length > 0) {

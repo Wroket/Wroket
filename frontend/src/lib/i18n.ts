@@ -1841,6 +1841,7 @@ const translations = {
   "notes.fmtHint": { fr: "Sélectionnez du texte, ou tapez / pour les commandes", en: "Select text, or type / for commands" },
   "notes.search": { fr: "Rechercher...", en: "Search..." },
   "notes.lastModified": { fr: "Modifié", en: "Modified" },
+  "notes.createdAt": { fr: "Créée le", en: "Created" },
   "notes.shared": { fr: "Partagées", en: "Shared" },
   "notes.linkedTask": { fr: "Tâche liée", en: "Linked task" },
   "notes.linkedProject": { fr: "Projet lié", en: "Linked project" },

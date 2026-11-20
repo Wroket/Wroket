@@ -1421,8 +1421,16 @@ function NotesPageInner() {
                     onChange={(e) => !isSharedNote && handleTitleChange(e.target.value)}
                     readOnly={isSharedNote}
                     placeholder={t("notes.untitled")}
-                    className={`w-full text-left text-2xl sm:text-[1.75rem] font-semibold tracking-tight text-zinc-900 dark:text-slate-50 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 mb-3 ${isSharedNote ? "cursor-default" : ""}`}
+                    className={`w-full text-left text-2xl sm:text-[1.75rem] font-semibold tracking-tight text-zinc-900 dark:text-slate-50 bg-transparent border-none outline-none placeholder-zinc-300 dark:placeholder-slate-600 mb-1 ${isSharedNote ? "cursor-default" : ""}`}
                   />
+                  {selected.createdAt && (
+                    <p
+                      className="text-[11px] text-zinc-400 dark:text-slate-500 mb-3"
+                      data-testid="note-created-at"
+                    >
+                      {t("notes.createdAt")} {formatDate(selected.createdAt)}
+                    </p>
+                  )}
 
                   {isSharedNote && (
                     <p className="text-xs text-emerald-700 dark:text-emerald-300 mb-3">
@@ -1858,7 +1866,12 @@ function NotesPageInner() {
 
               {/* Footer */}
               <div className="px-4 py-1.5 border-t border-zinc-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-zinc-400 dark:text-slate-500 bg-white dark:bg-slate-900 shrink-0">
-                <span>{t("notes.lastModified")} {formatDate(selected.updatedAt)}</span>
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  {selected.createdAt && (
+                    <span>{t("notes.createdAt")} {formatDate(selected.createdAt)}</span>
+                  )}
+                  <span>{t("notes.lastModified")} {formatDate(selected.updatedAt)}</span>
+                </span>
                 <div className="flex items-center gap-3">
                   <span>{stripHtml(selected.content).length} car.</span>
                 </div>
