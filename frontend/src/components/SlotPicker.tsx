@@ -45,20 +45,25 @@ export interface SlotPickerProps {
    * (used after “Schedule now?” so Mes tâches / Projet / Dashboard stay in place).
    */
   pageModal?: boolean;
+  /**
+   * Inline panel (e.g. TaskEdit Schedule tab): same Suggestions / Manual body as the
+   * page modal, without overlay or “Not now”.
+   */
+  embeddedPanel?: boolean;
   /** Called when the user dismisses a page-level modal (overlay, Escape, Pas maintenant). */
   onDismiss?: () => void;
 }
 
-export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, preferredBookingTarget, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker", pageModal = false, onDismiss }: SlotPickerProps) {
+export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, preferredBookingTarget, onBooked, onCleared, autoOpen, openSignal = 0, dateMin, dateMax, analyticsSource = "slot_picker", pageModal = false, embeddedPanel = false, onDismiss }: SlotPickerProps) {
   const { t } = useLocale();
   const { toast } = useToast();
-  const [open, setOpen] = useState(pageModal);
+  const [open, setOpen] = useState(pageModal || embeddedPanel);
   /** After creating a task, show schedule UI as a centered modal; manual opens use the anchored popover. */
   const [presentation, setPresentation] = useState<"popover" | "modal">(pageModal ? "modal" : "popover");
   const autoOpenedRef = useRef(false);
   const [mounted, setMounted] = useState(false);
 
-  const narrow = useNarrowVisualViewport(open && presentation === "modal");
+  const narrow = useNarrowVisualViewport(open && presentation === "modal" && !embeddedPanel);
 
   useEffect(() => {
     setMounted(true);
@@ -71,13 +76,18 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
       fetchSlots();
       return;
     }
+    if (embeddedPanel) {
+      setOpen(true);
+      fetchSlots();
+      return;
+    }
     if (autoOpen && !autoOpenedRef.current && !scheduledSlot) {
       autoOpenedRef.current = true;
       setPresentation("modal");
       setOpen(true);
       fetchSlots();
     }
-  }, [autoOpen, scheduledSlot, pageModal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoOpen, scheduledSlot, pageModal, embeddedPanel]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState<SlotProposal[]>([]);
   const [slotsVisibleCount, setSlotsVisibleCount] = useState(3);
@@ -203,7 +213,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
   }, [openSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReschedule = async () => {
-    setOpen(false);
+    if (!embeddedPanel) setOpen(false);
     setClearing(true);
     try {
       const updated = await clearTaskSlot(todoId);
@@ -211,10 +221,10 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
       setRescheduleMode(true);
       setMode("suggested");
       await fetchSlots();
-      setPresentation("modal");
+      if (!embeddedPanel) setPresentation("modal");
       setOpen(true);
     } catch {
-      setPresentation("modal");
+      if (!embeddedPanel) setPresentation("modal");
       setOpen(true);
       toast.error(t("toast.deleteError"));
     } finally {
@@ -242,7 +252,8 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
       if (result.todo) {
         setConflicts([]);
         setPendingSlot(null);
-        setOpen(false);
+        setRescheduleMode(false);
+        if (!embeddedPanel) setOpen(false);
         trackFunnelEvent("first_slot_booked", { todoId, source: analyticsSource });
         onBooked(result.todo);
         const meta = result.bookingMeta;
@@ -319,13 +330,18 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
   };
 
   const handleClear = async () => {
-    setOpen(false);
+    if (!embeddedPanel) setOpen(false);
     setClearing(true);
     try {
       const updated = await clearTaskSlot(todoId);
       onCleared(updated);
+      if (embeddedPanel) {
+        setRescheduleMode(true);
+        setMode("suggested");
+        await fetchSlots();
+      }
     } catch {
-      setPresentation("modal");
+      if (!embeddedPanel) setPresentation("modal");
       setOpen(true);
       toast.error(t("toast.deleteError"));
     } finally {
@@ -334,7 +350,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || embeddedPanel) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dismissModal();
     };
@@ -354,7 +370,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
     return () => {
       document.removeEventListener("keydown", handleKey);
     };
-  }, [open, presentation]);
+  }, [open, presentation, embeddedPanel]);
 
   const formatSlotBadge = (slot: ScheduledSlot): string => formatScheduledSlotLabel(slot);
 
@@ -373,7 +389,7 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
           <h4 id="slot-picker-dialog-title" className="text-sm font-semibold text-zinc-900 dark:text-slate-100 flex-1 min-w-0">
             {t("schedule.title")}
           </h4>
-          {presentation === "modal" && (
+          {presentation === "modal" && !embeddedPanel && (
             <button
               type="button"
               onClick={dismissModal}
@@ -712,6 +728,17 @@ export default function SlotPicker({ todoId, scheduledSlot, suggestedSlot, prefe
       </div>
     </ViewportOverlay>
   );
+
+  if (embeddedPanel) {
+    return (
+      <div
+        ref={popoverRef}
+        className={`${panelShellClass} w-full max-h-[min(28rem,55dvh)] shadow-none`}
+      >
+        {renderScheduleBody()}
+      </div>
+    );
+  }
 
   if (pageModal) {
     return <>{modalPortal}</>;
