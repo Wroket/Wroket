@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Wroket Clipper — store screenshot</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 800px;
+        overflow: hidden;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background:
+          radial-gradient(900px 500px at 15% 10%, #d1fae5 0%, transparent 55%),
+          radial-gradient(700px 480px at 90% 80%, #e0e7ff 0%, transparent 50%),
+          #eef2f6;
+        color: #0f172a;
+      }
+      .stage {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 28px;
+        padding: 48px 56px;
+        height: 100%;
+        align-items: stretch;
+      }
+      .browser {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 18px 50px rgb(15 23 42 / 12%);
+        border: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+      }
+      .chrome-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .dots { display: flex; gap: 6px; }
+      .dots span {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: #cbd5e1;
+      }
+      .dots span:nth-child(1) { background: #f87171; }
+      .dots span:nth-child(2) { background: #fbbf24; }
+      .dots span:nth-child(3) { background: #34d399; }
+      .omnibox {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 13px;
+        color: #64748b;
+      }
+      .page {
+        padding: 36px 40px 28px;
+        flex: 1;
+      }
+      .page h1 {
+        margin: 0 0 18px;
+        font-size: 34px;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+      }
+      .page p {
+        margin: 0 0 14px;
+        font-size: 16px;
+        line-height: 1.55;
+        color: #334155;
+        max-width: 36em;
+      }
+      .sel {
+        background: #d1fae5;
+        border-radius: 4px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+        padding: 1px 3px;
+      }
+      .tagline {
+        margin-top: 28px;
+        font-size: 13px;
+        color: #64748b;
+      }
+      .popup-wrap {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 14px;
+      }
+      .popup-caption {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        text-align: center;
+      }
+      .popup {
+        width: 320px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 16px 40px rgb(15 23 42 / 14%);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .hdr {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .brand img { width: 20px; height: 20px; border-radius: 4px; }
+      .linkish { color: #64748b; font-size: 12px; }
+      .lbl { font-size: 11px; font-weight: 600; color: #64748b; margin-top: 2px; }
+      .field {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+      .chip {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px 10px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: #fff;
+      }
+      .chip.active {
+        background: #059669;
+        border-color: #059669;
+        color: #fff;
+      }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; }
+      .pill {
+        border: 1px solid #e2e8f0;
+        background: #f1f5f9;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      .pill.active {
+        background: #059669;
+        border-color: #059669;
+        color: #fff;
+        font-weight: 600;
+      }
+      .excerpt {
+        margin: 0;
+        padding: 8px 10px;
+        border-left: 3px solid #059669;
+        background: #ecfdf5;
+        border-radius: 0 8px 8px 0;
+        font-size: 12px;
+      }
+      .source {
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+      }
+      .source-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .source-host { font-size: 12px; font-weight: 600; }
+      .source-title { display: block; font-size: 11px; color: #64748b; }
+      .primary {
+        margin-top: 4px;
+        background: #059669;
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 12px;
+        text-align: center;
+        font-weight: 600;
+      }
+      .hint {
+        font-size: 10px;
+        color: #64748b;
+        text-align: center;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <section class="browser" aria-label="Sample web page">
+        <div class="chrome-bar">
+          <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="omnibox">https://mail.example.com/inbox/q1-priorities</div>
+        </div>
+        <div class="page">
+          <h1>Planning Q1 priorities</h1>
+          <p>
+            From: Alex Chen · To: you<br />
+            Hi — can we lock the roadmap before Friday?
+          </p>
+          <p>
+            Please treat
+            <span class="sel">Selected text becomes a Wroket task with the page as source.</span>
+            I’ll follow up after the design review.
+          </p>
+          <p class="tagline">Capture any http(s) page — articles, docs, or webmail — into Wroket.</p>
+        </div>
+      </section>
+
+      <aside class="popup-wrap">
+        <div class="popup-caption">Toolbar popup · 320px</div>
+        <div class="popup">
+          <div class="hdr">
+            <div class="brand">
+              <img src="../public/icons/icon48.png" alt="" />
+              <span>Wroket</span>
+            </div>
+            <span class="linkish">Disconnect</span>
+          </div>
+          <div class="lbl">Title</div>
+          <div class="field">Selected text becomes a Wroket task…</div>
+          <div class="kinds">
+            <div class="chip active">Task</div>
+            <div class="chip">Note</div>
+          </div>
+          <div class="lbl">Project</div>
+          <div class="field">Product</div>
+          <div class="row">
+            <div class="pill active">Today</div>
+            <div class="pill">Tomorrow</div>
+            <div class="pill">Next week</div>
+          </div>
+          <div class="lbl">Priority</div>
+          <div class="field">Medium</div>
+          <p class="excerpt">Selected text becomes a Wroket task with the page as source.</p>
+          <div class="source">
+            <span class="source-label">Source</span>
+            <span class="source-host">mail.example.com</span>
+            <span class="source-title">Planning Q1 priorities</span>
+          </div>
+          <div class="primary">Capture</div>
+          <p class="hint">Enter = capture · Ctrl+Enter = open</p>
+        </div>
+      </aside>
+    </div>
+  </body>
+</html>

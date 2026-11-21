@@ -8,13 +8,18 @@ import {
   saveDraft,
   setLastProjectId,
 } from "../storage";
-import { getActiveTabClip } from "../tabContext";
+import { getActiveTabClip, isSupportedClipUrl, sourceHost } from "../tabContext";
 import "./popup.css";
 
 type Kind = "task" | "note";
 type Priority = "low" | "medium" | "high";
 
 const app = document.getElementById("app")!;
+
+/** Mark body when the page is wider than the toolbar popup (opened as a tab). */
+function syncViewportMode(): void {
+  document.body.classList.toggle("is-wide", window.innerWidth > 360);
+}
 
 function isoDateOffset(days: number): string {
   const d = new Date();
@@ -33,10 +38,17 @@ function nextMondayIso(): string {
 }
 
 async function render(): Promise<void> {
+  syncViewportMode();
   const auth = await getAuth();
   if (!auth) {
+    const icon = chrome.runtime.getURL("icons/icon48.png");
     app.innerHTML = `
-      <header class="hdr"><strong>Wroket</strong></header>
+      <header class="hdr">
+        <div class="brand">
+          <img src="${icon}" alt="" width="20" height="20" />
+          <span>Wroket</span>
+        </div>
+      </header>
       <p class="muted">Capture web pages into tasks and notes.</p>
       <button id="connect" class="primary" type="button">Connect</button>
       <p id="err" class="err" hidden></p>
@@ -69,7 +81,7 @@ async function render(): Promise<void> {
     }
     app.innerHTML = `
       <p class="err">${e instanceof Error ? e.message : "Bootstrap failed"}</p>
-      <button id="retry" type="button">Retry</button>
+      <button id="retry" type="button" class="primary">Retry</button>
       <button id="disconnect" type="button" class="linkish">Disconnect</button>
     `;
     app.querySelector("#retry")?.addEventListener("click", () => void render());
@@ -84,46 +96,82 @@ async function render(): Promise<void> {
   const draft = await loadDraft();
   const lastProject = await getLastProjectId();
   const fr = locale === "fr";
+  const supported = isSupportedClipUrl(ctx.url);
+  const host = sourceHost(ctx.url);
 
   const titleDefault =
     draft?.title ||
     (ctx.selection ? ctx.selection.slice(0, 120) : ctx.title) ||
-    ctx.url;
+    (supported ? ctx.url : "");
+
+  const disconnectLabel = fr ? "Déconnecter" : "Disconnect";
+  const unsupportedMsg = fr
+    ? "Ouvrez une page web (http/https), puis cliquez l’icône Wroket dans la barre d’outils."
+    : "Open a web page (http/https), then click the Wroket icon in the toolbar.";
 
   app.innerHTML = `
     <header class="hdr">
-      <strong>Wroket</strong>
-      <button id="disconnect" type="button" class="linkish" title="Disconnect">⎋</button>
+      <div class="brand">
+        <img src="${chrome.runtime.getURL("icons/icon48.png")}" alt="" width="20" height="20" />
+        <span>Wroket</span>
+      </div>
+      <button id="disconnect" type="button" class="linkish">${disconnectLabel}</button>
     </header>
-    <label class="lbl">${fr ? "Titre" : "Title"}</label>
-    <input id="title" type="text" maxlength="500" />
-    <div class="row kinds">
+    ${
+      supported
+        ? ""
+        : `<p class="banner warn" role="status">${unsupportedMsg}</p>`
+    }
+    <label class="lbl" for="title">${fr ? "Titre" : "Title"}</label>
+    <input id="title" type="text" maxlength="500" ${supported ? "" : "disabled"} />
+    <div class="row kinds" role="group" aria-label="${fr ? "Type" : "Kind"}">
       <button type="button" data-kind="task" class="chip active">${fr ? "Tâche" : "Task"}</button>
       <button type="button" data-kind="note" class="chip">${fr ? "Note" : "Note"}</button>
     </div>
-    <label class="lbl">${fr ? "Projet" : "Project"}</label>
-    <select id="project">
+    <label class="lbl" for="project">${fr ? "Projet" : "Project"}</label>
+    <select id="project" ${supported ? "" : "disabled"}>
       <option value="">${fr ? "Aucun" : "None"}</option>
       ${projects.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
     </select>
-    <div class="row">
-      <button type="button" data-dl="today" class="chip">${fr ? "Aujourd’hui" : "Today"}</button>
-      <button type="button" data-dl="tomorrow" class="chip">${fr ? "Demain" : "Tomorrow"}</button>
-      <button type="button" data-dl="nextweek" class="chip">${fr ? "Sem. pro" : "Next week"}</button>
-      <button type="button" data-dl="clear" class="chip muted-chip">${fr ? "Effacer" : "Clear"}</button>
+    <div id="task-only" class="task-only">
+      <div class="row" role="group" aria-label="${fr ? "Échéance" : "Deadline"}">
+        <button type="button" data-dl="today" class="chip">${fr ? "Aujourd’hui" : "Today"}</button>
+        <button type="button" data-dl="tomorrow" class="chip">${fr ? "Demain" : "Tomorrow"}</button>
+        <button type="button" data-dl="nextweek" class="chip">${fr ? "Sem. pro" : "Next week"}</button>
+        <button type="button" data-dl="clear" class="chip muted-chip">${fr ? "Effacer" : "Clear"}</button>
+      </div>
+      <input id="deadline" type="hidden" value="" />
+      <label class="lbl" for="priority">${fr ? "Priorité" : "Priority"}</label>
+      <select id="priority" ${supported ? "" : "disabled"}>
+        <option value="high">${fr ? "Haute" : "High"}</option>
+        <option value="medium" selected>${fr ? "Moyenne" : "Medium"}</option>
+        <option value="low">${fr ? "Basse" : "Low"}</option>
+      </select>
     </div>
-    <input id="deadline" type="hidden" value="" />
-    <label class="lbl">${fr ? "Priorité" : "Priority"}</label>
-    <select id="priority">
-      <option value="high">${fr ? "Haute" : "High"}</option>
-      <option value="medium" selected>${fr ? "Moyenne" : "Medium"}</option>
-      <option value="low">${fr ? "Basse" : "Low"}</option>
-    </select>
-    <p class="src muted" title="${escapeHtml(ctx.url)}">${escapeHtml(ctx.title || ctx.url)}</p>
+    ${
+      ctx.selection
+        ? `<p class="excerpt" title="${escapeHtml(ctx.selection)}">${escapeHtml(ctx.selection.slice(0, 220))}${ctx.selection.length > 220 ? "…" : ""}</p>`
+        : ""
+    }
+    ${
+      supported
+        ? `<div class="source" title="${escapeHtml(ctx.url)}">
+            <span class="source-label">${fr ? "Source" : "Source"}</span>
+            <span class="source-host">${escapeHtml(host || ctx.url)}</span>
+            ${
+              ctx.title && ctx.title !== host
+                ? `<span class="source-title">${escapeHtml(ctx.title)}</span>`
+                : ""
+            }
+          </div>`
+        : ""
+    }
     <p id="err" class="err" hidden></p>
     <div id="success" class="success" hidden></div>
     <div class="actions">
-      <button id="capture" class="primary" type="button">${fr ? "Capturer" : "Capture"}</button>
+      <button id="capture" class="primary" type="button" ${supported ? "" : "disabled"}>
+        ${fr ? "Capturer" : "Capture"}
+      </button>
     </div>
     <p class="hint muted">${fr ? "Entrée = capturer · Ctrl+Entrée = ouvrir" : "Enter = capture · Ctrl+Enter = open"}</p>
   `;
@@ -132,6 +180,7 @@ async function render(): Promise<void> {
   const projectEl = app.querySelector("#project") as HTMLSelectElement;
   const priorityEl = app.querySelector("#priority") as HTMLSelectElement;
   const deadlineEl = app.querySelector("#deadline") as HTMLInputElement;
+  const taskOnlyEl = app.querySelector("#task-only") as HTMLElement;
   const errEl = app.querySelector("#err") as HTMLElement;
   const successEl = app.querySelector("#success") as HTMLElement;
   let kind: Kind = draft?.kind ?? "task";
@@ -142,11 +191,25 @@ async function render(): Promise<void> {
   if (draft?.priority) priorityEl.value = draft.priority;
   if (draft?.deadline) deadlineEl.value = draft.deadline;
 
+  const syncDeadlineChips = () => {
+    const v = deadlineEl.value;
+    app.querySelectorAll("[data-dl]").forEach((el) => {
+      const key = el.getAttribute("data-dl");
+      let match = false;
+      if (key === "today") match = v === isoDateOffset(0);
+      else if (key === "tomorrow") match = v === isoDateOffset(1);
+      else if (key === "nextweek") match = v === nextMondayIso();
+      el.classList.toggle("active", match);
+    });
+  };
+  syncDeadlineChips();
+
   const setKind = (k: Kind) => {
     kind = k;
     app.querySelectorAll("[data-kind]").forEach((el) => {
       el.classList.toggle("active", el.getAttribute("data-kind") === k);
     });
+    taskOnlyEl.hidden = k !== "task";
   };
   setKind(kind);
 
@@ -160,8 +223,7 @@ async function render(): Promise<void> {
       else if (v === "tomorrow") deadlineEl.value = isoDateOffset(1);
       else if (v === "nextweek") deadlineEl.value = nextMondayIso();
       else deadlineEl.value = "";
-      app.querySelectorAll("[data-dl]").forEach((c) => c.classList.remove("active"));
-      if (v !== "clear") el.classList.add("active");
+      syncDeadlineChips();
     });
   });
 
@@ -193,13 +255,15 @@ async function render(): Promise<void> {
       errEl.hidden = false;
       return;
     }
-    if (!/^https?:/i.test(ctx.url)) {
-      errEl.textContent = fr ? "URL non supportée" : "Unsupported URL";
+    if (!isSupportedClipUrl(ctx.url)) {
+      errEl.textContent = unsupportedMsg;
       errEl.hidden = false;
       return;
     }
     await persistDraft();
     const clientId = crypto.randomUUID();
+    const captureBtn = app.querySelector("#capture") as HTMLButtonElement;
+    captureBtn.disabled = true;
     try {
       const result = await capture({
         clientId,
@@ -234,7 +298,7 @@ async function render(): Promise<void> {
     } catch (e) {
       await persistDraft();
       if (e instanceof ExtApiError && (e.status === 402 || e.code?.includes("QUOTA"))) {
-        errEl.innerHTML = `${escapeHtml(e.message)} — <a href="https://wroket.com/pricing" target="_blank" rel="noreferrer">${fr ? "Upgrade" : "Upgrade"}</a>`;
+        errEl.innerHTML = `${escapeHtml(e.message)} — <a href="https://wroket.com/pricing" target="_blank" rel="noreferrer">Upgrade</a>`;
       } else if (e instanceof ExtApiError && e.status === 401) {
         errEl.textContent = fr ? "Reconnectez l’extension" : "Reconnect the extension";
         setTimeout(() => void render(), 800);
@@ -242,6 +306,8 @@ async function render(): Promise<void> {
         errEl.textContent = e instanceof Error ? e.message : "Capture failed";
       }
       errEl.hidden = false;
+    } finally {
+      captureBtn.disabled = !supported;
     }
   };
 
@@ -252,8 +318,10 @@ async function render(): Promise<void> {
       void doCapture(ev.ctrlKey || ev.metaKey);
     }
   });
-  titleEl.focus();
-  titleEl.select();
+  if (supported) {
+    titleEl.focus();
+    titleEl.select();
+  }
 }
 
 function escapeHtml(s: string): string {
@@ -264,4 +332,6 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+window.addEventListener("resize", syncViewportMode);
+syncViewportMode();
 void render();

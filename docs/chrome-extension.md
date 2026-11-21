@@ -31,7 +31,7 @@ Capture a web page or selection into a **Wroket task or note**, with project / d
 | Stable ID (dev) | Optional `manifest.key` from PEM kept **out of git** (local/CI secret) so unpacked ID matches Store |
 | Redirect allowlist | Backend accepts only `https://*.chromiumapp.org/*` (already enforced) |
 | Privacy | Section **Chrome extension** live on `https://wroket.com/privacy` **before** submit |
-| Listing copy | Single purpose: “Capture web pages into Wroket tasks/notes”; Productivity; FR+EN screenshots |
+| Listing copy | Single purpose: “Capture web pages into Wroket tasks/notes”; Productivity; FR+EN screenshots in `extensions/chrome/store-assets/` (regenerate via `compose-*.html` + Chrome headless) |
 | Permissions justifications | Each MV3 permission explained in CWS form |
 | Rollout | Unlisted → smoke (Free / Small / admin / quota / revoked) → Public |
 

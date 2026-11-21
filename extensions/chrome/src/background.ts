@@ -38,7 +38,8 @@ async function quickCapture(kind: "task" | "note", selectionOverride?: string): 
   }
   const ctx = await getActiveTabClip();
   if (!/^https?:/i.test(ctx.url)) {
-    console.warn("[wroket] unsupported URL");
+    console.warn("[wroket] unsupported URL — open an http(s) page");
+    await chrome.action.openPopup().catch(() => undefined);
     return;
   }
   const excerpt = (selectionOverride ?? ctx.selection).trim();

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Wroket Clipper — small promo</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 440px;
+        height: 280px;
+        overflow: hidden;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background:
+          radial-gradient(320px 200px at 0% 0%, #a7f3d0 0%, transparent 60%),
+          linear-gradient(135deg, #0b1120 0%, #0f172a 55%, #064e3b 100%);
+        color: #e2e8f0;
+        display: flex;
+        align-items: center;
+        padding: 28px 30px;
+        gap: 18px;
+      }
+      .copy { flex: 1; min-width: 0; }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .brand img {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        box-shadow: 0 6px 16px rgb(0 0 0 / 35%);
+      }
+      .brand strong {
+        font-size: 22px;
+        letter-spacing: -0.03em;
+      }
+      .brand strong span { color: #34d399; }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #94a3b8;
+      }
+      .card {
+        width: 168px;
+        flex-shrink: 0;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 10px;
+        padding: 12px;
+        box-shadow: 0 14px 30px rgb(0 0 0 / 35%);
+      }
+      .card .t { font-size: 10px; color: #64748b; font-weight: 600; }
+      .card .v {
+        margin: 4px 0 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 6px 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+      .chip {
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 6px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+      }
+      .chip.on { background: #059669; color: #fff; border-color: #059669; }
+      .btn {
+        background: #059669;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="copy">
+      <div class="brand">
+        <img src="../public/icons/icon48.png" alt="" />
+        <strong>Wro<span>ket</span></strong>
+      </div>
+      <h1>Clip any web page into a task or note</h1>
+      <p>Toolbar popup · project, deadline, source link</p>
+    </div>
+    <div class="card" aria-hidden="true">
+      <div class="t">Title</div>
+      <div class="v">Planning Q1 priorities</div>
+      <div class="kinds">
+        <div class="chip on">Task</div>
+        <div class="chip">Note</div>
+      </div>
+      <div class="btn">Capture</div>
+    </div>
+  </body>
+</html>
