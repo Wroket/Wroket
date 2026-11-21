@@ -155,6 +155,10 @@ export default function TaskEditModal({
     onFormChange({ recurrence: null });
   }, [deadlineIsPast, form.recurrence, onFormChange]);
 
+  useEffect(() => {
+    if (editZone === "meet" && !showMeetTab) setEditZone("essentials");
+  }, [editZone, showMeetTab]);
+
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [timeSessions, setTimeSessions] = useState<TimeSession[]>([]);
@@ -480,10 +484,6 @@ export default function TaskEditModal({
   const handleScheduleOrMeetUpdate = (updated: Todo) => {
     onTodoUpdated?.(updated);
   };
-
-  useEffect(() => {
-    if (editZone === "meet" && !showMeetTab) setEditZone("essentials");
-  }, [editZone, showMeetTab]);
 
   return (
     <>
