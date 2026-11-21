@@ -2911,6 +2911,7 @@ export default function ProjectDetailView({
           customFieldDefs={selectedProject.customFieldDefs ?? []}
           canUseCustomFields={!!user?.entitlements?.integrations}
           canUseTimeTracking={!!user?.entitlements?.integrations}
+          canUseMeet
           onTodoUpdated={(updated) => {
             setProjectTodos((prev) => prev.map((td) => (td.id === updated.id ? updated : td)));
             setEditingTodo(updated);

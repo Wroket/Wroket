@@ -1725,6 +1725,7 @@ export default function AgendaPage() {
           }
           canSyncToCalendar={canSyncExternalSlots && !!editingTodo && editingTodo.userId === user?.uid}
           onExternalSlotSynced={handleExternalSlotSynced}
+          canUseMeet
           onTodoUpdated={(updated) => {
             setEditingTodo(updated);
             setAgendaTodoById((prev) => {

@@ -12,12 +12,11 @@ import EisenhowerRadar from "@/components/EisenhowerRadar";
 import PageHelpButton from "@/components/PageHelpButton";
 import { ScheduledSlotBadge } from "@/components/SlotPicker";
 import PageScheduleModal from "@/components/PageScheduleModal";
+import MeetOptionsModal from "@/components/MeetOptionsModal";
 import SubtaskModal from "@/components/SubtaskModal";
 import ContactEmailSuggestInput from "@/components/ContactEmailSuggestInput";
 import TaskEditModal, { type TaskEditZone } from "@/components/TaskEditModal";
 import TaskNoteModal from "@/components/TaskNoteModal";
-import ViewportOverlay, { sheetPanelClass } from "@/components/ui/ViewportOverlay";
-import { useNarrowVisualViewport } from "@/hooks/useVisualViewportRect";
 import TodoCard from "@/components/TodoCard";
 import AssignmentStatusBadge from "@/components/AssignmentStatusBadge";
 import TaskRowActionsV2 from "@/components/v2/TaskRowActionsV2";
@@ -60,15 +59,13 @@ import {
   Team,
   Note,
 } from "@/lib/api";
-import { clearTaskMeet, createTaskMeet, getTaskSlots, updateTaskMeet } from "@/lib/api/calendar";
-import { meetingJoinI18nKey } from "@/lib/meetingJoinLabel";
 import { displayTodoTitle } from "@/lib/todoDisplay";
 import { classify } from "@/lib/classify";
 import { deadlineLabel } from "@/lib/deadlineUtils";
 import { getEffectiveDueDay, hasNoEffectiveDue } from "@/lib/effectiveDue";
 import { EFFORT_BADGES } from "@/lib/effortBadges";
 import { QUADRANT_SURFACE, TAG_AUX } from "@/lib/tagPalette";
-import { ApiClientError, formatUserFacingError } from "@/lib/apiErrors";
+import { formatUserFacingError } from "@/lib/apiErrors";
 import { useLocale } from "@/lib/LocaleContext";
 import {
   PRIORITY_BADGES,
@@ -119,76 +116,6 @@ function applySortOrderPatchToList(list: Todo[], orderedIds: string[]): Todo[] {
     if (i !== -1) updated[i] = { ...updated[i], sortOrder: idx };
   });
   return updated;
-}
-
-function getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "shortOffset",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(date);
-  const offsetPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT+0";
-  const match = offsetPart.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
-  if (!match) return 0;
-  const sign = match[1] === "-" ? -1 : 1;
-  const hours = Number(match[2] ?? "0");
-  const minutes = Number(match[3] ?? "0");
-  return sign * (hours * 60 + minutes);
-}
-
-function formatIsoForDateTimeInputInZone(iso: string, timeZone: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("sv-SE", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(date);
-  const byType = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${byType("year")}-${byType("month")}-${byType("day")}T${byType("hour")}:${byType("minute")}`;
-}
-
-function wallTimeInZoneToIso(value: string, timeZone: string): string {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-  if (!match) return new Date(value).toISOString();
-  const [, y, mo, d, h, mi] = match;
-  const utcGuess = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), 0, 0));
-  const offsetMinutes = getTimeZoneOffsetMinutes(utcGuess, timeZone);
-  const ts = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), 0, 0) - offsetMinutes * 60_000;
-  return new Date(ts).toISOString();
-}
-
-function mapMeetErrorToMessageKey(message: string): TranslationKey {
-  const msg = message.toLowerCase();
-  if (msg.includes("connectez") || msg.includes("non connecté") || msg.includes("connect")) return "meet.errorNoGoogle";
-  if (msg.includes("invités externes") && (msg.includes("teams") || msg.includes("microsoft") || msg.includes("outlook"))) {
-    return "meet.errorExternalInvitePolicyTeams";
-  }
-  if (msg.includes("invitation") && (msg.includes("outlook") || msg.includes("teams") || msg.includes("microsoft"))) {
-    return "meet.errorInviteesTeams";
-  }
-  if (msg.includes("invités externes") || msg.includes("forbiddenfornonorganizer")) return "meet.errorExternalInvitePolicy";
-  if (
-    msg.includes("permissions outlook")
-    || msg.includes("permissions google calendar")
-    || (msg.includes("permissions") && !msg.includes("invit"))
-  ) return "meet.errorPermissions";
-  if (msg.includes("calendrier google introuvable") || msg.includes("calendrier outlook") || msg.includes("calendrier par défaut")) {
-    return "meet.errorDefaultCalendar";
-  }
-  if (msg.includes("rejeté") || msg.includes("rejected") || msg.includes("email invalide") || msg.includes("invités")) {
-    return "meet.errorInvitees";
-  }
-  return "meet.error";
 }
 
 export default function TodosPage() {
@@ -835,148 +762,16 @@ export default function TodosPage() {
     replaceTodoInLists(updated);
   }, [replaceTodoInLists]);
 
-  const [meetLoadingId, setMeetLoadingId] = useState<string | null>(null);
+  const [meetLoadingId] = useState<string | null>(null);
   const [meetOptionsTodo, setMeetOptionsTodo] = useState<Todo | null>(null);
-  const meetOptionsNarrow = useNarrowVisualViewport(!!meetOptionsTodo);
-  const [meetStart, setMeetStart] = useState("");
-  const [meetDuration, setMeetDuration] = useState(60);
-  const [meetSummary, setMeetSummary] = useState("");
-  const [meetDescription, setMeetDescription] = useState("");
-  const [meetInviteEmail, setMeetInviteEmail] = useState("");
-  const [meetInvitees, setMeetInvitees] = useState<string[]>([]);
-  const [meetSlotOptions, setMeetSlotOptions] = useState<Array<{ label: string; start: string; end: string }>>([]);
-  const [meetSlotLoading, setMeetSlotLoading] = useState(false);
 
-  const addMeetInvitee = useCallback((emailInput: string) => {
-    const email = emailInput.trim().toLowerCase();
-    if (!email || !email.includes("@") || email.length < 5) return;
-    setMeetInvitees((prev) => (prev.includes(email) ? prev : [...prev, email]));
-    setMeetInviteEmail("");
-  }, []);
-
-  const openMeetOptions = useCallback(async (todo: Todo) => {
+  const handleMeet = useCallback(async (todo: Todo) => {
     setMeetOptionsTodo(todo);
-    setMeetInvitees(todo.scheduledSlot?.meetingInvitees ?? []);
-    setMeetInviteEmail("");
-    setMeetDescription("");
-    setMeetSummary(todo.title);
-    setMeetSlotOptions([]);
-
-    if (todo.scheduledSlot?.start && todo.scheduledSlot?.end) {
-      const startDate = new Date(todo.scheduledSlot.start);
-      const endDate = new Date(todo.scheduledSlot.end);
-      const durationMin = Math.max(15, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
-      setMeetStart(formatIsoForDateTimeInputInZone(todo.scheduledSlot.start, userTimeZone));
-      setMeetDuration(durationMin);
-      return;
-    }
-
-    setMeetSlotLoading(true);
-    try {
-      const data = await getTaskSlots(todo.id);
-      const slots = data.slots ?? [];
-      setMeetSlotOptions(slots.map((s) => ({ label: s.label, start: s.start, end: s.end })));
-      if (slots.length > 0) {
-        const start = slots[0]!.start;
-        const end = slots[0]!.end;
-        const durationMin = Math.max(15, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
-        setMeetStart(formatIsoForDateTimeInputInZone(start, userTimeZone));
-        setMeetDuration(durationMin);
-      } else {
-        const now = new Date();
-        const rounded = new Date(now.getTime() + 15 * 60000 - (now.getTime() % (15 * 60000)));
-        setMeetStart(formatIsoForDateTimeInputInZone(rounded.toISOString(), userTimeZone));
-        setMeetDuration(60);
-      }
-    } catch {
-      const now = new Date();
-      const rounded = new Date(now.getTime() + 15 * 60000 - (now.getTime() % (15 * 60000)));
-      setMeetStart(formatIsoForDateTimeInputInZone(rounded.toISOString(), userTimeZone));
-      setMeetDuration(60);
-    } finally {
-      setMeetSlotLoading(false);
-    }
-  }, [userTimeZone]);
+  }, []);
 
   const closeMeetOptions = useCallback(() => {
     setMeetOptionsTodo(null);
-    setMeetSlotOptions([]);
-    setMeetInvitees([]);
-    setMeetInviteEmail("");
   }, []);
-
-  const handleMeet = useCallback(async (todo: Todo) => {
-    await openMeetOptions(todo);
-  }, [openMeetOptions]);
-
-  const handleCreateMeetWithOptions = useCallback(async () => {
-    if (!meetOptionsTodo || !meetStart) return;
-    const pendingTodo = meetOptionsTodo;
-    const pendingStart = meetStart;
-    const pendingDuration = meetDuration;
-    const pendingInvitees = [...meetInvitees];
-    const pendingSummary = meetSummary;
-    const pendingDescription = meetDescription;
-
-    // Close immediately for snappier UX and keep processing in background.
-    closeMeetOptions();
-    setMeetLoadingId(pendingTodo.id);
-    try {
-      const startIso = wallTimeInZoneToIso(pendingStart, userTimeZone);
-      const endIso = new Date(new Date(startIso).getTime() + pendingDuration * 60000).toISOString();
-      const updater = pendingTodo.scheduledSlot?.meetingUrl ? updateTaskMeet : createTaskMeet;
-      const updated = await updater(pendingTodo.id, {
-        start: startIso,
-        end: endIso,
-        attendees: pendingInvitees,
-        summary: pendingSummary.trim() || pendingTodo.title,
-        description: pendingDescription.trim() || undefined,
-      });
-      replaceTodoInLists(updated);
-      const meetUrl = updated.scheduledSlot?.meetingUrl;
-      if (meetUrl && !pendingTodo.scheduledSlot?.meetingUrl) {
-        await navigator.clipboard.writeText(meetUrl).catch(() => null);
-        toast.success(t("meet.created"));
-      } else {
-        toast.success(t("meet.updated"));
-      }
-    } catch (err) {
-      // Reopen modal with previous values so user can adjust and retry quickly.
-      setMeetOptionsTodo(pendingTodo);
-      setMeetStart(pendingStart);
-      setMeetDuration(pendingDuration);
-      setMeetInvitees(pendingInvitees);
-      setMeetSummary(pendingSummary);
-      setMeetDescription(pendingDescription);
-      toast.error(
-        err instanceof ApiClientError
-          ? formatUserFacingError(err, "meet.error")
-          : t(mapMeetErrorToMessageKey(err instanceof Error ? err.message : "")),
-      );
-    } finally {
-      setMeetLoadingId(null);
-    }
-  }, [meetOptionsTodo, meetStart, meetDuration, meetInvitees, meetSummary, meetDescription, replaceTodoInLists, toast, t, closeMeetOptions, userTimeZone]);
-
-  const handleClearMeetWithOptions = useCallback(async () => {
-    if (!meetOptionsTodo) return;
-    const pendingTodo = meetOptionsTodo;
-    closeMeetOptions();
-    setMeetLoadingId(pendingTodo.id);
-    try {
-      const updated = await clearTaskMeet(pendingTodo.id);
-      replaceTodoInLists(updated);
-      toast.success(t("meet.cancelled"));
-    } catch (err) {
-      toast.error(
-        err instanceof ApiClientError
-          ? formatUserFacingError(err, "meet.error")
-          : t(mapMeetErrorToMessageKey(err instanceof Error ? err.message : "")),
-      );
-    } finally {
-      setMeetLoadingId(null);
-    }
-  }, [meetOptionsTodo, closeMeetOptions, replaceTodoInLists, toast, t]);
 
   const handleReorder = useCallback(async (orderedIds: string[]) => {
     try {
@@ -2117,6 +1912,7 @@ export default function TodosPage() {
           setEditingTodo(updated);
           void handleScheduleUpdate(updated);
         }}
+        canUseMeet
         onRequestDeleteTask={async (t) => {
           await closeEditModal();
           requestDelete(t);
@@ -2203,166 +1999,15 @@ export default function TodosPage() {
         analyticsSource="todos"
       />
 
-      {meetOptionsTodo && (
-        <ViewportOverlay open onClose={closeMeetOptions} zClassName="z-[100]">
-          <div
-            className={sheetPanelClass(
-              meetOptionsNarrow,
-              "relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-zinc-200 dark:border-slate-700 w-full max-w-lg mx-4 p-5",
-            )}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-slate-100">{t("meet.optionsTitle")}</h3>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-slate-400 truncate">{displayTodoTitle(meetOptionsTodo.title, t("todos.untitled"))}</p>
-
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.summary")}</label>
-                <input
-                  value={meetSummary}
-                  onChange={(e) => setMeetSummary(e.target.value)}
-                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.slot")}</label>
-                {meetSlotLoading ? (
-                  <p className="text-xs text-zinc-400 dark:text-slate-500">{t("loading")}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {meetSlotOptions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {meetSlotOptions.slice(0, 4).map((slot) => (
-                          <button
-                            key={`${slot.start}-${slot.end}`}
-                            type="button"
-                            onClick={() => {
-                              const durationMin = Math.max(15, Math.round((new Date(slot.end).getTime() - new Date(slot.start).getTime()) / 60000));
-                              setMeetStart(formatIsoForDateTimeInputInZone(slot.start, userTimeZone));
-                              setMeetDuration(durationMin);
-                            }}
-                            className="text-xs rounded border border-zinc-300 dark:border-slate-600 px-2 py-1 text-zinc-600 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
-                          >
-                            {slot.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] text-zinc-400 dark:text-slate-500 mb-1">{t("meet.start")}</label>
-                        <input
-                          type="datetime-local"
-                          value={meetStart}
-                          onChange={(e) => setMeetStart(e.target.value)}
-                          className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-zinc-400 dark:text-slate-500 mb-1">{t("meet.duration")}</label>
-                        <select
-                          value={meetDuration}
-                          onChange={(e) => setMeetDuration(Number(e.target.value))}
-                          className="w-full rounded border border-zinc-300 dark:border-slate-600 px-2 py-1.5 text-sm dark:bg-slate-800 dark:text-slate-100"
-                        >
-                          <option value={30}>30 min</option>
-                          <option value={45}>45 min</option>
-                          <option value={60}>60 min</option>
-                          <option value={90}>90 min</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.invitees")}</label>
-                <div className="flex items-center gap-2">
-                  <ContactEmailSuggestInput
-                    value={meetInviteEmail}
-                    onChange={setMeetInviteEmail}
-                    placeholder={t("assign.placeholder")}
-                    inputClassName="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addMeetInvitee(meetInviteEmail)}
-                    className="rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-xs text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
-                  >
-                    {t("meet.addInvitee")}
-                  </button>
-                </div>
-                {meetInvitees.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {meetInvitees.map((email) => (
-                      <button
-                        key={email}
-                        type="button"
-                        onClick={() => setMeetInvitees((prev) => prev.filter((e) => e !== email))}
-                        className="text-[11px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                        title={t("notes.attachDelete")}
-                      >
-                        {email} ×
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-slate-400 mb-1">{t("meet.description")}</label>
-                <textarea
-                  value={meetDescription}
-                  onChange={(e) => setMeetDescription(e.target.value)}
-                  rows={3}
-                  className="w-full rounded border border-zinc-300 dark:border-slate-600 px-3 py-2 text-sm dark:bg-slate-800 dark:text-slate-100"
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeMeetOptions}
-                className="rounded border border-zinc-300 dark:border-slate-600 px-4 py-2 text-sm text-zinc-700 dark:text-slate-300 hover:bg-zinc-50 dark:hover:bg-slate-800"
-              >
-                {t("projects.cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateMeetWithOptions}
-                disabled={!meetStart || meetLoadingId === meetOptionsTodo.id}
-                className="rounded bg-slate-700 dark:bg-slate-600 px-4 py-2 text-sm font-medium text-white dark:text-slate-100 hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-60"
-              >
-                {meetLoadingId === meetOptionsTodo.id ? "…" : (meetOptionsTodo.scheduledSlot?.meetingUrl ? t("meet.updateAction") : t("meet.createAction"))}
-              </button>
-              {meetOptionsTodo.scheduledSlot?.meetingUrl && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleClearMeetWithOptions}
-                    disabled={meetLoadingId === meetOptionsTodo.id}
-                    className="rounded border border-red-300 dark:border-red-700 px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-60"
-                  >
-                    {t("meet.cancelAction")}
-                  </button>
-                  <a
-                    href={meetOptionsTodo.scheduledSlot.meetingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border border-emerald-300 dark:border-emerald-700 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                    title={t(meetingJoinI18nKey(meetOptionsTodo.scheduledSlot.meetingProvider))}
-                  >
-                    {t(meetingJoinI18nKey(meetOptionsTodo.scheduledSlot.meetingProvider))}
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-        </ViewportOverlay>
-      )}
+      <MeetOptionsModal
+        todo={meetOptionsTodo}
+        timeZone={userTimeZone}
+        onClose={closeMeetOptions}
+        onUpdated={(updated) => {
+          replaceTodoInLists(updated);
+          setEditingTodo((prev) => (prev?.id === updated.id ? updated : prev));
+        }}
+      />
     </AppShell>
   );
 }

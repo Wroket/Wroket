@@ -29,6 +29,7 @@ import type {
   Collaborator,
   Attachment,
   Project,
+  Todo,
 } from "@/lib/api";
 import {
   getTodoTimeSessions,
@@ -41,7 +42,9 @@ import { updateTodo } from "@/lib/api";
 import { useUiV2 } from "@/lib/UiVersionContext";
 import TaskEditZoneTabs from "@/components/taskEdit/TaskEditZoneTabs";
 import TaskEditEssentialsZone from "@/components/taskEdit/TaskEditEssentialsZone";
+import TaskEditScheduleZone from "@/components/taskEdit/TaskEditScheduleZone";
 import TaskEditPlanningZone from "@/components/taskEdit/TaskEditPlanningZone";
+import TaskEditMeetZone from "@/components/taskEdit/TaskEditMeetZone";
 import TaskEditCollabZone from "@/components/taskEdit/TaskEditCollabZone";
 import TaskEditAdvancedZone from "@/components/taskEdit/TaskEditAdvancedZone";
 import type { TaskEditZone, TaskEditModalProps } from "@/components/taskEdit/types";
@@ -75,6 +78,7 @@ export default function TaskEditModal({
   onTodoCommentsChanged,
   viewOnly = false,
   onManageMeet,
+  canUseMeet,
   freeTierContentLocks = false,
   canSyncToCalendar = false,
   onExternalSlotSynced,
@@ -94,6 +98,7 @@ export default function TaskEditModal({
   const integrationsEntitled = !!user?.entitlements?.integrations || !!user?.earlyBird;
   const effectiveCanUseTimeTracking = canUseTimeTracking || integrationsEntitled;
   const effectiveCanUseCustomFields = canUseCustomFields || integrationsEntitled;
+  const showMeetTab = (canUseMeet ?? !!onTodoUpdated) && !viewOnly && isTaskOwner;
   const trapRef = useFocusTrap(!!todo);
   useModalCloseKeys(!!todo, onClose);
   const narrow = useNarrowVisualViewport(!!todo);
@@ -468,9 +473,17 @@ export default function TaskEditModal({
   const panelClass = sheetPanelClass(
     narrow,
     uiV2
-      ? "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-4 max-w-xl h-[min(36rem,90dvh)] overflow-hidden flex flex-col rounded-sm"
+      ? "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-4 max-w-2xl h-[min(46rem,92dvh)] overflow-hidden flex flex-col rounded-sm"
       : "relative bg-white dark:bg-slate-900 shadow-2xl border border-zinc-200 dark:border-slate-700 w-full mx-4 max-w-lg max-h-[90dvh] overflow-y-auto rounded-lg",
   );
+
+  const handleScheduleOrMeetUpdate = (updated: Todo) => {
+    onTodoUpdated?.(updated);
+  };
+
+  useEffect(() => {
+    if (editZone === "meet" && !showMeetTab) setEditZone("essentials");
+  }, [editZone, showMeetTab]);
 
   return (
     <>
@@ -534,7 +547,11 @@ export default function TaskEditModal({
           {t("edit.title")}
         </h3>
         {uiV2 && (
-          <TaskEditZoneTabs editZone={editZone} onEditZoneChange={setEditZone} />
+          <TaskEditZoneTabs
+            editZone={editZone}
+            onEditZoneChange={setEditZone}
+            showMeet={showMeetTab}
+          />
         )}
         <div className={uiV2 ? "flex-1 min-h-0 overflow-y-auto" : undefined}>
         <TaskEditEssentialsZone
@@ -547,7 +564,24 @@ export default function TaskEditModal({
           canSyncToCalendar={canSyncToCalendar}
           slotPushRunning={slotPushRunning}
           onPushSlotToCalendar={handlePushSlotToCalendar}
-          onManageMeet={onManageMeet}
+          onManageMeet={
+            onManageMeet ??
+            (showMeetTab
+              ? () => {
+                  setEditZone("meet");
+                }
+              : undefined)
+          }
+        />
+
+        <TaskEditScheduleZone
+          className={zoneCls("schedule")}
+          todo={todo}
+          dateMin={form.startDate || undefined}
+          dateMax={form.deadline || undefined}
+          isTaskOwner={isTaskOwner}
+          freeTierContentLocks={freeTierContentLocks}
+          onScheduleUpdate={onTodoUpdated ? handleScheduleOrMeetUpdate : undefined}
         />
 
         <TaskEditPlanningZone
@@ -570,14 +604,18 @@ export default function TaskEditModal({
           onSuggestTimeChange={setSuggestTime}
           suggestDuration={suggestDuration}
           onSuggestDurationChange={setSuggestDuration}
-          onScheduleUpdate={
-            onTodoUpdated
-              ? (updated) => {
-                  onTodoUpdated(updated);
-                }
-              : undefined
-          }
         />
+
+        {showMeetTab && (
+          <TaskEditMeetZone
+            className={zoneCls("meet")}
+            todo={todo}
+            isTaskOwner={isTaskOwner}
+            viewOnly={viewOnly}
+            meetEnabled={showMeetTab}
+            onUpdated={handleScheduleOrMeetUpdate}
+          />
+        )}
 
         <TaskEditCollabZone
           className={zoneCls("collab")}

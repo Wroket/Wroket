@@ -1004,6 +1004,15 @@ export default function TeamDashboardPage() {
         freeTierContentLocks={
           !!user && !!editingTodo && editingTodo.userId === user.uid && user.billingPlan === "free" && !user.earlyBird
         }
+        canUseMeet={!viewOnly}
+        onTodoUpdated={
+          viewOnly
+            ? undefined
+            : (updated) => {
+                replaceTodoInData(updated);
+                setEditingTodo(updated);
+              }
+        }
         onRequestDeleteTask={
           !viewOnly && editingTodo?.userId === user?.uid
             ? async (td) => {

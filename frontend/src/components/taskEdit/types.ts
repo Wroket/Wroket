@@ -9,7 +9,13 @@ import type {
   SuggestedSlot,
 } from "@/lib/api";
 
-export type TaskEditZone = "essentials" | "planning" | "collab" | "advanced";
+export type TaskEditZone =
+  | "essentials"
+  | "schedule"
+  | "planning"
+  | "meet"
+  | "collab"
+  | "advanced";
 
 export interface TaskEditModalProps {
   todo: Todo | null;
@@ -55,8 +61,13 @@ export interface TaskEditModalProps {
   onTodoCommentsChanged?: (todoId: string) => void;
   /** Read-only preview (no edits; team dashboard when user is not owner/assignee). */
   viewOnly?: boolean;
-  /** Open the meeting management modal for this task. */
+  /** Open the meeting management modal for this task (Essentials banner). */
   onManageMeet?: (todo: Todo) => void;
+  /**
+   * When true (default if onTodoUpdated is set), show the Meet tab with create/edit form.
+   * Set false on view-only surfaces without meet API.
+   */
+  canUseMeet?: boolean;
   /** When true, disable recurrence and new attachments (Free-tier task owner). */
   freeTierContentLocks?: boolean;
   /** Calendar integrations entitlement + linked account (agenda page). */

@@ -417,6 +417,7 @@ Rendre l'app plus lisible, cohérente et rapide à utiliser, en priorisant les p
 - [x] **Templates & checklists de tâches** — `TaskTemplatePicker` + templates système + CRUD perso (`/templates`) ; application priorité/effort/tags/sous-tâches à la création ; E2E §I validé.
 - [x] **Liens partageables en lecture seule** — URL token projet (`/share/project/:token`) + **par tâche** (`/share/task/:token`, expiration / révocation). **Ensuite** : Client Portal (livré).
 - [x] **Accessibilité (a11y) ciblée** — Focus trap sur `Modal` + dialogs Agenda/move ; contraste empty/hints Archives/Settings/Notifs ; labels boutons critiques. Pas d’audit WCAG exhaustif.
+- [x] **TaskEditModal — onglets Schedule / Meet + lisibilité (2026-11-21)** — Zones `schedule` (SlotPicker) et `meet` (formulaire partagé `MeetOptionsForm` / modal ligne) séparées de Planning ; récurrence remontée ; shell V2 agrandi (`max-w-2xl`, ~46rem) ; barre d’actions liste **inchangée**. *E2E manuel* : book créneau onglet Schedule ; récurrence visible Planning sans scroll ; create/edit Meet depuis onglet + icône ligne ; non-régression pins Actions visibles.
 
 ## Intégrations & Connecteurs
 
